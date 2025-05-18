@@ -2,16 +2,16 @@
 
 #include <stdexcept>
 
-THitPoints::THitPoints(int maxHp)
-    : MaxHp(maxHp)
-    , CurrentHp(maxHp)
-    , TemporaryHp(0)
+THitPoints::THitPoints(int max_hp)
+    : max_hp(max_hp)
+    , current_hp(max_hp)
+    , temporary_hp(0)
 {
 }
 
 int THitPoints::GetCurrentHp() const
 {
-    return CurrentHp + TemporaryHp;
+    return current_hp + temporary_hp;
 }
 
 void THitPoints::ReduceHp(int damage)
@@ -19,12 +19,12 @@ void THitPoints::ReduceHp(int damage)
     if (damage < 0) {
         throw std::logic_error("negative damage");
     }
-    TemporaryHp -= damage;
-    if (TemporaryHp < 0) {
-        CurrentHp += TemporaryHp;
-        TemporaryHp = 0;
-        if (CurrentHp < 0) {
-            CurrentHp = 0;
+    temporary_hp -= damage;
+    if (temporary_hp < 0) {
+        current_hp += temporary_hp;
+        temporary_hp = 0;
+        if (current_hp < 0) {
+            current_hp = 0;
         }
     }
 }
@@ -34,15 +34,15 @@ void THitPoints::RestoreHp(int heal)
     if (heal < 0) {
         throw std::logic_error("negative heal");
     }
-    CurrentHp += heal;
-    if (CurrentHp > MaxHp) {
-        CurrentHp = MaxHp;
+    current_hp += heal;
+    if (current_hp > max_hp) {
+        current_hp = max_hp;
     }
 }
 
 void THitPoints::SetTemporaryHp(int hp)
 {
-    if (TemporaryHp < hp) {
-        TemporaryHp = hp;
+    if (temporary_hp < hp) {
+        temporary_hp = hp;
     }
 }

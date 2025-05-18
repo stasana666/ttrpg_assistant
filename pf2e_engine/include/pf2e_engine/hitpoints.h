@@ -1,10 +1,8 @@
 #pragma once
 
-#include "observable.h"
-
-class THitPoints : TObservable {
+class THitPoints {
 public:
-    THitPoints(int maxHp);
+    THitPoints(int max_hp);
 
     int GetCurrentHp() const;
     void ReduceHp(int damage);
@@ -12,7 +10,7 @@ public:
     void SetTemporaryHp(int hp);
 
 private:
-    int MaxHp;
-    int CurrentHp;
-    int TemporaryHp;
+    int max_hp;
+    int current_hp;
+    int temporary_hp;
 };
