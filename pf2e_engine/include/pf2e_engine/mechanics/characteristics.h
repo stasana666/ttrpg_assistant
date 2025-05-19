@@ -1,5 +1,7 @@
 #pragma once
 
+#include <pf2e_engine/common/observable.h>
+
 #include <array>
 #include <string_view>
 #include <string>
@@ -13,7 +15,7 @@ enum class ECharacteristic {
     Charisma,
 };
 
-class TCharacteristic {
+class TCharacteristic final : public TObservable<const TCharacteristic&> {
 public:
     TCharacteristic(int value);
 

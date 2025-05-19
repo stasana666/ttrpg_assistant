@@ -18,6 +18,7 @@ int TCharacteristic::GetMod() const
 void TCharacteristic::Set(int value_)
 {
     value = value_;
+    NotifyAll(*this);
 }
 
 TCharacteristicSet::TCharacteristicSet(std::array<int, kCharacteristicCount> values)

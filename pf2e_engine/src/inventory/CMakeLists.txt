@@ -1,6 +1,6 @@
 target_sources(pf2e_engine
     PRIVATE
-        armour.cpp
+        armor.cpp
 )
 
 target_include_directories(pf2e_engine

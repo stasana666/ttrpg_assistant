@@ -1,16 +1,17 @@
 #include <creature.h>
 
-TCreature::TCreature(TCharacteristicSet stats, TArmour armour, THitPoints hitpoints)
+TCreature::TCreature(TCharacteristicSet stats, TArmor armor, THitPoints hitpoints)
     : stats(stats)
-    , armour(armour)
+    , armor(armor)
+    , armorSlot(&armor)
     , hitpoints(hitpoints)
+    , armorClass(armorSlot, this->stats[ECharacteristic::Dexterity])
 {
-    armourClass.Bind(this);
 }
 
-const TArmour& TCreature::GetArmour() const
+const TArmor& TCreature::GetArmor() const
 {
-    return armour;
+    return armor;
 }
 
 const TCharacteristic& TCreature::GetCharacteristic(ECharacteristic name) const
@@ -20,5 +21,5 @@ const TCharacteristic& TCreature::GetCharacteristic(ECharacteristic name) const
 
 int TCreature::GetAc() const
 {
-    return armourClass.GetAc();
+    return armorClass.GetAc();
 }

@@ -1,7 +1,7 @@
 add_subdirectory(${CMAKE_SOURCE_DIR}/extern/googletest ${CMAKE_BINARY_DIR}/extern/googletest)
 
 add_executable(test_pf2_engine
-    test_creature.cpp
+    test_armor.cpp
 )
 
 target_link_libraries(test_pf2_engine

@@ -1,8 +1,10 @@
 #pragma once
 
-class TArmour {
+class TArmor {
 public:
-    TArmour(int ac_bonus, int dex_cap);
+    TArmor(int ac_bonus, int dex_cap);
+
+    static const TArmor& GetDefault();
 
     int AcBonus() const;
     int DexCap() const;

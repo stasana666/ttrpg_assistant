@@ -1,6 +1,7 @@
 add_library(pf2e_engine
     src/creature.cpp
-    src/armour_class.cpp
+    src/armor_class.cpp
+    src/armor_slot.cpp
 )
 
 target_include_directories(pf2e_engine

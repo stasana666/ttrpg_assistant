@@ -1,5 +1,5 @@
 add_executable(test_inventory
-    test_armour.cpp
+    test_armor.cpp
 )
 
 target_link_libraries(test_inventory
