@@ -2,8 +2,8 @@
 
 #include <pf2e_engine/inventory/armour.h>
 #include <pf2e_engine/mechanics/hitpoints.h>
+#include <pf2e_engine/mechanics/characteristics.h>
 
-#include "characteristics.h"
 #include "armour_class.h"
 
 class TCreature {

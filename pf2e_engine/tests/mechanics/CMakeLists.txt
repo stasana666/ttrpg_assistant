@@ -1,5 +1,6 @@
 add_executable(test_mechanics
     test_hitpoints.cpp
+    test_characteristics.cpp
 )
 
 target_link_libraries(test_mechanics

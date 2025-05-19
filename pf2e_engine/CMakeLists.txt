@@ -1,5 +1,4 @@
 add_library(pf2e_engine
-    src/characteristics.cpp
     src/creature.cpp
     src/armour_class.cpp
 )

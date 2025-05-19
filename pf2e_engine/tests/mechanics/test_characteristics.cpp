@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <pf2e_engine/characteristics.h>
+#include <characteristics.h>
 
 TEST(CharacteristicsTest, FromString) {
     std::unordered_map<std::string, ECharacteristic> table{

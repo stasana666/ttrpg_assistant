@@ -2,6 +2,7 @@ target_sources(pf2e_engine
     PRIVATE
         damage.cpp
         hitpoints.cpp
+        characteristics.cpp
 )
 
 target_include_directories(pf2e_engine
