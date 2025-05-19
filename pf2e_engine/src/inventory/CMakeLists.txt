@@ -1,7 +1,8 @@
-add_library(inventory 
-    armour.cpp
+target_sources(pf2e_engine
+    PRIVATE
+        armour.cpp
 )
 
-target_include_directories(inventory
-    PUBLIC ${CMAKE_SOURCE_DIR}/pf2e_engine/include/pf2e_engine/inventory
+target_include_directories(pf2e_engine
+    PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/include/pf2e_engine/inventory
 )

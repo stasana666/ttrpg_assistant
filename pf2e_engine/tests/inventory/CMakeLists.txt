@@ -4,7 +4,11 @@ add_executable(test_inventory
 
 target_link_libraries(test_inventory
     gtest_main
-    inventory
+    pf2e_engine
+)
+
+target_include_directories(test_inventory
+    PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/include/pf2e_engine/inventory
 )
 
 include(GoogleTest)

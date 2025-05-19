@@ -1,4 +1,3 @@
-#include "hitpoints.h"
 #include <creature.h>
 
 TCreature::TCreature(TCharacteristicSet stats, TArmour armour, THitPoints hitpoints)

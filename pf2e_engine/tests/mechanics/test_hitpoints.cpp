@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <pf2e_engine/hitpoints.h>
+#include <hitpoints.h>
 #include <stdexcept>
 
 TEST(HitPointsTest, ReduceAndRestore) {

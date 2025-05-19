@@ -1,7 +1,6 @@
 add_subdirectory(${CMAKE_SOURCE_DIR}/extern/googletest ${CMAKE_BINARY_DIR}/extern/googletest)
 
 add_executable(test_pf2_engine
-    test_hitpoints.cpp
     test_creature.cpp
     test_characteristics.cpp
 )
@@ -15,3 +14,5 @@ include(GoogleTest)
 gtest_discover_tests(test_pf2_engine)
 
 add_subdirectory(inventory)
+add_subdirectory(mechanics)
+add_subdirectory(dice_expression)

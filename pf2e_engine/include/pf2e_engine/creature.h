@@ -1,9 +1,9 @@
 #pragma once
 
 #include <pf2e_engine/inventory/armour.h>
+#include <pf2e_engine/mechanics/hitpoints.h>
 
 #include "characteristics.h"
-#include "hitpoints.h"
 #include "armour_class.h"
 
 class TCreature {
