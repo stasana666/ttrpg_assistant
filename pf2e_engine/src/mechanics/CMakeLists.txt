@@ -1,6 +1,7 @@
 target_sources(pf2e_engine
     PRIVATE
         damage.cpp
+        damage_resolver.cpp
         hitpoints.cpp
         characteristics.cpp
 )

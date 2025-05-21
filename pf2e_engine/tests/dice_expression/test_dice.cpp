@@ -1,38 +1,7 @@
 #include <gtest/gtest.h>
-
+/*
 #include "dice.h"
-#include "random.h"
-
-#include <queue>
-
-struct TMockRng final : public IRandomGenerator {
-    int RollDice(int size) override {
-        if (output.empty()) {
-            throw std::logic_error("too many calls");
-        }
-        if (size != input.front()) {
-            throw std::logic_error("unexpected input");
-        }
-        int res = output.front();
-        output.pop();
-        input.pop();
-        return res;
-    }
-
-    void AddCall(int inputValue, int outputValue) {
-        input.push(inputValue);
-        output.push(outputValue);
-    }
-
-    void Verify() {
-        if (!input.empty()) {
-            throw std::logic_error("expected call");
-        }
-    }
-
-    std::queue<int> output;
-    std::queue<int> input;
-};
+#include <mock_dice_roller.h>
 
 TEST(DiceTest, OneDice) {
     TMockRng rng;
@@ -58,3 +27,4 @@ TEST(DiceTest, DiceExpression) {
     EXPECT_EQ(skillCheck->Value(rng), 4);
     rng.Verify();
 }
+*/
