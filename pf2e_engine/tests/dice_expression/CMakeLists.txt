@@ -10,7 +10,7 @@ target_link_libraries(test_dice_expression
 
 target_include_directories(test_dice_expression
     PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/include/pf2e_engine/dice_expression
-    PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/include/pf2e_engine/tests/test_lib
+    PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/tests/test_lib
 )
 
 include(GoogleTest)

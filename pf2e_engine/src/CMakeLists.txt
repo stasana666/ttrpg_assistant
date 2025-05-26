@@ -2,8 +2,10 @@ target_sources(pf2e_engine
     PRIVATE
         armor_class.cpp
         armor_slot.cpp
+        weapon_slot.cpp
         creature.cpp
         resources.cpp
+        weapon_damage_factory.cpp
 )
 
 target_include_directories(pf2e_engine

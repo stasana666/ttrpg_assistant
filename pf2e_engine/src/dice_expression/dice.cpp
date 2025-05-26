@@ -13,6 +13,19 @@ int TSumExpression::Value(IRandomGenerator& rng) const
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+TMultiplyExpression::TMultiplyExpression(std::unique_ptr<IExpression>&& left, std::unique_ptr<IExpression>&& right)
+    : leftOperand(std::move(left))
+    , rightOperand(std::move(right))
+{
+}
+
+int TMultiplyExpression::Value(IRandomGenerator& rng) const
+{
+    return leftOperand->Value(rng) * rightOperand->Value(rng);
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 TDice::TDice(int size)
     : size(size)
 {

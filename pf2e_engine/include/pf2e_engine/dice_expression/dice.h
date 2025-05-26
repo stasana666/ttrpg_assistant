@@ -22,6 +22,17 @@ private:
     std::unique_ptr<IExpression> rightOperand;
 };
 
+class TMultiplyExpression final : public IExpression {
+public:
+    TMultiplyExpression(std::unique_ptr<IExpression>&& left, std::unique_ptr<IExpression>&& right);
+
+    int Value(IRandomGenerator& rng) const final;
+
+private:
+    std::unique_ptr<IExpression> leftOperand;
+    std::unique_ptr<IExpression> rightOperand;
+};
+
 class TDice final : public IExpression {
 public:
     TDice(int size);
