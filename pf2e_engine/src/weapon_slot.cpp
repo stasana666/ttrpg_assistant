@@ -14,7 +14,7 @@ void TWeaponSlot::Equip(const TWeapon* w)
 
 bool TWeaponSlot::Has() const
 {
-    return weapon;
+    return weapon != nullptr;
 }
 
 const TWeapon* TWeaponSlot::Get() const

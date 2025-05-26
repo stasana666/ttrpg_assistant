@@ -2,7 +2,7 @@
 
 class THitPoints {
 public:
-    THitPoints(int max_hp);
+    explicit THitPoints(int max_hp);
 
     int GetCurrentHp() const;
     void ReduceHp(int damage);

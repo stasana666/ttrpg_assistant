@@ -19,22 +19,22 @@ private:
 public:
     void Add(std::unique_ptr<IExpression>&& damage, Type type);
 
-    class Iterator {
+    class TIterator {
     public:
-        bool operator !=(const Iterator&) const;
-        Iterator& operator++();
+        bool operator !=(const TIterator&) const;
+        TIterator& operator++();
         std::pair<Type, const IExpression*> operator *() const;
     
     private:
         friend TDamage;
 
-        Iterator(Container::const_iterator);
+        explicit TIterator(Container::const_iterator);
 
         typename Container::const_iterator it;
     };
 
-    Iterator begin() const;
-    Iterator end() const;
+    TIterator begin() const;
+    TIterator end() const;
 
 private:
     

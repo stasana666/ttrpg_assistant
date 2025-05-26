@@ -13,7 +13,7 @@ private:
     friend class TResourceManager;
     friend class TResourcePool;
 
-    TResourceId(int id);
+    explicit TResourceId(int id);
 
     int id;
 };

@@ -35,7 +35,7 @@ private:
 
 class TDice final : public IExpression {
 public:
-    TDice(int size);
+    explicit TDice(int size);
 
     int Value(IRandomGenerator& rng) const final;
 
@@ -45,7 +45,7 @@ private:
 
 class TNumber final : public IExpression {
 public:
-    TNumber(int value);
+    explicit TNumber(int value);
 
     int Value(IRandomGenerator&) const final;
 private:

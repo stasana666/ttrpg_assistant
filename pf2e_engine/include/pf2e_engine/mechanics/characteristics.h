@@ -17,7 +17,7 @@ enum class ECharacteristic {
 
 class TCharacteristic final : public TObservable<const TCharacteristic&> {
 public:
-    TCharacteristic(int value);
+    explicit TCharacteristic(int value);
 
     int GetMod() const;
     int GetValue() const;
@@ -32,7 +32,7 @@ public:
     static constexpr size_t kCharacteristicCount = 6;
 
 public:
-    TCharacteristicSet(std::array<int, kCharacteristicCount> values);
+    explicit TCharacteristicSet(std::array<int, kCharacteristicCount> values);
 
     TCharacteristic& operator[](ECharacteristic stat);
     const TCharacteristic& operator[](ECharacteristic stat) const;

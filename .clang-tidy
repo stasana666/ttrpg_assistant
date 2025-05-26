@@ -1,0 +1,17 @@
+---
+Checks: >
+  google-*,
+  -google-readability-todo,
+  -google-build-explicit-make-pair,
+  -google-runtime-int,
+  -google-runtime-references,
+  -readability-redundant-access-specifiers,
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'pf2e_engine/.*'
+AnalyzeTemporaryDtors: false
+FormatStyle:     file
+CheckOptions:
+  - key:             google-readability-braces-around-statements.ShortStatementLines
+    value:           '1'
+  - key:             google-readability-braces-around-statements.ShortStatementLines
+    value:           '1'

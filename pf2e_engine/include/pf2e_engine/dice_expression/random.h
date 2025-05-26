@@ -10,8 +10,8 @@ public:
 
 class TRandomGenerator final : public IRandomGenerator {
 public:
-    TRandomGenerator(int seed);
-    int RollDice(int size);
+    explicit TRandomGenerator(int seed);
+    int RollDice(int size) final;
 
 private:
     std::mt19937 rng;

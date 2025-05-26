@@ -6,7 +6,7 @@
 class TArmorSlot final : public TObservable<const TArmor&> {
 public:
     TArmorSlot();
-    TArmorSlot(const TArmor*);
+    explicit TArmorSlot(const TArmor* armor);
 
     void Set(const TArmor* armor);
     const TArmor& Get() const;

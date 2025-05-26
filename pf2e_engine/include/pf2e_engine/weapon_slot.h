@@ -6,7 +6,7 @@
 
 class TWeaponSlot final : public TObservable<const TWeapon*> {
 public:
-    TWeaponSlot(TResourcePool& pool);
+    explicit TWeaponSlot(TResourcePool& pool);
 
     void Equip(const TWeapon*);
     bool Has() const;

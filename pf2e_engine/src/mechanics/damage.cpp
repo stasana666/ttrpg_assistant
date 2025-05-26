@@ -10,33 +10,33 @@ void TDamage::Add(std::unique_ptr<IExpression>&& damage, Type type)
     }
 }
 
-TDamage::Iterator::Iterator(Container::const_iterator it)
+TDamage::TIterator::TIterator(Container::const_iterator it)
     : it(it)
 {
 }
 
-auto TDamage::Iterator::operator*() const -> std::pair<Type, const IExpression*>
+auto TDamage::TIterator::operator*() const -> std::pair<Type, const IExpression*>
 {
     return std::make_pair(it->first, it->second.get());
 }
 
-auto TDamage::Iterator::operator++() -> Iterator&
+auto TDamage::TIterator::operator++() -> TIterator&
 {
     ++it;
     return *this;
 }
 
-bool TDamage::Iterator::operator!=(const Iterator& other) const
+bool TDamage::TIterator::operator!=(const TIterator& other) const
 {
     return it != other.it;
 }
 
-auto TDamage::begin() const -> Iterator
+auto TDamage::begin() const -> TIterator
 {
-    return Iterator(damageExpressions.cbegin());
+    return TIterator(damageExpressions.cbegin());
 }
 
-auto TDamage::end() const -> Iterator
+auto TDamage::end() const -> TIterator
 {
-    return Iterator(damageExpressions.end());
+    return TIterator(damageExpressions.end());
 }
