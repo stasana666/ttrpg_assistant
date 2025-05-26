@@ -18,6 +18,7 @@ public:
 private:
     TCharacteristicSet stats;
     THitPoints hitpoints;
+
     TArmor armor;
     TArmorSlot armorSlot;
     TArmorClass armorClass;
