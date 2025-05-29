@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <pf2e_engine/expressions/dice_expression.h>
+#include <pf2e_engine/expressions/number_expression.h>
+#include <pf2e_engine/expressions/math_expression.h>
+
 #include <damage_resolver.h>
 #include <mock_dice_roller.h>
 
@@ -8,7 +12,7 @@ TEST(DamageResolverTest, JustDamage) {
     rng.ExpectCall(6, 5);
 
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
 
     TDamageResolver damageResolver;
     EXPECT_EQ(damageResolver(damage, rng), 5);
@@ -21,8 +25,8 @@ TEST(DamageResolverTest, NegativeDamageToZero) {
 
     TDamage damage;
     damage.Add(std::make_unique<TSumExpression>(
-        std::make_unique<TDice>(6),
-        std::make_unique<TNumber>(-5)
+        std::make_unique<TDiceExpression>(6),
+        std::make_unique<TNumberExpression>(-5)
     ), TDamage::Type::Slashing);
 
     TDamageResolver damageResolver;
@@ -32,8 +36,8 @@ TEST(DamageResolverTest, NegativeDamageToZero) {
 
 TEST(DamageResolverTest, DoubleSliceOneType) {
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
 
     TMockRng rng;
     rng.ExpectCall(6, 6);
@@ -50,8 +54,8 @@ TEST(DamageResolverTest, DoubleSliceTwoTypes) {
     rng.ExpectCall(6, 4);
 
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Bludgeoning);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Bludgeoning);
 
     TDamageResolver damageResolver;
     EXPECT_EQ(damageResolver(damage, rng), 10);
@@ -64,8 +68,8 @@ TEST(DamageResolverTest, Immunity) {
     rng.ExpectCall(6, 4);
 
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Bludgeoning);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Bludgeoning);
     
     TDamageResolver damageResolver;
     damageResolver.AddImmunity(TDamage::Type::Slashing);
@@ -77,8 +81,8 @@ TEST(DamageResolverTest, Immunity) {
 
 TEST(DamageResolverTest, TwoTypesDiceRolling) {
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Bludgeoning);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Bludgeoning);
 
     TDamageResolver damageResolver;
     damageResolver.AddImmunity(TDamage::Type::Slashing);
@@ -104,7 +108,7 @@ TEST(DamageResolverTest, TwoTypesDiceRolling) {
 
 TEST(DamageResolverTest, Resistance) {
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
 
     TDamageResolver damageResolver;
     damageResolver.AddResistance(TDamage::Type::Slashing, 5);
@@ -126,8 +130,8 @@ TEST(DamageResolverTest, Resistance) {
 
 TEST(DamageResolverTest, ResistanceDoubleSlice) {
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
 
     TDamageResolver damageResolver;
     damageResolver.AddResistance(TDamage::Type::Slashing, 5);
@@ -142,8 +146,8 @@ TEST(DamageResolverTest, ResistanceDoubleSlice) {
 
 TEST(DamageResolverTest, ResistanceTwoTypes) {
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Bludgeoning);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Bludgeoning);
 
     TDamageResolver damageResolver;
     damageResolver.AddResistance(TDamage::Type::Slashing, 5);
@@ -158,7 +162,7 @@ TEST(DamageResolverTest, ResistanceTwoTypes) {
 
 TEST(DamageResolverTest, Vulnerability) {
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
 
     TDamageResolver damageResolver;
     damageResolver.AddVulnerability(TDamage::Type::Slashing, 5);
@@ -172,8 +176,8 @@ TEST(DamageResolverTest, Vulnerability) {
 
 TEST(DamageResolverTest, VulnerabilityDoubleSlice) {
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
 
     TDamageResolver damageResolver;
     damageResolver.AddVulnerability(TDamage::Type::Slashing, 5);
@@ -188,8 +192,8 @@ TEST(DamageResolverTest, VulnerabilityDoubleSlice) {
 
 TEST(DamageResolverTest, VulnerabilityTwoTypes) {
     TDamage damage;
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Slashing);
-    damage.Add(std::make_unique<TDice>(6), TDamage::Type::Bludgeoning);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Slashing);
+    damage.Add(std::make_unique<TDiceExpression>(6), TDamage::Type::Bludgeoning);
 
     TDamageResolver damageResolver;
     damageResolver.AddVulnerability(TDamage::Type::Slashing, 5);

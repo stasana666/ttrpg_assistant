@@ -1,8 +1,8 @@
 #pragma once
 
-#include <pf2e_engine/dice_expression/dice.h>
-#include <memory>
+#include <pf2e_engine/expressions/base_expression.h>
 
+#include <memory>
 #include <unordered_map>
 
 class TDamage {

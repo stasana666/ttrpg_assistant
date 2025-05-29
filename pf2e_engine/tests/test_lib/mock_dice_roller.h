@@ -1,6 +1,6 @@
 #pragma once
 
-#include <pf2e_engine/dice_expression/random.h>
+#include <pf2e_engine/random.h>
 #include <stdexcept>
 #include <queue>
 

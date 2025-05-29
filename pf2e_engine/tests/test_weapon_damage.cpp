@@ -7,6 +7,7 @@
 #include <pf2e_engine/weapon_damage_factory.h>
 
 #include <mock_dice_roller.h>
+#include <game_context_from_part.h>
 
 TEST(WeaponDamageTest, LongSwordNormalHit) {
     auto hand = TResourceManager::instance().Register("hand");
@@ -33,7 +34,8 @@ TEST(WeaponDamageTest, LongSwordNormalHit) {
 
         TMockRng rng;
         rng.ExpectCall(6, 4);
-        EXPECT_EQ(expr->Value(rng), 8);
+        auto ctx = GameContextFrom(rng);
+        EXPECT_EQ(expr->Value(ctx), 8);
         rng.Verify();
     }
     EXPECT_EQ(count, 1);
@@ -64,7 +66,8 @@ TEST(WeaponDamageTest, LongSwordCritHit) {
 
         TMockRng rng;
         rng.ExpectCall(6, 4);
-        EXPECT_EQ(expr->Value(rng), 16);
+        auto ctx = GameContextFrom(rng);
+        EXPECT_EQ(expr->Value(ctx), 16);
         rng.Verify();
     }
     EXPECT_EQ(count, 1);

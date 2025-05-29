@@ -1,5 +1,9 @@
 #include <weapon_damage_factory.h>
 
+#include <pf2e_engine/expressions/dice_expression.h>
+#include <pf2e_engine/expressions/number_expression.h>
+#include <pf2e_engine/expressions/math_expression.h>
+
 TWeaponDamageFactory::TWeaponDamageFactory(TWeaponSlot& weapon, TCharacteristic& strength)
     : str(strength.GetMod())
     , weapon(weapon.Get())
@@ -21,8 +25,8 @@ TDamage TWeaponDamageFactory::HitDamage() const
     TDamage result;
     result.Add(
         std::make_unique<TSumExpression>(
-            std::make_unique<TDice>(weapon->GetBaseDieSize()),
-            std::make_unique<TNumber>(str)
+            std::make_unique<TDiceExpression>(weapon->GetBaseDieSize()),
+            std::make_unique<TNumberExpression>(str)
         ),
         weapon->GetDamageType()
     );
@@ -36,12 +40,12 @@ TDamage TWeaponDamageFactory::CritDamage() const
     }
     TDamage result;
     result.Add(
-        std::make_unique<TMultiplyExpression>(
+        std::make_unique<TProductExpression>(
             std::make_unique<TSumExpression>(
-                std::make_unique<TDice>(weapon->GetBaseDieSize()),
-                std::make_unique<TNumber>(str)
+                std::make_unique<TDiceExpression>(weapon->GetBaseDieSize()),
+                std::make_unique<TNumberExpression>(str)
             ),
-            std::make_unique<TNumber>(2)
+            std::make_unique<TNumberExpression>(2)
         ),
         weapon->GetDamageType()
     );

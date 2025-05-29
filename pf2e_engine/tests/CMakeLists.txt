@@ -4,6 +4,7 @@ add_executable(test_pf2_engine
     test_armor.cpp
     test_resources.cpp
     test_weapon_damage.cpp
+    test_random.cpp
 )
 
 target_link_libraries(test_pf2_engine
@@ -18,6 +19,6 @@ target_include_directories(test_pf2_engine
 include(GoogleTest)
 gtest_discover_tests(test_pf2_engine)
 
+add_subdirectory(expressions)
 add_subdirectory(inventory)
 add_subdirectory(mechanics)
-add_subdirectory(dice_expression)

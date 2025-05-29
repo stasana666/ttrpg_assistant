@@ -5,7 +5,6 @@ TCreature::TCreature(TCharacteristicSet stats, TArmor armor, THitPoints hitpoint
     , armor(armor)
     , armorSlot(&armor)
     , hitpoints(hitpoints)
-    , armorClass(armorSlot, this->stats[ECharacteristic::Dexterity])
 {
 }
 
@@ -17,9 +16,4 @@ const TArmor& TCreature::GetArmor() const
 const TCharacteristic& TCreature::GetCharacteristic(ECharacteristic name) const
 {
     return stats[name];
-}
-
-int TCreature::GetAc() const
-{
-    return armorClass.GetAc();
 }

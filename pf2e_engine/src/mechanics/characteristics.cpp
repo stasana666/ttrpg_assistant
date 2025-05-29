@@ -1,4 +1,5 @@
 #include <characteristics.h>
+#include <stdexcept>
 
 TCharacteristic::TCharacteristic(int value)
     : value(value)

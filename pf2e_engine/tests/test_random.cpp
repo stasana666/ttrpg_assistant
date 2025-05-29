@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "dice.h"
-#include "random.h"
+#include <pf2e_engine/random.h>
 
 TEST(RandomTest, EqualSeed) {
     constexpr int N = 10;

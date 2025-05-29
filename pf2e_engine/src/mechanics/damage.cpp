@@ -1,5 +1,7 @@
 #include "damage.h"
 
+#include <pf2e_engine/expressions/math_expression.h>
+
 void TDamage::Add(std::unique_ptr<IExpression>&& damage, Type type)
 {
     auto it = damageExpressions.find(type);
