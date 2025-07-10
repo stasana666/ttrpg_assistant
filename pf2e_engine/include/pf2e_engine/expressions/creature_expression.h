@@ -24,3 +24,13 @@ private:
     ECharacteristic type;
     TGameObjectId creatureId;
 };
+
+class TWeaponBonusAttackExpression final : public IExpression {
+public:
+    explicit TWeaponBonusAttackExpression(TGameObjectId creatureId);
+
+    int Value(TGameContext& ctx) const final;
+
+private:
+    TGameObjectId creatureId;
+};
