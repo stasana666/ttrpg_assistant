@@ -2,28 +2,28 @@
 #include <stdexcept>
 
 TCharacteristic::TCharacteristic(int value)
-    : value(value)
+    : value_(value)
 {
 }
 
 int TCharacteristic::GetValue() const
 {
-    return value;
+    return value_;
 }
 
 int TCharacteristic::GetMod() const
 {
-    return value / 2 - 5;
+    return value_ / 2 - 5;
 }
 
-void TCharacteristic::Set(int value_)
+void TCharacteristic::Set(int value)
 {
-    value = value_;
+    value_ = value;
     NotifyAll(*this);
 }
 
 TCharacteristicSet::TCharacteristicSet(std::array<int, kCharacteristicCount> values)
-    : stats{
+    : stats_{
         TCharacteristic(values[0]),
         TCharacteristic(values[1]),
         TCharacteristic(values[2]),
@@ -37,12 +37,12 @@ TCharacteristicSet::TCharacteristicSet(std::array<int, kCharacteristicCount> val
 TCharacteristic& TCharacteristicSet::operator[](ECharacteristic name)
 {
     switch (name) {
-        case ECharacteristic::Strength:     return stats[0];
-        case ECharacteristic::Dexterity:    return stats[1];
-        case ECharacteristic::Constitution: return stats[2];
-        case ECharacteristic::Intelligence: return stats[3];
-        case ECharacteristic::Wisdom:       return stats[4];
-        case ECharacteristic::Charisma:     return stats[5];
+        case ECharacteristic::Strength:     return stats_[0];
+        case ECharacteristic::Dexterity:    return stats_[1];
+        case ECharacteristic::Constitution: return stats_[2];
+        case ECharacteristic::Intelligence: return stats_[3];
+        case ECharacteristic::Wisdom:       return stats_[4];
+        case ECharacteristic::Charisma:     return stats_[5];
     }
     throw std::logic_error("unreachable");
 }
@@ -50,12 +50,12 @@ TCharacteristic& TCharacteristicSet::operator[](ECharacteristic name)
 const TCharacteristic& TCharacteristicSet::operator[](ECharacteristic name) const
 {
     switch (name) {
-        case ECharacteristic::Strength:     return stats[0];
-        case ECharacteristic::Dexterity:    return stats[1];
-        case ECharacteristic::Constitution: return stats[2];
-        case ECharacteristic::Intelligence: return stats[3];
-        case ECharacteristic::Wisdom:       return stats[4];
-        case ECharacteristic::Charisma:     return stats[5];
+        case ECharacteristic::Strength:     return stats_[0];
+        case ECharacteristic::Dexterity:    return stats_[1];
+        case ECharacteristic::Constitution: return stats_[2];
+        case ECharacteristic::Intelligence: return stats_[3];
+        case ECharacteristic::Wisdom:       return stats_[4];
+        case ECharacteristic::Charisma:     return stats_[5];
     }
     throw std::logic_error("unreachable");
 }
@@ -64,12 +64,30 @@ const TCharacteristic& TCharacteristicSet::operator[](ECharacteristic name) cons
 
 ECharacteristic CharacteristicFromString(std::string_view sv)
 {
-    if (sv == "strength")       return ECharacteristic::Strength;
-    if (sv == "dexterity")      return ECharacteristic::Dexterity;
-    if (sv == "constitution")   return ECharacteristic::Constitution;
-    if (sv == "intelligence")   return ECharacteristic::Intelligence;
-    if (sv == "wisdom")         return ECharacteristic::Wisdom;
-    if (sv == "charisma")       return ECharacteristic::Charisma;
+    if (sv == "strength")
+    {
+        return ECharacteristic::Strength;
+    }
+    if (sv == "dexterity")
+    {
+        return ECharacteristic::Dexterity;
+    }
+    if (sv == "constitution")
+    {
+        return ECharacteristic::Constitution;
+    }
+    if (sv == "intelligence")
+    {
+        return ECharacteristic::Intelligence;
+    }
+    if (sv == "wisdom")
+    {
+        return ECharacteristic::Wisdom;
+    }
+    if (sv == "charisma")
+    {
+        return ECharacteristic::Charisma;
+    }
     throw std::logic_error("unknown characteristic name");
 }
 

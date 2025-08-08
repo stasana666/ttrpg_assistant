@@ -33,7 +33,7 @@ TEST(ExpressionTest, DiceExpression) {
         .diceRoller = &rng
     };
 
-    std::unique_ptr<IExpression> skillCheck = std::make_unique<TSumExpression>(
+    std::unique_ptr<IExpression> skill_check = std::make_unique<TSumExpression>(
         std::make_unique<TDiceExpression>(20),
         std::make_unique<TSumExpression>(
             std::make_unique<TNumberExpression>(2),
@@ -41,7 +41,7 @@ TEST(ExpressionTest, DiceExpression) {
         )
     );
 
-    EXPECT_EQ(skillCheck->Value(ctx), 4);
+    EXPECT_EQ(skill_check->Value(ctx), 4);
     rng.Verify();
 }
 
@@ -58,18 +58,18 @@ TEST(ExpressionTest, MultiplyExpression) {
 TEST(ExpressionTest, CreatureExpression) {
     TGameContext ctx;
 
-    TGameObjectIdManager gameObjectManager;
-    TGameObjectId targetId = gameObjectManager.Register("warrior");
+    TGameObjectIdManager game_object_manager;
+    TGameObjectId target_id = game_object_manager.Register("warrior");
 
-    TCharacteristicSet targetStats({10, 16, 10, 10, 10, 10});
-    TArmor targetArmor(3, 2);
-    TCreature target(targetStats, targetArmor, THitPoints{10});
+    TCharacteristicSet target_stats({10, 16, 10, 10, 10, 10});
+    TArmor target_armor(3, 2);
+    TCreature target(target_stats, target_armor, THitPoints{10});
 
-    TGameObjectStorage gameObjectStorage;
-    ctx.gameObjectStorage = &gameObjectStorage;
-    gameObjectStorage.Add(targetId, &target);
+    TGameObjectStorage game_object_storage;
+    ctx.gameObjectStorage = &game_object_storage;
+    game_object_storage.Add(target_id, &target);
 
-    std::unique_ptr<IExpression> expr = std::make_unique<TArmorClassExpression>(targetId);
+    std::unique_ptr<IExpression> expr = std::make_unique<TArmorClassExpression>(target_id);
 
     EXPECT_EQ(expr->Value(ctx), 15);
 }

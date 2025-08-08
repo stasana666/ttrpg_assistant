@@ -10,7 +10,7 @@ public:
     void SetTemporaryHp(int hp);
 
 private:
-    int max_hp;
-    int current_hp;
-    int temporary_hp;
+    int max_hp_;
+    int current_hp_;
+    int temporary_hp_;
 };

@@ -21,10 +21,10 @@ public:
 
     int GetMod() const;
     int GetValue() const;
-    void Set(int value_);
+    void Set(int value);
 
 private:
-    int value;
+    int value_;
 };
 
 class TCharacteristicSet {
@@ -37,7 +37,7 @@ public:
     TCharacteristic& operator[](ECharacteristic stat);
     const TCharacteristic& operator[](ECharacteristic stat) const;
 private:
-    std::array<TCharacteristic, kCharacteristicCount> stats;
+    std::array<TCharacteristic, kCharacteristicCount> stats_;
 };
 
 ECharacteristic CharacteristicFromString(std::string_view);

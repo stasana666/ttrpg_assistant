@@ -7,17 +7,17 @@
 
 void TDamageResolver::AddImmunity(TDamage::Type type)
 {
-    immunities.insert(type);
+    immunities_.insert(type);
 }
 
 void TDamageResolver::AddResistance(TDamage::Type type, int value)
 {
-    resistances[type].push_back(value);
+    resistances_[type].push_back(value);
 }
 
 void TDamageResolver::AddVulnerability(TDamage::Type type, int value)
 {
-    vulnerabilities[type].push_back(value);
+    vulnerabilities_[type].push_back(value);
 }
 
 /*
@@ -33,15 +33,15 @@ int TDamageResolver::operator()(const TDamage& damage, IRandomGenerator& rng) co
     int result = 0;
     for (const auto& [type, expr] : damage) {
         int value = std::max(1, expr->Value(ctx));
-        if (immunities.contains(type)) {
+        if (immunities_.contains(type)) {
             continue;
         }
-        if (auto it = vulnerabilities.find(type); it != vulnerabilities.end()) {
+        if (auto it = vulnerabilities_.find(type); it != vulnerabilities_.end()) {
             auto& vec = it->second;
             assert(!vec.empty());
             value += *std::max_element(vec.begin(), vec.end());
         }
-        if (auto it = resistances.find(type); it != resistances.end()) {
+        if (auto it = resistances_.find(type); it != resistances_.end()) {
             auto& vec = it->second;
             assert(!vec.empty());
             value -= *std::max_element(vec.begin(), vec.end());

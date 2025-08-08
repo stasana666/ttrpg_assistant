@@ -15,7 +15,7 @@ public:
     int operator()(const TDamage&, IRandomGenerator&) const;
 
 private:
-    std::unordered_set<TDamage::Type> immunities;
-    std::unordered_map<TDamage::Type, std::vector<int>> resistances;
-    std::unordered_map<TDamage::Type, std::vector<int>> vulnerabilities;
+    std::unordered_set<TDamage::Type> immunities_;
+    std::unordered_map<TDamage::Type, std::vector<int>> resistances_;
+    std::unordered_map<TDamage::Type, std::vector<int>> vulnerabilities_;
 };
