@@ -1,22 +1,22 @@
 #include <armor_slot.h>
 
 TArmorSlot::TArmorSlot()
-    : armor(&TArmor::GetDefault())
+    : armor_(&TArmor::GetDefault())
 {
 }
 
 TArmorSlot::TArmorSlot(const TArmor* armor)
-    : armor(armor)
+    : armor_(armor_)
 {
 }
 
 const TArmor& TArmorSlot::Get() const
 {
-    return *armor;
+    return *armor_;
 }
 
-void TArmorSlot::Set(const TArmor* newArmor)
+void TArmorSlot::Set(const TArmor* new_armor)
 {
-    armor = newArmor;
-    NotifyAll(*armor);
+    armor_ = new_armor;
+    NotifyAll(*armor_);
 }

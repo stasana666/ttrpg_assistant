@@ -6,31 +6,31 @@
 
 class TArmorClassExpression final : public IExpression {
 public:
-    explicit TArmorClassExpression(TGameObjectId creatureId);
+    explicit TArmorClassExpression(TGameObjectId creature_id);
 
     int Value(TGameContext& ctx) const final;
 
 private:
-    TGameObjectId creatureId;
+    TGameObjectId creature_id_;
 };
 
 class TCharacteristicExpression final : public IExpression {
 public:
-    explicit TCharacteristicExpression(ECharacteristic type, TGameObjectId creatureId);
+    explicit TCharacteristicExpression(ECharacteristic type, TGameObjectId creature_id);
 
     int Value(TGameContext& ctx) const final;
 
 private:
-    ECharacteristic type;
-    TGameObjectId creatureId;
+    ECharacteristic type_;
+    TGameObjectId creature_id_;
 };
 
 class TWeaponBonusAttackExpression final : public IExpression {
 public:
-    explicit TWeaponBonusAttackExpression(TGameObjectId creatureId);
+    explicit TWeaponBonusAttackExpression(TGameObjectId creature_id);
 
     int Value(TGameContext& ctx) const final;
 
 private:
-    TGameObjectId creatureId;
+    TGameObjectId creature_id_;
 };

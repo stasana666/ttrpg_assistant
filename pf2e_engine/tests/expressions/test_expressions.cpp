@@ -58,7 +58,7 @@ TEST(ExpressionTest, MultiplyExpression) {
 TEST(ExpressionTest, CreatureExpression) {
     TGameContext ctx;
 
-    TGameObjectManager gameObjectManager;
+    TGameObjectIdManager gameObjectManager;
     TGameObjectId targetId = gameObjectManager.Register("warrior");
 
     TCharacteristicSet targetStats({10, 16, 10, 10, 10, 10});

@@ -6,7 +6,8 @@
 struct TResourceTag {};
 
 using TResourceId = TValueId<TResourceTag>;
-using TResourceManager = TValueManager<TResourceTag>;
+using TResourceIdManager = TValueIdManager<TResourceTag>;
+using TResourceIdHash = TValueIdHash<TResourceTag>;
 
 class TResourcePool {
 public:
@@ -16,5 +17,5 @@ public:
     int Count(TResourceId id) const;
 
 private:
-    std::unordered_map<TResourceId, int, TValueHash<TResourceTag>> resources;
+    std::unordered_map<TResourceId, int, TResourceIdHash> resources_;
 };

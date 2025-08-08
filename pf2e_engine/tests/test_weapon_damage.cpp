@@ -10,7 +10,7 @@
 #include <game_context_from_part.h>
 
 TEST(WeaponDamageTest, LongSwordNormalHit) {
-    auto hand = TResourceManager::instance().Register("hand");
+    auto hand = TResourceIdManager::Instance().Register("hand");
     TResourcePool pool;
     pool.Add(hand, 2);
 
@@ -42,7 +42,7 @@ TEST(WeaponDamageTest, LongSwordNormalHit) {
 }
 
 TEST(WeaponDamageTest, LongSwordCritHit) {
-    auto hand = TResourceManager::instance().Register("hand");
+    auto hand = TResourceIdManager::Instance().Register("hand");
     TResourcePool pool;
     pool.Add(hand, 2);
 

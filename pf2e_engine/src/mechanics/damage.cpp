@@ -4,11 +4,11 @@
 
 void TDamage::Add(std::unique_ptr<IExpression>&& damage, Type type)
 {
-    auto it = damageExpressions.find(type);
-    if (it != damageExpressions.end()) {
+    auto it = damage_expressions_.find(type);
+    if (it != damage_expressions_.end()) {
         it->second = std::make_unique<TSumExpression>(std::move(it->second), std::move(damage));
     } else {
-        damageExpressions[type] = std::move(damage);
+        damage_expressions_[type] = std::move(damage);
     }
 }
 
@@ -35,10 +35,10 @@ bool TDamage::TIterator::operator!=(const TIterator& other) const
 
 auto TDamage::begin() const -> TIterator
 {
-    return TIterator(damageExpressions.cbegin());
+    return TIterator(damage_expressions_.cbegin());
 }
 
 auto TDamage::end() const -> TIterator
 {
-    return TIterator(damageExpressions.end());
+    return TIterator(damage_expressions_.end());
 }

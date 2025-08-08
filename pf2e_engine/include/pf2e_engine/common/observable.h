@@ -12,17 +12,17 @@ public:
     void NotifyAll(Context context) const;
 
 private:
-    std::vector<TCallback> subscribers;
+    std::vector<TCallback> subscribers_;
 };
 
 template <typename Context>
 void TObservable<Context>::Subscribe(TCallback callback) {
-    subscribers.push_back(callback);
+    subscribers_.push_back(callback);
 }
 
 template <typename Context>
 void TObservable<Context>::NotifyAll(Context context) const {
-    for (const auto& subscriber : subscribers) {
+    for (const auto& subscriber : subscribers_) {
         subscriber(context);
     }
 }

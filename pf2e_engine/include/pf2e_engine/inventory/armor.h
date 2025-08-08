@@ -10,6 +10,6 @@ public:
     int DexCap() const;
 
 private:
-    int ac_bonus;
-    int dex_cap;
+    int ac_bonus_;
+    int dex_cap_;
 };

@@ -12,5 +12,5 @@ public:
     const TArmor& Get() const;
 
 private:
-    const TArmor* armor;
+    const TArmor* armor_;
 };

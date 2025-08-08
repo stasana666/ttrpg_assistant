@@ -38,5 +38,5 @@ public:
 
 private:
     
-    Container damageExpressions;
+    Container damage_expressions_;
 };
