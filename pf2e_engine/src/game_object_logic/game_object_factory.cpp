@@ -5,14 +5,13 @@
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
-#include <variant>
 
-const std::unordered_map<std::string, TGameObjectFactory::Method>
+const std::unordered_map<std::string, TGameObjectFactory::FMethod>
 TGameObjectFactory::kReaderMapping = {
     {"armor", &TGameObjectFactory::ReadArmor}
 };
 
-void TGameObjectFactory::AddSource(std::filesystem::path source_path)
+void TGameObjectFactory::AddSource(const std::filesystem::path& source_path)
 {
     if (!std::filesystem::exists(source_path)) {
         std::stringstream ss;
@@ -30,7 +29,7 @@ void TGameObjectFactory::AddSource(std::filesystem::path source_path)
     }
 }
 
-void TGameObjectFactory::ReadObjectFromFile(std::filesystem::path game_object_file)
+void TGameObjectFactory::ReadObjectFromFile(const std::filesystem::path& game_object_file)
 {
     std::ifstream game_object_stream(game_object_file);
     nlohmann::json json_game_object = nlohmann::json::parse(game_object_stream);
@@ -43,30 +42,75 @@ void TGameObjectFactory::ReadObjectFromFile(std::filesystem::path game_object_fi
     (this->*reader->second)(json_game_object);
 }
 
+TGameObjectId TGameObjectFactory::ReadGameObjectName(const nlohmann::json& json_game_object) const
+{
+    if (!json_game_object.contains("name")) {
+        throw std::runtime_error("invalid game object, name not found");
+    }
+    std::string name = json_game_object["name"];
+    return TGameObjectIdManager::Instance().Register(name);
+}
+
 void TGameObjectFactory::ReadArmor(const nlohmann::json& json_game_object)
 {
-    std::string name = json_game_object["name"];
-    if (TGameObjectIdManager::Instance().Contains(name)) {
-        std::stringstream ss;
-        ss << "double declaration of game object with name: \"" << name << "\"";
-        throw std::runtime_error(ss.str());
-    }
-    TGameObjectId id = TGameObjectIdManager::Instance().Register(name);
-
+    TGameObjectId id = ReadGameObjectName(json_game_object);
     const nlohmann::json& properties = json_game_object["properties"];
 
     TArmor result;
     result.ac_bonus_ = properties["ac_bonus"];
     result.dex_cap_ = properties["dex_cap"];
 
-    game_objects_.Add(id, TGameObject(result));
+    armors_.insert({id, [result]() { return result; }});
 }
 
-TArmor TGameObjectFactory::CreateArmor(TGameObjectId id)
+void TGameObjectFactory::ReadWeapon(const nlohmann::json& json_game_object)
 {
-    TGameObject& object = game_objects_.GetRef(id);
-    if (!std::holds_alternative<TArmor>(object)) {
-        throw std::runtime_error("wrong type of object");
-    }
-    return std::get<TArmor>(object);
+    TGameObjectId id = ReadGameObjectName(json_game_object);
+    const nlohmann::json& properties = json_game_object["properties"];
+
+    int base_die_size = properties["base_die_size"];
+    TDamage::Type damage_type = DamageTypeFromString(std::string{properties["damage_type"]});
+    TWeapon result(base_die_size, damage_type);
+
+    weapons_.insert({id, [result]() { return result; }});
+}
+
+void TGameObjectFactory::ReadCreature(const nlohmann::json& json_game_object)
+{
+    TGameObjectId id = ReadGameObjectName(json_game_object);
+    const nlohmann::json& properties = json_game_object["properties"];
+
+    TCharacteristicSet stats([&]() {
+        std::array<int, TCharacteristicSet::kCharacteristicCount> num_stats;
+        const nlohmann::json& json_stats = properties["stats"];
+        for (size_t i = 0; i < TCharacteristicSet::kCharacteristicCount; ++i) {
+            num_stats[i] = json_stats[ToString(static_cast<ECharacteristic>(i))];
+        }
+        return num_stats;
+    }());
+
+    TGameObjectId armor_id = TGameObjectIdManager::Instance().Register(properties["armor"]);
+    TGameObjectId weapon_id = TGameObjectIdManager::Instance().Register(properties["weapon"]);
+
+    int max_hp = properties["hp"];
+
+    creatures_.insert({id, [this, armor_id, weapon_id, stats, max_hp]() {
+        TCreature result(stats, this->CreateArmor(armor_id), THitPoints(max_hp));
+        return result;
+    }});
+}
+
+TArmor TGameObjectFactory::CreateArmor(TGameObjectId id) const
+{
+    return armors_.at(id)();
+}
+
+TWeapon TGameObjectFactory::CreateWeapon(TGameObjectId id) const
+{
+    return weapons_.at(id)();
+}
+
+TCreature TGameObjectFactory::CreateCreature(TGameObjectId id) const
+{
+    return creatures_.at(id)();
 }

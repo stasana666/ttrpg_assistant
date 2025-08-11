@@ -37,6 +37,10 @@ public:
     TIterator end() const;
 
 private:
-    
+
     Container damage_expressions_;
 };
+
+TDamage::Type DamageTypeFromString(std::string_view);
+std::string ToString(TDamage::Type);
+

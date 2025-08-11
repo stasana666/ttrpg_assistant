@@ -7,19 +7,35 @@
 #include <nlohmann/json_fwd.hpp>
 
 #include <filesystem>
+#include <functional>
 
 class TGameObjectFactory {
 public:
-    TArmor CreateArmor(TGameObjectId id);
+    TArmor CreateArmor(TGameObjectId id) const;
+    TWeapon CreateWeapon(TGameObjectId id) const;
+    TCreature CreateCreature(TGameObjectId id) const;
 
-    void AddSource(std::filesystem::path source_path);
+    void AddSource(const std::filesystem::path& source_path);
 
 private:
-    void ReadObjectFromFile(std::filesystem::path game_object_file);
+    void ReadObjectFromFile(const std::filesystem::path& game_object_file);
+
+    TGameObjectId ReadGameObjectName(const nlohmann::json& json) const;
+
     void ReadArmor(const nlohmann::json& json);
+    void ReadWeapon(const nlohmann::json& json);
+    void ReadCreature(const nlohmann::json& json);
 
-    using Method = void(TGameObjectFactory::*)(const nlohmann::json&);
-    static const std::unordered_map<std::string, Method> kReaderMapping;
+    using FMethod = void(TGameObjectFactory::*)(const nlohmann::json&);
+    static const std::unordered_map<std::string, FMethod> kReaderMapping;
 
-    TGameObjectStorage game_objects_;
+    template <class T>
+    using FGameObjectFactory = std::function<T()>;
+
+    template <class T>
+    using TFactoryStorage = std::unordered_map<TGameObjectId, FGameObjectFactory<T>, TGameObjectIdHash>;
+
+    TFactoryStorage<TArmor> armors_;
+    TFactoryStorage<TWeapon> weapons_;
+    TFactoryStorage<TCreature> creatures_;
 };

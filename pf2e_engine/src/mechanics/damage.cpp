@@ -42,3 +42,30 @@ auto TDamage::end() const -> TIterator
 {
     return TIterator(damage_expressions_.end());
 }
+
+TDamage::Type DamageTypeFromString(std::string_view sv)
+{
+    if (sv == "Bludgeoning")
+    {
+        return TDamage::Type::Bludgeoning;
+    }
+    if (sv == "Piercing")
+    {
+        return TDamage::Type::Piercing;
+    }
+    if (sv == "Slashing")
+    {
+        return TDamage::Type::Slashing;
+    }
+    throw std::logic_error("unknown damage type");
+}
+
+std::string ToString(TDamage::Type type)
+{
+    switch (type) {
+        case TDamage::Type::Bludgeoning: return "Bludgeoning";
+        case TDamage::Type::Piercing:    return "Piercing";
+        case TDamage::Type::Slashing:    return "Slashing";
+    }
+    throw std::runtime_error("invalid damage type");
+}
