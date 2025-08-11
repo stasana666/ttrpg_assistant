@@ -1,6 +1,6 @@
 #pragma once
 
-#include <pf2e_engine/game_context.h>
+class TGameContext;
 
 class IExpression {
 public:

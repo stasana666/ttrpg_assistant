@@ -63,9 +63,9 @@ public:
 
     TValueId<Tag> Register(const std::string& name);
     std::string_view Name(TValueId<Tag> id) const;
+    bool Contains(const std::string& name) const;
 
 private:
-
     std::unordered_map<std::string, int> table_;
     std::vector<std::string> names_;
 };
@@ -86,4 +86,10 @@ template <typename Tag>
 std::string_view TValueIdManager<Tag>::Name(TValueId<Tag> id) const
 {
     return names_[id.id_];
+}
+
+template <typename Tag>
+bool TValueIdManager<Tag>::Contains(const std::string& name) const
+{
+    return table_.contains(name);
 }

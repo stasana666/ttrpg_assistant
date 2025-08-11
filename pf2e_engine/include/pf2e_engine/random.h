@@ -14,5 +14,5 @@ public:
     int RollDice(int size) final;
 
 private:
-    std::mt19937 rng;
+    std::mt19937 rng_;
 };

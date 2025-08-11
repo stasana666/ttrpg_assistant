@@ -1,5 +1,7 @@
 #include "dice_expression.h"
 
+#include <pf2e_engine/game_context.h>
+
 #include <cassert>
 
 TDiceExpression::TDiceExpression(int size)

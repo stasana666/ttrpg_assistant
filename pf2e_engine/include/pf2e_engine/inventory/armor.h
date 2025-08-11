@@ -1,15 +1,17 @@
 #pragma once
 
+#include <limits>
+
+class TGameObjectFactory;
+
 class TArmor {
 public:
-    TArmor(int ac_bonus, int dex_cap);
-
-    static const TArmor& GetDefault();
-
     int AcBonus() const;
     int DexCap() const;
 
 private:
-    int ac_bonus_;
-    int dex_cap_;
+    friend TGameObjectFactory;
+
+    int ac_bonus_{0};
+    int dex_cap_{std::numeric_limits<int>::max()};
 };

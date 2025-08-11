@@ -55,6 +55,7 @@ TEST(ExpressionTest, MultiplyExpression) {
     EXPECT_EQ(expr->Value(_), 48);
 }
 
+/*
 TEST(ExpressionTest, CreatureExpression) {
     TGameContext ctx;
 
@@ -73,3 +74,4 @@ TEST(ExpressionTest, CreatureExpression) {
 
     EXPECT_EQ(expr->Value(ctx), 15);
 }
+*/

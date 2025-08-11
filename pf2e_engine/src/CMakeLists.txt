@@ -2,7 +2,6 @@ target_sources(pf2e_engine
     PRIVATE
         armor_slot.cpp
         creature.cpp
-        game_object_storage.cpp
         random.cpp
         resources.cpp
         weapon_damage_factory.cpp
@@ -18,3 +17,4 @@ add_subdirectory(common)
 add_subdirectory(expressions)
 add_subdirectory(inventory)
 add_subdirectory(mechanics)
+add_subdirectory(game_object_logic)

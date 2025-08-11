@@ -1,7 +1,6 @@
 #include <armor_slot.h>
 
 TArmorSlot::TArmorSlot()
-    : armor_(&TArmor::GetDefault())
 {
 }
 

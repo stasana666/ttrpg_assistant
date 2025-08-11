@@ -12,6 +12,6 @@ public:
     TDamage CritDamage() const;
 
 private:
-    int str;
-    const TWeapon* weapon;
+    int str_;
+    const TWeapon* weapon_;
 };

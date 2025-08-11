@@ -1,13 +1,13 @@
 #include <gtest/gtest.h>
 
 #include <pf2e_engine/creature.h>
-
+/*
 std::unordered_map<std::string, TArmor> armors{
     {"Unarmored", TArmor(0, std::numeric_limits<int>::max())},
     {"Leather", TArmor(1, 4)},
     {"Full Plate", TArmor(6, 0)},
 };
-/*
+
 TEST(ArmorClassTest, ArmorClass) {
     TArmorSlot slot;
     TCharacteristic dex(18);

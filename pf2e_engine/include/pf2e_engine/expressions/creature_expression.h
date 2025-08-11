@@ -3,6 +3,7 @@
 #include "base_expression.h"
 
 #include <pf2e_engine/mechanics/characteristics.h>
+#include <pf2e_engine/game_object_logic/game_object_id.h>
 
 class TArmorClassExpression final : public IExpression {
 public:
