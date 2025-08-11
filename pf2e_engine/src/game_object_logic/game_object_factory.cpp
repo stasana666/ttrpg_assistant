@@ -8,7 +8,9 @@
 
 const std::unordered_map<std::string, TGameObjectFactory::FMethod>
 TGameObjectFactory::kReaderMapping = {
-    {"armor", &TGameObjectFactory::ReadArmor}
+    {"pf2e_armor", &TGameObjectFactory::ReadArmor},
+    {"pf2e_weapon", &TGameObjectFactory::ReadWeapon},
+    {"pf2e_creature", &TGameObjectFactory::ReadCreature},
 };
 
 void TGameObjectFactory::AddSource(const std::filesystem::path& source_path)
@@ -39,6 +41,13 @@ void TGameObjectFactory::ReadObjectFromFile(const std::filesystem::path& game_ob
     }
 
     auto reader = kReaderMapping.find(json_game_object["type"]);
+
+    if (reader == kReaderMapping.end()) {
+        std::stringstream ss;
+        ss << "unknown type of game object " << json_game_object["type"];
+        throw std::runtime_error(ss.str());
+    }
+
     (this->*reader->second)(json_game_object);
 }
 
@@ -57,8 +66,8 @@ void TGameObjectFactory::ReadArmor(const nlohmann::json& json_game_object)
     const nlohmann::json& properties = json_game_object["properties"];
 
     TArmor result;
-    result.ac_bonus_ = properties["ac_bonus"];
-    result.dex_cap_ = properties["dex_cap"];
+    result.ac_bonus_ = properties["armor_class_bonus"];
+    result.dex_cap_ = properties["dexterity_cap"];
 
     armors_.insert({id, [result]() { return result; }});
 }
