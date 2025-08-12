@@ -1,6 +1,9 @@
 #include <game_object_factory.h>
 
 #include <nlohmann/json.hpp>
+#include <nlohmann/json-schema.hpp>
+
+#include <cpp_config.h>
 
 #include <filesystem>
 #include <fstream>
@@ -51,17 +54,27 @@ void TGameObjectFactory::ReadObjectFromFile(const std::filesystem::path& game_ob
     (this->*reader->second)(json_game_object);
 }
 
-TGameObjectId TGameObjectFactory::ReadGameObjectName(const nlohmann::json& json_game_object) const
+void TGameObjectFactory::ValidateObject(nlohmann::json& json) const
 {
-    if (!json_game_object.contains("name")) {
-        throw std::runtime_error("invalid game object, name not found");
-    }
+    static nlohmann::json_schema::json_validator validator{[]() {
+        std::ifstream in(kRootDirPath + "/pf2e_engine/data/schema/schema.json");
+        nlohmann::json schema = nlohmann::json::parse(in);
+        return schema;
+    }()};
+
+    const auto default_patch = validator.validate(json);
+	json = json.patch(default_patch);
+}
+
+TGameObjectId TGameObjectFactory::ReadGameObjectName(nlohmann::json& json_game_object) const
+{
     std::string name = json_game_object["name"];
     return TGameObjectIdManager::Instance().Register(name);
 }
 
-void TGameObjectFactory::ReadArmor(const nlohmann::json& json_game_object)
+void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object)
 {
+    ValidateObject(json_game_object);
     TGameObjectId id = ReadGameObjectName(json_game_object);
     const nlohmann::json& properties = json_game_object["properties"];
 
@@ -72,7 +85,7 @@ void TGameObjectFactory::ReadArmor(const nlohmann::json& json_game_object)
     armors_.insert({id, [result]() { return result; }});
 }
 
-void TGameObjectFactory::ReadWeapon(const nlohmann::json& json_game_object)
+void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object)
 {
     TGameObjectId id = ReadGameObjectName(json_game_object);
     const nlohmann::json& properties = json_game_object["properties"];
@@ -84,7 +97,7 @@ void TGameObjectFactory::ReadWeapon(const nlohmann::json& json_game_object)
     weapons_.insert({id, [result]() { return result; }});
 }
 
-void TGameObjectFactory::ReadCreature(const nlohmann::json& json_game_object)
+void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object)
 {
     TGameObjectId id = ReadGameObjectName(json_game_object);
     const nlohmann::json& properties = json_game_object["properties"];

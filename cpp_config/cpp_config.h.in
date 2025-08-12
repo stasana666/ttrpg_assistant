@@ -2,4 +2,4 @@
 
 #include <string>
 
-std::string kRootDirPath = "@CMAKE_SOURCE_DIR@";
+const std::string kRootDirPath = "@CMAKE_SOURCE_DIR@";

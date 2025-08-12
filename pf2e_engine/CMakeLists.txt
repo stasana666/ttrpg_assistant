@@ -6,8 +6,10 @@ target_include_directories(pf2e_engine
 )
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/extern/json ${CMAKE_BINARY_DIR}/extern/json)
+add_subdirectory(${CMAKE_SOURCE_DIR}/extern/json-schema-validator ${CMAKE_BINARY_DIR}/extern/json-schema-validator)
 
 target_link_libraries(pf2e_engine PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(pf2e_engine PRIVATE nlohmann_json_schema_validator)
 
-add_subdirectory(tests)
 add_subdirectory(src)
+add_subdirectory(tests)
