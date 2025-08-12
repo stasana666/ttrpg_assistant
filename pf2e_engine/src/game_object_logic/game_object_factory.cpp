@@ -9,6 +9,8 @@
 #include <fstream>
 #include <stdexcept>
 
+#include <iostream>
+
 const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.json";
 
 const std::unordered_map<std::string, TGameObjectFactory::FMethod>
@@ -40,11 +42,8 @@ void TGameObjectFactory::ReadObjectFromFile(const std::filesystem::path& game_ob
 {
     std::ifstream game_object_stream(game_object_file);
     nlohmann::json json_game_object = nlohmann::json::parse(game_object_stream);
-
-    if (!json_game_object.is_object()) {
-        throw std::runtime_error("not single object in file not supported yet");
-    }
-
+    ValidateObject(json_game_object);
+    
     auto reader = kReaderMapping.find(json_game_object["type"]);
 
     if (reader == kReaderMapping.end()) {
@@ -53,7 +52,8 @@ void TGameObjectFactory::ReadObjectFromFile(const std::filesystem::path& game_ob
         throw std::runtime_error(ss.str());
     }
 
-    (this->*reader->second)(json_game_object);
+    TGameObjectId id = ReadGameObjectName(json_game_object);
+    (this->*reader->second)(json_game_object[json_game_object["type"]], id);
 }
 
 void TGameObjectFactory::ValidateObject(nlohmann::json& json) const
@@ -74,57 +74,59 @@ TGameObjectId TGameObjectFactory::ReadGameObjectName(nlohmann::json& json_game_o
     return TGameObjectIdManager::Instance().Register(name);
 }
 
-void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object)
-{
-    ValidateObject(json_game_object);
-    TGameObjectId id = ReadGameObjectName(json_game_object);
-    const nlohmann::json& properties = json_game_object["armor_data"];
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
+void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object, TGameObjectId id)
+{
     TArmor result;
-    result.ac_bonus_ = properties["armor_class_bonus"];
-    result.dex_cap_ = properties["dexterity_cap"];
+    result.ac_bonus_ = json_game_object["armor_class_bonus"];
+    result.dex_cap_ = json_game_object["dexterity_cap"];
 
     armors_.insert({id, [result]() { return result; }});
 }
 
-void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object)
-{
-    TGameObjectId id = ReadGameObjectName(json_game_object);
-    const nlohmann::json& properties = json_game_object["pf2e_weapon"];
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
-    int base_die_size = properties["base_die_size"];
-    TDamage::Type damage_type = DamageTypeFromString(std::string{properties["damage_type"]});
+void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjectId id)
+{
+    int base_die_size = json_game_object["base_die_size"];
+    TDamage::Type damage_type = DamageTypeFromString(std::string{json_game_object["damage_type"]});
     TWeapon result(base_die_size, damage_type);
 
     weapons_.insert({id, [result]() { return result; }});
 }
 
-void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object)
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    TGameObjectId id = ReadGameObjectName(json_game_object);
-    const nlohmann::json& properties = json_game_object["creature_data"];
+    std::cerr << json_game_object << std::endl;
 
     TCharacteristicSet stats([&]() {
         std::array<int, TCharacteristicSet::kCharacteristicCount> num_stats;
-        const nlohmann::json& json_stats = properties["stats"];
+        const nlohmann::json& json_stats = json_game_object["characteristics"];
         for (size_t i = 0; i < TCharacteristicSet::kCharacteristicCount; ++i) {
             num_stats[i] = json_stats[ToString(static_cast<ECharacteristic>(i))];
         }
         return num_stats;
     }());
 
-    TGameObjectId armor_id = TGameObjectIdManager::Instance().Register(properties["armor"]);
-    TGameObjectId weapon_id = TGameObjectIdManager::Instance().Register(properties["weapon"]);
+    int hand_count = json_game_object["resources"]["hand_count"];
 
-    int max_hp = properties["hp"];
+    // TGameObjectId armor_id = TGameObjectIdManager::Instance().Register(json_game_object["armor"]);
+    // TGameObjectId weapon_id = TGameObjectIdManager::Instance().Register(json_game_object["weapon"]);
 
-    creatures_.insert({id, [this, armor_id, weapon_id, stats, max_hp]() {
-        TCreature result(stats, this->CreateArmor(armor_id), THitPoints(max_hp));
-        return result;
-    }});
+    int max_hp = json_game_object["hitpoints"];
+
+    // creatures_.insert({id, [this, armor_id, weapon_id, stats, max_hp]() {
+    //     TCreature result(stats, this->CreateArmor(armor_id), THitPoints(max_hp));
+    //     return result;
+    // }});
 
     throw std::logic_error("not implemented yet");
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 TArmor TGameObjectFactory::CreateArmor(TGameObjectId id) const
 {

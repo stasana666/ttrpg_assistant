@@ -20,14 +20,14 @@ public:
 private:
     void ReadObjectFromFile(const std::filesystem::path& game_object_file);
 
-    void ValidateObject(nlohmann::json& json) const;
-    TGameObjectId ReadGameObjectName(nlohmann::json& json) const;
+    void ValidateObject(nlohmann::json&) const;
+    TGameObjectId ReadGameObjectName(nlohmann::json&) const;
 
-    void ReadArmor(nlohmann::json& json);
-    void ReadWeapon(nlohmann::json& json);
-    void ReadCreature(nlohmann::json& json);
+    void ReadArmor(nlohmann::json&, TGameObjectId);
+    void ReadWeapon(nlohmann::json&, TGameObjectId);
+    void ReadCreature(nlohmann::json&, TGameObjectId);
 
-    using FMethod = void(TGameObjectFactory::*)(nlohmann::json&);
+    using FMethod = void(TGameObjectFactory::*)(nlohmann::json&, TGameObjectId);
     static const std::unordered_map<std::string, FMethod> kReaderMapping;
 
     template <class T>

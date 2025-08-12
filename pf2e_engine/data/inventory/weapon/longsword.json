@@ -1,6 +1,8 @@
 {
     "name": "longsword",
     "type": "pf2e_weapon",
-    "properties": {
+    "pf2e_weapon": {
+        "base_die_size": 6,
+        "damage_type": "Slashing"
     }
 }

@@ -1,6 +1,15 @@
 {
     "name": "warrior",
     "type": "pf2e_creature",
-    "properties": {
+    "pf2e_creature": {
+        "hitpoints": 20,
+        "characteristics": {
+            "Strength": 18,
+            "Dexterity": 12,
+            "Constitution": 16,
+            "Intelligence": 12,
+            "Wisdom": 13,
+            "Charisma": 13
+        }
     }
 }

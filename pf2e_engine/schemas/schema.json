@@ -17,7 +17,7 @@
                 {
                     "properties": {
                         "type": { "const": "pf2e_armor" },
-                        "armor_data": {
+                        "pf2e_armor": {
                             "type": "object",
                             "properties": {
                                 "armor_class_bonus": { "type": "integer" },
@@ -26,7 +26,7 @@
                             "required": ["armor_class_bonus", "dexterity_cap"]
                         }
                     },
-                    "required": ["armor_data"]
+                    "required": ["pf2e_armor"]
                 }
             ]
         },
@@ -37,7 +37,7 @@
                 {
                     "properties": {
                         "type": { "const": "pf2e_weapon" },
-                        "weapon_data": {
+                        "pf2e_weapon": {
                             "type": "object",
                             "properties": {
                                 "base_die_size": { "type": "integer" },
@@ -46,7 +46,7 @@
                             "required": ["base_die_size", "damage_type"]
                         }
                     },
-                    "required": ["weapon_data"]
+                    "required": ["pf2e_weapon"]
                 }
             ]
         },
@@ -107,6 +107,9 @@
 
         "pf2e_creature_resources": {
             "type": "object",
+            "default": {
+                "hand_count": 2
+            },
             "properties": {
                 "hand_count": {
                     "type": "integer",
@@ -119,7 +122,7 @@
             "type": "object",
             "properties": {
                 "type": { "const": "pf2e_creature" },
-                "creature_data": {
+                "pf2e_creature": {
                     "type": "object",
                     "properties": {
                         "characteristics": { "$ref": "#/$defs/pf2e_creature_characteristics" },
@@ -135,7 +138,7 @@
                     ]
                 }
             },
-            "required": ["creature_data"]
+            "required": ["pf2e_creature"]
         },
 
         "pf2e_creature": {
