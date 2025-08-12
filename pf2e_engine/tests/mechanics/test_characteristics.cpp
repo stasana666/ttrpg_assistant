@@ -4,12 +4,12 @@
 
 TEST(CharacteristicsTest, FromString) {
     std::unordered_map<std::string, ECharacteristic> table{
-        {"strength", ECharacteristic::Strength},
-        {"dexterity", ECharacteristic::Dexterity},
-        {"constitution", ECharacteristic::Constitution},
-        {"intelligence", ECharacteristic::Intelligence},
-        {"wisdom", ECharacteristic::Wisdom},
-        {"charisma", ECharacteristic::Charisma},
+        {"Strength", ECharacteristic::Strength},
+        {"Dexterity", ECharacteristic::Dexterity},
+        {"Constitution", ECharacteristic::Constitution},
+        {"Intelligence", ECharacteristic::Intelligence},
+        {"Wisdom", ECharacteristic::Wisdom},
+        {"Charisma", ECharacteristic::Charisma},
     };
 
     for (const auto& [key, value] : table) {
@@ -19,12 +19,12 @@ TEST(CharacteristicsTest, FromString) {
 
 TEST(CharacteristicsTest, ToString) {
     std::unordered_map<ECharacteristic, std::string> table{
-        {ECharacteristic::Strength, "strength"},
-        {ECharacteristic::Dexterity, "dexterity"},
-        {ECharacteristic::Constitution, "constitution"},
-        {ECharacteristic::Intelligence, "intelligence"},
-        {ECharacteristic::Wisdom, "wisdom"},
-        {ECharacteristic::Charisma, "charisma"},
+        {ECharacteristic::Strength, "Strength"},
+        {ECharacteristic::Dexterity, "Dexterity"},
+        {ECharacteristic::Constitution, "Constitution"},
+        {ECharacteristic::Intelligence, "Intelligence"},
+        {ECharacteristic::Wisdom, "Wisdom"},
+        {ECharacteristic::Charisma, "Charisma"},
     };
 
     for (const auto& [key, value] : table) {

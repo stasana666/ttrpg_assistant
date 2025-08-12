@@ -1,0 +1,154 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+
+    "$defs": {
+        "pf2e_base": {
+            "type": "object",
+            "required": ["type", "name"],
+            "properties": {
+                "type": { "type": "string" },
+                "name": { "type": "string" }
+            }
+        },
+
+        "pf2e_armor": {
+            "allOf": [
+                { "$ref": "#/$defs/pf2e_base" },
+                {
+                    "properties": {
+                        "type": { "const": "pf2e_armor" },
+                        "armor_data": {
+                            "type": "object",
+                            "properties": {
+                                "armor_class_bonus": { "type": "integer" },
+                                "dexterity_cap": { "type": "integer" }
+                            },
+                            "required": ["armor_class_bonus", "dexterity_cap"]
+                        }
+                    },
+                    "required": ["armor_data"]
+                }
+            ]
+        },
+
+        "pf2e_weapon": {
+            "allOf": [
+                { "$ref": "#/$defs/pf2e_base" },
+                {
+                    "properties": {
+                        "type": { "const": "pf2e_weapon" },
+                        "weapon_data": {
+                            "type": "object",
+                            "properties": {
+                                "base_die_size": { "type": "integer" },
+                                "damage_type": { "type": "string" }
+                            },
+                            "required": ["base_die_size", "damage_type"]
+                        }
+                    },
+                    "required": ["weapon_data"]
+                }
+            ]
+        },
+
+        "pf2e_creature_characteristics": {
+            "type": "object",
+            "properties": {
+                "Strength": { "type": "integer" },
+                "Dexterity": { "type": "integer" },
+                "Constitution": { "type": "integer" },
+                "Intelligence": { "type": "integer" },
+                "Wisdom": { "type": "integer" },
+                "Charisma": { "type": "integer" }
+            },
+            "required": [
+                "Strength",
+                "Dexterity",
+                "Constitution",
+                "Intelligence",
+                "Wisdom",
+                "Charisma"
+            ]
+        },
+
+        "pf2e_creature_equipped_armor": {
+            "oneOf": [
+                { "type": "string" },
+                { "$ref": "#/$defs/pf2e_armor" }
+            ]
+        },
+
+        "pf2e_creature_equipped_weapon": {
+            "type": "object",
+            "properties": {
+                "grip": {
+                    "type": "integer",
+                    "default": -1
+                },
+                "weapon": {
+                    "oneOf": [
+                        { "type": "string" },
+                        { "$ref": "#/$defs/pf2e_weapon" }
+                    ]
+                }
+            }
+        },
+
+        "pf2e_creature_equipped": {
+            "type": "object",
+            "properties": {
+                "armor": { "$ref": "#/$defs/pf2e_creature_equipped_armor" },
+                "weapons": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/pf2e_creature_equipped_weapon" }
+                }
+            }
+        },
+
+        "pf2e_creature_resources": {
+            "type": "object",
+            "properties": {
+                "hand_count": {
+                    "type": "integer",
+                    "default": 2
+                }
+            }
+        },
+
+        "pf2e_creature_core": {
+            "type": "object",
+            "properties": {
+                "type": { "const": "pf2e_creature" },
+                "creature_data": {
+                    "type": "object",
+                    "properties": {
+                        "characteristics": { "$ref": "#/$defs/pf2e_creature_characteristics" },
+                        "hitpoints": {
+                            "type": "integer"
+                        },
+                        "equipped": { "$ref": "#/$defs/pf2e_creature_equipped" },
+                        "resources": { "$ref": "#/$defs/pf2e_creature_resources" }
+                    },
+                    "required": [
+                        "characteristics",
+                        "hitpoints"
+                    ]
+                }
+            },
+            "required": ["creature_data"]
+        },
+
+        "pf2e_creature": {
+            "allOf": [
+                { "$ref": "#/$defs/pf2e_base" },
+                { "$ref": "#/$defs/pf2e_creature_core" }
+            ]
+        }
+    },
+
+    "oneOf": [
+        { "$ref": "#/$defs/pf2e_armor" },
+        { "$ref": "#/$defs/pf2e_weapon" },
+        { "$ref": "#/$defs/pf2e_creature" }
+    ]
+}

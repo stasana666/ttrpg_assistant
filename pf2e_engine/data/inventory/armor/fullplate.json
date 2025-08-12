@@ -1,7 +1,7 @@
 {
     "type": "pf2e_armor",
     "name": "fullplate",
-    "properties": {
+    "armor_data": {
         "armor_class_bonus": 6,
         "dexterity_cap": 0
     }

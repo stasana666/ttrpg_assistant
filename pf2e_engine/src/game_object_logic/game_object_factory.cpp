@@ -9,6 +9,8 @@
 #include <fstream>
 #include <stdexcept>
 
+const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.json";
+
 const std::unordered_map<std::string, TGameObjectFactory::FMethod>
 TGameObjectFactory::kReaderMapping = {
     {"pf2e_armor", &TGameObjectFactory::ReadArmor},
@@ -57,7 +59,7 @@ void TGameObjectFactory::ReadObjectFromFile(const std::filesystem::path& game_ob
 void TGameObjectFactory::ValidateObject(nlohmann::json& json) const
 {
     static nlohmann::json_schema::json_validator validator{[]() {
-        std::ifstream in(kRootDirPath + "/pf2e_engine/data/schema/schema.json");
+        std::ifstream in(kPathToSchema);
         nlohmann::json schema = nlohmann::json::parse(in);
         return schema;
     }()};
@@ -76,7 +78,7 @@ void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object)
 {
     ValidateObject(json_game_object);
     TGameObjectId id = ReadGameObjectName(json_game_object);
-    const nlohmann::json& properties = json_game_object["properties"];
+    const nlohmann::json& properties = json_game_object["armor_data"];
 
     TArmor result;
     result.ac_bonus_ = properties["armor_class_bonus"];
@@ -88,7 +90,7 @@ void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object)
 void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object)
 {
     TGameObjectId id = ReadGameObjectName(json_game_object);
-    const nlohmann::json& properties = json_game_object["properties"];
+    const nlohmann::json& properties = json_game_object["pf2e_weapon"];
 
     int base_die_size = properties["base_die_size"];
     TDamage::Type damage_type = DamageTypeFromString(std::string{properties["damage_type"]});
@@ -100,7 +102,7 @@ void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object)
 void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object)
 {
     TGameObjectId id = ReadGameObjectName(json_game_object);
-    const nlohmann::json& properties = json_game_object["properties"];
+    const nlohmann::json& properties = json_game_object["creature_data"];
 
     TCharacteristicSet stats([&]() {
         std::array<int, TCharacteristicSet::kCharacteristicCount> num_stats;
@@ -120,6 +122,8 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object)
         TCreature result(stats, this->CreateArmor(armor_id), THitPoints(max_hp));
         return result;
     }});
+
+    throw std::logic_error("not implemented yet");
 }
 
 TArmor TGameObjectFactory::CreateArmor(TGameObjectId id) const

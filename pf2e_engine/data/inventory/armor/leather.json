@@ -1,7 +1,7 @@
 {
     "type": "pf2e_armor",
     "name": "leather",
-    "properties": {
+    "armor_data": {
         "armor_class_bonus": 2,
         "dexterity_cap": 3
     }
