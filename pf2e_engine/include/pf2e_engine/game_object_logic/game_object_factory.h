@@ -25,6 +25,8 @@ private:
 
     void ReadArmor(nlohmann::json&, TGameObjectId);
     void ReadWeapon(nlohmann::json&, TGameObjectId);
+
+    TResourcePool ReadCreatureResources(nlohmann::json&);
     void ReadCreature(nlohmann::json&, TGameObjectId);
 
     using FMethod = void(TGameObjectFactory::*)(nlohmann::json&, TGameObjectId);

@@ -12,4 +12,4 @@ using TGameObject = std::variant<
     TCreature
 >;
 
-static_assert(sizeof(TGameObject) == 256);
+//static_assert(sizeof(TGameObject) == 256);

@@ -47,3 +47,5 @@ CheckOptions:
     value: '1'
   - key: readability-identifier-naming.TypeTemplateParameterIgnoredRegexp
     value: expr-type
+  - key: readability-identifier-naming.AllowedMethods
+    value: begin;end

@@ -100,7 +100,8 @@
                 "armor": { "$ref": "#/$defs/pf2e_creature_equipped_armor" },
                 "weapons": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/pf2e_creature_equipped_weapon" }
+                    "items": { "$ref": "#/$defs/pf2e_creature_equipped_weapon" },
+                    "default": []
                 }
             }
         },
@@ -108,10 +109,10 @@
         "pf2e_creature_resources": {
             "type": "object",
             "default": {
-                "hand_count": 2
+                "hand": 2
             },
             "properties": {
-                "hand_count": {
+                "hand": {
                     "type": "integer",
                     "default": 2
                 }

@@ -22,8 +22,8 @@ TEST(GameObjectFactory, WeaponFactory) {
     factory.AddSource(kPathToWeapon);
 }
 
-// TEST(GameObjectFactory, CreatureFactory) {
-//     TGameObjectFactory factory;
+TEST(GameObjectFactory, CreatureFactory) {
+    TGameObjectFactory factory;
 
-//     factory.AddSource(kPathToCreature);
-// }
+    factory.AddSource(kPathToCreature);
+}

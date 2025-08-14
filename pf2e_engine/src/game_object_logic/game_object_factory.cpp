@@ -9,7 +9,8 @@
 #include <fstream>
 #include <stdexcept>
 
-#include <iostream>
+#include "game_object_id.h"
+#include "resources.h"
 
 const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.json";
 
@@ -98,10 +99,23 @@ void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjec
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+TResourcePool TGameObjectFactory::ReadCreatureResources(nlohmann::json& json_game_object)
+{
+    TResourcePool resource_pool;
+    for (auto it = json_game_object.begin(); it != json_game_object.end(); ++it) {
+        if (!it->is_number()) {
+            std::stringstream ss;
+            ss << "wrong resource count: \"" << *it << "\"";
+            throw std::runtime_error(ss.str());
+        }
+        auto resource_id = TResourceIdManager::Instance().Register(it.key());
+        resource_pool.Add(resource_id, *it);
+    }
+    return resource_pool;
+}
+
 void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    std::cerr << json_game_object << std::endl;
-
     TCharacteristicSet stats([&]() {
         std::array<int, TCharacteristicSet::kCharacteristicCount> num_stats;
         const nlohmann::json& json_stats = json_game_object["characteristics"];
@@ -111,19 +125,50 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         return num_stats;
     }());
 
-    int hand_count = json_game_object["resources"]["hand_count"];
+    TResourcePool resource_pool = ReadCreatureResources(json_game_object["resources"]);
 
-    // TGameObjectId armor_id = TGameObjectIdManager::Instance().Register(json_game_object["armor"]);
-    // TGameObjectId weapon_id = TGameObjectIdManager::Instance().Register(json_game_object["weapon"]);
+    std::optional<TGameObjectId> armor_id = [&]() -> std::optional<TGameObjectId> {
+        if (json_game_object.find("armor") == json_game_object.end()) {
+            return std::nullopt;
+        }
+        if (json_game_object.is_object()) {
+            throw std::runtime_error("definition new armor in creature is not supported yet");
+        }
+        return TGameObjectIdManager::Instance().Register(json_game_object["armor"]);
+    }();
+
+    std::vector<std::pair<TGameObjectId, int>> weapon_ids;
+    for (const auto& weapon_json : json_game_object["weapons"]) {
+        weapon_ids.emplace_back([&]() -> std::pair<TGameObjectId, int> {
+            if (weapon_json["weapon"].is_object()) {
+                throw std::runtime_error("definition new weapon in creature is not supported yet");
+            }
+            return { TGameObjectIdManager::Instance().Register(weapon_json["weapon"]), weapon_json["grip"] };
+        }());
+    }
 
     int max_hp = json_game_object["hitpoints"];
 
-    // creatures_.insert({id, [this, armor_id, weapon_id, stats, max_hp]() {
-    //     TCreature result(stats, this->CreateArmor(armor_id), THitPoints(max_hp));
-    //     return result;
-    // }});
+    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, max_hp]() {
+        TArmor armor = armor_id ? this->CreateArmor(*armor_id) : TArmor{};
+        TCreature creature(stats, armor, THitPoints(max_hp));
+        creature.Resources() = resource_pool;
 
-    throw std::logic_error("not implemented yet");
+        auto hand_id = TResourceIdManager::Instance().Register("hand");
+
+        for (auto [weapon_id, hand_count] : weapon_ids) {
+            TWeapon weapon = this->CreateWeapon(weapon_id);
+            assert(weapon.ValidGrip(hand_count));
+            creature.Weapons().Equip({weapon, hand_count});
+
+            if (!creature.Resources().HasResource(hand_id, hand_count)) {
+                throw std::runtime_error("too many weapon, not enough hands");
+            }
+            creature.Resources().Reduce(hand_id, hand_count);
+        }
+
+        return creature;
+    }});
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

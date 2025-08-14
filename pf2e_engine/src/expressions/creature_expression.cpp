@@ -20,7 +20,7 @@ int TArmorClassExpression::Value(TGameContext& ctx) const
     assert(std::holds_alternative<TCreature>(object));
     TCreature& creature = std::get<TCreature>(object);
 
-    const TArmor& armor = creature.GetArmor();
+    const TArmor& armor = creature.Armor();
     return 10 + armor.AcBonus() + std::min(armor.DexCap(), creature.GetCharacteristic(ECharacteristic::Dexterity).GetMod());
 }
 

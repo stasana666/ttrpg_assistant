@@ -1,29 +1,43 @@
 #include <weapon_slot.h>
 
-TWeaponSlot::TWeaponSlot(TResourcePool& pool)
-    : weapon(nullptr)
-    , pool(pool)
+auto TWeaponSlots::Equip(THoldedWeapon weapon) -> TWeaponDescriptor
+{
+    weapons_.emplace_back(weapon);
+    return TWeaponDescriptor(this, weapons_.size() - 1);
+}
+
+auto TWeaponSlots::operator [](size_t idx) -> TWeaponDescriptor
+{
+    return TWeaponDescriptor(this, idx);
+}
+
+size_t TWeaponSlots::Size() const
+{
+    return weapons_.size();
+}
+
+bool TWeaponSlots::Empty() const
+{
+    return weapons_.empty();
+}
+
+TWeaponSlots::TWeaponDescriptor::TWeaponDescriptor(TWeaponSlots* parent, size_t index)
+    : parent_(parent)
+    , index_(index)
 {
 }
 
-void TWeaponSlot::Equip(const TWeapon* w)
+void TWeaponSlots::TWeaponDescriptor::SetGrip(size_t hand_count)
 {
-    weapon = w;
-    NotifyAll(weapon);
+    parent_->weapons_[index_].hand_count = hand_count;
 }
 
-bool TWeaponSlot::Has() const
+int TWeaponSlots::TWeaponDescriptor::Grip() const
 {
-    return weapon != nullptr;
+    return parent_->weapons_[index_].hand_count;
 }
 
-const TWeapon* TWeaponSlot::Get() const
+const TWeapon& TWeaponSlots::TWeaponDescriptor::Weapon() const
 {
-    return weapon;
-}
-
-void TWeaponSlot::Release()
-{
-    weapon = nullptr;
-    NotifyAll(nullptr);
+    return parent_->weapons_[index_].weapon;
 }

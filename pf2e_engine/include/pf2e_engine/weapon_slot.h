@@ -4,16 +4,36 @@
 #include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/resources.h>
 
-class TWeaponSlot final : public TObservable<const TWeapon*> {
+class TWeaponSlots {
 public:
-    explicit TWeaponSlot(TResourcePool& pool);
+    class TWeaponDescriptor {
+        void SetGrip(size_t hand_count);
 
-    void Equip(const TWeapon*);
-    bool Has() const;
-    const TWeapon* Get() const;
-    void Release();
+        int Grip() const;
+        const TWeapon& Weapon() const;
+
+    private:
+        friend TWeaponSlots;
+
+        TWeaponDescriptor(TWeaponSlots* parent, size_t index);
+
+        TWeaponSlots* parent_;
+        size_t index_;
+    };
+
+    struct THoldedWeapon {
+        TWeapon weapon;
+        int hand_count;
+    };
+
+    TWeaponDescriptor Equip(THoldedWeapon weapon);
+
+    TWeaponDescriptor operator [](size_t idx);
+
+    size_t Size() const;
+    bool Empty() const;
 
 private:
-    const TWeapon* weapon;
-    TResourcePool& pool;
+
+    std::vector<THoldedWeapon> weapons_;
 };

@@ -1,10 +1,8 @@
 target_sources(pf2e_engine
     PRIVATE
-        armor_slot.cpp
         creature.cpp
         random.cpp
         resources.cpp
-        weapon_damage_factory.cpp
         weapon_slot.cpp
 )
 
