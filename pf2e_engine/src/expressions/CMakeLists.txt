@@ -1,6 +1,5 @@
 target_sources(pf2e_engine
     PRIVATE
-        creature_expression.cpp
         dice_expression.cpp
         math_expression.cpp
         number_expression.cpp

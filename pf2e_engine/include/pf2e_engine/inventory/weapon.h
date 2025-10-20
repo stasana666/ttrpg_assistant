@@ -6,14 +6,14 @@
 
 class TWeapon : public TItem {
 public:
-    TWeapon(int base_die_size, TDamage::Type type);
+    TWeapon(int base_dice_size, TDamage::Type type);
 
-    int GetBaseDieSize() const;
+    int GetBaseDiceSize() const;
     TDamage::Type GetDamageType() const;
     std::vector<int> Grips() const;
     bool ValidGrip(int hand_count) const;
 
 private:
-    int base_die_size_;
+    int base_dice_size_;
     TDamage::Type type_;
 };

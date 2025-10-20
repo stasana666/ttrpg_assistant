@@ -3,13 +3,15 @@
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/creature.h>
+#include <pf2e_engine/battle_map.h>
+#include <pf2e_engine/success_level.h>
 
 #include <variant>
 
-using TGameObject = std::variant<
-    TArmor,
-    TWeapon,
-    TCreature
+using TGameObjectPtr = std::variant<
+    TArmor*,
+    TWeapon*,
+    TCreature*,
+    std::string,
+    ESuccessLevel
 >;
-
-//static_assert(sizeof(TGameObject) == 256);

@@ -37,6 +37,11 @@ int TWeaponSlots::TWeaponDescriptor::Grip() const
     return parent_->weapons_[index_].hand_count;
 }
 
+TWeapon& TWeaponSlots::TWeaponDescriptor::Weapon()
+{
+    return parent_->weapons_[index_].weapon;
+}
+
 const TWeapon& TWeaponSlots::TWeaponDescriptor::Weapon() const
 {
     return parent_->weapons_[index_].weapon;

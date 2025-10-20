@@ -1,0 +1,95 @@
+{
+    "type": "pf2e_action",
+    "name": "attack",
+    "pf2e_action": {
+        "pipeline": [
+            {
+                "name": "choose_weapon",
+                "type": "function_call",
+                "input": {
+                    "creature": "$self"
+                },
+                "function": "choose_weapon",
+                "output": [ "weapon" ]
+            },
+            {
+                "name": "choose_target",
+                "type": "function_call",
+                "input": {
+                    "type": "emanation",
+                    "center": "$self",
+                    "radius": "$weapon"
+                },
+                "function": "choose_target",
+                "output": [
+                    "target"
+                ]
+            },
+            {
+                "name": "attack_roll",
+                "type": "function_call",
+                "input": {
+                    "attacker": "$self",
+                    "weapon": "$weapon",
+                    "target": "$target"
+                },
+                "function": "attack_roll",
+                "output": [
+                    "success_level"
+                ]
+            },
+            {
+                "name": "attack_result",
+                "type": "switch",
+                "input": {
+                    "value": "$success_level"
+                },
+                "next_table": {
+                    "critical_failure": "finish",
+                    "failure": "finish",
+                    "success": "success",
+                    "critical_success": "critical_success"
+                }
+            },
+            {
+                "name": "success",
+                "next": "deal_damage",
+                "type": "function_call",
+                "input": {
+                    "creature": "$self",
+                    "weapon": "$weapon"
+                },
+                "function": "damage_roll",
+                "output": [
+                    "damage"
+                ]
+            },
+            {
+                "name": "critical_success",
+                "next": "deal_damage",
+                "type": "function_call",
+                "input": {
+                    "creature": "$self",
+                    "weapon": "$weapon"
+                },
+                "function": "crit_damage_roll",
+                "output": [
+                    "damage"
+                ]
+            },
+            {
+                "name": "deal_damage",
+                "type": "function_call",
+                "function": "deal_damage",
+                "input": {
+                    "damage": "$damage",
+                    "target": "$target"
+                }
+            },
+            {
+                "name": "finish",
+                "type": "terminate"
+            }
+        ]
+    }
+}

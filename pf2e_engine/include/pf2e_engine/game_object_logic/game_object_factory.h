@@ -2,7 +2,6 @@
 
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/game_object_logic/game_object.h>
-#include <pf2e_engine/game_object_logic/game_object_storage.h>
 
 #include <nlohmann/json_fwd.hpp>
 

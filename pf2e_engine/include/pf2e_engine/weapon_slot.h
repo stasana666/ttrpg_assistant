@@ -7,9 +7,11 @@
 class TWeaponSlots {
 public:
     class TWeaponDescriptor {
+    public:
         void SetGrip(size_t hand_count);
 
         int Grip() const;
+        TWeapon& Weapon();
         const TWeapon& Weapon() const;
 
     private:
@@ -34,6 +36,5 @@ public:
     bool Empty() const;
 
 private:
-
     std::vector<THoldedWeapon> weapons_;
 };

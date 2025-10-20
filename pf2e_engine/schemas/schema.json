@@ -147,6 +147,24 @@
                 { "$ref": "#/$defs/pf2e_base" },
                 { "$ref": "#/$defs/pf2e_creature_core" }
             ]
+        },
+
+        "pf2e_action_data": {
+        },
+
+        "pf2e_action_core": {
+            "type": "object",
+            "properties": {
+                "type": { "const": "pf2e_action" },
+                "pf2e_action": "#/$defs/pf2e_action_data"
+            }
+        },
+
+        "pf2e_action": {
+            "allOf": [
+                { "$ref": "#/$defs/pf2e_base" },
+                { "$ref": "#/$defs/pf2e_action_core" }
+            ]
         }
     },
 

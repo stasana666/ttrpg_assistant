@@ -29,7 +29,7 @@ TODO(stasana):
 */
 int TDamageResolver::operator()(const TDamage& damage, IRandomGenerator& rng) const
 {
-    TGameContext ctx{.gameObjectStorage = nullptr, .diceRoller = &rng};
+    TGameContext ctx{.game_object_register = nullptr, .dice_roller = &rng};
     int result = 0;
     for (const auto& [type, expr] : damage) {
         int value = std::max(1, expr->Value(ctx));

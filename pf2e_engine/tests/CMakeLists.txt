@@ -16,6 +16,7 @@ target_include_directories(test_pf2_engine
 include(GoogleTest)
 gtest_discover_tests(test_pf2_engine)
 
+add_subdirectory(actions)
 add_subdirectory(expressions)
 add_subdirectory(game_object_logic)
 add_subdirectory(inventory)

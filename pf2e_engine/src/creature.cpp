@@ -26,7 +26,7 @@ TResourcePool& TCreature::Resources()
     return resources_;
 }
 
-TArmor& TCreature::Armor()
+const TArmor& TCreature::Armor() const
 {
     return armor_;
 }

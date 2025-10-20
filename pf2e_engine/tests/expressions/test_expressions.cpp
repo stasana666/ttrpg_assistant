@@ -14,8 +14,8 @@ TEST(ExpressionTest, OneDice) {
     TMockRng rng;
     rng.ExpectCall(20, 1);
     TGameContext ctx{
-        .gameObjectStorage = nullptr,
-        .diceRoller = &rng
+        .game_object_register = nullptr,
+        .dice_roller = &rng
     };
 
     std::unique_ptr<IExpression> dice = std::make_unique<TDiceExpression>(20);
@@ -29,8 +29,8 @@ TEST(ExpressionTest, DiceExpression) {
     rng.ExpectCall(20, 1);
     rng.ExpectCall(4, 1);
     TGameContext ctx{
-        .gameObjectStorage = nullptr,
-        .diceRoller = &rng
+        .game_object_register = nullptr,
+        .dice_roller = &rng
     };
 
     std::unique_ptr<IExpression> skill_check = std::make_unique<TSumExpression>(

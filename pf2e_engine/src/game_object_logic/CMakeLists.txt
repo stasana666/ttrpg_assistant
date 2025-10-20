@@ -1,7 +1,7 @@
 target_sources(pf2e_engine
     PRIVATE
         game_object_factory.cpp
-        game_object_storage.cpp
+        game_object_register.cpp
 )
 
 target_include_directories(pf2e_engine

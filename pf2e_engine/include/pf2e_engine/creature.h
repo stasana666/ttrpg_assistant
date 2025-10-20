@@ -16,7 +16,7 @@ public:
     THitPoints& Hitpoints();
     TResourcePool& Resources();
 
-    TArmor& Armor();
+    const TArmor& Armor() const;
     TWeaponSlots& Weapons();
 
 private:

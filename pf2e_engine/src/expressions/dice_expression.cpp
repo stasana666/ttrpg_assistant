@@ -11,6 +11,6 @@ TDiceExpression::TDiceExpression(int size)
 
 int TDiceExpression::Value(TGameContext& ctx) const
 {
-    assert(ctx.diceRoller != nullptr);
-    return ctx.diceRoller->RollDice(size);
+    assert(ctx.dice_roller != nullptr);
+    return ctx.dice_roller->RollDice(size);
 }
