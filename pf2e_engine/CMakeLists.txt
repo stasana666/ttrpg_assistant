@@ -5,8 +5,8 @@ target_include_directories(pf2e_engine
     PRIVATE ${CMAKE_BINARY_DIR}/cpp_config
 )
 
-target_link_libraries(pf2e_engine PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(pf2e_engine PRIVATE nlohmann_json_schema_validator)
+target_link_libraries(pf2e_engine PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(pf2e_engine PUBLIC nlohmann_json_schema_validator)
 
 add_subdirectory(src)
 add_subdirectory(tests)

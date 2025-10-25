@@ -12,6 +12,7 @@ using TGameObjectPtr = std::variant<
     TArmor*,
     TWeapon*,
     TCreature*,
+    std::shared_ptr<TDamage>,
     std::string,
     ESuccessLevel
 >;

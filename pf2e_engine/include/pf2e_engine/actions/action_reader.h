@@ -1,7 +1,7 @@
 #pragma once
 
-#include "action.h"
-#include "action_block.h"
+#include <pf2e_engine/actions/action.h>
+#include <pf2e_engine/actions/action_block.h>
 
 #include <pf2e_engine/action_blocks/block_input.h>
 
@@ -34,8 +34,6 @@ private:
 
     void FunctionCallFillNext(nlohmann::json&, TFunctionCallBlock*);
     void FunctionCallFillFunction(nlohmann::json&, TFunctionCallBlock*);
-
-    bool ValidateAction(nlohmann::json&);
 
     void Clear();
 

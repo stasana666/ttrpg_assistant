@@ -9,6 +9,7 @@
 #include <fstream>
 #include <stdexcept>
 
+#include "battle_map.h"
 #include "game_object_id.h"
 #include "resources.h"
 
@@ -19,6 +20,8 @@ TGameObjectFactory::kReaderMapping = {
     {"pf2e_armor", &TGameObjectFactory::ReadArmor},
     {"pf2e_weapon", &TGameObjectFactory::ReadWeapon},
     {"pf2e_creature", &TGameObjectFactory::ReadCreature},
+    {"pf2e_action", &TGameObjectFactory::ReadAction},
+    {"pf2e_battle_map", &TGameObjectFactory::ReadBattleMap},
 };
 
 void TGameObjectFactory::AddSource(const std::filesystem::path& source_path)
@@ -168,6 +171,26 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
 
         return creature;
+    }});
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TGameObjectFactory::ReadAction(nlohmann::json& json, TGameObjectId id)
+{
+    TAction action = action_reader_.ReadAction(json);
+    actions_.insert({id, [=]() {
+        return action;
+    }});
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TGameObjectFactory::ReadBattleMap(nlohmann::json& json, TGameObjectId id)
+{
+    TBattleMap battle_map(json);
+    battle_maps_.insert({id, [=]() {
+        return battle_map;
     }});
 }
 

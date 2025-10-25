@@ -1,7 +1,7 @@
 #include <block_input.h>
 
 #include <pf2e_engine/common/visit.h>
-#include "game_object_id.h"
+#include <pf2e_engine/game_object_logic/game_object_id.h>
 
 void TBlockInput::Add(TGameObjectId key, InputValue value)
 {
@@ -18,11 +18,11 @@ TGameObjectPtr TBlockInput::Get(TGameObjectId key, TActionContext& ctx) const
     auto value = input_mapping_.at(key);
     TGameObjectPtr result;
     std::visit(VisitorHelper{
-        [&, this](TGameObjectId id) {
+        [&](TGameObjectId id) {
             result = ctx.game_object_register.GetGameObjectPtr(id);
         },
-        [&, this](const std::string& s) {
-            result = std::make_unique<std::string>(s);
+        [&](const std::string& s) {
+            result = s;
         }
     }, value);
     return result;

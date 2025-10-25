@@ -5,6 +5,8 @@ target_sources(pf2e_engine
         block_input.cpp
         choose_target.cpp
         choose_weapon.cpp
+        deal_damage.cpp
+        weapon_damage_roll.cpp
 )
 
 target_include_directories(pf2e_engine

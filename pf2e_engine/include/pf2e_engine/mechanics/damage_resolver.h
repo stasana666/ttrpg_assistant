@@ -1,6 +1,7 @@
 #pragma once
 
 #include "damage.h"
+#include <pf2e_engine/random.h>
 
 #include <unordered_set>
 #include <unordered_map>

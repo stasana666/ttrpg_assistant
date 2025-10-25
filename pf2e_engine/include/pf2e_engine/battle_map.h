@@ -2,9 +2,9 @@
 
 #include <pf2e_engine/creature.h>
 
-#include <limits>
 #include <nlohmann/json_fwd.hpp>
 
+#include <limits>
 #include <deque>
 
 struct TPosition {

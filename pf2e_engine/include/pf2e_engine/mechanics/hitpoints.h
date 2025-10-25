@@ -8,6 +8,7 @@ public:
     void ReduceHp(int damage);
     void RestoreHp(int heal);
     void SetTemporaryHp(int hp);
+    int GetTemporaryHp() const;
 
 private:
     int max_hp_;

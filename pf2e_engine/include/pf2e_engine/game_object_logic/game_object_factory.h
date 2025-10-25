@@ -2,6 +2,9 @@
 
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/game_object_logic/game_object.h>
+#include <pf2e_engine/actions/action_reader.h>
+#include <pf2e_engine/actions/action.h>
+#include <pf2e_engine/battle_map.h>
 
 #include <nlohmann/json_fwd.hpp>
 
@@ -13,6 +16,8 @@ public:
     TArmor CreateArmor(TGameObjectId id) const;
     TWeapon CreateWeapon(TGameObjectId id) const;
     TCreature CreateCreature(TGameObjectId id) const;
+    TAction CreateAction(TGameObjectId id) const;
+    TBattleMap CreateBattleMap(TGameObjectId id) const;
 
     void AddSource(const std::filesystem::path& source_path);
 
@@ -24,9 +29,11 @@ private:
 
     void ReadArmor(nlohmann::json&, TGameObjectId);
     void ReadWeapon(nlohmann::json&, TGameObjectId);
+    void ReadCreature(nlohmann::json&, TGameObjectId);
+    void ReadAction(nlohmann::json&, TGameObjectId);
+    void ReadBattleMap(nlohmann::json&, TGameObjectId);
 
     TResourcePool ReadCreatureResources(nlohmann::json&);
-    void ReadCreature(nlohmann::json&, TGameObjectId);
 
     using FMethod = void(TGameObjectFactory::*)(nlohmann::json&, TGameObjectId);
     static const std::unordered_map<std::string, FMethod> kReaderMapping;
@@ -37,7 +44,11 @@ private:
     template <class T>
     using TFactoryStorage = std::unordered_map<TGameObjectId, FGameObjectFactory<T>, TGameObjectIdHash>;
 
+    TActionReader action_reader_;
+
     TFactoryStorage<TArmor> armors_;
     TFactoryStorage<TWeapon> weapons_;
     TFactoryStorage<TCreature> creatures_;
+    TFactoryStorage<TAction> actions_;
+    TFactoryStorage<TBattleMap> battle_maps_;
 };

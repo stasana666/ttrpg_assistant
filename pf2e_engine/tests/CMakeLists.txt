@@ -7,6 +7,7 @@ add_executable(test_pf2_engine
 target_link_libraries(test_pf2_engine
     gtest_main
     pf2e_engine
+    nlohmann_json
 )
 
 target_include_directories(test_pf2_engine

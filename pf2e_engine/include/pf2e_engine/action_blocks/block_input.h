@@ -1,10 +1,10 @@
 #pragma once
 
 #include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/actions/action_context.h>
 
 #include <unordered_map>
 #include <variant>
-#include <actions/action_context.h>
 
 using InputValue = std::variant<
     std::string,

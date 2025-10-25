@@ -1,23 +1,27 @@
 #include <action_reader.h>
-#include <memory>
-#include <stdexcept>
+#include <action_block.h>
 
+#include <iostream>
 #include <nlohmann/json.hpp>
 
-#include "action_block.h"
-#include "action_context.h"
-#include "attack_roll.h"
-#include "block_input.h"
-#include "choose_target.h"
-#include "choose_weapon.h"
-#include "game_object_id.h"
-#include "success_level.h"
+#include <pf2e_engine/action_blocks/attack_roll.h>
+#include <pf2e_engine/action_blocks/block_input.h>
+#include <pf2e_engine/action_blocks/choose_target.h>
+#include <pf2e_engine/action_blocks/choose_weapon.h>
+#include <pf2e_engine/action_blocks/weapon_damage_roll.h>
+#include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/success_level.h>
+#include <pf2e_engine/common/errors.h>
 
+#include <memory>
+#include <stdexcept>
 #include <unordered_map>
+#include "deal_damage.h"
 
 const std::unordered_map<EBlockType, std::function<IActionBlock*()>> kEmptyBlockFactory{
     { EBlockType::FunctionCall, []() -> IActionBlock* { return new TFunctionCallBlock{}; }},
     { EBlockType::Switch, []() -> IActionBlock* { return new TSwitchBlock{}; }},
+    { EBlockType::Terminate, []() -> IActionBlock* { return new TTerminateBlock{}; }},
 };
 
 const std::unordered_map<EBlockType, TActionReader::FBlockFiller>
@@ -32,20 +36,14 @@ TActionReader::kFunctionMapping{
     { "choose_weapon", [](TBlockInput&& input, TGameObjectId output) { return FChooseWeapon(std::move(input), output); } },
     { "choose_target", [](TBlockInput&& input, TGameObjectId output) { return FChooseTarget(std::move(input), output); } },
     { "attack_roll", [](TBlockInput&& input, TGameObjectId output) { return FAttackRoll(std::move(input), output); } },
+    { "weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FWeaponDamageRoll(std::move(input), output); } },
+    { "crit_weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FCritWeaponDamageRoll(std::move(input), output); } },
+    { "deal_damage", [](TBlockInput&& input, TGameObjectId output) { return FDealDamage(std::move(input), output); } },
 };
-
-bool TActionReader::ValidateAction(nlohmann::json&)
-{
-    return true;
-}
 
 TAction TActionReader::ReadAction(nlohmann::json& json)
 {
-    if (!ValidateAction(json)) {
-        throw std::runtime_error("wrong action format");
-    }
-
-    auto pipeline = ReadBlocks(json["pf2e_action"]["pipeline"]);
+    auto pipeline = ReadBlocks(json["pipeline"]);
 
     return {};
 }
@@ -55,15 +53,15 @@ auto TActionReader::ReadBlocks(nlohmann::json& json) -> TPipeline
     for (auto block : json) {
         EBlockType type = BlockTypeFromString(block["type"]);
         pipeline_.emplace_back(kEmptyBlockFactory.at(type)());
+        pipeline_place_.insert({pipeline_.back().get(), std::prev(pipeline_.end())});
         auto id = id_register_.Register(block["name"]);
         block_mapping_[id] = pipeline_.back().get();
         pipeline_.back()->name_ = block["name"];
     }
-
     for (auto& block : json) {
         EBlockType type = BlockTypeFromString(block["type"]);
         auto id = id_register_.Register(block["name"]);
-        (this->*(kBlockFillerMapping.at(type)))(block, block_mapping_[id]);
+        (this->*(kBlockFillerMapping.at(type)))(block, block_mapping_.at(id));
     }
 
     return std::move(pipeline_);
@@ -126,7 +124,7 @@ void TActionReader::FillSwitch(nlohmann::json& json, IActionBlock* block)
     TSwitchBlock* switch_block = dynamic_cast<TSwitchBlock*>(block);
 
     auto add_next = [&](ESuccessLevel success_level) {
-        auto id = id_register_.Register(json[ToString(success_level)]);
+        auto id = id_register_.Register(json["next_table"][ToString(success_level)]);
         switch_block->next_table_[success_level] = block_mapping_.at(id);
     };
 
@@ -136,6 +134,10 @@ void TActionReader::FillSwitch(nlohmann::json& json, IActionBlock* block)
     add_next(ESuccessLevel::CriticalSuccess);
 
     switch_block->input_ = ReadInput(json["input"]);
+}
+
+void TActionReader::FillTerminate(nlohmann::json&, IActionBlock*)
+{
 }
 
 void TActionReader::Clear()

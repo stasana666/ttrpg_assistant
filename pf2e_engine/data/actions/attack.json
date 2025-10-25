@@ -56,10 +56,10 @@
                 "next": "deal_damage",
                 "type": "function_call",
                 "input": {
-                    "creature": "$self",
+                    "attacker": "$self",
                     "weapon": "$weapon"
                 },
-                "function": "damage_roll",
+                "function": "weapon_damage_roll",
                 "output": [
                     "damage"
                 ]
@@ -69,10 +69,10 @@
                 "next": "deal_damage",
                 "type": "function_call",
                 "input": {
-                    "creature": "$self",
+                    "attacker": "$self",
                     "weapon": "$weapon"
                 },
-                "function": "crit_damage_roll",
+                "function": "crit_weapon_damage_roll",
                 "output": [
                     "damage"
                 ]
@@ -84,7 +84,10 @@
                 "input": {
                     "damage": "$damage",
                     "target": "$target"
-                }
+                },
+                "output": [
+                    "void"
+                ]
             },
             {
                 "name": "finish",

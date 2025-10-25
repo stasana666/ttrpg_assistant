@@ -46,3 +46,8 @@ void THitPoints::SetTemporaryHp(int hp)
         temporary_hp_ = hp;
     }
 }
+
+int THitPoints::GetTemporaryHp() const
+{
+    return temporary_hp_;
+}

@@ -48,7 +48,7 @@ void FChooseTarget::EmanationHandle(TActionContext& ctx) const
 
     size_t radius;
     std::visit(VisitorHelper{
-        [&](TWeapon* weapon) {
+        [&](TWeapon*) {
             radius = 1;
         },
         [](auto&&) {

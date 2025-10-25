@@ -5,7 +5,7 @@ static const TGameObjectId kCreatureId = TGameObjectIdManager::Instance().Regist
 void FChooseWeapon::operator ()(TActionContext& ctx) const
 {
     TCreature* creature = std::get<TCreature*>(input_.Get(kCreatureId, ctx));
-    TWeaponSlots weapons = creature->Weapons();
+    TWeaponSlots& weapons = creature->Weapons();
     if (weapons.Empty()) {
         throw std::logic_error("can't find weapon");
     }

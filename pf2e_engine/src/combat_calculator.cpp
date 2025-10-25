@@ -8,7 +8,7 @@ int TCombatCalculator::ArmorClass(const TCreature& creature) const
     return 10 + armor.AcBonus() + std::min(armor.DexCap(), dex);
 }
 
-int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon& weapon) const
+int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon&) const
 {
     int str = creature.GetCharacteristic(ECharacteristic::Strength).GetMod();
     return str;

@@ -17,7 +17,7 @@ private:
     using Container = std::unordered_map<Type, std::unique_ptr<IExpression>>;
 
 public:
-    void Add(std::unique_ptr<IExpression>&& damage, Type type);
+    void Add(Type type, std::unique_ptr<IExpression>&& damage);
 
     class TIterator {
     public:
@@ -43,4 +43,3 @@ private:
 
 TDamage::Type DamageTypeFromString(std::string_view);
 std::string ToString(TDamage::Type);
-

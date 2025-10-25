@@ -5,6 +5,7 @@ target_sources(pf2e_engine
         combat_calculator.cpp
         random.cpp
         resources.cpp
+        success_level.cpp
         weapon_slot.cpp
 )
 
@@ -20,3 +21,4 @@ add_subdirectory(expressions)
 add_subdirectory(game_object_logic)
 add_subdirectory(inventory)
 add_subdirectory(mechanics)
+add_subdirectory(transformation)

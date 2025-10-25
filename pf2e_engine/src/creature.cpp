@@ -3,6 +3,7 @@
 TCreature::TCreature(TCharacteristicSet stats, TArmor armor, THitPoints hitpoints)
     : stats_(stats)
     , hitpoints_(hitpoints)
+    , armor_(armor)
 {
 }
 
@@ -34,4 +35,9 @@ const TArmor& TCreature::Armor() const
 TWeaponSlots& TCreature::Weapons()
 {
     return weapons_;
+}
+
+const TDamageResolver& TCreature::DamageResolver() const
+{
+    return resolver_;
 }

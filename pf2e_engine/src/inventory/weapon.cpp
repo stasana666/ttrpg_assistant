@@ -1,14 +1,14 @@
 #include <weapon.h>
 
 TWeapon::TWeapon(int base_die_size, TDamage::Type type)
-    : base_die_size_(base_die_size)
+    : base_dice_size_(base_die_size)
     , type_(type)
 {
 }
 
-int TWeapon::GetBaseDieSize() const
+int TWeapon::GetBaseDiceSize() const
 {
-    return base_die_size_;
+    return base_dice_size_;
 }
 
 TDamage::Type TWeapon::GetDamageType() const

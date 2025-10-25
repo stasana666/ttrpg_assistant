@@ -10,7 +10,7 @@ TBattleMap::TBattleMap(nlohmann::json& json)
     battlemap_.resize(y_size_, std::vector<Cell>(x_size_, { nullptr }));
 }
 
-bool TBattleMap::HasLine(TPosition src, TPosition dst) const
+bool TBattleMap::HasLine(TPosition, TPosition) const
 {
     return true;
 }

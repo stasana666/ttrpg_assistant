@@ -6,6 +6,14 @@ enable_testing()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+add_compile_options(
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Werror
+    -g
+)
+
 add_subdirectory(extern)
 
 set(CMAKE_CXX_CLANG_TIDY "clang-tidy")
