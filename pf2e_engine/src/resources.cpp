@@ -16,7 +16,7 @@ void TResourcePool::Add(TResourceId id, int count)
 
 void TResourcePool::Reduce(TResourceId id, int count)
 {
-    assert(count > 0);
+    assert(count >= 0);
     auto it = resources_.find(id);
     if (it != resources_.end()) {
         it->second -= count;

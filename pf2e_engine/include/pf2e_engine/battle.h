@@ -17,12 +17,15 @@ public:
 
     const TBattleMap& BattleMap() const;
     TBattleMap& BattleMap();
-    TAction* ChooseAction(TPlayer*) const;
+    TAction* ChooseAction(TPlayer&) const;
 
 private:
     void StartTurn();
+    void EndTurn();
     void StartRound();
     bool IsBattleEnd() const;
+
+    void GiveStartResource(TPlayer&);
 
     TBattleMap battle_map_;
     IRandomGenerator* dice_roller_;

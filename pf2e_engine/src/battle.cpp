@@ -3,12 +3,16 @@
 #include <pf2e_engine/actions/action_context.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
-#include <transformator.h>
+#include <pf2e_engine/player.h>
+#include <pf2e_engine/resources.h>
+#include <pf2e_engine/transformation/transformator.h>
 
 #include <cassert>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+
+const TResourceId kActionId = TResourceIdManager::Instance().Register("action");
 
 TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller)
     : battle_map_(std::move(battle_map))
@@ -55,6 +59,7 @@ void TBattle::StartBattle()
         StartRound();
         while (initiative_order_.CurrentPlayer() != nullptr) {
             StartTurn();
+            EndTurn();
             initiative_order_.Next();
         }
     }
@@ -70,9 +75,9 @@ void TBattle::StartRound()
 void TBattle::StartTurn()
 {
     assert(initiative_order_.CurrentPlayer() != nullptr);
-    TPlayer* player = initiative_order_.CurrentPlayer();
-    std::cout << "Start turn: player's name: " << player->name << std::endl;
-    std::cout << "Current hp: " << player->creature->Hitpoints().GetCurrentHp() << std::endl;
+    TPlayer& player = *initiative_order_.CurrentPlayer();
+    std::cout << "Start turn: player's name: " << player.name << std::endl;
+    GiveStartResource(player);
 
     TAction* action;
     while ((action = ChooseAction(player)) != nullptr)
@@ -87,15 +92,30 @@ void TBattle::StartTurn()
             .next_block = nullptr,
         };
 
-        action->Apply(ctx, *player);
+        action->Apply(ctx, player);
     }
 }
 
-TAction* TBattle::ChooseAction(TPlayer* player) const
+void TBattle::EndTurn()
+{
+    assert(initiative_order_.CurrentPlayer() != nullptr);
+    TPlayer& player = *initiative_order_.CurrentPlayer();
+
+    size_t resource_count = player.creature->Resources().Count(kActionId);
+    player.creature->Resources().Reduce(kActionId, resource_count);
+}
+
+void TBattle::GiveStartResource(TPlayer& player)
+{
+    assert(!player.creature->Resources().Count(kActionId));
+    player.creature->Resources().Add(kActionId, 3);
+}
+
+TAction* TBattle::ChooseAction(TPlayer& player) const
 {
     std::vector<TAction*> actions;
-    for (auto& action : player->creature->Actions()) {
-        if (action->Check(*player)) {
+    for (auto& action : player.creature->Actions()) {
+        if (action->Check(player)) {
             actions.emplace_back(&*action);
         }
     }
