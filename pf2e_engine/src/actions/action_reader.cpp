@@ -17,6 +17,7 @@
 #include <stdexcept>
 #include <unordered_map>
 #include "deal_damage.h"
+#include "resources.h"
 
 const std::unordered_map<EBlockType, std::function<IActionBlock*()>> kEmptyBlockFactory{
     { EBlockType::FunctionCall, []() -> IActionBlock* { return new TFunctionCallBlock{}; }},
@@ -44,10 +45,24 @@ TActionReader::kFunctionMapping{
 TAction TActionReader::ReadAction(nlohmann::json& json)
 {
     auto pipeline = ReadBlocks(json["pipeline"]);
-    TAction action(std::move(pipeline), json["name"]);
+    TAction::TResources resources = ReadResources(json["resources"]);
+    TAction action(std::move(pipeline), std::move(resources), json["name"]);
 
     Clear();
     return action;
+}
+
+TAction::TResources TActionReader::ReadResources(nlohmann::json& json) const
+{
+    TAction::TResources resources;
+    for (auto& resource : json) {
+        auto resource_id = TResourceIdManager::Instance().Register(resource["name"]);
+        resources.push_back(TAction::TResource{
+            .resource_id = resource_id,
+            .count = resource["count"]
+        });
+    }
+    return resources;
 }
 
 auto TActionReader::ReadBlocks(nlohmann::json& json) ->TAction::TPipeline

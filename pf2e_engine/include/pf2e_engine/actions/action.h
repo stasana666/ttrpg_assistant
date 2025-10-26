@@ -1,19 +1,29 @@
 #pragma once
 
-#include "action_block.h"
-#include "action_context.h"
+#include <pf2e_engine/actions/action_block.h>
+#include <pf2e_engine/actions/action_context.h>
+#include <pf2e_engine/resources.h>
 
 class TAction {
 public:
     using TPipeline = std::vector<std::unique_ptr<IActionBlock>>;
 
-    explicit TAction(TPipeline&& pipeline, std::string&& name);
+    struct TResource {
+        TResourceId resource_id;
+        size_t count;
+    };
 
-    void Apply(TActionContext& ctx);
+    using TResources = std::vector<TResource>;
+
+    TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name);
+
+    void Apply(TActionContext& ctx, TPlayer& player);
+    void Consume(TPlayer& player);
     bool Check(const TPlayer& self);
     std::string_view Name() const;
 
 private:
     TPipeline pipeline_;
+    TResources consume_;
     std::string name_;
 };

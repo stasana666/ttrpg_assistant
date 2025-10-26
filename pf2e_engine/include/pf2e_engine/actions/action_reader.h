@@ -25,6 +25,8 @@ private:
 
     std::vector<std::unique_ptr<IActionBlock>> ReadBlocks(nlohmann::json& json);
 
+    TAction::TResources ReadResources(nlohmann::json& json) const;
+
     TBlockInput ReadInput(nlohmann::json& json) const;
 
     void FillFunctionCall(nlohmann::json&, IActionBlock*);

@@ -10,8 +10,6 @@
 #include <sstream>
 #include <stdexcept>
 
-const TGameObjectId kSelf = TGameObjectIdManager::Instance().Register("self");
-
 TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller)
     : battle_map_(std::move(battle_map))
     , dice_roller_(dice_roller)
@@ -89,9 +87,7 @@ void TBattle::StartTurn()
             .next_block = nullptr,
         };
 
-        ctx.game_object_registry->Add(kSelf, player);
-
-        action->Apply(ctx);
+        action->Apply(ctx, *player);
     }
 }
 

@@ -3,6 +3,12 @@
     "name": "attack_with_weapon",
     "pf2e_action": {
         "name": "attack_with_weapon",
+        "resources": [
+            {
+                "name": "action",
+                "count": 1
+            }
+        ],
         "pipeline": [
             {
                 "name": "choose_weapon",
