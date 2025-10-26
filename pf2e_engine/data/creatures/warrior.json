@@ -10,9 +10,15 @@
             "Intelligence": 12,
             "Wisdom": 13,
             "Charisma": 13
-        }
-    },
-    "actions": [
-        "attack_with_weapon"
-    ]
+        },
+        "weapons": [
+            {
+                "weapon": "longsword",
+                "grip": 1
+            }
+        ],
+        "actions": [
+            "attack_with_weapon"
+        ]
+    }
 }

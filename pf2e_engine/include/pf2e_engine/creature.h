@@ -24,7 +24,8 @@ public:
     TWeaponSlots& Weapons();
 
     bool IsAlive() const;
-    void AddAction(TAction action);
+    void AddAction(std::shared_ptr<TAction> action);
+    std::vector<std::shared_ptr<TAction>>& Actions();
 
 private:
     TCharacteristicSet stats_;
@@ -35,5 +36,5 @@ private:
 
     TArmor armor_;
     TWeaponSlots weapons_;
-    std::vector<TAction> actions_;
+    std::vector<std::shared_ptr<TAction>> actions_;
 };

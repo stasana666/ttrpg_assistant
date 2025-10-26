@@ -3,7 +3,7 @@
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/game_object_logic/game_object.h>
 
-class TGameObjectRegister {
+class TGameObjectRegistry {
 public:
     void Add(TGameObjectId id, TGameObjectPtr object);
 
@@ -16,7 +16,7 @@ private:
 };
 
 template <class T>
-T& TGameObjectRegister::Get(TGameObjectId id)
+T& TGameObjectRegistry::Get(TGameObjectId id)
 {
     auto game_object_ptr = objects_.at(id);
     return *std::get<T*>(game_object_ptr);

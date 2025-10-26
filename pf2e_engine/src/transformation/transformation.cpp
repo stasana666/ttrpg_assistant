@@ -5,7 +5,7 @@ TChangeHitPoints::TChangeHitPoints(THitPoints* hitpoints, int value)
     , prev_(*hitpoints_)
 {
     if (value < 0) {
-        hitpoints_->ReduceHp(value);
+        hitpoints_->ReduceHp(-value);
     } else {
         hitpoints_->RestoreHp(value);
     }

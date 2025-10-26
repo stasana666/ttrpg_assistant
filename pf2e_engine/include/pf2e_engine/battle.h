@@ -17,6 +17,7 @@ public:
 
     const TBattleMap& BattleMap() const;
     TBattleMap& BattleMap();
+    TAction* ChooseAction(TPlayer*) const;
 
 private:
     void StartTurn();

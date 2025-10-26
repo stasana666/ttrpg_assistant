@@ -3,6 +3,8 @@
 #include <pf2e_engine/action_blocks/block_input.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 
+#include <iostream>
+
 class FBaseFunction {
 public:
     FBaseFunction(TBlockInput&& input, TGameObjectId output);

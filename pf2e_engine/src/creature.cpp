@@ -49,7 +49,12 @@ bool TCreature::IsAlive() const
     return hitpoints_.GetCurrentHp() > 0;
 }
 
-void TCreature::AddAction(TAction action)
+void TCreature::AddAction(std::shared_ptr<TAction> action)
 {
     actions_.emplace_back(action);
+}
+
+std::vector<std::shared_ptr<TAction>>& TCreature::Actions()
+{
+    return actions_;
 }

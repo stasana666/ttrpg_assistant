@@ -1,9 +1,16 @@
-#include <pf2e_engine/common/errors.h>
-
 #include <action_block.h>
+
+#include <pf2e_engine/common/errors.h>
+#include <pf2e_engine/game_object_logic/game_object_registry.h>
+#include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/success_level.h>
+#include <pf2e_engine/common/visit.h>
+
 #include <cassert>
 #include <stdexcept>
 #include <sstream>
+
+const TGameObjectId kSuccessLevelId = TGameObjectIdManager::Instance().Register("value");
 
 constexpr std::string ToString(EBlockType type)
 {
@@ -30,17 +37,25 @@ EBlockType BlockTypeFromString(const std::string& type)
     throw std::runtime_error(ss.str());
 }
 
-void TFunctionCallBlock::Apply(TActionContext&)
+void TFunctionCallBlock::Apply(TActionContext& ctx)
 {
-    throw ToDoError("TFunctionCallBlock::Apply(TActionContext& ctx)");
+    apply_(ctx);
+    ctx.next_block = next_;
 }
 
-void TSwitchBlock::Apply(TActionContext&)
+void TSwitchBlock::Apply(TActionContext& ctx)
 {
-    throw ToDoError("TSwitchBlock::Apply(TActionContext& ctx)");
+    std::visit(VisitorHelper{
+        [&](ESuccessLevel success_level) {
+            ctx.next_block = next_table_[success_level];
+        },
+        [](auto&&) {
+            throw std::logic_error("unexpected type");
+        }
+    }, input_.Get(kSuccessLevelId, ctx));
 }
 
-void TTerminateBlock::Apply(TActionContext&)
+void TTerminateBlock::Apply(TActionContext& ctx)
 {
-    throw ToDoError("TTerminateBlock::Apply(TActionContext& ctx)");
+    ctx.next_block = nullptr;
 }

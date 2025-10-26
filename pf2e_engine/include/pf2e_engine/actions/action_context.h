@@ -1,14 +1,16 @@
 #pragma once
 
+class IActionBlock;
 class TBattle;
 class TTransformator;
 class IRandomGenerator;
-class TGameObjectRegister;
+class TGameObjectRegistry;
 
 class TActionContext {
 public:
-    TGameObjectRegister* game_object_register;
+    TGameObjectRegistry* game_object_registry;
     TBattle* battle;
     IRandomGenerator* dice_roller;
     TTransformator* transformator;
+    IActionBlock* next_block;
 };

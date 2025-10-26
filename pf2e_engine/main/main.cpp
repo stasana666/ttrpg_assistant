@@ -1,5 +1,6 @@
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/common/errors.h>
 
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/battle.h>
@@ -8,8 +9,10 @@
 
 #include <cpp_config.h>
 
+#include <exception>
 #include <filesystem>
 #include <iostream>
+#include <stdexcept>
 
 using FsPath = std::filesystem::path;
 using FsDirEntry = std::filesystem::directory_entry;
@@ -44,6 +47,7 @@ TBattleMap CreateBattleMap(TGameObjectFactory& factory)
 }
 
 int main()
+try
 {
     TGameObjectFactory factory;
     InitGameObjects(factory);
@@ -71,4 +75,12 @@ int main()
     battle.StartBattle();
 
     return 0;
+}
+catch (const std::exception& err) {
+    std::cerr << err.what() << std::endl;
+    throw;
+}
+catch (...) {
+    std::cerr << "Unknown error" << std::endl;
+    throw;
 }

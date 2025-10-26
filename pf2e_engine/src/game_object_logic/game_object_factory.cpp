@@ -1,5 +1,6 @@
 #include <game_object_factory.h>
 
+#include <iostream>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json-schema.hpp>
 
@@ -151,9 +152,11 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
     }
 
     std::vector<TGameObjectId> actions;
-    for (const auto& action : json_game_object["action"]) {
+    for (const auto& action : json_game_object["actions"]) {
         actions.emplace_back(TGameObjectIdManager::Instance().Register(action));
     }
+
+    std::cout << actions.size() << std::endl;
 
     int max_hp = json_game_object["hitpoints"];
 
@@ -187,7 +190,7 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
 void TGameObjectFactory::ReadAction(nlohmann::json& json, TGameObjectId id)
 {
-    TAction action = action_reader_.ReadAction(json);
+    std::shared_ptr<TAction> action = std::make_shared<TAction>(action_reader_.ReadAction(json));
     actions_.insert({id, [=]() {
         return action;
     }});
@@ -220,7 +223,7 @@ TCreature TGameObjectFactory::CreateCreature(TGameObjectId id) const
     return creatures_.at(id)();
 }
 
-TAction TGameObjectFactory::CreateAction(TGameObjectId id) const
+std::shared_ptr<TAction> TGameObjectFactory::CreateAction(TGameObjectId id) const
 {
     return actions_.at(id)();
 }
@@ -229,4 +232,3 @@ TBattleMap TGameObjectFactory::CreateBattleMap(TGameObjectId id) const
 {
     return battle_maps_.at(id)();
 }
-

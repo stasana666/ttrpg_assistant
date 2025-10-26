@@ -16,7 +16,7 @@ public:
     TArmor CreateArmor(TGameObjectId id) const;
     TWeapon CreateWeapon(TGameObjectId id) const;
     TCreature CreateCreature(TGameObjectId id) const;
-    TAction CreateAction(TGameObjectId id) const;
+    std::shared_ptr<TAction> CreateAction(TGameObjectId id) const;
     TBattleMap CreateBattleMap(TGameObjectId id) const;
 
     void AddSource(const std::filesystem::path& source_path);
@@ -49,6 +49,6 @@ private:
     TFactoryStorage<TArmor> armors_;
     TFactoryStorage<TWeapon> weapons_;
     TFactoryStorage<TCreature> creatures_;
-    TFactoryStorage<TAction> actions_;
+    TFactoryStorage<std::shared_ptr<TAction>> actions_;
     TFactoryStorage<TBattleMap> battle_maps_;
 };

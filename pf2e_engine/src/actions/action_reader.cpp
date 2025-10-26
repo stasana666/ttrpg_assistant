@@ -44,19 +44,24 @@ TActionReader::kFunctionMapping{
 TAction TActionReader::ReadAction(nlohmann::json& json)
 {
     auto pipeline = ReadBlocks(json["pipeline"]);
+    TAction action(std::move(pipeline), json["name"]);
 
-    return {};
+    Clear();
+    return action;
 }
 
-auto TActionReader::ReadBlocks(nlohmann::json& json) -> TPipeline
+auto TActionReader::ReadBlocks(nlohmann::json& json) ->TAction::TPipeline
 {
+    pipeline_.reserve(json.size());
     for (auto block : json) {
         EBlockType type = BlockTypeFromString(block["type"]);
         pipeline_.emplace_back(kEmptyBlockFactory.at(type)());
-        pipeline_place_.insert({pipeline_.back().get(), std::prev(pipeline_.end())});
+
         auto id = id_register_.Register(block["name"]);
-        block_mapping_[id] = pipeline_.back().get();
         pipeline_.back()->name_ = block["name"];
+
+        pipeline_place_.insert({pipeline_.back().get(), std::prev(pipeline_.end())});
+        block_mapping_[id] = pipeline_.back().get();
     }
     for (auto& block : json) {
         EBlockType type = BlockTypeFromString(block["type"]);

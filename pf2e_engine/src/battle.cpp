@@ -1,8 +1,16 @@
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/initiative_order.h>
+#include <pf2e_engine/actions/action_context.h>
+#include <pf2e_engine/game_object_logic/game_object_registry.h>
+#include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <transformator.h>
+
 #include <cassert>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
+
+const TGameObjectId kSelf = TGameObjectIdManager::Instance().Register("self");
 
 TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller)
     : battle_map_(std::move(battle_map))
@@ -66,8 +74,59 @@ void TBattle::StartTurn()
     assert(initiative_order_.CurrentPlayer() != nullptr);
     TPlayer* player = initiative_order_.CurrentPlayer();
     std::cout << "Start turn: player's name: " << player->name << std::endl;
-    player->creature->Hitpoints().ReduceHp(dice_roller_->RollDice(6));
-    std::cout << "\t" << "current hp: " << player->creature->Hitpoints().GetCurrentHp() << std::endl;
+    std::cout << "Current hp: " << player->creature->Hitpoints().GetCurrentHp() << std::endl;
+
+    TAction* action;
+    while ((action = ChooseAction(player)) != nullptr)
+    {
+        TGameObjectRegistry registry;
+        TTransformator transformator;
+        TActionContext ctx{
+            .game_object_registry = &registry,
+            .battle = this,
+            .dice_roller = dice_roller_,
+            .transformator = &transformator,
+            .next_block = nullptr,
+        };
+
+        ctx.game_object_registry->Add(kSelf, player);
+
+        action->Apply(ctx);
+    }
+}
+
+TAction* TBattle::ChooseAction(TPlayer* player) const
+{
+    std::vector<TAction*> actions;
+    for (auto& action : player->creature->Actions()) {
+        if (action->Check(*player)) {
+            actions.emplace_back(&*action);
+        }
+    }
+
+    if (actions.empty()) {
+        return nullptr;
+    }
+
+    std::stringstream ss;
+    ss << "Choose next action\n";
+    ss << "0 - End of turn\n";
+    size_t action_index = 0;
+    for (auto& action : actions) {
+        ss << ++action_index << " - " << action->Name() << "\n";
+    }
+    std::cout << ss.str() << std::endl;
+    while (true) {
+        std::cin >> action_index;
+        if (action_index == 0) {
+            return nullptr;
+        }
+        --action_index;
+        if (action_index < actions.size()) {
+            return actions[action_index];
+        }
+        std::cout << "invalid action index, try again" << std::endl;
+    }
 }
 
 bool TBattle::IsBattleEnd() const

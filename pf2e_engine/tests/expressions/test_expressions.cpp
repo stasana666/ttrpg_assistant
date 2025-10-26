@@ -14,7 +14,7 @@ TEST(ExpressionTest, OneDice) {
     TMockRng rng;
     rng.ExpectCall(20, 1);
     TGameContext ctx{
-        .game_object_register = nullptr,
+        .game_object_registry = nullptr,
         .dice_roller = &rng
     };
 
@@ -29,7 +29,7 @@ TEST(ExpressionTest, DiceExpression) {
     rng.ExpectCall(20, 1);
     rng.ExpectCall(4, 1);
     TGameContext ctx{
-        .game_object_register = nullptr,
+        .game_object_registry = nullptr,
         .dice_roller = &rng
     };
 

@@ -2,6 +2,7 @@
     "type": "pf2e_action",
     "name": "attack_with_weapon",
     "pf2e_action": {
+        "name": "attack_with_weapon",
         "pipeline": [
             {
                 "name": "choose_weapon",

@@ -2,7 +2,7 @@
 
 #include <pf2e_engine/expressions/expressions.h>
 #include <pf2e_engine/mechanics/characteristics.h>
-#include <pf2e_engine/game_object_logic/game_object_register.h>
+#include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/player.h>
 
@@ -13,37 +13,39 @@ static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register
 
 void FWeaponDamageRoll::operator ()(TActionContext& ctx) const
 {
+    std::cerr << "FWeaponDamageRoll::operator ()(TActionContext& ctx) const" << std::endl;
+
     TPlayer* player = std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
-    TWeapon& weapon = ctx.game_object_register->Get<TWeapon>(kWeaponId);
+    TWeapon* weapon = std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
 
     auto damage = std::make_shared<TDamage>();
 
-    auto dice_expr = std::make_unique<TDiceExpression>(weapon.GetBaseDiceSize());
+    auto dice_expr = std::make_unique<TDiceExpression>(weapon->GetBaseDiceSize());
 
     int str = player->creature->GetCharacteristic(ECharacteristic::Strength).GetMod();
     auto str_expr = std::make_unique<TNumberExpression>(str);
 
-    damage->Add(weapon.GetDamageType(), std::make_unique<TSumExpression>(
+    damage->Add(weapon->GetDamageType(), std::make_unique<TSumExpression>(
         std::move(dice_expr),
         std::move(str_expr)
     ));
 
-    ctx.game_object_register->Add(output_, damage);
+    ctx.game_object_registry->Add(output_, damage);
 }
 
 void FCritWeaponDamageRoll::operator ()(TActionContext& ctx) const
 {
     TPlayer* player = std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
-    TWeapon& weapon = ctx.game_object_register->Get<TWeapon>(kWeaponId);
+    TWeapon* weapon = std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
 
     auto damage = std::make_shared<TDamage>();
 
-    auto dice_expr = std::make_unique<TDiceExpression>(weapon.GetBaseDiceSize());
+    auto dice_expr = std::make_unique<TDiceExpression>(weapon->GetBaseDiceSize());
 
     int str = player->creature->GetCharacteristic(ECharacteristic::Strength).GetMod();
     auto str_expr = std::make_unique<TNumberExpression>(str);
 
-    damage->Add(weapon.GetDamageType(), std::make_unique<TProductExpression>(
+    damage->Add(weapon->GetDamageType(), std::make_unique<TProductExpression>(
         std::make_unique<TSumExpression>(
             std::move(dice_expr),
             std::move(str_expr)
@@ -51,5 +53,5 @@ void FCritWeaponDamageRoll::operator ()(TActionContext& ctx) const
         std::make_unique<TNumberExpression>(2)
     ));
 
-    ctx.game_object_register->Add(output_, damage);
+    ctx.game_object_registry->Add(output_, damage);
 }
