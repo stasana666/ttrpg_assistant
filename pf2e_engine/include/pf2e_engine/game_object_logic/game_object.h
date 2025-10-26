@@ -1,12 +1,14 @@
 #pragma once
 
-#include <pf2e_engine/inventory/armor.h>
-#include <pf2e_engine/inventory/weapon.h>
-#include <pf2e_engine/creature.h>
-#include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/success_level.h>
+#include <pf2e_engine/mechanics/damage.h>
 
 #include <variant>
+
+class TArmor;
+class TWeapon;
+class TCreature;
+class TPlayer;
 
 using TGameObjectPtr = std::variant<
     TArmor*,

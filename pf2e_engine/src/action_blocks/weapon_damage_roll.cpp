@@ -2,6 +2,9 @@
 
 #include <pf2e_engine/expressions/expressions.h>
 #include <pf2e_engine/mechanics/characteristics.h>
+#include <pf2e_engine/game_object_logic/game_object_register.h>
+#include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/player.h>
 
 #include <memory>
 
@@ -11,7 +14,7 @@ static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register
 void FWeaponDamageRoll::operator ()(TActionContext& ctx) const
 {
     TPlayer* player = std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
-    TWeapon& weapon = ctx.game_object_register.Get<TWeapon>(kWeaponId);
+    TWeapon& weapon = ctx.game_object_register->Get<TWeapon>(kWeaponId);
 
     auto damage = std::make_shared<TDamage>();
 
@@ -25,13 +28,13 @@ void FWeaponDamageRoll::operator ()(TActionContext& ctx) const
         std::move(str_expr)
     ));
 
-    ctx.game_object_register.Add(output_, damage);
+    ctx.game_object_register->Add(output_, damage);
 }
 
 void FCritWeaponDamageRoll::operator ()(TActionContext& ctx) const
 {
     TPlayer* player = std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
-    TWeapon& weapon = ctx.game_object_register.Get<TWeapon>(kWeaponId);
+    TWeapon& weapon = ctx.game_object_register->Get<TWeapon>(kWeaponId);
 
     auto damage = std::make_shared<TDamage>();
 
@@ -48,5 +51,5 @@ void FCritWeaponDamageRoll::operator ()(TActionContext& ctx) const
         std::make_unique<TNumberExpression>(2)
     ));
 
-    ctx.game_object_register.Add(output_, damage);
+    ctx.game_object_register->Add(output_, damage);
 }

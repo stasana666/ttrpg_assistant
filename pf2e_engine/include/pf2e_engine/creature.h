@@ -6,6 +6,7 @@
 #include <pf2e_engine/mechanics/characteristics.h>
 #include <pf2e_engine/mechanics/hitpoints.h>
 #include <pf2e_engine/mechanics/damage_resolver.h>
+#include <pf2e_engine/actions/action.h>
 
 class TCreature {
 public:
@@ -23,6 +24,7 @@ public:
     TWeaponSlots& Weapons();
 
     bool IsAlive() const;
+    void AddAction(TAction action);
 
 private:
     TCharacteristicSet stats_;
@@ -33,4 +35,5 @@ private:
 
     TArmor armor_;
     TWeaponSlots weapons_;
+    std::vector<TAction> actions_;
 };

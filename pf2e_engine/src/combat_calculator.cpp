@@ -1,6 +1,7 @@
 #include <pf2e_engine/combat_calculator.h>
-#include "characteristics.h"
-#include "success_level.h"
+#include <pf2e_engine/creature.h>
+#include <pf2e_engine/mechanics/characteristics.h>
+#include <pf2e_engine/success_level.h>
 
 int TCombatCalculator::InitiativeBonus(const TCreature& creature) const
 {

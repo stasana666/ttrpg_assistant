@@ -1,5 +1,8 @@
 #include <choose_weapon.h>
 
+#include <pf2e_engine/player.h>
+#include <pf2e_engine/game_object_logic/game_object_register.h>
+
 static const TGameObjectId kCreatureId = TGameObjectIdManager::Instance().Register("creature");
 
 void FChooseWeapon::operator ()(TActionContext& ctx) const
@@ -12,8 +15,8 @@ void FChooseWeapon::operator ()(TActionContext& ctx) const
     if (weapons.Size() > 1) {
         // TODO: нужно спрашивать пользователя каким оружием он хочет ударить, а в дальнейшем добавить более сложную логику.
         // Сейчас выбираем первое в списке - условно в ведущей руке
-        ctx.game_object_register.Add(output_, TGameObjectPtr{&weapons[0].Weapon()});
+        ctx.game_object_register->Add(output_, TGameObjectPtr{&weapons[0].Weapon()});
         return;
     }
-    ctx.game_object_register.Add(output_, TGameObjectPtr{&weapons[0].Weapon()});
+    ctx.game_object_register->Add(output_, TGameObjectPtr{&weapons[0].Weapon()});
 }

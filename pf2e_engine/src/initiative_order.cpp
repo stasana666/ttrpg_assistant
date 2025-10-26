@@ -1,5 +1,7 @@
 #include <pf2e_engine/initiative_order.h>
 
+#include <pf2e_engine/player.h>
+
 TInitiativeOrder::TInitiativeOrder(IRandomGenerator* dice_roller)
     : dice_roller_(dice_roller)
     , current_(players_.end())

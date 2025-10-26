@@ -1,6 +1,8 @@
 #include <deal_damage.h>
 #include <pf2e_engine/mechanics/damage.h>
 #include <pf2e_engine/mechanics/damage_resolver.h>
+#include <pf2e_engine/transformation/transformator.h>
+#include <pf2e_engine/player.h>
 
 static const TGameObjectId kDamage = TGameObjectIdManager::Instance().Register("damage");
 static const TGameObjectId kTarget = TGameObjectIdManager::Instance().Register("target");

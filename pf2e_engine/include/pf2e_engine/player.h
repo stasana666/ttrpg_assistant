@@ -7,7 +7,8 @@ struct TPosition {
     size_t y;
 };
 
-struct TPlayer {
+class TPlayer {
+public:
     int team;
     TPosition position;
     TCreature* creature;

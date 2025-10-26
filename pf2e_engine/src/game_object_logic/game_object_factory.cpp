@@ -150,9 +150,14 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }());
     }
 
+    std::vector<TGameObjectId> actions;
+    for (const auto& action : json_game_object["action"]) {
+        actions.emplace_back(TGameObjectIdManager::Instance().Register(action));
+    }
+
     int max_hp = json_game_object["hitpoints"];
 
-    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, max_hp]() {
+    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, max_hp]() {
         TArmor armor = armor_id ? this->CreateArmor(*armor_id) : TArmor{};
         TCreature creature(stats, armor, THitPoints(max_hp));
         creature.Resources() = resource_pool;
@@ -168,6 +173,10 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
                 throw std::runtime_error("too many weapon, not enough hands");
             }
             creature.Resources().Reduce(hand_id, hand_count);
+        }
+
+        for (auto action_id : actions) {
+            creature.AddAction(CreateAction(action_id));
         }
 
         return creature;

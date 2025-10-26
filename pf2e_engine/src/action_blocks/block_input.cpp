@@ -2,6 +2,7 @@
 
 #include <pf2e_engine/common/visit.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/game_object_logic/game_object_register.h>
 
 void TBlockInput::Add(TGameObjectId key, InputValue value)
 {
@@ -19,7 +20,7 @@ TGameObjectPtr TBlockInput::Get(TGameObjectId key, TActionContext& ctx) const
     TGameObjectPtr result;
     std::visit(VisitorHelper{
         [&](TGameObjectId id) {
-            result = ctx.game_object_register.GetGameObjectPtr(id);
+            result = ctx.game_object_register->GetGameObjectPtr(id);
         },
         [&](const std::string& s) {
             result = s;

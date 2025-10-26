@@ -1,4 +1,6 @@
 #include <creature.h>
+#include "action.h"
+#include "common/errors.h"
 
 TCreature::TCreature(TCharacteristicSet stats, TArmor armor, THitPoints hitpoints)
     : stats_(stats)
@@ -45,4 +47,9 @@ const TDamageResolver& TCreature::DamageResolver() const
 bool TCreature::IsAlive() const
 {
     return hitpoints_.GetCurrentHp() > 0;
+}
+
+void TCreature::AddAction(TAction action)
+{
+    actions_.emplace_back(action);
 }

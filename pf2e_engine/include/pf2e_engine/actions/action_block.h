@@ -4,6 +4,8 @@
 #include <pf2e_engine/action_blocks/block_input.h>
 #include <pf2e_engine/success_level.h>
 
+#include <functional>
+
 class IActionBlock {
 public:
     virtual ~IActionBlock() = default;

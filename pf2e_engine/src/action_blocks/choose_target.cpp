@@ -1,9 +1,11 @@
 #include <choose_target.h>
 
 #include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/game_object_logic/game_object_register.h>
 #include <pf2e_engine/common/visit.h>
-#include "action_context.h"
-#include "weapon.h"
+#include <pf2e_engine/actions/action_context.h>
+#include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/battle.h>
 
 #include <variant>
 
@@ -69,5 +71,5 @@ void FChooseTarget::ChooseTarget(std::vector<TPlayer*> players, TActionContext& 
     if (players.empty()) {
         throw std::logic_error("no targets");
     }
-    ctx.game_object_register.Add(output_, players[0]->creature);
+    ctx.game_object_register->Add(output_, players[0]->creature);
 }
