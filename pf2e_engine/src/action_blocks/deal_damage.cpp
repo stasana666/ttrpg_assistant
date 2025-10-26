@@ -8,7 +8,7 @@ static const TGameObjectId kTarget = TGameObjectIdManager::Instance().Register("
 void FDealDamage::operator() (TActionContext& ctx) const
 {
     auto damage = std::get<std::shared_ptr<TDamage>>(input_.Get(kDamage, ctx));
-    auto target = std::get<TCreature*>(input_.Get(kTarget, ctx));
+    auto target = std::get<TPlayer*>(input_.Get(kTarget, ctx));
 
-    ctx.transformator->DealDamage(target, target->DamageResolver()(*damage, *ctx.dice_roller));
+    ctx.transformator->DealDamage(target->creature, target->creature->DamageResolver()(*damage, *ctx.dice_roller));
 }

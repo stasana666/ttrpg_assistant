@@ -1,5 +1,11 @@
 #include <pf2e_engine/combat_calculator.h>
+#include "characteristics.h"
 #include "success_level.h"
+
+int TCombatCalculator::InitiativeBonus(const TCreature& creature) const
+{
+    return creature.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
+}
 
 int TCombatCalculator::ArmorClass(const TCreature& creature) const
 {

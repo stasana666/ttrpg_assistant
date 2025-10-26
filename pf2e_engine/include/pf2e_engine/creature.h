@@ -22,6 +22,8 @@ public:
     const TArmor& Armor() const;
     TWeaponSlots& Weapons();
 
+    bool IsAlive() const;
+
 private:
     TCharacteristicSet stats_;
     THitPoints hitpoints_;

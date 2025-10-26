@@ -21,34 +21,23 @@ bool TBattleMap::HasLine(TPosition src, TPosition dst, size_t max_length) const
         && HasLine(src, dst);
 }
 
-std::vector<TPlayer*> TBattleMap::GetIfPlayers(std::function<bool(const TPlayer*)> predicate)
+void TBattleMap::AddPlayer(TPlayer* player)
 {
-    std::vector<TPlayer*> result;
-    for (auto& player : players_) {
-        if (predicate(&player)) {
-            result.emplace_back(&player);
-        }
+    auto& cell = battlemap_[player->position.x][player->position.y];
+    if (cell.player != nullptr) {
+        throw std::runtime_error("cell already has another player");
     }
-    return result;
+    cell.player = player;
 }
 
-const TPlayer* TBattleMap::GetPlayer(std::function<bool(const TPlayer*)> predicate) const
+TPosition TBattleMap::ChoosePosition() const
 {
-    for (auto& player : players_) {
-        if (predicate(&player)) {
-            return &player;
+    for (size_t x = 0; x < x_size_; ++x) {
+        for (size_t y = 0; y < y_size_; ++y) {
+            if (battlemap_[x][y].player == nullptr) {
+                return TPosition{x, y};
+            }
         }
     }
-    return nullptr;
-}
-
-TPosition TBattleMap::GetPosition(TCreature* creature) const
-{
-    const TPlayer* player = GetPlayer([creature](const TPlayer* player) {
-        return player->creature == creature;
-    });
-    if (player == nullptr) {
-        throw std::logic_error("player by creature not found");
-    }
-    return player->position;
+    throw std::runtime_error("too many creatures for battle map");
 }

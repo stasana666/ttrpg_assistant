@@ -210,3 +210,14 @@ TCreature TGameObjectFactory::CreateCreature(TGameObjectId id) const
 {
     return creatures_.at(id)();
 }
+
+TAction TGameObjectFactory::CreateAction(TGameObjectId id) const
+{
+    return actions_.at(id)();
+}
+
+TBattleMap TGameObjectFactory::CreateBattleMap(TGameObjectId id) const
+{
+    return battle_maps_.at(id)();
+}
+

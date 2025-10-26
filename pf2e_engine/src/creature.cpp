@@ -41,3 +41,8 @@ const TDamageResolver& TCreature::DamageResolver() const
 {
     return resolver_;
 }
+
+bool TCreature::IsAlive() const
+{
+    return hitpoints_.GetCurrentHp() > 0;
+}

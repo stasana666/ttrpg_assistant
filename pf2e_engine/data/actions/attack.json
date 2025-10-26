@@ -1,6 +1,6 @@
 {
     "type": "pf2e_action",
-    "name": "attack",
+    "name": "attack_with_weapon",
     "pf2e_action": {
         "pipeline": [
             {

@@ -6,6 +6,7 @@
 
 class TCombatCalculator {
 public:
+    int InitiativeBonus(const TCreature& creature) const;
     int ArmorClass(const TCreature& creature) const;
     int AttackRollBonus(const TCreature& creature, const TWeapon& weapon) const;
     ESuccessLevel RollD20(IRandomGenerator* roller, int bonus, int ac) const;
