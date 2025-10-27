@@ -11,24 +11,49 @@
             }
         },
 
+        "pf2e_armor_core": {
+            "type": "object",
+            "properties": {
+                "armor_class_bonus": { "type": "integer" },
+                "dexterity_cap": { "type": "integer" },
+                "category": {
+                    "type": "string",
+                    "enum": ["Unarmored", "Light", "Medium", "Heavy"]
+                }
+            },
+            "required": ["armor_class_bonus", "dexterity_cap", "category"],
+            "additionalProperties": false
+        },
+
         "pf2e_armor": {
             "allOf": [
                 { "$ref": "#/$defs/pf2e_base" },
                 {
+                    "type": "object",
                     "properties": {
                         "type": { "const": "pf2e_armor" },
-                        "pf2e_armor": {
-                            "type": "object",
-                            "properties": {
-                                "armor_class_bonus": { "type": "integer" },
-                                "dexterity_cap": { "type": "integer" }
-                            },
-                            "required": ["armor_class_bonus", "dexterity_cap"]
-                        }
+                        "pf2e_armor": { "$ref": "#/$defs/pf2e_armor_core" }
                     },
                     "required": ["pf2e_armor"]
                 }
             ]
+        },
+
+        "pf2e_weapon_core": {
+            "type": "object",
+            "properties": {
+                "base_die_size": { "type": "integer" },
+                "damage_type": {
+                    "type": "string",
+                    "enum": ["Bludgeoning", "Piercing", "Slashing"]
+                },
+                "category": {
+                    "type": "string",
+                    "enum": ["Unarmed", "Simple", "Martial"]
+                }
+            },
+            "required": ["base_die_size", "damage_type", "category"],
+            "additionalProperties": false
         },
 
         "pf2e_weapon": {
@@ -38,14 +63,7 @@
                     "type": "object",
                     "properties": {
                         "type": { "const": "pf2e_weapon" },
-                        "pf2e_weapon": {
-                            "type": "object",
-                            "properties": {
-                                "base_die_size": { "type": "integer" },
-                                "damage_type": { "type": "string" }
-                            },
-                            "required": ["base_die_size", "damage_type"]
-                        }
+                        "pf2e_weapon": { "$ref": "#/$defs/pf2e_weapon_core" }
                     },
                     "required": ["pf2e_weapon"]
                 }
@@ -120,47 +138,88 @@
             }
         },
 
+        "pf2e_proficiency_bonus": {
+            "oneOf": [
+                { "type": "integer" },
+                {
+                    "type": "string",
+                    "enum": [
+                        "untrained",
+                        "trained",
+                        "expert",
+                        "master",
+                        "legendary"
+                    ]
+                }
+            ]
+        },
+
+        "pf2e_proficiency": {
+            "type": "object",
+            "properties": {
+                "armor_category": {
+                    "type": "object",
+                    "properties": {
+                        "heavy": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "medium": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "light": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "unarmored": { "$ref": "#/$defs/pf2e_proficiency_bonus" }
+                    }
+                },
+                "weapon_category": {
+                    "type": "object",
+                    "properties": {
+                        "unarmed": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "simple": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "martial": { "$ref": "#/$defs/pf2e_proficiency_bonus" }
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+
         "pf2e_creature_core": {
             "type": "object",
             "properties": {
-                "type": { "const": "pf2e_creature" },
-                "pf2e_creature": {
-                    "type": "object",
-                    "properties": {
-                        "characteristics": { "$ref": "#/$defs/pf2e_creature_characteristics" },
-                        "level": {
-                            "type": "integer"
-                        },
-                        "race_hitpoints": {
-                            "type": "integer"
-                        },
-                        "hitpoint_per_level": {
-                            "type": "integer"
-                        },
-                        "equipped": { "$ref": "#/$defs/pf2e_creature_equipped" },
-                        "resources": { "$ref": "#/$defs/pf2e_creature_resources" },
-                        "actions": {
-                            "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "required": [
-                        "characteristics",
-                        "level",
-                        "race_hitpoints"
-                    ],
-                    "additionalProperties": false
+                "characteristics": { "$ref": "#/$defs/pf2e_creature_characteristics" },
+                "level": {
+                    "type": "integer"
+                },
+                "race_hitpoints": {
+                    "type": "integer"
+                },
+                "hitpoint_per_level": {
+                    "type": "integer"
+                },
+                "equipped": { "$ref": "#/$defs/pf2e_creature_equipped" },
+                "resources": { "$ref": "#/$defs/pf2e_creature_resources" },
+                "proficiency": { "$ref": "#/$defs/pf2e_proficiency" },
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             },
-            "required": ["pf2e_creature"]
+            "required": [
+                "characteristics",
+                "level",
+                "race_hitpoints"
+            ],
+            "additionalProperties": false
         },
 
         "pf2e_creature": {
             "allOf": [
                 { "$ref": "#/$defs/pf2e_base" },
-                { "$ref": "#/$defs/pf2e_creature_core" }
+                { 
+                    "type": "object",
+                    "properties": {
+                        "type": { "const": "pf2e_creature" },
+                        "pf2e_creature": { "$ref": "#/$defs/pf2e_creature_core" }
+                    },
+                    "required": ["pf2e_creature"]
+                }
             ]
         },
 
@@ -211,11 +270,5 @@
         }
     },
 
-    "oneOf": [
-        { "$ref": "#/$defs/pf2e_armor" },
-        { "$ref": "#/$defs/pf2e_weapon" },
-        { "$ref": "#/$defs/pf2e_creature" },
-        { "$ref": "#/$defs/pf2e_action" },
-        { "$ref": "#/$defs/pf2e_battle_map" }
-    ]
+    "$ref": "#/$defs/pf2e_base"
 }

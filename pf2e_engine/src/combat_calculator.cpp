@@ -12,13 +12,13 @@ int TCombatCalculator::ArmorClass(const TCreature& creature) const
 {
     const TArmor& armor = creature.Armor();
     int dex = creature.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
-    return 10 + armor.AcBonus() + std::min(armor.DexCap(), dex);
+    return 10 + armor.AcBonus() + std::min(armor.DexCap(), dex) + creature.Proficiency().GetProficiency(armor);
 }
 
-int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon&) const
+int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon& weapon) const
 {
     int str = creature.GetCharacteristic(ECharacteristic::Strength).GetMod();
-    return str;
+    return str + creature.Proficiency().GetProficiency(weapon);
 }
 
 ESuccessLevel TCombatCalculator::RollD20(IRandomGenerator* roller, int bonus, int ac) const

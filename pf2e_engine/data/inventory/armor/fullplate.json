@@ -3,6 +3,7 @@
     "name": "fullplate",
     "pf2e_armor": {
         "armor_class_bonus": 6,
-        "dexterity_cap": 0
+        "dexterity_cap": 0,
+        "category": "Heavy"
     }
 }

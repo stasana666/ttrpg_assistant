@@ -10,11 +10,13 @@
 #include <fstream>
 #include <stdexcept>
 
+#include "armor.h"
 #include "battle_map.h"
 #include "game_object_id.h"
 #include "hitpoints.h"
 #include "proficiency.h"
 #include "resources.h"
+#include "weapon.h"
 
 const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.json";
 
@@ -65,11 +67,25 @@ void TGameObjectFactory::ReadObjectFromFile(const std::filesystem::path& game_ob
 
 void TGameObjectFactory::ValidateObject(nlohmann::json& json) const
 {
-    static nlohmann::json_schema::json_validator validator{[]() {
+    using Validator = nlohmann::json_schema::json_validator;
+    static std::unordered_map<std::string, Validator> validators;
+    static nlohmann::json schema = []() {
         std::ifstream in(kPathToSchema);
         nlohmann::json schema = nlohmann::json::parse(in);
         return schema;
-    }()};
+    }();
+    static Validator object_validator{schema};
+
+    object_validator.validate(json);
+
+    Validator& validator = [&]() -> Validator& {
+        auto type = json["type"].get<std::string>();
+        if (!validators.contains(type)) {
+            schema["$ref"] = "#/$defs/" + type;
+            validators.emplace(type, schema);
+        }
+        return validators.find(type)->second;
+    }();
 
     const auto default_patch = validator.validate(json);
 	json = json.patch(default_patch);
@@ -88,6 +104,7 @@ void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object, TGameObject
     TArmor result;
     result.ac_bonus_ = json_game_object["armor_class_bonus"];
     result.dex_cap_ = json_game_object["dexterity_cap"];
+    result.category_ = ArmorCategoryFromString(json_game_object["category"]);
 
     armors_.insert({id, [result]() { return result; }});
 }
@@ -98,7 +115,8 @@ void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjec
 {
     int base_die_size = json_game_object["base_die_size"];
     TDamage::Type damage_type = DamageTypeFromString(std::string{json_game_object["damage_type"]});
-    TWeapon result(base_die_size, damage_type);
+    EWeaponCategory category = WeaponCategoryFromString(json_game_object["category"]);
+    TWeapon result(base_die_size, damage_type, category);
 
     weapons_.insert({id, [result]() { return result; }});
 }
@@ -118,6 +136,32 @@ TResourcePool TGameObjectFactory::ReadCreatureResources(nlohmann::json& json_gam
         resource_pool.Add(resource_id, *it);
     }
     return resource_pool;
+}
+
+TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_object)
+{
+    TProficiency proficiency(json_game_object["level"]);
+    auto& json_proficiency = json_game_object["proficiency"];
+
+    auto get_value = [](nlohmann::basic_json<> json_value) {
+        TProficiency::Value value;
+        if (json_value.is_number()) {
+            value = json_value.get<int>();
+        } else {
+            value = ProficiencyLevelFromString(json_value.get<std::string>());
+        }
+        return value;
+    };
+
+    for (auto& [json_key, json_value] : json_proficiency["armor_category"].items()) {
+        proficiency.SetProficiency(ArmorCategoryFromString(json_key), get_value(json_value));
+    }
+
+    for (auto& [json_key, json_value] : json_proficiency["weapon_category"].items()) {
+        proficiency.SetProficiency(ArmorCategoryFromString(json_key), get_value(json_value));
+    }
+
+    return proficiency;
 }
 
 void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObjectId id)

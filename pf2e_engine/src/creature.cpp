@@ -47,6 +47,16 @@ TWeaponSlots& TCreature::Weapons()
     return weapons_;
 }
 
+const TProficiency& TCreature::Proficiency() const
+{
+    return proficiency_;
+}
+
+TProficiency& TCreature::Proficiency()
+{
+    return proficiency_;
+}
+
 const TDamageResolver& TCreature::DamageResolver() const
 {
     return resolver_;

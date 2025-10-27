@@ -5,6 +5,19 @@
         "level": 1,
         "race_hitpoints": 8,
         "hitpoint_per_level": 10,
+        "proficiency": {
+            "armor_category": {
+                "heavy": "trained",
+                "medium": "trained",
+                "light": "trained",
+                "unarmored": "trained"
+            },
+            "weapon_category": {
+                "unarmed": "expert",
+                "simple": "expert",
+                "martial": "expert"
+            }
+        },
         "characteristics": {
             "Strength": 18,
             "Dexterity": 12,

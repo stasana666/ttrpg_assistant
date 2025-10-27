@@ -26,6 +26,7 @@ private:
 
     void ValidateObject(nlohmann::json&) const;
     TGameObjectId ReadGameObjectName(nlohmann::json&) const;
+    TProficiency ReadProficiency(nlohmann::json& json_game_object);
 
     void ReadArmor(nlohmann::json&, TGameObjectId);
     void ReadWeapon(nlohmann::json&, TGameObjectId);

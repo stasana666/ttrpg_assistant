@@ -26,6 +26,9 @@ public:
 
     int GetLevel() const;
 
+    const TProficiency& Proficiency() const;
+    TProficiency& Proficiency();
+
     bool IsAlive() const;
     void AddAction(std::shared_ptr<TAction> action);
     std::vector<std::shared_ptr<TAction>>& Actions();
