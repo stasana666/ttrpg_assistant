@@ -12,6 +12,8 @@
 
 #include "battle_map.h"
 #include "game_object_id.h"
+#include "hitpoints.h"
+#include "proficiency.h"
 #include "resources.h"
 
 const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.json";
@@ -131,24 +133,27 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
     TResourcePool resource_pool = ReadCreatureResources(json_game_object["resources"]);
 
-    std::optional<TGameObjectId> armor_id = [&]() -> std::optional<TGameObjectId> {
-        if (json_game_object.find("armor") == json_game_object.end()) {
-            return std::nullopt;
-        }
-        if (json_game_object.is_object()) {
-            throw std::runtime_error("definition new armor in creature is not supported yet");
-        }
-        return TGameObjectIdManager::Instance().Register(json_game_object["armor"]);
-    }();
-
+    std::optional<TGameObjectId> armor_id;
     std::vector<std::pair<TGameObjectId, int>> weapon_ids;
-    for (const auto& weapon_json : json_game_object["weapons"]) {
-        weapon_ids.emplace_back([&]() -> std::pair<TGameObjectId, int> {
-            if (weapon_json["weapon"].is_object()) {
-                throw std::runtime_error("definition new weapon in creature is not supported yet");
+
+    if (json_game_object.find("equipped") != json_game_object.end())
+    {
+        auto& equipped = json_game_object["equipped"];
+        if (equipped.find("armor") != equipped.end()) {
+            if (equipped["armor"].is_object()) {
+                throw std::runtime_error("definition new armor in creature is not supported yet");
             }
-            return { TGameObjectIdManager::Instance().Register(weapon_json["weapon"]), weapon_json["grip"] };
-        }());
+            armor_id = TGameObjectIdManager::Instance().Register(equipped["armor"]);
+        }
+
+        for (const auto& weapon_json : equipped["weapons"]) {
+            weapon_ids.emplace_back([&]() -> std::pair<TGameObjectId, int> {
+                if (weapon_json["weapon"].is_object()) {
+                    throw std::runtime_error("definition new weapon in creature is not supported yet");
+                }
+                return { TGameObjectIdManager::Instance().Register(weapon_json["weapon"]), weapon_json["grip"] };
+            }());
+        }
     }
 
     std::vector<TGameObjectId> actions;
@@ -156,13 +161,15 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         actions.emplace_back(TGameObjectIdManager::Instance().Register(action));
     }
 
-    std::cout << actions.size() << std::endl;
+    int race_hp = json_game_object["race_hitpoints"];
+    int hp_per_level = json_game_object["hitpoint_per_level"];
+    int level = json_game_object["level"];
 
-    int max_hp = json_game_object["hitpoints"];
-
-    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, max_hp]() {
+    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, level]() {
         TArmor armor = armor_id ? this->CreateArmor(*armor_id) : TArmor{};
-        TCreature creature(stats, armor, THitPoints(max_hp));
+        TProficiency proficiency(level);
+        THitPoints hp(race_hp + hp_per_level * level);
+        TCreature creature(stats, proficiency, armor, hp);
         creature.Resources() = resource_pool;
 
         auto hand_id = TResourceIdManager::Instance().Register("hand");

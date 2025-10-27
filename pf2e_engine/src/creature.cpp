@@ -1,9 +1,12 @@
-#include <creature.h>
-#include "action.h"
-#include "common/errors.h"
+#include <pf2e_engine/creature.h>
 
-TCreature::TCreature(TCharacteristicSet stats, TArmor armor, THitPoints hitpoints)
+#include <pf2e_engine/actions/action.h>
+#include <pf2e_engine/common/errors.h>
+#include <pf2e_engine/proficiency.h>
+
+TCreature::TCreature(TCharacteristicSet stats, TProficiency proficiency, TArmor armor, THitPoints hitpoints)
     : stats_(stats)
+    , proficiency_(proficiency)
     , hitpoints_(hitpoints)
     , armor_(armor)
 {
@@ -12,6 +15,11 @@ TCreature::TCreature(TCharacteristicSet stats, TArmor armor, THitPoints hitpoint
 const TCharacteristic& TCreature::GetCharacteristic(ECharacteristic name) const
 {
     return stats_[name];
+}
+
+int TCreature::GetLevel() const
+{
+    return proficiency_.GetLevel();
 }
 
 TCharacteristicSet& TCreature::Characteristics()

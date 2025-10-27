@@ -9,6 +9,7 @@ target_sources(pf2e_engine
         resources.cpp
         success_level.cpp
         weapon_slot.cpp
+        proficiency.cpp
 )
 
 target_include_directories(pf2e_engine

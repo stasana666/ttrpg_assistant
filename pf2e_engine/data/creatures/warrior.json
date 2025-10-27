@@ -2,7 +2,9 @@
     "name": "warrior",
     "type": "pf2e_creature",
     "pf2e_creature": {
-        "hitpoints": 20,
+        "level": 1,
+        "race_hitpoints": 8,
+        "hitpoint_per_level": 10,
         "characteristics": {
             "Strength": 18,
             "Dexterity": 12,
@@ -11,12 +13,14 @@
             "Wisdom": 13,
             "Charisma": 13
         },
-        "weapons": [
-            {
-                "weapon": "longsword",
-                "grip": 1
-            }
-        ],
+        "equipped": {
+            "weapons": [
+                {
+                    "weapon": "longsword",
+                    "grip": 1
+                }
+            ]
+        },
         "actions": [
             "attack_with_weapon"
         ]

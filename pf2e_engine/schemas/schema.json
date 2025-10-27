@@ -128,16 +128,30 @@
                     "type": "object",
                     "properties": {
                         "characteristics": { "$ref": "#/$defs/pf2e_creature_characteristics" },
-                        "hitpoints": {
+                        "level": {
+                            "type": "integer"
+                        },
+                        "race_hitpoints": {
+                            "type": "integer"
+                        },
+                        "hitpoint_per_level": {
                             "type": "integer"
                         },
                         "equipped": { "$ref": "#/$defs/pf2e_creature_equipped" },
-                        "resources": { "$ref": "#/$defs/pf2e_creature_resources" }
+                        "resources": { "$ref": "#/$defs/pf2e_creature_resources" },
+                        "actions": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
                     },
                     "required": [
                         "characteristics",
-                        "hitpoints"
-                    ]
+                        "level",
+                        "race_hitpoints"
+                    ],
+                    "additionalProperties": false
                 }
             },
             "required": ["pf2e_creature"]
@@ -155,7 +169,7 @@
             "properties": {
                 "pipeline": {
                     "type": "array",
-                    "item": {}
+                    "items": {}
                 }
             }
         },
