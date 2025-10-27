@@ -7,15 +7,15 @@
         "hitpoint_per_level": 10,
         "proficiency": {
             "armor_category": {
-                "heavy": "trained",
-                "medium": "trained",
-                "light": "trained",
-                "unarmored": "trained"
+                "Heavy": "trained",
+                "Medium": "trained",
+                "Light": "trained",
+                "Unarmored": "trained"
             },
             "weapon_category": {
-                "unarmed": "expert",
-                "simple": "expert",
-                "martial": "expert"
+                "Unarmed": "expert",
+                "Simple": "expert",
+                "Martial": "expert"
             }
         },
         "characteristics": {

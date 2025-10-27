@@ -12,6 +12,7 @@
 
 #include "armor.h"
 #include "battle_map.h"
+#include "characteristics.h"
 #include "game_object_id.h"
 #include "hitpoints.h"
 #include "proficiency.h"
@@ -158,7 +159,7 @@ TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_objec
     }
 
     for (auto& [json_key, json_value] : json_proficiency["weapon_category"].items()) {
-        proficiency.SetProficiency(ArmorCategoryFromString(json_key), get_value(json_value));
+        proficiency.SetProficiency(WeaponCategoryFromString(json_key), get_value(json_value));
     }
 
     return proficiency;
@@ -207,12 +208,12 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
     int race_hp = json_game_object["race_hitpoints"];
     int hp_per_level = json_game_object["hitpoint_per_level"];
-    int level = json_game_object["level"];
 
-    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, level]() {
+    TProficiency proficiency = ReadProficiency(json_game_object);
+
+    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency]() {
         TArmor armor = armor_id ? this->CreateArmor(*armor_id) : TArmor{};
-        TProficiency proficiency(level);
-        THitPoints hp(race_hp + hp_per_level * level);
+        THitPoints hp(race_hp + (hp_per_level + stats[ECharacteristic::Constitution].GetMod()) * proficiency.GetLevel());
         TCreature creature(stats, proficiency, armor, hp);
         creature.Resources() = resource_pool;
 
