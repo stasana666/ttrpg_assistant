@@ -2,6 +2,7 @@
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/common/errors.h>
 
+#include <pf2e_engine/interaction_system.h>
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/creature.h>
@@ -11,12 +12,14 @@
 
 #include <exception>
 #include <filesystem>
+#include <functional>
 #include <iostream>
-#include <stdexcept>
 
 using FsPath = std::filesystem::path;
 using FsDirEntry = std::filesystem::directory_entry;
 using FsRecursiveIterator = std::filesystem::recursive_directory_iterator;
+
+TInteractionSystem interaction_system;
 
 const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
 
@@ -32,18 +35,22 @@ void InitGameObjects(TGameObjectFactory& factory)
 
 TCreature CreateCreature(TGameObjectFactory& factory)
 {
-    std::cout << "Add player with id: ";
-    std::string player_id;
-    std::cin >> player_id;
-    return factory.CreateCreature(TGameObjectIdManager::Instance().Register(player_id));
+    std::function<std::string_view(const TGameObjectId&)> func = [](const TGameObjectId& id) { return TGameObjectIdManager::Instance().Name(id); };
+
+    auto player_id = interaction_system.ChooseAlternative(0, factory.AllKnown<TCreature>(),
+        "character", func);
+
+    return factory.Create<TCreature>(player_id);
 }
 
 TBattleMap CreateBattleMap(TGameObjectFactory& factory)
 {
-    std::cout << "Choose battle map with id: ";
-    std::string battle_map;
-    std::cin >> battle_map;
-    return factory.CreateBattleMap(TGameObjectIdManager::Instance().Register(battle_map));
+    std::function<std::string_view(const TGameObjectId&)> func = [](const TGameObjectId& id) { return TGameObjectIdManager::Instance().Name(id); };
+
+    auto battle_map_id = interaction_system.ChooseAlternative(0, factory.AllKnown<TBattleMap>(),
+        "battle_map", func);
+
+    return factory.Create<TBattleMap>(battle_map_id);
 }
 
 int main()

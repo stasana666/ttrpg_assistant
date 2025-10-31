@@ -212,7 +212,7 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
     TProficiency proficiency = ReadProficiency(json_game_object);
 
     creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency]() {
-        TArmor armor = armor_id ? this->CreateArmor(*armor_id) : TArmor{};
+        TArmor armor = armor_id ? this->Create<TArmor>(*armor_id) : TArmor{};
         THitPoints hp(race_hp + (hp_per_level + stats[ECharacteristic::Constitution].GetMod()) * proficiency.GetLevel());
         TCreature creature(stats, proficiency, armor, hp);
         creature.Resources() = resource_pool;
@@ -220,7 +220,7 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         auto hand_id = TResourceIdManager::Instance().Register("hand");
 
         for (auto [weapon_id, hand_count] : weapon_ids) {
-            TWeapon weapon = this->CreateWeapon(weapon_id);
+            TWeapon weapon = this->Create<TWeapon>(weapon_id);
             assert(weapon.ValidGrip(hand_count));
             creature.Weapons().Equip({weapon, hand_count});
 
@@ -231,7 +231,7 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
 
         for (auto action_id : actions) {
-            creature.AddAction(CreateAction(action_id));
+            creature.AddAction(Create<TAction>(action_id));
         }
 
         return creature;
@@ -256,31 +256,4 @@ void TGameObjectFactory::ReadBattleMap(nlohmann::json& json, TGameObjectId id)
     battle_maps_.insert({id, [=]() {
         return battle_map;
     }});
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-TArmor TGameObjectFactory::CreateArmor(TGameObjectId id) const
-{
-    return armors_.at(id)();
-}
-
-TWeapon TGameObjectFactory::CreateWeapon(TGameObjectId id) const
-{
-    return weapons_.at(id)();
-}
-
-TCreature TGameObjectFactory::CreateCreature(TGameObjectId id) const
-{
-    return creatures_.at(id)();
-}
-
-std::shared_ptr<TAction> TGameObjectFactory::CreateAction(TGameObjectId id) const
-{
-    return actions_.at(id)();
-}
-
-TBattleMap TGameObjectFactory::CreateBattleMap(TGameObjectId id) const
-{
-    return battle_maps_.at(id)();
 }
