@@ -2,12 +2,14 @@
 
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/initiative_order.h>
+#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/transformation/transformator.h>
 
 #include <deque>
 
 class TBattle {
 public:
-    explicit TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller);
+    explicit TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, TInteractionSystem& io_system);
 
     void StartBattle();
     void AddPlayer(TPlayer&& player);
@@ -20,15 +22,24 @@ public:
     TAction* ChooseAction(TPlayer&) const;
 
 private:
-    void StartTurn();
-    void EndTurn();
     void StartRound();
+    void EndRound();
+
+    void StartTurn();
+    void MakeTurn();
+    void EndTurn();
+
     bool IsBattleEnd() const;
+    bool IsRoundEnd() const;
 
     void GiveStartResource(TPlayer&);
+
+    TActionContext MakeActionContext();
 
     TBattleMap battle_map_;
     IRandomGenerator* dice_roller_;
     TInitiativeOrder initiative_order_;
+    TInteractionSystem& io_system_;
+    TTransformator transformator_;
     std::deque<TPlayer> players_;
 };

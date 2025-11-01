@@ -1,14 +1,27 @@
 #include <pf2e_engine/transformation/transformator.h>
-#include  <pf2e_engine/common/visit.h>
+#include <pf2e_engine/common/visit.h>
+#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/player.h>
 
-void TTransformator::DealDamage(TCreature* creature, int damage)
+TTransformator::TTransformator(TInteractionSystem& io_system)
+    : io_system_(io_system)
 {
-    transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints(), -damage));
 }
 
-void TTransformator::Heal(TCreature* creature, int value)
+void TTransformator::DealDamage(TPlayer* player, int damage)
 {
+    TCreature* creature = player->creature;
+    transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints(), -damage));
+    io_system_.GameLog() << player->name << " takes " << damage << " amount of damage" << std::endl;
+    io_system_.GameLog() << "current hp: " << creature->Hitpoints().GetCurrentHp() << std::endl;
+}
+
+void TTransformator::Heal(TPlayer* player, int value)
+{
+    TCreature* creature = player->creature;
     transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints(), value));
+    io_system_.GameLog() << player->name << " takes " << value << " amount of heal" << std::endl;
+    io_system_.GameLog() << "current hp: " << creature->Hitpoints().GetCurrentHp() << std::endl;
 }
 
 void TTransformator::Undo()

@@ -17,7 +17,7 @@ public:
 
     TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name);
 
-    void Apply(TActionContext& ctx, TPlayer& player);
+    void Apply(TActionContext ctx, TPlayer& player);
     void Consume(TPlayer& player);
     bool Check(const TPlayer& self);
     std::string_view Name() const;

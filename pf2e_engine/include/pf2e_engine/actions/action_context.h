@@ -5,12 +5,13 @@ class TBattle;
 class TTransformator;
 class IRandomGenerator;
 class TGameObjectRegistry;
+class TInteractionSystem;
 
-class TActionContext {
-public:
-    TGameObjectRegistry* game_object_registry;
+struct TActionContext {
     TBattle* battle;
     IRandomGenerator* dice_roller;
     TTransformator* transformator;
-    IActionBlock* next_block;
+    TInteractionSystem* io_system;
+    IActionBlock* next_block = nullptr;
+    TGameObjectRegistry* game_object_registry = nullptr;
 };

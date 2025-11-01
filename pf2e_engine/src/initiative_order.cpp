@@ -2,9 +2,10 @@
 
 #include <pf2e_engine/player.h>
 
-TInitiativeOrder::TInitiativeOrder(IRandomGenerator* dice_roller)
+TInitiativeOrder::TInitiativeOrder(IRandomGenerator* dice_roller, TInteractionSystem& io_system)
     : dice_roller_(dice_roller)
     , current_(players_.end())
+    , io_system_(io_system)
 {
 }
 
@@ -16,6 +17,8 @@ void TInitiativeOrder::AddPlayer(TPlayer* player)
         .initiative = dice_roller_->RollDice(20) + bonus,
         .initiative_bonus = bonus,
     };
+
+    io_system_.GameLog() << "Add player " << player->name << " with initiative: " << initiative.initiative << std::endl;
 
     players_.emplace(initiative, player);
 }

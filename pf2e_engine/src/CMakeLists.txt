@@ -5,11 +5,12 @@ target_sources(pf2e_engine
         combat_calculator.cpp
         creature.cpp
         initiative_order.cpp
+        interaction_system.cpp
+        proficiency.cpp
         random.cpp
         resources.cpp
         success_level.cpp
         weapon_slot.cpp
-        proficiency.cpp
 )
 
 target_include_directories(pf2e_engine

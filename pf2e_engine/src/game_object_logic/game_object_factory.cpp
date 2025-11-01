@@ -117,7 +117,8 @@ void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjec
     int base_die_size = json_game_object["base_die_size"];
     TDamage::Type damage_type = DamageTypeFromString(std::string{json_game_object["damage_type"]});
     EWeaponCategory category = WeaponCategoryFromString(json_game_object["category"]);
-    TWeapon result(base_die_size, damage_type, category);
+    std::string_view name = TGameObjectIdManager::Instance().Name(id);
+    TWeapon result(name, base_die_size, damage_type, category);
 
     weapons_.insert({id, [result]() { return result; }});
 }

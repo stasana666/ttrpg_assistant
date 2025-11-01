@@ -1,17 +1,15 @@
 #pragma once
 
+#include <pf2e_engine/alternatives.h>
+
 #include <cassert>
-#include <functional>
 #include <iostream>
 #include <sstream>
-#include <string_view>
-#include <vector>
 
 class TInteractionSystem {
 public:
     template <class T>
-    T ChooseAlternative(int player_id, const std::vector<T>& alternatives,
-        std::string_view header, std::function<std::string_view(const T&)> descriptor);
+    T ChooseAlternative(int player_id, const TAlternatives<T>& alternatives);
 
     std::ostream& GameLog();
     std::ostream& DevLog();
@@ -23,27 +21,25 @@ private:
 template <class T>
 T TInteractionSystem::ChooseAlternative(
     int player_id,
-    const std::vector<T>& alternatives,
-    std::string_view header,
-    std::function<std::string_view(const T&)> descriptor)
+    const TAlternatives<T>& alternatives)
 {
-    assert(!alternatives.empty());
-    if (alternatives.size() == 1) {
-        return alternatives[0];
+    assert(!alternatives.Empty());
+    if (alternatives.Size() == 1) {
+        return alternatives[0].value;
     }
 
     std::stringstream ss;
     ss << "Ask " << player_id << "\n";
-    ss << "Choose " << header << " and write it's number:" << std::endl;
-    for (size_t i = 0; i < alternatives.size(); ++i) {
-        ss << i << " - " << descriptor(alternatives[i]) << std::endl;
+    ss << "Choose " << alternatives.Kind() << " and write it's number:" << std::endl;
+    for (size_t i = 0; i < alternatives.Size(); ++i) {
+        ss << i << " - " << alternatives[i].name << std::endl;
     }
 
     size_t result;
     do {
         std::cout << ss.str() << std::endl;
         std::cin >> result;
-    } while (result >= alternatives.size());
+    } while (result >= alternatives.Size());
 
-    return alternatives[result];
+    return alternatives[result].value;
 }

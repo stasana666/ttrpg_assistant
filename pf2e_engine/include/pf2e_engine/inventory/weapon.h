@@ -15,16 +15,18 @@ EWeaponCategory WeaponCategoryFromString(std::string weapon_category);
 
 class TWeapon : public TItem {
 public:
-    TWeapon(int base_dice_size, TDamage::Type type, EWeaponCategory category);
+    TWeapon(std::string_view name, int base_dice_size, TDamage::Type type, EWeaponCategory category);
 
     EWeaponCategory WeaponCategory() const;
     int GetBaseDiceSize() const;
     TDamage::Type GetDamageType() const;
     std::vector<int> Grips() const;
     bool ValidGrip(int hand_count) const;
+    std::string_view Name() const;
 
 private:
     int base_dice_size_;
     TDamage::Type type_;
     EWeaponCategory category_;
+    std::string_view name_;
 };

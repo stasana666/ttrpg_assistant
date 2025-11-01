@@ -28,10 +28,11 @@ EWeaponCategory WeaponCategoryFromString(std::string str_category)
     throw std::runtime_error("unknown EWeaponCategory: \"" + str_category + "\"");
 }
 
-TWeapon::TWeapon(int base_die_size, TDamage::Type type, EWeaponCategory category)
+TWeapon::TWeapon(std::string_view name, int base_die_size, TDamage::Type type, EWeaponCategory category)
     : base_dice_size_(base_die_size)
     , type_(type)
     , category_(category)
+    , name_(name)
 {
 }
 
@@ -63,4 +64,9 @@ bool TWeapon::ValidGrip(int hand_count) const
         }
     }
     return false;
+}
+
+std::string_view TWeapon::Name() const
+{
+    return name_;
 }

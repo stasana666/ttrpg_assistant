@@ -10,6 +10,7 @@ struct TPosition {
 class TPlayer {
 public:
     int team;
+    int id;
     TPosition position;
     TCreature* creature;
     std::string name;

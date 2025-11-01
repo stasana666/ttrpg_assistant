@@ -1,4 +1,6 @@
 #include <pf2e_engine/battle.h>
+
+#include <pf2e_engine/alternatives.h>
 #include <pf2e_engine/initiative_order.h>
 #include <pf2e_engine/actions/action_context.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
@@ -9,15 +11,16 @@
 
 #include <cassert>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 
 const TResourceId kActionId = TResourceIdManager::Instance().Register("action");
 
-TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller)
+TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, TInteractionSystem& io_system)
     : battle_map_(std::move(battle_map))
     , dice_roller_(dice_roller)
-    , initiative_order_(dice_roller_)
+    , initiative_order_(dice_roller_, io_system)
+    , io_system_(io_system)
+    , transformator_(io_system)
 {
 }
 
@@ -57,11 +60,12 @@ void TBattle::StartBattle()
 {
     while (!IsBattleEnd()) {
         StartRound();
-        while (initiative_order_.CurrentPlayer() != nullptr) {
+        while (!IsRoundEnd()) {
             StartTurn();
+            MakeTurn();
             EndTurn();
-            initiative_order_.Next();
         }
+        EndRound();
     }
 }
 
@@ -69,30 +73,29 @@ void TBattle::StartRound()
 {
     assert(initiative_order_.CurrentPlayer() == nullptr);
     initiative_order_.Next();
-    std::cout << "Start round " << initiative_order_.CurrentRound() << "th round" << std::endl;
+    std::cout << "Start round " << initiative_order_.CurrentRound() << " round" << std::endl;
+}
+
+void TBattle::EndRound()
+{
 }
 
 void TBattle::StartTurn()
 {
     assert(initiative_order_.CurrentPlayer() != nullptr);
     TPlayer& player = *initiative_order_.CurrentPlayer();
-    std::cout << "Start turn: player's name: " << player.name << std::endl;
+    io_system_.GameLog() << "Start turn: player " << player.name << std::endl;
     GiveStartResource(player);
+}
+
+void TBattle::MakeTurn()
+{
+    TPlayer& player = *initiative_order_.CurrentPlayer();
 
     TAction* action;
-    while ((action = ChooseAction(player)) != nullptr)
+    while (!IsBattleEnd() && player.creature->IsAlive() && (action = ChooseAction(player)) != nullptr)
     {
-        TGameObjectRegistry registry;
-        TTransformator transformator;
-        TActionContext ctx{
-            .game_object_registry = &registry,
-            .battle = this,
-            .dice_roller = dice_roller_,
-            .transformator = &transformator,
-            .next_block = nullptr,
-        };
-
-        action->Apply(ctx, player);
+        action->Apply(MakeActionContext(), player);
     }
 }
 
@@ -103,12 +106,42 @@ void TBattle::EndTurn()
 
     size_t resource_count = player.creature->Resources().Count(kActionId);
     player.creature->Resources().Reduce(kActionId, resource_count);
+
+    initiative_order_.Next();
+
+    io_system_.GameLog() << "End turn: player " << player.name << std::endl;
+}
+
+bool TBattle::IsBattleEnd() const
+{
+    std::unordered_set<int> alive_teams;
+    for (auto& player : players_) {
+        if (player.creature->IsAlive()) {
+            alive_teams.insert(player.team);
+        }
+    }
+    return alive_teams.size() < 2;
+}
+
+bool TBattle::IsRoundEnd() const
+{
+    return initiative_order_.CurrentPlayer() == nullptr;
 }
 
 void TBattle::GiveStartResource(TPlayer& player)
 {
     assert(!player.creature->Resources().Count(kActionId));
     player.creature->Resources().Add(kActionId, 3);
+}
+
+TActionContext TBattle::MakeActionContext()
+{
+    return {
+        .battle = this,
+        .dice_roller = dice_roller_,
+        .transformator = &transformator_,
+        .io_system = &io_system_,
+    };
 }
 
 TAction* TBattle::ChooseAction(TPlayer& player) const
@@ -124,36 +157,20 @@ TAction* TBattle::ChooseAction(TPlayer& player) const
         return nullptr;
     }
 
-    std::stringstream ss;
-    ss << "Choose next action\n";
-    ss << "0 - End of turn\n";
-    size_t action_index = 0;
-    for (auto& action : actions) {
-        ss << ++action_index << " - " << action->Name() << "\n";
-    }
-    std::cout << ss.str() << std::endl;
-    while (true) {
-        std::cin >> action_index;
-        if (action_index == 0) {
-            return nullptr;
-        }
-        --action_index;
-        if (action_index < actions.size()) {
-            return actions[action_index];
-        }
-        std::cout << "invalid action index, try again" << std::endl;
-    }
-}
+    TAlternatives<TAction*> alternatives("next action");
 
-bool TBattle::IsBattleEnd() const
-{
-    std::unordered_set<int> alive_teams;
-    for (auto& player : players_) {
-        if (player.creature->IsAlive()) {
-            alive_teams.insert(player.team);
-        }
+    alternatives.AddAlternative(TAlternative<TAction*>{
+        .name = "End of turn",
+        .value = nullptr
+    });
+    for (auto& action : actions) {
+        alternatives.AddAlternative(TAlternative<TAction*>{
+            .name = std::string(action->Name()),
+            .value = action
+        });
     }
-    return alive_teams.size() < 2;
+
+    return io_system_.ChooseAlternative(player.id, alternatives);
 }
 
 const TBattleMap& TBattle::BattleMap() const

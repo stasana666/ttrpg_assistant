@@ -13,8 +13,6 @@ static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register
 
 void FWeaponDamageRoll::operator ()(TActionContext& ctx) const
 {
-    std::cerr << "FWeaponDamageRoll::operator ()(TActionContext& ctx) const" << std::endl;
-
     TPlayer* player = std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
     TWeapon* weapon = std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
 

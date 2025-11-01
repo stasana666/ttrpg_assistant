@@ -26,7 +26,7 @@ const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
 void InitGameObjects(TGameObjectFactory& factory)
 {
     for (const FsDirEntry& dir_entry : FsRecursiveIterator(kPathToData)) {
-        std::cout << dir_entry.path() << std::endl;
+        interaction_system.DevLog() << dir_entry.path() << std::endl;
         if (dir_entry.is_directory()) {
             factory.AddSource(dir_entry.path());
         }
@@ -35,20 +35,22 @@ void InitGameObjects(TGameObjectFactory& factory)
 
 TCreature CreateCreature(TGameObjectFactory& factory)
 {
-    std::function<std::string_view(const TGameObjectId&)> func = [](const TGameObjectId& id) { return TGameObjectIdManager::Instance().Name(id); };
+    std::function<std::string(const TGameObjectId&)> func = [](const TGameObjectId& id)
+        { return std::string(TGameObjectIdManager::Instance().Name(id)); };
 
-    auto player_id = interaction_system.ChooseAlternative(0, factory.AllKnown<TCreature>(),
-        "character", func);
+    auto player_id = interaction_system.ChooseAlternative(0,
+        TAlternatives<TGameObjectId>("character", factory.AllKnown<TCreature>(), func));
 
     return factory.Create<TCreature>(player_id);
 }
 
 TBattleMap CreateBattleMap(TGameObjectFactory& factory)
 {
-    std::function<std::string_view(const TGameObjectId&)> func = [](const TGameObjectId& id) { return TGameObjectIdManager::Instance().Name(id); };
+    std::function<std::string(const TGameObjectId&)> func = [](const TGameObjectId& id)
+        { return std::string(TGameObjectIdManager::Instance().Name(id)); };
 
-    auto battle_map_id = interaction_system.ChooseAlternative(0, factory.AllKnown<TBattleMap>(),
-        "battle_map", func);
+    auto battle_map_id = interaction_system.ChooseAlternative(0,
+        TAlternatives<TGameObjectId>("battle map", factory.AllKnown<TBattleMap>(), func));
 
     return factory.Create<TBattleMap>(battle_map_id);
 }
@@ -63,10 +65,11 @@ try
     TCreature player_2 = CreateCreature(factory);
 
     TRandomGenerator dice_roller(666);
-    TBattle battle(CreateBattleMap(factory), &dice_roller);
+    TBattle battle(CreateBattleMap(factory), &dice_roller, interaction_system);
 
     battle.AddPlayer(TPlayer{
         .team = 1,
+        .id = 1,
         .position = {0, 0},
         .creature = &player_1,
         .name = "Jonn",
@@ -74,6 +77,7 @@ try
 
     battle.AddPlayer(TPlayer{
         .team = 2,
+        .id = 2,
         .position = {0, 1},
         .creature = &player_2,
         .name = "Artur",

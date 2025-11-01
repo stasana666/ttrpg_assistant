@@ -3,7 +3,8 @@
 #include <pf2e_engine/success_level.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
-#include "weapon.h"
+#include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/interaction_system.h>
 
 static const TGameObjectId kAttackerId = TGameObjectIdManager::Instance().Register("attacker");
 static const TGameObjectId kTargetId = TGameObjectIdManager::Instance().Register("target");
@@ -18,7 +19,10 @@ void FAttackRoll::operator() (TActionContext& ctx) const
     int armor_class = calculator_.ArmorClass(*target.creature);
     int attack_bonus = calculator_.AttackRollBonus(*attacker.creature, weapon);
 
+    ctx.io_system->GameLog() << attacker.name << " attack " << target.name << " with " << weapon.Name() << std::endl;
+
     ESuccessLevel result = calculator_.RollD20(ctx.dice_roller, attack_bonus, armor_class);
-    std::cerr << TGameObjectIdManager::Instance().Name(output_) << std::endl;
+    ctx.io_system->GameLog() << " => " << ToString(result) << std::endl;
+
     ctx.game_object_registry->Add(output_, result);
 }
