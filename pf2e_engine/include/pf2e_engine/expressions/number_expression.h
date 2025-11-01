@@ -6,7 +6,7 @@ class TNumberExpression final : public IExpression {
 public:
     explicit TNumberExpression(int value);
 
-    int Value(TGameContext&) const final;
+    int Value(IRandomGenerator&) const final;
 
 private:
     int value;

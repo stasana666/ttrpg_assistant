@@ -7,7 +7,7 @@ class TSumExpression final : public IExpression {
 public:
     TSumExpression(std::unique_ptr<IExpression>&& left, std::unique_ptr<IExpression>&& right);
 
-    int Value(TGameContext& ctx) const final;
+    int Value(IRandomGenerator& ctx) const final;
 
 private:
     std::unique_ptr<IExpression> leftOperand;
@@ -18,7 +18,7 @@ class TProductExpression final : public IExpression {
 public:
     TProductExpression(std::unique_ptr<IExpression>&& left, std::unique_ptr<IExpression>&& right);
 
-    int Value(TGameContext& ctx) const final;
+    int Value(IRandomGenerator&) const final;
 
 private:
     std::unique_ptr<IExpression> leftOperand;

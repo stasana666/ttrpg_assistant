@@ -6,9 +6,9 @@ TSumExpression::TSumExpression(std::unique_ptr<IExpression>&& left, std::unique_
 {
 }
 
-int TSumExpression::Value(TGameContext& ctx) const
+int TSumExpression::Value(IRandomGenerator& rng) const
 {
-    return leftOperand->Value(ctx) + rightOperand->Value(ctx);
+    return leftOperand->Value(rng) + rightOperand->Value(rng);
 }
 
 TProductExpression::TProductExpression(std::unique_ptr<IExpression>&& left, std::unique_ptr<IExpression>&& right)
@@ -17,7 +17,7 @@ TProductExpression::TProductExpression(std::unique_ptr<IExpression>&& left, std:
 {
 }
 
-int TProductExpression::Value(TGameContext& ctx) const
+int TProductExpression::Value(IRandomGenerator& rng) const
 {
-    return leftOperand->Value(ctx) * rightOperand->Value(ctx);
+    return leftOperand->Value(rng) * rightOperand->Value(rng);
 }

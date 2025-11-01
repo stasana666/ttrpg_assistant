@@ -4,23 +4,19 @@
 
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/expressions/expressions.h>
-#include <pf2e_engine/game_context.h>
 #include <pf2e_engine/mechanics/characteristics.h>
 #include <pf2e_engine/mechanics/hitpoints.h>
+#include <pf2e_engine/random.h>
 
 #include <memory>
 
 TEST(ExpressionTest, OneDice) {
     TMockRng rng;
     rng.ExpectCall(20, 1);
-    TGameContext ctx{
-        .game_object_registry = nullptr,
-        .dice_roller = &rng
-    };
 
     std::unique_ptr<IExpression> dice = std::make_unique<TDiceExpression>(20);
 
-    EXPECT_EQ(dice->Value(ctx), 1);
+    EXPECT_EQ(dice->Value(rng), 1);
     rng.Verify();
 }
 
@@ -28,10 +24,6 @@ TEST(ExpressionTest, DiceExpression) {
     TMockRng rng;
     rng.ExpectCall(20, 1);
     rng.ExpectCall(4, 1);
-    TGameContext ctx{
-        .game_object_registry = nullptr,
-        .dice_roller = &rng
-    };
 
     std::unique_ptr<IExpression> skill_check = std::make_unique<TSumExpression>(
         std::make_unique<TDiceExpression>(20),
@@ -41,12 +33,12 @@ TEST(ExpressionTest, DiceExpression) {
         )
     );
 
-    EXPECT_EQ(skill_check->Value(ctx), 4);
+    EXPECT_EQ(skill_check->Value(rng), 4);
     rng.Verify();
 }
 
 TEST(ExpressionTest, MultiplyExpression) {
-    TGameContext _;
+    TRandomGenerator _(666);
     std::unique_ptr<IExpression> expr = 
         std::make_unique<TProductExpression>(
             std::make_unique<TNumberExpression>(6),

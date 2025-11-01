@@ -1,10 +1,10 @@
 #pragma once
 
-class TGameContext;
+#include <pf2e_engine/random.h>
 
 class IExpression {
 public:
     IExpression() = default;
     virtual ~IExpression() = default;
-    virtual int Value(TGameContext& ctx) const = 0;
+    virtual int Value(IRandomGenerator& rng) const = 0;
 };

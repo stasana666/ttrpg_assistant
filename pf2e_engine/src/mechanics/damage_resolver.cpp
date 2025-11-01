@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include "game_context.h"
 #include <damage_resolver.h>
 
 void TDamageResolver::AddImmunity(TDamage::Type type)
@@ -29,10 +28,9 @@ TODO(stasana):
 */
 int TDamageResolver::operator()(const TDamage& damage, IRandomGenerator& rng) const
 {
-    TGameContext ctx{.game_object_registry = nullptr, .dice_roller = &rng};
     int result = 0;
     for (const auto& [type, expr] : damage) {
-        int value = std::max(1, expr->Value(ctx));
+        int value = std::max(1, expr->Value(rng));
         if (immunities_.contains(type)) {
             continue;
         }

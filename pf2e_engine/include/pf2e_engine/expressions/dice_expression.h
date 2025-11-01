@@ -8,8 +8,8 @@ class TDiceExpression final : public IExpression {
 public:
     explicit TDiceExpression(int size);
 
-    int Value(TGameContext& ctx) const final;
+    int Value(IRandomGenerator& dice_roller) const final;
 
 private:
-    int size;
+    int size_;
 };

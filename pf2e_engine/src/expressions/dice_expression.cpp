@@ -1,16 +1,14 @@
 #include "dice_expression.h"
 
-#include <pf2e_engine/game_context.h>
-
 #include <cassert>
+#include "random.h"
 
 TDiceExpression::TDiceExpression(int size)
-    : size(size)
+    : size_(size)
 {
 }
 
-int TDiceExpression::Value(TGameContext& ctx) const
+int TDiceExpression::Value(IRandomGenerator& dice_roller) const
 {
-    assert(ctx.dice_roller != nullptr);
-    return ctx.dice_roller->RollDice(size);
+    return dice_roller.RollDice(size_);
 }
