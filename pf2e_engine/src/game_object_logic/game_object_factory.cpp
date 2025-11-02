@@ -163,6 +163,16 @@ TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_objec
         proficiency.SetProficiency(WeaponCategoryFromString(json_key), get_value(json_value));
     }
 
+    for (auto& [json_key, json_value] : json_proficiency["savethrow"].items()) {
+        proficiency.SetProficiency(SavethrowFromString(json_key), get_value(json_value));
+    }
+
+    for (auto& [json_key, json_value] : json_proficiency["skill"].items()) {
+        proficiency.SetProficiency(SkillFromString(json_key), get_value(json_value));
+    }
+
+    proficiency.SetProficiency(TPerceptionTag{}, get_value(json_proficiency["Perception"]));
+
     return proficiency;
 }
 

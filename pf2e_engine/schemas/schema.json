@@ -175,6 +175,38 @@
                         "Martial": { "$ref": "#/$defs/pf2e_proficiency_bonus" }
                     },
                     "additionalProperties": false
+                },
+                "Perception": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                "savethrow": {
+                    "type": "object",
+                    "properties": {
+                        "Fortitude": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Reflex": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Will": { "$ref": "#/$defs/pf2e_proficiency_bonus" }
+                    },
+                    "additionalProperties": false
+                },
+                "skill": {
+                    "type": "object",
+                    "properties": {
+                        "Acrobatics": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Arcana": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Athletics": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Crafting": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Deception": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Diplomacy": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Intimidation": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Medicine": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Nature": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Occultism": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Performance": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Religion": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Society": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Stealth": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Survival": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Thievery": { "$ref": "#/$defs/pf2e_proficiency_bonus" }
+                    },
+                    "additionalProperties": false
                 }
             },
             "additionalProperties": false

@@ -8,9 +8,9 @@ std::string ToString(ECondition condition)
         case ECondition::MultipleAttackPenalty:
             return "MultipleAttackPenalty";
         case ECondition::COUNT:
-            throw std::runtime_error("COUNT is not valid ECondition");
+            throw std::invalid_argument("COUNT is not valid ECondition");
     }
-    throw std::runtime_error("incorrect value of ECondition");
+    throw std::invalid_argument("incorrect value of ECondition");
 }
 
 ECondition ConditionFromString(std::string condition)
@@ -20,5 +20,5 @@ ECondition ConditionFromString(std::string condition)
             return static_cast<ECondition>(i);
         }
     }
-    throw std::runtime_error("unknown ECondition: \"" + condition + "\"");
+    throw std::invalid_argument("unknown ECondition: \"" + condition + "\"");
 }

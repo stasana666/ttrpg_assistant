@@ -1,9 +1,11 @@
 target_sources(pf2e_engine
     PRIVATE
-        damage.cpp
-        damage_resolver.cpp
-        hitpoints.cpp
         characteristics.cpp
+        damage_resolver.cpp
+        damage.cpp
+        hitpoints.cpp
+        savethrow.cpp
+        skills.cpp
 )
 
 target_include_directories(pf2e_engine

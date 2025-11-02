@@ -16,7 +16,20 @@
                 "Unarmed": "expert",
                 "Simple": "expert",
                 "Martial": "expert"
-            }
+            },
+            "savethrow": {
+                "Fortitude": "expert",
+                "Reflex": "expert",
+                "Will": "trained"
+            },
+            "skill": {
+                "Acrobatics": "trained",
+                "Athletics": "trained",
+                "Deception": "trained",
+                "Diplomacy": "trained",
+                "Intimidation": "trained"
+            },
+            "Perception": "expert"
         },
         "characteristics": {
             "Strength": 18,
