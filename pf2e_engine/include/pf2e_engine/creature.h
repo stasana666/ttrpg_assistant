@@ -8,6 +8,7 @@
 #include <pf2e_engine/mechanics/damage_resolver.h>
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/proficiency.h>
+#include "pf2e_engine/condition.h"
 
 class TCreature {
 public:
@@ -33,9 +34,13 @@ public:
     void AddAction(std::shared_ptr<TAction> action);
     std::vector<std::shared_ptr<TAction>>& Actions();
 
+    int Get(ECondition condition) const;
+    void Set(ECondition condition, int value);
+
 private:
     TCharacteristicSet stats_;
     TProficiency proficiency_;
+    TConditions conditions_;
 
     THitPoints hitpoints_;
     TDamageResolver resolver_;

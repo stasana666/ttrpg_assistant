@@ -1,4 +1,5 @@
 #include <weapon.h>
+#include <stdexcept>
 
 
 std::string ToString(EWeaponCategory proficiency)
@@ -26,6 +27,27 @@ EWeaponCategory WeaponCategoryFromString(std::string str_category)
         }
     }
     throw std::runtime_error("unknown EWeaponCategory: \"" + str_category + "\"");
+}
+
+std::string ToString(EWeaponTrait weapon_trait)
+{
+    switch (weapon_trait) {
+        case EWeaponTrait::Agile:
+            return "Agile";
+        case EWeaponTrait::COUNT:
+            throw std::runtime_error("COUNT is not valid EWeaponTrait");
+    }
+    throw std::runtime_error("incorrect value of EWeaponTrait");
+}
+
+EWeaponTrait WeaponTraitFromString(std::string weapon_trait)
+{
+    for (size_t i = 0; i < static_cast<size_t>(EWeaponTrait::COUNT); ++i) {
+        if (ToString(static_cast<EWeaponTrait>(i)) == weapon_trait) {
+            return static_cast<EWeaponTrait>(i);
+        }
+    }
+    throw std::runtime_error("unknown EWeaponTrait: \"" + weapon_trait + "\"");
 }
 
 TWeapon::TWeapon(std::string_view name, int base_die_size, TDamage::Type type, EWeaponCategory category)

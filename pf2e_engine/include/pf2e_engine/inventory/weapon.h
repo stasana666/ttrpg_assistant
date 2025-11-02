@@ -1,8 +1,10 @@
 #pragma once
 
 #include <pf2e_engine/mechanics/damage.h>
+#include <pf2e_engine/inventory/item.h>
+
 #include <vector>
-#include "item.h"
+#include <variant>
 
 enum class EWeaponCategory {
     Unarmed,
@@ -12,6 +14,21 @@ enum class EWeaponCategory {
 
 std::string ToString(EWeaponCategory weapon_category);
 EWeaponCategory WeaponCategoryFromString(std::string weapon_category);
+
+enum class EWeaponTrait {
+    Agile,
+    COUNT
+};
+
+std::string ToString(EWeaponTrait weapon_trait);
+EWeaponTrait WeaponTraitFromString(std::string weapon_trait);
+
+using TTraitValue = std::variant<std::monostate, int>;
+
+struct TWeaponTrait {
+    EWeaponTrait type;
+    TTraitValue value;
+};
 
 class TWeapon : public TItem {
 public:
@@ -25,6 +42,8 @@ public:
     std::string_view Name() const;
 
 private:
+    friend class TGameObjectFactory;
+
     int base_dice_size_;
     TDamage::Type type_;
     EWeaponCategory category_;

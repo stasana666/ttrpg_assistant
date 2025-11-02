@@ -4,12 +4,14 @@ target_sources(pf2e_engine
         battle.cpp
         combat_calculator.cpp
         creature.cpp
+        effect_manager.cpp
         initiative_order.cpp
         interaction_system.cpp
         proficiency.cpp
         random.cpp
         resources.cpp
         success_level.cpp
+        scheduler.cpp
         weapon_slot.cpp
 )
 

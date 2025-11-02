@@ -6,6 +6,8 @@
 #include <pf2e_engine/transformation/transformator.h>
 
 #include <deque>
+#include "pf2e_engine/effect_manager.h"
+#include "pf2e_engine/scheduler.h"
 
 class TBattle {
 public:
@@ -41,5 +43,7 @@ private:
     TInitiativeOrder initiative_order_;
     TInteractionSystem& io_system_;
     TTransformator transformator_;
+    TTaskScheduler scheduler_;
+    TEffectManager effect_manager_;
     std::deque<TPlayer> players_;
 };

@@ -3,8 +3,6 @@
 #include <limits>
 #include <string>
 
-class TGameObjectFactory;
-
 enum class EArmorCategory {
     Unarmored,
     Light,
@@ -22,7 +20,7 @@ public:
     EArmorCategory ArmorCategory() const;
 
 private:
-    friend TGameObjectFactory;
+    friend class TGameObjectFactory;
 
     EArmorCategory category_{EArmorCategory::Unarmored};
     int ac_bonus_{0};

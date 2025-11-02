@@ -76,3 +76,17 @@ std::vector<std::shared_ptr<TAction>>& TCreature::Actions()
 {
     return actions_;
 }
+
+int TCreature::Get(ECondition condition) const
+{
+    auto it = conditions_.find(condition);
+    if (it == conditions_.end()) {
+        return 0;
+    }
+    return it->second;
+}
+
+void TCreature::Set(ECondition condition, int value)
+{
+    conditions_[condition] = value;
+}

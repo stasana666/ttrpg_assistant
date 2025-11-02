@@ -12,6 +12,7 @@
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
+#include "scheduler.h"
 
 const TResourceId kActionId = TResourceIdManager::Instance().Register("action");
 
@@ -85,7 +86,10 @@ void TBattle::StartTurn()
     assert(initiative_order_.CurrentPlayer() != nullptr);
     TPlayer& player = *initiative_order_.CurrentPlayer();
     io_system_.GameLog() << "Start turn: player " << player.name << std::endl;
+
     GiveStartResource(player);
+
+    scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnStart, .context = TEventContext{.player = &player}});
 }
 
 void TBattle::MakeTurn()
@@ -104,12 +108,10 @@ void TBattle::EndTurn()
     assert(initiative_order_.CurrentPlayer() != nullptr);
     TPlayer& player = *initiative_order_.CurrentPlayer();
 
-    size_t resource_count = player.creature->Resources().Count(kActionId);
-    player.creature->Resources().Reduce(kActionId, resource_count);
-
     initiative_order_.Next();
 
     io_system_.GameLog() << "End turn: player " << player.name << std::endl;
+    scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{.player = &player}});
 }
 
 bool TBattle::IsBattleEnd() const
@@ -132,6 +134,14 @@ void TBattle::GiveStartResource(TPlayer& player)
 {
     assert(!player.creature->Resources().Count(kActionId));
     player.creature->Resources().Add(kActionId, 3);
+
+    scheduler_.AddTask(TTask{
+        .events_before_call = {TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{&player}}},
+        .callback = [player]() {
+            size_t resource_count = player.creature->Resources().Count(kActionId);
+            player.creature->Resources().Reduce(kActionId, resource_count);
+        },
+    });
 }
 
 TActionContext TBattle::MakeActionContext()
