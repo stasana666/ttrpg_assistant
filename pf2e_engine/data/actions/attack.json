@@ -46,6 +46,19 @@
                 ]
             },
             {
+                "name": "multiple_attack_penalty",
+                "type": "function_call",
+                "input": {
+                    "attacker": "$self",
+                    "condition": "MultipleAttackPenalty",
+                    "weapon": "$weapon"
+                },
+                "function": "add_condition",
+                "output": [
+                    "void"
+                ]
+            },
+            {
                 "name": "attack_result",
                 "type": "switch",
                 "input": {

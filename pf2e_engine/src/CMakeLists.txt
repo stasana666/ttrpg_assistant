@@ -3,6 +3,7 @@ target_sources(pf2e_engine
         battle_map.cpp
         battle.cpp
         combat_calculator.cpp
+        condition.cpp
         creature.cpp
         effect_manager.cpp
         initiative_order.cpp

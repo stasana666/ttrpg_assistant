@@ -16,6 +16,7 @@
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
+#include "add_condition.h"
 #include "deal_damage.h"
 #include "resources.h"
 
@@ -40,6 +41,7 @@ TActionReader::kFunctionMapping{
     { "weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FWeaponDamageRoll(std::move(input), output); } },
     { "crit_weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FCritWeaponDamageRoll(std::move(input), output); } },
     { "deal_damage", [](TBlockInput&& input, TGameObjectId output) { return FDealDamage(std::move(input), output); } },
+    { "add_condition", [](TBlockInput&& input, TGameObjectId output) { return FAddCondition(std::move(input), output); } }
 };
 
 TAction TActionReader::ReadAction(nlohmann::json& json)

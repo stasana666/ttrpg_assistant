@@ -8,11 +8,11 @@
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/resources.h>
 #include <pf2e_engine/transformation/transformator.h>
+#include <pf2e_engine/scheduler.h>
 
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
-#include "scheduler.h"
 
 const TResourceId kActionId = TResourceIdManager::Instance().Register("action");
 
@@ -151,6 +151,8 @@ TActionContext TBattle::MakeActionContext()
         .dice_roller = dice_roller_,
         .transformator = &transformator_,
         .io_system = &io_system_,
+        .scheduler = &scheduler_,
+        .effect_manager = &effect_manager_,
     };
 }
 

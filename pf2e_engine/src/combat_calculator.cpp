@@ -2,6 +2,7 @@
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/mechanics/characteristics.h>
 #include <pf2e_engine/success_level.h>
+#include "condition.h"
 
 int TCombatCalculator::InitiativeBonus(const TCreature& creature) const
 {
@@ -18,7 +19,7 @@ int TCombatCalculator::ArmorClass(const TCreature& creature) const
 int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon& weapon) const
 {
     int str = creature.GetCharacteristic(ECharacteristic::Strength).GetMod();
-    return str + creature.Proficiency().GetProficiency(weapon);
+    return str + creature.Proficiency().GetProficiency(weapon) - creature.Get(ECondition::MultipleAttackPenalty);
 }
 
 ESuccessLevel TCombatCalculator::RollD20(IRandomGenerator* roller, int bonus, int ac) const

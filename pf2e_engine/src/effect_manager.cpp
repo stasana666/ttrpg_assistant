@@ -9,7 +9,7 @@ TEffectCanceler TEffectManager::AddEffect(TEffect effect)
     std::visit(VisitorHelper{
         [&](TPlayerConditionSet effect) {
             condition_values_[std::make_pair(effect.player, effect.condition)].insert(effect.value);
-            canceler = [&]() {
+            canceler = [=, this]() {
                 condition_values_.at(std::make_pair(effect.player, effect.condition)).erase(effect.value);
                 Update(effect.player, effect.condition);
             };
@@ -23,5 +23,9 @@ TEffectCanceler TEffectManager::AddEffect(TEffect effect)
 void TEffectManager::Update(TPlayer* player, ECondition condition)
 {
     auto& values = condition_values_.at(std::make_pair(player, condition));
-    player->creature->Set(condition, *values.rbegin());
+    if (values.empty()) {
+        player->creature->Set(condition, 0);
+    } else {
+        player->creature->Set(condition, *values.rbegin());
+    }
 }

@@ -22,7 +22,7 @@ void FAttackRoll::operator() (TActionContext& ctx) const
     ctx.io_system->GameLog() << attacker.name << " attack " << target.name << " with " << weapon.Name() << std::endl;
 
     ESuccessLevel result = calculator_.RollD20(ctx.dice_roller, attack_bonus, armor_class);
-    ctx.io_system->GameLog() << " => " << ToString(result) << std::endl;
+    ctx.io_system->GameLog() << "d20 + " << attack_bonus << " => " << ToString(result) << std::endl;
 
     ctx.game_object_registry->Add(output_, result);
 }

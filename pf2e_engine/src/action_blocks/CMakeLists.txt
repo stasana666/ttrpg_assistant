@@ -1,5 +1,6 @@
 target_sources(pf2e_engine
     PRIVATE
+        add_condition.cpp
         attack_roll.cpp
         base_function.cpp
         block_input.cpp

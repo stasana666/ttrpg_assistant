@@ -5,6 +5,7 @@
 
 #include <vector>
 #include <variant>
+#include <set>
 
 enum class EWeaponCategory {
     Unarmed,
@@ -41,6 +42,10 @@ public:
     bool ValidGrip(int hand_count) const;
     std::string_view Name() const;
 
+    const std::vector<TWeaponTrait>& Traits() const;
+    bool HasTrait(EWeaponTrait trait) const;
+    void AddTrait(TWeaponTrait trait);
+
 private:
     friend class TGameObjectFactory;
 
@@ -48,4 +53,5 @@ private:
     TDamage::Type type_;
     EWeaponCategory category_;
     std::string_view name_;
+    std::vector<TWeaponTrait> traits_;
 };
