@@ -5,7 +5,6 @@
 
 #include <vector>
 #include <variant>
-#include <set>
 
 enum class EWeaponCategory {
     Unarmed,
@@ -52,6 +51,6 @@ private:
     int base_dice_size_;
     TDamage::Type type_;
     EWeaponCategory category_;
-    std::string_view name_;
+    std::string name_;
     std::vector<TWeaponTrait> traits_;
 };

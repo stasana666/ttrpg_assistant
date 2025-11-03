@@ -15,6 +15,11 @@ std::string TBlockInput::GetString(TGameObjectId key) const
     return std::get<std::string>(input_mapping_.at(key));
 }
 
+int TBlockInput::GetNumber(TGameObjectId key) const
+{
+    return std::get<int>(input_mapping_.at(key));
+}
+
 TGameObjectPtr TBlockInput::Get(TGameObjectId key, TActionContext& ctx) const
 {
     if (!input_mapping_.contains(key)) {
@@ -28,6 +33,9 @@ TGameObjectPtr TBlockInput::Get(TGameObjectId key, TActionContext& ctx) const
         },
         [&](const std::string& s) {
             result = s;
+        },
+        [&](int x) {
+            result = x;
         }
     }, value);
     return result;

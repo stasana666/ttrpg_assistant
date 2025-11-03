@@ -1,0 +1,100 @@
+{
+    "type": "pf2e_action",
+    "name": "demoralize",
+    "pf2e_action": {
+        "name": "demoralize",
+        "resources": [
+            {
+                "name": "action",
+                "count": 1
+            }
+        ],
+        "pipeline": [
+            {
+                "name": "choose_target",
+                "type": "function_call",
+                "input": {
+                    "type": "emanation",
+                    "center": "$self",
+                    "radius": "30"
+                },
+                "function": "choose_target",
+                "output": [
+                    "target"
+                ]
+            },
+            {
+                "name": "calculate_DC",
+                "type": "function_call",
+                "input": {
+                    "creature": "$target",
+                    "type": "savethrow",
+                    "savethrow": "Will"
+                },
+                "function": "calculate_DC",
+                "output": [
+                    "Will_DC"
+                ]
+            },
+            {
+                "name": "roll_demoralize",
+                "type": "function_call",
+                "input": {
+                    "attacker": "$self",
+                    "DC": "$Will_DC",
+                    "type": "skill",
+                    "skill": "Intimidation"
+                },
+                "function": "roll_against_DC",
+                "output": [
+                    "demoralize_result"
+                ]
+            },
+            {
+                "name": "switch_result",
+                "type": "switch",
+                "input": {
+                    "value": "$demoralize_result"
+                },
+                "next_table": {
+                    "critical_failure": "finish",
+                    "failure": "finish",
+                    "success": "set_frightened_1",
+                    "critical_success": "set_frightened_2"
+                }
+            },
+            {
+                "name": "set_frightened_2",
+                "type": "function_call",
+                "input": {
+                    "target": "$target",
+                    "condition": "frightened",
+                    "value": 2
+                },
+                "function": "add_condition",
+                "next": "finish",
+                "output": [
+                    "void"
+                ]
+            },
+            {
+                "name": "set_frightened_1",
+                "type": "function_call",
+                "input": {
+                    "target": "$target",
+                    "condition": "frightened",
+                    "value": 1
+                },
+                "function": "add_condition",
+                "next": "finish",
+                "output": [
+                    "void"
+                ]
+            },
+            {
+                "name": "finish",
+                "type": "terminate"
+            }
+        ]
+    }
+}

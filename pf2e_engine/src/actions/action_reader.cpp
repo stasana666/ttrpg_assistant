@@ -1,24 +1,27 @@
 #include <action_reader.h>
+
 #include <action_block.h>
 
-#include <iostream>
-#include <nlohmann/json.hpp>
-
-#include <pf2e_engine/action_blocks/attack_roll.h>
+#include <pf2e_engine/action_blocks/add_condition.h>
 #include <pf2e_engine/action_blocks/block_input.h>
+#include <pf2e_engine/action_blocks/calculate_difficulty_class.h>
 #include <pf2e_engine/action_blocks/choose_target.h>
 #include <pf2e_engine/action_blocks/choose_weapon.h>
+#include <pf2e_engine/action_blocks/deal_damage.h>
+#include <pf2e_engine/action_blocks/roll_against_difficulty_class.h>
 #include <pf2e_engine/action_blocks/weapon_damage_roll.h>
+
 #include <pf2e_engine/game_object_logic/game_object_id.h>
-#include <pf2e_engine/success_level.h>
 #include <pf2e_engine/common/errors.h>
+
+#include <pf2e_engine/success_level.h>
+#include <pf2e_engine/resources.h>
+
+#include <nlohmann/json.hpp>
 
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
-#include "add_condition.h"
-#include "deal_damage.h"
-#include "resources.h"
 
 const std::unordered_map<EBlockType, std::function<IActionBlock*()>> kEmptyBlockFactory{
     { EBlockType::FunctionCall, []() -> IActionBlock* { return new TFunctionCallBlock{}; }},
@@ -35,13 +38,14 @@ TActionReader::kBlockFillerMapping{
 
 const std::unordered_map<std::string, TActionReader::FBlockFunction>
 TActionReader::kFunctionMapping{
-    { "choose_weapon", [](TBlockInput&& input, TGameObjectId output) { return FChooseWeapon(std::move(input), output); } },
+    { "add_condition", [](TBlockInput&& input, TGameObjectId output) { return FAddCondition(std::move(input), output); } },
+    { "calculate_DC", [](TBlockInput&& input, TGameObjectId output) { return FCalculateDifficultyClass(std::move(input), output); } },
     { "choose_target", [](TBlockInput&& input, TGameObjectId output) { return FChooseTarget(std::move(input), output); } },
-    { "attack_roll", [](TBlockInput&& input, TGameObjectId output) { return FAttackRoll(std::move(input), output); } },
-    { "weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FWeaponDamageRoll(std::move(input), output); } },
+    { "choose_weapon", [](TBlockInput&& input, TGameObjectId output) { return FChooseWeapon(std::move(input), output); } },
     { "crit_weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FCritWeaponDamageRoll(std::move(input), output); } },
     { "deal_damage", [](TBlockInput&& input, TGameObjectId output) { return FDealDamage(std::move(input), output); } },
-    { "add_condition", [](TBlockInput&& input, TGameObjectId output) { return FAddCondition(std::move(input), output); } }
+    { "roll_against_DC", [](TBlockInput&& input, TGameObjectId output) { return FRollAgainstDifficultyClass(std::move(input), output); } },
+    { "weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FWeaponDamageRoll(std::move(input), output); } },
 };
 
 TAction TActionReader::ReadAction(nlohmann::json& json)
@@ -121,7 +125,7 @@ void TActionReader::FunctionCallFillFunction(nlohmann::json& json, TFunctionCall
 
     auto constructor = kFunctionMapping.find(function_name);
     if (constructor == kFunctionMapping.end()) {
-        throw std::logic_error("unknown function block");
+        throw std::invalid_argument("unknown function block: " + function_name);
     }
     function_block->apply_ = constructor->second(ReadInput(input), output_id);
 }
@@ -131,11 +135,15 @@ TBlockInput TActionReader::ReadInput(nlohmann::json& json) const
     TBlockInput input;
     for (auto& [key, value] : json.items()) {
         TGameObjectId key_id =  TGameObjectIdManager::Instance().Register(key);
-        std::string str_value = value;
-        if (str_value[0] == '$') {
-            input.Add(key_id, TGameObjectIdManager::Instance().Register(str_value.substr(1)));
-        } else {
-            input.Add(key_id, str_value);
+        if (value.is_string()) {
+            std::string str_value = value;
+            if (str_value[0] == '$') {
+                input.Add(key_id, TGameObjectIdManager::Instance().Register(str_value.substr(1)));
+            } else {
+                input.Add(key_id, str_value);
+            }
+        } else if (value.is_number()) {
+            input.Add(key_id, value.get<int>());
         }
     }
     return input;

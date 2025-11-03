@@ -9,6 +9,7 @@
 
 using InputValue = std::variant<
     std::string,
+    int,
     TGameObjectId
 >;
 
@@ -17,6 +18,7 @@ public:
     void Add(TGameObjectId key, InputValue value);
 
     std::string GetString(TGameObjectId key) const;
+    int GetNumber(TGameObjectId key) const;
     TGameObjectPtr Get(TGameObjectId key, TActionContext& ctx) const;
 
 private:

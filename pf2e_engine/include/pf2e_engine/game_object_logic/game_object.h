@@ -17,5 +17,6 @@ using TGameObjectPtr = std::variant<
     TPlayer*,
     std::shared_ptr<TDamage>,
     std::string,
+    int,
     ESuccessLevel
 >;

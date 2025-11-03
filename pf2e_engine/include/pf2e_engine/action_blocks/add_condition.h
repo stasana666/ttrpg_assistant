@@ -11,4 +11,5 @@ public:
 
 private:
     void MultipleAttackPenaltyHandle(TActionContext& ctx) const;
+    void FrightenedHandle(TActionContext& ctx) const;
 };

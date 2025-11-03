@@ -48,7 +48,8 @@
             ]
         },
         "actions": [
-            "attack_with_weapon"
+            "attack_with_weapon",
+            "demoralize"
         ]
     }
 }

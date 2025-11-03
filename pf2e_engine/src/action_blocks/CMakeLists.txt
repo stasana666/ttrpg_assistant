@@ -1,12 +1,13 @@
 target_sources(pf2e_engine
     PRIVATE
         add_condition.cpp
-        attack_roll.cpp
         base_function.cpp
         block_input.cpp
+        calculate_difficulty_class.cpp
         choose_target.cpp
         choose_weapon.cpp
         deal_damage.cpp
+        roll_against_difficulty_class.cpp
         weapon_damage_roll.cpp
 )
 

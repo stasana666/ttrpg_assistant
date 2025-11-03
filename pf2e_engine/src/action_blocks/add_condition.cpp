@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <stdexcept>
+#include "errors.h"
 
 static const TGameObjectId kConditionId = TGameObjectIdManager::Instance().Register("condition");
 static const TGameObjectId kAttackerId = TGameObjectIdManager::Instance().Register("attacker");
@@ -20,6 +21,8 @@ void FAddCondition::operator ()(TActionContext& ctx) const
     switch (condition) {
         case ECondition::MultipleAttackPenalty:
             return MultipleAttackPenaltyHandle(ctx);
+        case ECondition::Frightened:
+            return FrightenedHandle(ctx);
         case ECondition::COUNT:
             throw std::runtime_error("COUNT is not valid value of ECondition: FAddCondition");
     }
@@ -52,4 +55,9 @@ void FAddCondition::MultipleAttackPenaltyHandle(TActionContext& ctx) const
         },
         .callback = canceler,
     });
+}
+
+void FAddCondition::FrightenedHandle(TActionContext&) const
+{
+    throw ToDoError("FAddCondition::FrightenedHandle(TActionContext& ctx)");
 }

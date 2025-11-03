@@ -33,14 +33,27 @@
                 ]
             },
             {
-                "name": "attack_roll",
+                "name": "calculate_AC",
+                "type": "function_call",
+                "input": {
+                    "creature": "$target",
+                    "type": "armor_class"
+                },
+                "function": "calculate_DC",
+                "output": [
+                    "armor_class"
+                ]
+            },
+            {
+                "name": "roll_attack",
                 "type": "function_call",
                 "input": {
                     "attacker": "$self",
-                    "weapon": "$weapon",
-                    "target": "$target"
+                    "DC": "$armor_class",
+                    "type": "weapon_attack",
+                    "weapon": "$weapon"
                 },
-                "function": "attack_roll",
+                "function": "roll_against_DC",
                 "output": [
                     "success_level"
                 ]
