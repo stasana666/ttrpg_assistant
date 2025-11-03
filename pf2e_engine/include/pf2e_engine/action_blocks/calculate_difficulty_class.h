@@ -13,6 +13,7 @@ public:
 private:
     void ArmorClassHandle(TActionContext& ctx) const;
     void SkillDifficultyClassHandle(TActionContext& ctx) const;
+    void SavethrowDifficultyClassHandle(TActionContext& ctx) const;
 
     TCombatCalculator calculator_;
 };

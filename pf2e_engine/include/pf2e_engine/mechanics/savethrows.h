@@ -13,4 +13,4 @@ enum class ESavethrow {
 std::string ToString(ESavethrow savethrow);
 ESavethrow SavethrowFromString(std::string str_savethrow);
 
-constexpr ECharacteristic BindedCharacteristic(ESavethrow savethrow);
+ECharacteristic BindedCharacteristic(ESavethrow savethrow);

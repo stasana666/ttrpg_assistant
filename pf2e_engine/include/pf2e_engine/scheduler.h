@@ -26,7 +26,7 @@ struct TEvent {
 
 struct TTask {
     std::vector<TEvent> events_before_call;
-    std::function<void()> callback;
+    std::function<bool()> callback;
 };
 
 class TTaskScheduler {
@@ -36,5 +36,5 @@ public:
     void AddTask(TTask&& task);
 
 private:
-    std::list<TTask> tasks_;
+    std::list<std::pair<TTask, std::vector<TEvent>::iterator>> tasks_;
 };

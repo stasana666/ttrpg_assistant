@@ -55,7 +55,7 @@ ESkill SkillFromString(std::string skill)
     throw std::invalid_argument("unknown ESkill: \"" + skill + "\"");
 }
 
-constexpr ECharacteristic BindedCharacteristic(ESkill skill)
+ECharacteristic BindedCharacteristic(ESkill skill)
 {
         switch (skill) {
         case ESkill::Acrobatics:

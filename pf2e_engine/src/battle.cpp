@@ -13,6 +13,7 @@
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
+#include "condition.h"
 
 const TResourceId kActionId = TResourceIdManager::Instance().Register("action");
 
@@ -140,6 +141,7 @@ void TBattle::GiveStartResource(TPlayer& player)
         .callback = [player]() {
             size_t resource_count = player.creature->Resources().Count(kActionId);
             player.creature->Resources().Reduce(kActionId, resource_count);
+            return false;
         },
     });
 }

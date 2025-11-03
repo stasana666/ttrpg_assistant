@@ -44,7 +44,7 @@ void FChooseTarget::EmanationHandle(TActionContext& ctx) const
             center = player->position;
         },
         [](auto&&) {
-            throw std::logic_error("unexpected type");
+            throw std::logic_error("unexpected type for center: FChooseTarget::EmanationHandle");
         }
     }, input_.Get(kCenterId, ctx));
 
@@ -53,8 +53,11 @@ void FChooseTarget::EmanationHandle(TActionContext& ctx) const
         [&](TWeapon*) {
             radius = 1;
         },
+        [&](int r) {
+            radius = r;
+        },
         [](auto&&) {
-            throw std::logic_error("unexpected type");
+            throw std::logic_error("unexpected type for radius: FChooseTarget::EmanationHandle");
         }
     }, input_.Get(kRadiusId, ctx));
 
@@ -68,8 +71,14 @@ void FChooseTarget::EmanationHandle(TActionContext& ctx) const
 void FChooseTarget::ChooseTarget(std::vector<TPlayer*> players, TActionContext& ctx) const
 {
     // TODO: добавить логику
+    TPlayer* self = &ctx.game_object_registry->Get<TPlayer>(TGameObjectIdManager::Instance().Register("self"));
     if (players.empty()) {
         throw std::logic_error("no targets");
     }
-    ctx.game_object_registry->Add(output_, players[0]);
+    for (auto& p : players) {
+        if (p == self) {
+            continue;
+        }
+        ctx.game_object_registry->Add(output_, p);
+    }
 }

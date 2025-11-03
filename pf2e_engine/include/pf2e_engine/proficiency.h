@@ -8,6 +8,7 @@
 
 #include <variant>
 #include <map>
+#include "pf2e_engine/mechanics/characteristics.h"
 
 enum class EProficiencyLevel {
     Untrained,
@@ -21,6 +22,8 @@ std::string ToString(EProficiencyLevel proficiency);
 EProficiencyLevel ProficiencyLevelFromString(std::string proficiency);
 
 struct TPerceptionTag {};
+
+ECharacteristic BindedCharacteristic(TPerceptionTag);
 
 class TProficiency {
 public:

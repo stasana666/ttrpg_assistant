@@ -2,6 +2,7 @@
 
 #include <pf2e_engine/common/visit.h>
 #include <stdexcept>
+#include "characteristics.h"
 #include "savethrows.h"
 #include "skills.h"
 
@@ -36,6 +37,11 @@ EProficiencyLevel ProficiencyLevelFromString(std::string proficiency_str)
         }
     }
     throw std::invalid_argument("unknown EProficiencyLevel: \"" + proficiency_str + "\"");
+}
+
+ECharacteristic BindedCharacteristic(TPerceptionTag)
+{
+    return ECharacteristic::Wisdom;
 }
 
 TProficiency::TProficiency(int level)

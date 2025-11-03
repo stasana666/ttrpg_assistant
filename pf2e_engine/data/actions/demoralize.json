@@ -16,7 +16,7 @@
                 "input": {
                     "type": "emanation",
                     "center": "$self",
-                    "radius": "30"
+                    "radius": 5
                 },
                 "function": "choose_target",
                 "output": [
@@ -68,7 +68,7 @@
                 "type": "function_call",
                 "input": {
                     "target": "$target",
-                    "condition": "frightened",
+                    "condition": "Frightened",
                     "value": 2
                 },
                 "function": "add_condition",
@@ -82,7 +82,7 @@
                 "type": "function_call",
                 "input": {
                     "target": "$target",
-                    "condition": "frightened",
+                    "condition": "Frightened",
                     "value": 1
                 },
                 "function": "add_condition",

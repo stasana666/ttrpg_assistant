@@ -25,6 +25,6 @@ enum class ESkill {
 };
 
 std::string ToString(ESkill skill);
-ESkill SkillFromString(std::string str_savethrow);
+ESkill SkillFromString(std::string skill);
 
-constexpr ECharacteristic BindedCharacteristic(ESkill skill);
+ECharacteristic BindedCharacteristic(ESkill skill);

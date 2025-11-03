@@ -27,7 +27,7 @@ ESavethrow SavethrowFromString(std::string str_savethrow)
     throw std::invalid_argument("unknown ESavethrow: \"" + str_savethrow + "\"");
 }
 
-constexpr ECharacteristic BindedCharacteristic(ESavethrow savethrow)
+ECharacteristic BindedCharacteristic(ESavethrow savethrow)
 {
     switch (savethrow) {
         case ESavethrow::Fortitude:

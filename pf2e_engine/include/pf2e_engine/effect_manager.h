@@ -13,15 +13,18 @@ struct TPlayerConditionSet {
     TPlayer* player;
     ECondition condition;
     int value;
-
-    using Key = std::pair<TPlayer*, ECondition>;
 };
 
 using TEffect = std::variant<
     TPlayerConditionSet
 >;
 
-using TEffectCanceler = std::function<void()>;
+enum class EEffectCancelPolicy {
+    Cancel,
+    ReduceUntilZero,
+};
+
+using TEffectCanceler = std::function<bool(EEffectCancelPolicy)>;
 
 class TEffectManager {
 public:

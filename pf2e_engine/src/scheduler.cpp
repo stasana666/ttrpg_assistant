@@ -2,22 +2,24 @@
 
 void TTaskScheduler::TriggerEvent(TEvent event)
 {
-    for (auto& task : tasks_) {
-        if (task.events_before_call.back() == event) {
-            task.events_before_call.pop_back();
+    for (auto& [task, current] : tasks_) {
+        if (*current == event) {
+            ++current;
         }
-        if (task.events_before_call.empty()) {
-            task.callback();
+        if (current == task.events_before_call.end()) {
+            if (task.callback()) {
+                current = task.events_before_call.begin();
+            }
         }
     }
-    auto new_end = std::remove_if(tasks_.begin(), tasks_.end(), [](const TTask& task) {
-        return task.events_before_call.empty();
+    auto new_end = std::remove_if(tasks_.begin(), tasks_.end(), [](const auto& task) {
+        return task.second == task.first.events_before_call.end();
     });
     tasks_.erase(new_end, tasks_.end());
 }
 
 void TTaskScheduler::AddTask(TTask&& task)
 {
-    std::reverse(task.events_before_call.begin(), task.events_before_call.end());
-    tasks_.emplace_back(std::move(task));
+    tasks_.emplace_back(std::move(task), task.events_before_call.begin());
+    tasks_.back().second = tasks_.back().first.events_before_call.begin();
 }

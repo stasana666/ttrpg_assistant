@@ -6,11 +6,13 @@
 #include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/interaction_system.h>
 #include <pf2e_engine/common/errors.h>
+#include "skills.h"
 
 static const TGameObjectId kTypeId = TGameObjectIdManager::Instance().Register("type");
 static const TGameObjectId kDifficultyClassValueId = TGameObjectIdManager::Instance().Register("DC");
 static const TGameObjectId kAttackerId = TGameObjectIdManager::Instance().Register("attacker");
 static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register("weapon");
+static const TGameObjectId kSkillId = TGameObjectIdManager::Instance().Register("skill");
 
 enum class EAttackType {
     Skill,
@@ -48,12 +50,24 @@ void FRollAgainstDifficultyClass::WeaponAttackHandle(TActionContext& ctx) const
     ctx.io_system->GameLog() << attacker.name << " attack with " << weapon.Name() << std::endl;
 
     ESuccessLevel result = calculator_.RollD20(ctx.dice_roller, attack_bonus, armor_class);
-    ctx.io_system->GameLog() << "d20 + " << attack_bonus << " => " << ToString(result) << std::endl;
+    ctx.io_system->GameLog() << "d20 + " << attack_bonus << " agains " << armor_class
+        << " => " << ToString(result) << std::endl;
 
     ctx.game_object_registry->Add(output_, result);
 }
 
-void FRollAgainstDifficultyClass::SkillHandle(TActionContext&) const
+void FRollAgainstDifficultyClass::SkillHandle(TActionContext& ctx) const
 {
-    throw ToDoError("FRollAgainstDifficultyClass::SkillHandle(TActionContext& ctx)");
+    TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
+    ESkill skill = SkillFromString(input_.GetString(kSkillId));
+
+    int difficulty_class = std::get<int>(input_.Get(kDifficultyClassValueId, ctx));
+    int roll_bonus = calculator_.RollBonus(*attacker.creature, skill);
+
+    ctx.io_system->GameLog() << attacker.name << " roll " << ToString(skill) << std::endl;
+    ESuccessLevel result = calculator_.RollD20(ctx.dice_roller, roll_bonus, difficulty_class);
+    ctx.io_system->GameLog() << "d20 + " << roll_bonus << " agains " << difficulty_class
+        << " => " << ToString(result) << std::endl;
+
+    ctx.game_object_registry->Add(output_, result);
 }
