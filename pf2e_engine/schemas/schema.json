@@ -225,6 +225,9 @@
                 "hitpoint_per_level": {
                     "type": "integer"
                 },
+                "movement": {
+                    "type": "integer"
+                },
                 "equipped": { "$ref": "#/$defs/pf2e_creature_equipped" },
                 "resources": { "$ref": "#/$defs/pf2e_creature_resources" },
                 "proficiency": { "$ref": "#/$defs/pf2e_proficiency" },

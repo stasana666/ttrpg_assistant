@@ -6,6 +6,8 @@ enable_testing()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+add_subdirectory(extern)
+
 add_compile_options(
     -Wall
     -Wextra
@@ -14,9 +16,7 @@ add_compile_options(
     -g
 )
 
-add_subdirectory(extern)
-
-set(CMAKE_CXX_CLANG_TIDY "clang-tidy")
+set(CMAKE_CXX_CLANG_TIDY "/opt/homebrew/opt/llvm/bin/clang-tidy")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cpp_config/cpp_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/cpp_config/cpp_config.h)
 

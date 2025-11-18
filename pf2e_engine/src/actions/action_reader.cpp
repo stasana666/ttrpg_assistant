@@ -10,6 +10,8 @@
 #include <pf2e_engine/action_blocks/deal_damage.h>
 #include <pf2e_engine/action_blocks/roll_against_difficulty_class.h>
 #include <pf2e_engine/action_blocks/weapon_damage_roll.h>
+#include <pf2e_engine/action_blocks/get_parameter.h>
+#include <pf2e_engine/action_blocks/move.h>
 
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/common/errors.h>
@@ -46,6 +48,8 @@ TActionReader::kFunctionMapping{
     { "deal_damage", [](TBlockInput&& input, TGameObjectId output) { return FDealDamage(std::move(input), output); } },
     { "roll_against_DC", [](TBlockInput&& input, TGameObjectId output) { return FRollAgainstDifficultyClass(std::move(input), output); } },
     { "weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FWeaponDamageRoll(std::move(input), output); } },
+    { "get_parameter", [](TBlockInput&& input, TGameObjectId output) { return FGetParameter(std::move(input), output); } },
+    { "move", [](TBlockInput&& input, TGameObjectId output) { return FMove(std::move(input), output); } },
 };
 
 TAction TActionReader::ReadAction(nlohmann::json& json)

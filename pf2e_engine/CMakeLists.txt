@@ -7,6 +7,10 @@ target_include_directories(pf2e_engine
 
 target_link_libraries(pf2e_engine PUBLIC nlohmann_json::nlohmann_json)
 target_link_libraries(pf2e_engine PUBLIC nlohmann_json_schema_validator)
+target_link_libraries(pf2e_engine PUBLIC sfml-audio)
+target_link_libraries(pf2e_engine PUBLIC sfml-graphics)
+target_link_libraries(pf2e_engine PUBLIC sfml-system)
+target_link_libraries(pf2e_engine PUBLIC sfml-window)
 
 add_subdirectory(src)
 add_subdirectory(tests)

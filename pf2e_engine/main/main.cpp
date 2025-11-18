@@ -2,6 +2,8 @@
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/common/errors.h>
 
+#include <pf2e_engine/gui/board.h>
+
 #include <pf2e_engine/interaction_system.h>
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/battle.h>
@@ -14,6 +16,7 @@
 #include <filesystem>
 #include <functional>
 #include <iostream>
+#include <thread>
 
 using FsPath = std::filesystem::path;
 using FsDirEntry = std::filesystem::directory_entry;
@@ -56,7 +59,6 @@ TBattleMap CreateBattleMap(TGameObjectFactory& factory)
 }
 
 int main()
-try
 {
     TGameObjectFactory factory;
     InitGameObjects(factory);
@@ -83,15 +85,24 @@ try
         .name = "Artur",
     });
 
-    battle.StartBattle();
+
+    std::thread game_logic_thread{[&]() {
+        try {
+         battle.StartBattle();
+        } catch (const std::exception& err) {
+            std::cerr << err.what() << std::endl;
+            throw;
+        }
+        catch (...) {
+            std::cerr << "Unknown error" << std::endl;
+            throw;
+        }
+    }};
+
+    TBoardGUI board(10);
+    board.Run();
+   
+    game_logic_thread.join();
 
     return 0;
-}
-catch (const std::exception& err) {
-    std::cerr << err.what() << std::endl;
-    throw;
-}
-catch (...) {
-    std::cerr << "Unknown error" << std::endl;
-    throw;
 }

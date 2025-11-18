@@ -37,6 +37,8 @@ public:
     int Get(ECondition condition) const;
     void Set(ECondition condition, int value);
 
+    int& Movement();
+
 private:
     TCharacteristicSet stats_;
     TProficiency proficiency_;
@@ -46,6 +48,8 @@ private:
     TDamageResolver resolver_;
 
     TResourcePool resources_;
+
+    int movement_;
 
     TArmor armor_;
     TWeaponSlots weapons_;

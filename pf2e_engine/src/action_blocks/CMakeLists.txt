@@ -7,8 +7,10 @@ target_sources(pf2e_engine
         choose_target.cpp
         choose_weapon.cpp
         deal_damage.cpp
+        get_parameter.cpp
         roll_against_difficulty_class.cpp
         weapon_damage_roll.cpp
+        move.cpp
 )
 
 target_include_directories(pf2e_engine

@@ -7,3 +7,9 @@
 [submodule "extern/json-schema-validator"]
 	path = extern/json-schema-validator
 	url = https://github.com/pboettch/json-schema-validator
+[submodule "extern/sfml"]
+	path = extern/sfml
+	url = https://github.com/SFML/SFML.git
+[submodule "extern/vosk-api"]
+	path = extern/vosk-api
+	url = https://github.com/alphacep/vosk-api.git

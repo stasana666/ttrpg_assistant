@@ -49,7 +49,9 @@
         },
         "actions": [
             "attack_with_weapon",
-            "demoralize"
-        ]
+            "demoralize",
+            "move"
+        ],
+        "movement": 25
     }
 }

@@ -1,6 +1,5 @@
 #include <game_object_factory.h>
 
-#include <iostream>
 #include <nlohmann/json.hpp>
 #include <nlohmann/json-schema.hpp>
 
@@ -9,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <stdexcept>
+#include <sstream>
 
 #include "armor.h"
 #include "battle_map.h"
@@ -219,10 +219,11 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
     int race_hp = json_game_object["race_hitpoints"];
     int hp_per_level = json_game_object["hitpoint_per_level"];
+    int movement = json_game_object["movement"];
 
     TProficiency proficiency = ReadProficiency(json_game_object);
 
-    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency]() {
+    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency, movement]() {
         TArmor armor = armor_id ? this->Create<TArmor>(*armor_id) : TArmor{};
         THitPoints hp(race_hp + (hp_per_level + stats[ECharacteristic::Constitution].GetMod()) * proficiency.GetLevel());
         TCreature creature(stats, proficiency, armor, hp);
@@ -244,6 +245,8 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         for (auto action_id : actions) {
             creature.AddAction(Create<TAction>(action_id));
         }
+
+        creature.Movement() = movement;
 
         return creature;
     }});

@@ -90,3 +90,8 @@ void TCreature::Set(ECondition condition, int value)
 {
     conditions_[condition] = value;
 }
+
+int& TCreature::Movement()
+{
+    return movement_;
+}

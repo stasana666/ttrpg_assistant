@@ -1,0 +1,41 @@
+{
+    "type": "pf2e_action",
+    "name": "move",
+    "pf2e_action": {
+        "name": "move",
+        "resources": [
+            {
+                "name": "action",
+                "count": 1
+            }
+        ],
+        "pipeline": [
+            {
+                "name": "get_movement",
+                "type": "function_call",
+                "input": {
+                    "creature": "$self",
+                    "type": "movement"
+                },
+                "function": "get_parameter",
+                "output": [ "movement" ]
+            },
+            {
+                "name": "move",
+                "type": "function_call",
+                "input": {
+                    "creature": "$self",
+                    "movement": "$movement"
+                },
+                "function": "move",
+                "output": [
+                    "void"
+                ]
+            },
+            {
+                "name": "finish",
+                "type": "terminate"
+            }
+        ]
+    }
+}
