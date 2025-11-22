@@ -24,7 +24,7 @@ void TAction::Apply(TActionContext ctx, TPlayer& player)
 
     Consume(player);
 
-    ctx.io_system->GameLog() << player.name << ": " << name_ << std::endl;
+    ctx.io_system->GameLog() << player.GetName() << ": " << name_ << std::endl;
 
     while (ctx.next_block != nullptr) {
         ctx.next_block->Apply(ctx);
@@ -34,14 +34,14 @@ void TAction::Apply(TActionContext ctx, TPlayer& player)
 void TAction::Consume(TPlayer& player)
 {
     for (auto& resource : consume_) {
-        player.creature->Resources().Reduce(resource.resource_id, resource.count);
+        player.GetCreature()->Resources().Reduce(resource.resource_id, resource.count);
     }
 }
 
 bool TAction::Check(const TPlayer& player)
 {
     for (auto& resource : consume_) {
-        if (!player.creature->Resources().HasResource(resource.resource_id, resource.count)) {
+        if (!player.GetCreature()->Resources().HasResource(resource.resource_id, resource.count)) {
             return false;
         }
     }

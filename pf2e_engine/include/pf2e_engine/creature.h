@@ -18,6 +18,8 @@ public:
 
     TCharacteristicSet& Characteristics();
     THitPoints& Hitpoints();
+
+    const TResourcePool& Resources() const;
     TResourcePool& Resources();
 
     const TDamageResolver& DamageResolver() const;

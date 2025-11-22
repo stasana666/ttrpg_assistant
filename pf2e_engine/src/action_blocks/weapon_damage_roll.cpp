@@ -20,7 +20,7 @@ void FWeaponDamageRoll::operator ()(TActionContext& ctx) const
 
     auto dice_expr = std::make_unique<TDiceExpression>(weapon->GetBaseDiceSize());
 
-    int str = player->creature->GetCharacteristic(ECharacteristic::Strength).GetMod();
+    int str = player->GetCreature()->GetCharacteristic(ECharacteristic::Strength).GetMod();
     auto str_expr = std::make_unique<TNumberExpression>(str);
 
     damage->Add(weapon->GetDamageType(), std::make_unique<TSumExpression>(
@@ -40,7 +40,7 @@ void FCritWeaponDamageRoll::operator ()(TActionContext& ctx) const
 
     auto dice_expr = std::make_unique<TDiceExpression>(weapon->GetBaseDiceSize());
 
-    int str = player->creature->GetCharacteristic(ECharacteristic::Strength).GetMod();
+    int str = player->GetCreature()->GetCharacteristic(ECharacteristic::Strength).GetMod();
     auto str_expr = std::make_unique<TNumberExpression>(str);
 
     damage->Add(weapon->GetDamageType(), std::make_unique<TProductExpression>(

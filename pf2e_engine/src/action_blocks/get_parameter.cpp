@@ -22,5 +22,5 @@ void FGetParameter::operator() (TActionContext& ctx) const
 void FGetParameter::MovementHandle(TActionContext& ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
-    ctx.game_object_registry->Add(output_, target.creature->Movement());
+    ctx.game_object_registry->Add(output_, target.GetCreature()->Movement());
 }

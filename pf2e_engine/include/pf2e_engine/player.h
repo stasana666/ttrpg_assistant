@@ -1,17 +1,50 @@
 #pragma once
 
 #include <pf2e_engine/creature.h>
+#include <pf2e_engine/common/holder.h>
+
+#include <filesystem>
 
 struct TPosition {
-    size_t x;
-    size_t y;
+    int x;
+    int y;
+
+    bool operator ==(const TPosition& other) const = default;
 };
+
+struct TPlayerId {
+    int id;
+};
+
+struct TPlayerTeam {
+    int team;
+};
+
+class TBattleMap;
 
 class TPlayer {
 public:
-    int team;
-    int id;
-    TPosition position;
-    TCreature* creature;
-    std::string name;
+    TPlayer(TCreature* creature, TPlayerTeam team, TPlayerId id,
+        std::string name, std::filesystem::path image_path);
+
+    const TCreature* GetCreature() const;
+    TCreature* GetCreature();
+    int GetId() const;
+    int GetTeam() const;
+    TPosition GetPosition() const;
+    void SetPosition(TPosition new_position);
+    std::string_view GetName() const;
+    const std::filesystem::path& GetImagePath() const;
+
+    void BindWith(THolder<TBattleMap>& battle_map, const TPosition position);
+    void Unbind();
+
+private:
+    TCreature* creature_;
+    TPlayerTeam team_;
+    TPlayerId id_;
+    TPosition position_;
+    std::string name_;
+    std::filesystem::path image_path_;
+    THolder<TBattleMap>* battle_map_;
 };

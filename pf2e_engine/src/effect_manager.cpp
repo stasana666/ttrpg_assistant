@@ -38,8 +38,8 @@ void TEffectManager::Update(TPlayer* player, ECondition condition)
 {
     auto& values = condition_values_.at(std::make_pair(player, condition));
     if (values.empty()) {
-        player->creature->Set(condition, 0);
+        player->GetCreature()->Set(condition, 0);
     } else {
-        player->creature->Set(condition, *values.rbegin());
+        player->GetCreature()->Set(condition, *values.rbegin());
     }
 }

@@ -10,17 +10,17 @@ TTransformator::TTransformator(TInteractionSystem& io_system)
 
 void TTransformator::DealDamage(TPlayer* player, int damage)
 {
-    TCreature* creature = player->creature;
+    TCreature* creature = player->GetCreature();
     transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints(), -damage));
-    io_system_.GameLog() << player->name << " takes " << damage << " amount of damage" << std::endl;
+    io_system_.GameLog() << player->GetName() << " takes " << damage << " amount of damage" << std::endl;
     io_system_.GameLog() << "current hp: " << creature->Hitpoints().GetCurrentHp() << std::endl;
 }
 
 void TTransformator::Heal(TPlayer* player, int value)
 {
-    TCreature* creature = player->creature;
+    TCreature* creature = player->GetCreature();
     transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints(), value));
-    io_system_.GameLog() << player->name << " takes " << value << " amount of heal" << std::endl;
+    io_system_.GameLog() << player->GetName() << " takes " << value << " amount of heal" << std::endl;
     io_system_.GameLog() << "current hp: " << creature->Hitpoints().GetCurrentHp() << std::endl;
 }
 

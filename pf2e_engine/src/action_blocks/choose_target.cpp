@@ -41,7 +41,7 @@ void FChooseTarget::EmanationHandle(TActionContext& ctx) const
     TPosition center;
     std::visit(VisitorHelper{
         [&](TPlayer* player) {
-            center = player->position;
+            center = player->GetPosition();
         },
         [](auto&&) {
             throw std::logic_error("unexpected type for center: FChooseTarget::EmanationHandle");
@@ -62,7 +62,7 @@ void FChooseTarget::EmanationHandle(TActionContext& ctx) const
     }, input_.Get(kRadiusId, ctx));
 
     auto targets = ctx.battle->GetIfPlayers([&](const TPlayer* player) {
-        return ctx.battle->BattleMap().HasLine(center, player->position, radius);
+        return ctx.battle->BattleMap()->HasLine(center, player->GetPosition(), radius);
     });
 
     ChooseTarget(targets, ctx);

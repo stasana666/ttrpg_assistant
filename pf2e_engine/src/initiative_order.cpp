@@ -12,13 +12,13 @@ TInitiativeOrder::TInitiativeOrder(IRandomGenerator* dice_roller, TInteractionSy
 void TInitiativeOrder::AddPlayer(TPlayer* player)
 {
     // TODO: спрашивать от какого навыка кидать инициативу
-    int bonus = combat_calculator_.InitiativeBonus(*player->creature);
+    int bonus = combat_calculator_.InitiativeBonus(*player->GetCreature());
     TInitiative initiative{
         .initiative = dice_roller_->RollDice(20) + bonus,
         .initiative_bonus = bonus,
     };
 
-    io_system_.GameLog() << "Add player " << player->name << " with initiative: " << initiative.initiative << std::endl;
+    io_system_.GameLog() << "Add player " << player->GetName() << " with initiative: " << initiative.initiative << std::endl;
 
     players_.emplace(initiative, player);
 }

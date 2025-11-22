@@ -45,9 +45,9 @@ void FRollAgainstDifficultyClass::WeaponAttackHandle(TActionContext& ctx) const
     TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
     TWeapon& weapon = *std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
     int armor_class = std::get<int>(input_.Get(kDifficultyClassValueId, ctx));
-    int attack_bonus = calculator_.AttackRollBonus(*attacker.creature, weapon);
+    int attack_bonus = calculator_.AttackRollBonus(*attacker.GetCreature(), weapon);
 
-    ctx.io_system->GameLog() << attacker.name << " attack with " << weapon.Name() << std::endl;
+    ctx.io_system->GameLog() << attacker.GetName() << " attack with " << weapon.Name() << std::endl;
 
     ESuccessLevel result = calculator_.RollD20(ctx.dice_roller, attack_bonus, armor_class);
     ctx.io_system->GameLog() << "d20 + " << attack_bonus << " agains " << armor_class
@@ -62,9 +62,9 @@ void FRollAgainstDifficultyClass::SkillHandle(TActionContext& ctx) const
     ESkill skill = SkillFromString(input_.GetString(kSkillId));
 
     int difficulty_class = std::get<int>(input_.Get(kDifficultyClassValueId, ctx));
-    int roll_bonus = calculator_.RollBonus(*attacker.creature, skill);
+    int roll_bonus = calculator_.RollBonus(*attacker.GetCreature(), skill);
 
-    ctx.io_system->GameLog() << attacker.name << " roll " << ToString(skill) << std::endl;
+    ctx.io_system->GameLog() << attacker.GetName() << " roll " << ToString(skill) << std::endl;
     ESuccessLevel result = calculator_.RollD20(ctx.dice_roller, roll_bonus, difficulty_class);
     ctx.io_system->GameLog() << "d20 + " << roll_bonus << " agains " << difficulty_class
         << " => " << ToString(result) << std::endl;

@@ -1,17 +1,17 @@
 #pragma once
 
-#include <pf2e_engine/game_object_logic/game_object_id.h>
-#include <pf2e_engine/game_object_logic/game_object.h>
 #include <pf2e_engine/actions/action_reader.h>
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/battle_map.h>
+#include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/game_object_logic/game_object.h>
+#include <pf2e_engine/inventory/armor.h>
+#include <pf2e_engine/inventory/weapon.h>
 
 #include <nlohmann/json_fwd.hpp>
 
 #include <filesystem>
 #include <functional>
-#include "pf2e_engine/inventory/armor.h"
-#include "pf2e_engine/inventory/weapon.h"
 
 class TGameObjectFactory {
 public:

@@ -46,7 +46,7 @@ void FCalculateDifficultyClass::operator() (TActionContext& ctx) const
 void FCalculateDifficultyClass::ArmorClassHandle(TActionContext& ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
-    int armor_class = calculator_.ArmorClass(*target.creature);
+    int armor_class = calculator_.ArmorClass(*target.GetCreature());
     ctx.game_object_registry->Add(output_, armor_class);
 }
 
@@ -55,7 +55,7 @@ void FCalculateDifficultyClass::SkillDifficultyClassHandle(TActionContext& ctx) 
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
     ESkill skill = SkillFromString(input_.GetString(kSkillId));
 
-    int difficulty_class = calculator_.DifficultyClass(*target.creature, skill);
+    int difficulty_class = calculator_.DifficultyClass(*target.GetCreature(), skill);
     ctx.game_object_registry->Add(output_, difficulty_class);
 }
 
@@ -64,6 +64,6 @@ void FCalculateDifficultyClass::SavethrowDifficultyClassHandle(TActionContext& c
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
     ESavethrow savethrow = SavethrowFromString(input_.GetString(kSavethrowId));
 
-    int difficulty_class = calculator_.DifficultyClass(*target.creature, savethrow);
+    int difficulty_class = calculator_.DifficultyClass(*target.GetCreature(), savethrow);
     ctx.game_object_registry->Add(output_, difficulty_class);
 }

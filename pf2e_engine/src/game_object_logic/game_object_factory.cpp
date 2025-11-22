@@ -37,15 +37,18 @@ void TGameObjectFactory::AddSource(const std::filesystem::path& source_path)
         ss << "File by path \"" << source_path << "\" not found";
         throw std::runtime_error(ss.str());
     }
-    if (!std::filesystem::is_directory(source_path)) {
-        throw std::runtime_error("not directory game object source is not supported yet");
+    if (std::filesystem::is_regular_file(source_path)) {
+        return ReadObjectFromFile(source_path);
     }
-
-    for (auto de : std::filesystem::directory_iterator{source_path}) {
-        if (de.is_regular_file()) {
-            ReadObjectFromFile(de);
+    if (std::filesystem::is_directory(source_path)) {
+        for (auto de : std::filesystem::directory_iterator{source_path}) {
+            if (de.is_regular_file()) {
+                ReadObjectFromFile(de);
+            }
         }
+        return;
     }
+    throw std::runtime_error("not supported source type: \"" + source_path.string() + "\"");
 }
 
 void TGameObjectFactory::ReadObjectFromFile(const std::filesystem::path& game_object_file)

@@ -1,17 +1,26 @@
 #include <board.h>
 
-constexpr size_t kTileSize = 50;
+#include <pf2e_engine/battle_map.h>
+#include "SFML/Graphics/Texture.hpp"
 
-TBoardGUI::TBoardGUI(size_t size)
-    : size_(size)
-    , window_(sf::VideoMode(sf::Vector2u(size_ * kTileSize, size * kTileSize)), "BattleMap")
+constexpr size_t kTileSize = 200;
+
+TBoardGUI::TBoardGUI(THolder<TBattleMap>& battle_map, std::filesystem::path path_to_image_dir)
+    : battle_map_(battle_map)
+    , current_(battle_map_.Get())
+    , window_(sf::VideoMode(sf::Vector2u(current_->GetXSize() * kTileSize, current_->GetYSize() * kTileSize)), "BattleMap")
+    , textures_(path_to_image_dir)
 {
     BuildTiles();
 }
 
 void TBoardGUI::Show()
 {
+    textures_.CommitFrame();
+    current_ = battle_map_.Get();
     window_.clear(sf::Color::Black);
+    BuildTiles();
+
     for (const auto& r : tiles_) {
         window_.draw(r);
     }
@@ -29,18 +38,30 @@ void TBoardGUI::Run()
 void TBoardGUI::BuildTiles()
 {
     tiles_.clear();
-    tiles_.reserve(size_ * size_);
-    for (unsigned int y = 0; y < size_; ++y) {
-        for (unsigned int x = 0; x < size_; ++x) {
-            sf::RectangleShape rect(
-                sf::Vector2f(static_cast<float>(kTileSize), static_cast<float>(kTileSize)));
-            rect.setPosition(sf::Vector2f(static_cast<float>(x * kTileSize), static_cast<float>(y * kTileSize)));
-            rect.setFillColor(sf::Color(0, 200, 0));
-            //rect.setOutlineThickness(1.f);
-            //rect.setOutlineColor(sf::Color(50, 50, 50));
-            tiles_.push_back(rect);
+    tiles_.reserve(current_->GetXSize() * current_->GetYSize());
+    for (int y = 0; y < current_->GetXSize(); ++y) {
+        for (int x = 0; x < current_->GetYSize(); ++x) {
+            tiles_.push_back(BuildTile(x, y));
         }
     }
+}
+
+sf::RectangleShape TBoardGUI::BuildTile(size_t x, size_t y)
+{
+    auto cell = current_->GetCell(x, y);
+
+    sf::RectangleShape rect(
+        sf::Vector2f(static_cast<float>(kTileSize), static_cast<float>(kTileSize)));
+    rect.setPosition(sf::Vector2f(static_cast<float>(x * kTileSize), static_cast<float>(y * kTileSize)));
+
+    if (cell.player != nullptr) {
+        sf::Texture& texture = textures_.Get(cell.player->GetImagePath());
+        rect.setTexture(&texture);
+    } else {
+        rect.setFillColor(sf::Color(0, 200, 0));
+    }
+
+    return rect;
 }
 
 void TBoardGUI::EventHandler()

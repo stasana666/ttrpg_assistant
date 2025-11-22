@@ -1,1 +1,4 @@
 jsonschema
+llama-cpp-python
+vosk
+sounddevice

@@ -16,7 +16,7 @@ add_compile_options(
     -g
 )
 
-set(CMAKE_CXX_CLANG_TIDY "/opt/homebrew/opt/llvm/bin/clang-tidy")
+set(CMAKE_CXX_CLANG_TIDY "clang-tidy")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cpp_config/cpp_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/cpp_config/cpp_config.h)
 

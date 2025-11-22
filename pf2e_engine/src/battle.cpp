@@ -13,7 +13,7 @@
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
-#include "condition.h"
+#include <condition.h>
 
 const TResourceId kActionId = TResourceIdManager::Instance().Register("action");
 
@@ -26,11 +26,11 @@ TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, TIntera
 {
 }
 
-void TBattle::AddPlayer(TPlayer&& player)
+void TBattle::AddPlayer(TPlayer&& player, TPosition position)
 {
     players_.push_back(std::move(player));
     try {
-        battle_map_.AddPlayer(&players_.back());
+        players_.back().BindWith(battle_map_, position);
         initiative_order_.AddPlayer(&players_.back());
     } catch (std::runtime_error&) {
         players_.pop_back();
@@ -86,7 +86,7 @@ void TBattle::StartTurn()
 {
     assert(initiative_order_.CurrentPlayer() != nullptr);
     TPlayer& player = *initiative_order_.CurrentPlayer();
-    io_system_.GameLog() << "Start turn: player " << player.name << std::endl;
+    io_system_.GameLog() << "Start turn: player " << player.GetName() << std::endl;
 
     GiveStartResource(player);
 
@@ -98,7 +98,7 @@ void TBattle::MakeTurn()
     TPlayer& player = *initiative_order_.CurrentPlayer();
 
     TAction* action;
-    while (!IsBattleEnd() && player.creature->IsAlive() && (action = ChooseAction(player)) != nullptr)
+    while (!IsBattleEnd() && player.GetCreature()->IsAlive() && (action = ChooseAction(player)) != nullptr)
     {
         action->Apply(MakeActionContext(), player);
     }
@@ -111,7 +111,7 @@ void TBattle::EndTurn()
 
     initiative_order_.Next();
 
-    io_system_.GameLog() << "End turn: player " << player.name << std::endl;
+    io_system_.GameLog() << "End turn: player " << player.GetName() << std::endl;
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{.player = &player}});
 }
 
@@ -119,8 +119,8 @@ bool TBattle::IsBattleEnd() const
 {
     std::unordered_set<int> alive_teams;
     for (auto& player : players_) {
-        if (player.creature->IsAlive()) {
-            alive_teams.insert(player.team);
+        if (player.GetCreature()->IsAlive()) {
+            alive_teams.insert(player.GetTeam());
         }
     }
     return alive_teams.size() < 2;
@@ -133,14 +133,14 @@ bool TBattle::IsRoundEnd() const
 
 void TBattle::GiveStartResource(TPlayer& player)
 {
-    assert(!player.creature->Resources().Count(kActionId));
-    player.creature->Resources().Add(kActionId, 3);
+    assert(!player.GetCreature()->Resources().Count(kActionId));
+    player.GetCreature()->Resources().Add(kActionId, 3);
 
     scheduler_.AddTask(TTask{
         .events_before_call = {TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{&player}}},
-        .callback = [player]() {
-            size_t resource_count = player.creature->Resources().Count(kActionId);
-            player.creature->Resources().Reduce(kActionId, resource_count);
+        .callback = [&player]() {
+            size_t resource_count = player.GetCreature()->Resources().Count(kActionId);
+            player.GetCreature()->Resources().Reduce(kActionId, resource_count);
             return false;
         },
     });
@@ -161,7 +161,7 @@ TActionContext TBattle::MakeActionContext()
 TAction* TBattle::ChooseAction(TPlayer& player) const
 {
     std::vector<TAction*> actions;
-    for (auto& action : player.creature->Actions()) {
+    for (auto& action : player.GetCreature()->Actions()) {
         if (action->Check(player)) {
             actions.emplace_back(&*action);
         }
@@ -184,15 +184,15 @@ TAction* TBattle::ChooseAction(TPlayer& player) const
         });
     }
 
-    return io_system_.ChooseAlternative(player.id, alternatives);
+    return io_system_.ChooseAlternative(player.GetId(), alternatives);
 }
 
-const TBattleMap& TBattle::BattleMap() const
+std::shared_ptr<const TBattleMap> TBattle::BattleMap() const
 {
-    return battle_map_;
+    return battle_map_.Get();
 }
 
-TBattleMap& TBattle::BattleMap()
+THolder<TBattleMap>& TBattle::BattleMapMutable()
 {
     return battle_map_;
 }

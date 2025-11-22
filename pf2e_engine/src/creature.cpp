@@ -32,6 +32,11 @@ THitPoints& TCreature::Hitpoints()
     return hitpoints_;
 }
 
+const TResourcePool& TCreature::Resources() const
+{
+    return resources_;
+}
+
 TResourcePool& TCreature::Resources()
 {
     return resources_;

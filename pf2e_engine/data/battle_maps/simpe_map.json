@@ -2,7 +2,7 @@
     "name": "simple_battle_map",
     "type": "pf2e_battle_map",
     "pf2e_battle_map": {
-        "x_size": 10,
-        "y_size": 10
+        "x_size": 4,
+        "y_size": 4
     }
 }

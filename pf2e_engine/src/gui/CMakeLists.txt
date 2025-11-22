@@ -1,6 +1,7 @@
 target_sources(pf2e_engine
     PRIVATE
         board.cpp
+        texture_storage.cpp
 )
 
 target_include_directories(pf2e_engine

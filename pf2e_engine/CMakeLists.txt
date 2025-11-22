@@ -11,6 +11,8 @@ target_link_libraries(pf2e_engine PUBLIC sfml-audio)
 target_link_libraries(pf2e_engine PUBLIC sfml-graphics)
 target_link_libraries(pf2e_engine PUBLIC sfml-system)
 target_link_libraries(pf2e_engine PUBLIC sfml-window)
+target_link_libraries(pf2e_engine PUBLIC llama)
+#target_link_libraries(pf2e_engine PUBLIC vosk::vosk)
 
 add_subdirectory(src)
 add_subdirectory(tests)

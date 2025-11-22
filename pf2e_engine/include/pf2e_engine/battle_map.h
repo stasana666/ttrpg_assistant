@@ -8,21 +8,23 @@ class TBattleMap {
 public:
     explicit TBattleMap(nlohmann::json& json);
 
-    struct Cell {
+    struct TCell {
         TPlayer* player;
     };
 
+    int GetXSize() const;
+    int GetYSize() const;
+
     bool HasLine(TPosition src, TPosition dst) const;
-    bool HasLine(TPosition src, TPosition dst, size_t max_length) const;
+    bool HasLine(TPosition src, TPosition dst, int max_length) const;
 
-    void AddPlayer(TPlayer* player);
-
-    TPosition GetPosition(TCreature* creature) const;
+    const TCell& GetCell(int x, int y) const;
+    TCell& GetCell(int x, int y);
 
 private:
     TPosition ChoosePosition() const;
 
-    size_t x_size_;
-    size_t y_size_;
-    std::vector<std::vector<Cell>> battlemap_;
+    int x_size_;
+    int y_size_;
+    std::vector<std::vector<TCell>> battlemap_;
 };

@@ -13,3 +13,6 @@
 [submodule "extern/vosk-api"]
 	path = extern/vosk-api
 	url = https://github.com/alphacep/vosk-api.git
+[submodule "extern/llama"]
+	path = extern/llama
+	url = https://github.com/ggml-org/llama.cpp

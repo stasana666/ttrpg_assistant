@@ -33,7 +33,7 @@ void FAddCondition::MultipleAttackPenaltyHandle(TActionContext& ctx) const
 {
     TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
 
-    int current = attacker.creature->Get(ECondition::MultipleAttackPenalty);
+    int current = attacker.GetCreature()->Get(ECondition::MultipleAttackPenalty);
 
     TWeapon& weapon = *std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
 

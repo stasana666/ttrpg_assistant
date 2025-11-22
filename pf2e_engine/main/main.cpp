@@ -5,6 +5,7 @@
 #include <pf2e_engine/gui/board.h>
 
 #include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/intent_recognizer.h>
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/creature.h>
@@ -17,6 +18,7 @@
 #include <functional>
 #include <iostream>
 #include <thread>
+#include "pf2e_engine/player.h"
 
 using FsPath = std::filesystem::path;
 using FsDirEntry = std::filesystem::directory_entry;
@@ -25,12 +27,13 @@ using FsRecursiveIterator = std::filesystem::recursive_directory_iterator;
 TInteractionSystem interaction_system;
 
 const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
+const std::filesystem::path kPathToImages{kRootDirPath + "/pf2e_engine/images"};
 
 void InitGameObjects(TGameObjectFactory& factory)
 {
     for (const FsDirEntry& dir_entry : FsRecursiveIterator(kPathToData)) {
         interaction_system.DevLog() << dir_entry.path() << std::endl;
-        if (dir_entry.is_directory()) {
+        if (dir_entry.is_regular_file() && dir_entry.path().extension() == ".json") {
             factory.AddSource(dir_entry.path());
         }
     }
@@ -58,8 +61,14 @@ TBattleMap CreateBattleMap(TGameObjectFactory& factory)
     return factory.Create<TBattleMap>(battle_map_id);
 }
 
-int main()
+int main(int argc, char** argv)
 {
+    std::unique_ptr<TUserIntentRecognizer> recognizer;
+    if (argc > 1) {
+        recognizer = std::make_unique<TUserIntentRecognizer>(argv[1]);
+        return 0;
+    }
+
     TGameObjectFactory factory;
     InitGameObjects(factory);
 
@@ -69,22 +78,29 @@ int main()
     TRandomGenerator dice_roller(666);
     TBattle battle(CreateBattleMap(factory), &dice_roller, interaction_system);
 
-    battle.AddPlayer(TPlayer{
-        .team = 1,
-        .id = 1,
-        .position = {0, 0},
-        .creature = &player_1,
-        .name = "Jonn",
-    });
+    battle.AddPlayer(TPlayer(
+            &player_1,
+            TPlayerTeam{1},
+            TPlayerId{1},
+            "Jonn",
+            "warrior.png"
+        ),
+        TPosition{
+            .x = 1,
+            .y = 1
+        });
 
-    battle.AddPlayer(TPlayer{
-        .team = 2,
-        .id = 2,
-        .position = {0, 1},
-        .creature = &player_2,
-        .name = "Artur",
-    });
-
+    battle.AddPlayer(TPlayer(
+            &player_1,
+            TPlayerTeam{2},
+            TPlayerId{1},
+            "Oown", // other obvios warrior name
+            "warrior2.png"
+        ),
+        TPosition{
+            .x = 0,
+            .y = 0
+        });
 
     std::thread game_logic_thread{[&]() {
         try {
@@ -99,9 +115,9 @@ int main()
         }
     }};
 
-    TBoardGUI board(10);
+    TBoardGUI board(battle.BattleMapMutable(), kPathToImages);
     board.Run();
-   
+
     game_logic_thread.join();
 
     return 0;

@@ -1,26 +1,27 @@
 #pragma once
 
 #include <pf2e_engine/battle_map.h>
+#include <pf2e_engine/common/holder.h>
+#include <pf2e_engine/effect_manager.h>
 #include <pf2e_engine/initiative_order.h>
 #include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/scheduler.h>
 #include <pf2e_engine/transformation/transformator.h>
 
 #include <deque>
-#include "pf2e_engine/effect_manager.h"
-#include "pf2e_engine/scheduler.h"
 
 class TBattle {
 public:
     explicit TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, TInteractionSystem& io_system);
 
     void StartBattle();
-    void AddPlayer(TPlayer&& player);
+    void AddPlayer(TPlayer&& player, TPosition position);
 
     const TPlayer* GetPlayer(std::function<bool(const TPlayer*)> predicate) const;
     std::vector<TPlayer*> GetIfPlayers(std::function<bool(const TPlayer*)> predicate);
 
-    const TBattleMap& BattleMap() const;
-    TBattleMap& BattleMap();
+    std::shared_ptr<const TBattleMap> BattleMap() const;
+    THolder<TBattleMap>& BattleMapMutable();
     TAction* ChooseAction(TPlayer&) const;
 
 private:
@@ -38,7 +39,7 @@ private:
 
     TActionContext MakeActionContext();
 
-    TBattleMap battle_map_;
+    THolder<TBattleMap> battle_map_;
     IRandomGenerator* dice_roller_;
     TInitiativeOrder initiative_order_;
     TInteractionSystem& io_system_;

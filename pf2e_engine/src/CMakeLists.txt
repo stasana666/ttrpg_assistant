@@ -8,6 +8,8 @@ target_sources(pf2e_engine
         effect_manager.cpp
         initiative_order.cpp
         interaction_system.cpp
+        intent_recognizer.cpp
+        player.cpp
         proficiency.cpp
         random.cpp
         resources.cpp
