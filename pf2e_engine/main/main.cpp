@@ -1,26 +1,28 @@
-#include <pf2e_engine/game_object_logic/game_object_factory.h>
-#include <pf2e_engine/game_object_logic/game_object_id.h>
-#include <pf2e_engine/common/errors.h>
-
-#include <pf2e_engine/gui/board.h>
-
-#include <pf2e_engine/interaction_system.h>
-#include <pf2e_engine/intent_recognizer.h>
+#include <pf2e_engine/audio_input/audio_input.h>
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/battle.h>
+#include <pf2e_engine/common/channel.h>
+#include <pf2e_engine/common/errors.h>
 #include <pf2e_engine/creature.h>
+#include <pf2e_engine/game_object_logic/game_object_factory.h>
+#include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/gui/board.h>
+#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/player.h>
 #include <pf2e_engine/random.h>
+#include <pf2e_engine/audio_input/speech_to_text.h>
+#include <pf2e_engine/audio_input/audio_input_system.h>
+#include <pf2e_engine/common/config.h>
 
 #include <cpp_config.h>
+
+#include <argparse/argparse.hpp>
 
 #include <exception>
 #include <filesystem>
 #include <functional>
 #include <iostream>
 #include <thread>
-#include "pf2e_engine/common/channel.h"
-#include "pf2e_engine/gui/click_event.h"
-#include "pf2e_engine/player.h"
 
 using FsPath = std::filesystem::path;
 using FsDirEntry = std::filesystem::directory_entry;
@@ -29,10 +31,29 @@ using FsRecursiveIterator = std::filesystem::recursive_directory_iterator;
 const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
 const std::filesystem::path kPathToImages{kRootDirPath + "/pf2e_engine/images"};
 
-void InitGameObjects(TGameObjectFactory& factory, TInteractionSystem& interaction_system)
+TConfig ParseArgs(int argc, char** argv)
+{
+    argparse::ArgumentParser program("pf2e_engine");
+
+    program.add_argument("--speech2text")
+        .help("Path to speech-to-text model");
+
+    program.add_argument("--nlp-model")
+        .help("Path to natural language analysis model");
+
+    program.parse_args(argc, argv);
+
+    TConfig cfg;
+    cfg.speech_model = program.present("--speech2text");
+    cfg.nlp_model = program.present("--nlp-model");
+
+    return cfg;
+}
+
+void InitGameObjects(TGameObjectFactory& factory, [[maybe_unused]] TInteractionSystem& interaction_system)
 {
     for (const FsDirEntry& dir_entry : FsRecursiveIterator(kPathToData)) {
-        interaction_system.DevLog() << dir_entry.path() << std::endl;
+        // interaction_system.DevLog() << dir_entry.path() << std::endl;
         if (dir_entry.is_regular_file() && dir_entry.path().extension() == ".json") {
             factory.AddSource(dir_entry.path());
         }
@@ -63,13 +84,15 @@ TBattleMap CreateBattleMap(TGameObjectFactory& factory, TInteractionSystem& inte
 
 int main(int argc, char** argv)
 {
+    TConfig cfg = ParseArgs(argc, argv);
+
     TChannel<TClickEvent> chan(512);
     TInteractionSystem interaction_system(chan.MakeConsumer());
 
-    std::unique_ptr<TUserIntentRecognizer> recognizer;
-    if (argc > 1) {
-        recognizer = std::make_unique<TUserIntentRecognizer>(argv[1]);
-        return 0;
+    if (cfg.nlp_model.has_value() && cfg.speech_model.has_value()) {
+        interaction_system.Add(std::make_unique<TAudioInputSystem>(cfg));
+    } else {
+        std::cerr << "Audio input subsystem is disabled because no speech or NLP models were provided." << std::endl;
     }
 
     TGameObjectFactory factory;

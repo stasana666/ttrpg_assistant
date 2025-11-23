@@ -1,12 +1,8 @@
 #include <board.h>
 
 #include <pf2e_engine/battle_map.h>
-#include <pf2e_engine/gui/click_event.h>
 
-#include "SFML/Graphics/Texture.hpp"
-#include "position.h"
-
-#include <iostream>
+#include <SFML/Graphics/Texture.hpp>
 
 constexpr size_t kTileSize = 200;
 
@@ -94,7 +90,7 @@ void TBoardGUI::OnMousePressed(const sf::Event::MouseButtonPressed* mouse_presse
     const float tile_y = screen_y / current_->GetYSize();
 
     event_queue_.Enqueue(TClickEvent{
-        .position = TPosition{
+        .value = TPosition{
             .x = static_cast<int>(mouse_pressed->position.x / tile_x),
             .y = static_cast<int>(mouse_pressed->position.y / tile_y)
         },

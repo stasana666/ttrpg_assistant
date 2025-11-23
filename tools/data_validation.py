@@ -10,12 +10,12 @@ def arg_parse():
     parser = argparse.ArgumentParser(description="Validate JSON files against a JSON schema.")
     parser.add_argument(
         "-s", "--schema_path",
-        default="schemas/schema.json",
+        default="../pf2e_engine/schemas/schema.json",
         help="Path to the JSON schema file (default: schemas/schema.json)"
     )
     parser.add_argument(
         "-t", "--target_path",
-        default="data",
+        default="../pf2e_engine/data",
         help="Path to a JSON file or a directory with JSON files (default: data)"
     )
     return parser.parse_args()
@@ -62,7 +62,7 @@ def main():
         print("\nErrors found:")
         for file_path, msg in errors:
             print(f"{file_path}: {msg}")
-        sys.exit(1)  # Fail script
+        sys.exit(1)
     else:
         print("\nAll JSON files are valid!")
 

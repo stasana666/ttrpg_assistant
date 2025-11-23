@@ -3,7 +3,7 @@
 #include <SFML/Graphics.hpp>
 
 #include <pf2e_engine/common/holder.h>
-#include <pf2e_engine/gui/click_event.h>
+#include <pf2e_engine/common/event.h>
 #include <pf2e_engine/gui/texture_storage.h>
 #include <pf2e_engine/common/channel.h>
 

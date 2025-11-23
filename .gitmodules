@@ -16,3 +16,6 @@
 [submodule "extern/llama"]
 	path = extern/llama
 	url = https://github.com/ggml-org/llama.cpp
+[submodule "extern/argparse"]
+	path = extern/argparse
+	url = https://github.com/p-ranav/argparse.git

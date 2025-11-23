@@ -1,15 +1,17 @@
 #pragma once
 
 #include <pf2e_engine/alternatives.h>
-#include <pf2e_engine/gui/click_event.h>
-#include <pf2e_engine/position.h>
+#include <pf2e_engine/audio_input/audio_input_system.h>
 #include <pf2e_engine/common/channel.h>
+#include <pf2e_engine/common/event.h>
+#include <pf2e_engine/position.h>
 
 #include <cassert>
 #include <chrono>
 #include <iostream>
 #include <sstream>
 #include <thread>
+#include "pf2e_engine/audio_input/prompt.h"
 
 class TInteractionSystem {
 public:
@@ -21,18 +23,16 @@ public:
     template <class T>
     T ChooseAlternative(int player_id, const TAlternatives<T>& alternatives);
 
+    void Add(std::unique_ptr<TAudioInputSystem>&& audio_input_system);
+
     std::ostream& GameLog();
     std::ostream& DevLog();
 
 private:
-    struct TCinEvent {
-        using Timepoint = std::chrono::time_point<std::chrono::steady_clock>;
-        int value;
-        Timepoint timepoint;
-    };
-
+    std::unique_ptr<TAudioInputSystem> audio_input_system_;
     std::thread cin_reader_;
-    TChannel<TCinEvent> cin_queue_;
+    TChannel<TIndexEvent> cin_queue_;
+    TChannel<TIndexEvent> nlp_queue_;
     TChannel<TClickEvent>::TConsumer click_queue_;
 };
 
@@ -46,11 +46,13 @@ T TInteractionSystem::ChooseAlternative(
         return alternatives[0].value;
     }
 
+    TPrompt prompt;
     std::stringstream question;
     question << "Ask " << player_id << "\n";
     question << "Choose " << alternatives.Kind() << " and write it's number:" << std::endl;
     for (size_t i = 0; i < alternatives.Size(); ++i) {
         question << i << " - " << alternatives[i].name << std::endl;
+        prompt.AddVariant(i, alternatives[i].name);
     }
 
     bool has_progress{false};
@@ -60,8 +62,37 @@ T TInteractionSystem::ChooseAlternative(
 
     std::cout << question.str();
     std::cout.flush();
+
+    if constexpr (!std::is_same_v<TPosition, T>) {
+        if (audio_input_system_ != nullptr) {
+            audio_input_system_->AskQuestion(prompt, nlp_queue_.MakeProducer());
+            input_ways.emplace_back([&]() {
+                TIndexEvent event;
+                if (!nlp_queue_.Dequeue(event)) {
+                    return false;
+                }
+                has_progress = true;
+                if (event.timepoint < now) {
+                    return false;
+                }
+                if (event.value >= static_cast<ssize_t>(alternatives.Size()) || event.value < 0) {
+                    audio_input_system_->RepeatQuestion();
+                    return false;
+                }
+                result = event.value;
+                int x;
+                std::cout << "llm choose " << result << std::endl;
+                std::cin >> x;
+                if (x != 0) {
+                    exit(0);
+                }
+                return true;
+            });
+        }
+    }
+
     input_ways.emplace_back([&]() {
-        TCinEvent event;
+        TIndexEvent event;
         if (!cin_queue_.Dequeue(event)) {
             return false;
         }
@@ -83,13 +114,13 @@ T TInteractionSystem::ChooseAlternative(
             if (!click_queue_.Dequeue(event)) {
                 return false;
             }
-            std::cout << "Deque TClickEvent: x = " << event.position.x << ", y = " << event.position.y << std::endl;
+            std::cout << "Deque TClickEvent: x = " << event.value.x << ", y = " << event.value.y << std::endl;
             has_progress = true;
             if (event.timepoint < now) {
                 return false;
             }
             for (size_t i = 0; i < alternatives.Size(); ++i) {
-                if (alternatives[i].value == event.position) {
+                if (alternatives[i].value == event.value) {
                     result = i;
                     return true;
                 }
