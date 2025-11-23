@@ -1,15 +1,21 @@
 #include <board.h>
 
 #include <pf2e_engine/battle_map.h>
+#include <pf2e_engine/gui/click_event.h>
+
 #include "SFML/Graphics/Texture.hpp"
+#include "position.h"
+
+#include <iostream>
 
 constexpr size_t kTileSize = 200;
 
-TBoardGUI::TBoardGUI(THolder<TBattleMap>& battle_map, std::filesystem::path path_to_image_dir)
+TBoardGUI::TBoardGUI(THolder<TBattleMap>& battle_map, std::filesystem::path path_to_image_dir, TChannel<TClickEvent>::TProducer event_queue)
     : battle_map_(battle_map)
     , current_(battle_map_.Get())
     , window_(sf::VideoMode(sf::Vector2u(current_->GetXSize() * kTileSize, current_->GetYSize() * kTileSize)), "BattleMap")
     , textures_(path_to_image_dir)
+    , event_queue_(event_queue)
 {
     BuildTiles();
 }
@@ -66,17 +72,32 @@ sf::RectangleShape TBoardGUI::BuildTile(size_t x, size_t y)
 
 void TBoardGUI::EventHandler()
 {
-    while (const std::optional event = window_.pollEvent())
-    {
-        if (event->is<sf::Event::Closed>())
-        {
+    while (const std::optional event = window_.pollEvent()) {
+        if (event->is<sf::Event::Closed>()) {
             window_.close();
-        }
-        else if (const auto* key_pressed = event->getIf<sf::Event::KeyPressed>())
-        {
+        } else if (const auto* key_pressed = event->getIf<sf::Event::KeyPressed>()) {
             if (key_pressed->scancode == sf::Keyboard::Scancode::Escape) {
                 window_.close();
             }
+        } else if (const sf::Event::MouseButtonPressed* mouse_pressed = event->getIf<sf::Event::MouseButtonPressed>()) {
+            OnMousePressed(mouse_pressed);
         }
     }
+}
+
+void TBoardGUI::OnMousePressed(const sf::Event::MouseButtonPressed* mouse_pressed)
+{
+    const float screen_x = window_.getSize().x;
+    const float screen_y = window_.getSize().y;
+
+    const float tile_x = screen_x / current_->GetXSize();
+    const float tile_y = screen_y / current_->GetYSize();
+
+    event_queue_.Enqueue(TClickEvent{
+        .position = TPosition{
+            .x = static_cast<int>(mouse_pressed->position.x / tile_x),
+            .y = static_cast<int>(mouse_pressed->position.y / tile_y)
+        },
+        .timepoint = std::chrono::steady_clock::now()
+    });
 }

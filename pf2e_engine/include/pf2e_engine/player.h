@@ -2,15 +2,9 @@
 
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/common/holder.h>
+#include <pf2e_engine/position.h>
 
 #include <filesystem>
-
-struct TPosition {
-    int x;
-    int y;
-
-    bool operator ==(const TPosition& other) const = default;
-};
 
 struct TPlayerId {
     int id;

@@ -18,18 +18,18 @@
 #include <functional>
 #include <iostream>
 #include <thread>
+#include "pf2e_engine/common/channel.h"
+#include "pf2e_engine/gui/click_event.h"
 #include "pf2e_engine/player.h"
 
 using FsPath = std::filesystem::path;
 using FsDirEntry = std::filesystem::directory_entry;
 using FsRecursiveIterator = std::filesystem::recursive_directory_iterator;
 
-TInteractionSystem interaction_system;
-
 const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
 const std::filesystem::path kPathToImages{kRootDirPath + "/pf2e_engine/images"};
 
-void InitGameObjects(TGameObjectFactory& factory)
+void InitGameObjects(TGameObjectFactory& factory, TInteractionSystem& interaction_system)
 {
     for (const FsDirEntry& dir_entry : FsRecursiveIterator(kPathToData)) {
         interaction_system.DevLog() << dir_entry.path() << std::endl;
@@ -39,7 +39,7 @@ void InitGameObjects(TGameObjectFactory& factory)
     }
 }
 
-TCreature CreateCreature(TGameObjectFactory& factory)
+TCreature CreateCreature(TGameObjectFactory& factory, TInteractionSystem& interaction_system)
 {
     std::function<std::string(const TGameObjectId&)> func = [](const TGameObjectId& id)
         { return std::string(TGameObjectIdManager::Instance().Name(id)); };
@@ -50,7 +50,7 @@ TCreature CreateCreature(TGameObjectFactory& factory)
     return factory.Create<TCreature>(player_id);
 }
 
-TBattleMap CreateBattleMap(TGameObjectFactory& factory)
+TBattleMap CreateBattleMap(TGameObjectFactory& factory, TInteractionSystem& interaction_system)
 {
     std::function<std::string(const TGameObjectId&)> func = [](const TGameObjectId& id)
         { return std::string(TGameObjectIdManager::Instance().Name(id)); };
@@ -63,6 +63,9 @@ TBattleMap CreateBattleMap(TGameObjectFactory& factory)
 
 int main(int argc, char** argv)
 {
+    TChannel<TClickEvent> chan(512);
+    TInteractionSystem interaction_system(chan.MakeConsumer());
+
     std::unique_ptr<TUserIntentRecognizer> recognizer;
     if (argc > 1) {
         recognizer = std::make_unique<TUserIntentRecognizer>(argv[1]);
@@ -70,13 +73,14 @@ int main(int argc, char** argv)
     }
 
     TGameObjectFactory factory;
-    InitGameObjects(factory);
+    InitGameObjects(factory, interaction_system);
 
-    TCreature player_1 = CreateCreature(factory);
-    TCreature player_2 = CreateCreature(factory);
+    TCreature player_1 = CreateCreature(factory, interaction_system);
+    TCreature player_2 = CreateCreature(factory, interaction_system);
 
     TRandomGenerator dice_roller(666);
-    TBattle battle(CreateBattleMap(factory), &dice_roller, interaction_system);
+    TBattle battle(CreateBattleMap(factory, interaction_system), &dice_roller, interaction_system);
+    TBoardGUI board(battle.BattleMapMutable(), kPathToImages, chan.MakeProducer());
 
     battle.AddPlayer(TPlayer(
             &player_1,
@@ -115,7 +119,6 @@ int main(int argc, char** argv)
         }
     }};
 
-    TBoardGUI board(battle.BattleMapMutable(), kPathToImages);
     board.Run();
 
     game_logic_thread.join();
