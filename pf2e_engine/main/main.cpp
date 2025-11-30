@@ -137,7 +137,7 @@ int main(int argc, char** argv)
             throw;
         }
         catch (...) {
-            std::cerr << "Unknown error" << std::endl;
+            std::cerr << "Unknown error, unknown exception in main()" << std::endl;
             throw;
         }
     }};

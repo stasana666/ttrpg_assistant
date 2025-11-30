@@ -10,7 +10,7 @@ class IActionBlock {
 public:
     virtual ~IActionBlock() = default;
 
-    virtual void Apply(TActionContext& ctx) = 0;
+    virtual void Apply(std::shared_ptr<TActionContext> ctx) = 0;
 
 protected:
     std::string name_;
@@ -29,10 +29,12 @@ EBlockType BlockTypeFromString(const std::string&);
 
 class TFunctionCallBlock final : public IActionBlock {
 public:
-    void Apply(TActionContext& ctx) override;
+    void Apply(std::shared_ptr<TActionContext> ctx) override;
 
 private:
-    std::function<void(TActionContext&)> apply_;
+    void ApplyHelper(std::function<void()> apply, std::shared_ptr<TActionContext> ctx);
+
+    std::function<void(std::shared_ptr<TActionContext>)> apply_;
     IActionBlock* next_;
 
     friend class TActionReader;
@@ -40,7 +42,7 @@ private:
 
 class TSwitchBlock final : public IActionBlock {
 public:
-    void Apply(TActionContext& ctx) override;
+    void Apply(std::shared_ptr<TActionContext> ctx) override;
 
 private:
     std::unordered_map<ESuccessLevel, IActionBlock*> next_table_;
@@ -51,7 +53,7 @@ private:
 
 class TTerminateBlock final : public IActionBlock {
 public:
-    void Apply(TActionContext& ctx) override;
+    void Apply(std::shared_ptr<TActionContext> ctx) override;
 
 private:
     friend class TActionReader;

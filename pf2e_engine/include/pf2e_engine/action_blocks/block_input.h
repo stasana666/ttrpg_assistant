@@ -19,7 +19,7 @@ public:
 
     std::string GetString(TGameObjectId key) const;
     int GetNumber(TGameObjectId key) const;
-    TGameObjectPtr Get(TGameObjectId key, TActionContext& ctx) const;
+    TGameObjectPtr Get(TGameObjectId key, std::shared_ptr<TActionContext> ctx) const;
 
 private:
     std::unordered_map<TGameObjectId, InputValue, TGameObjectIdHash> input_mapping_;

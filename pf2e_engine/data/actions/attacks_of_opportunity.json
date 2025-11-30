@@ -1,0 +1,127 @@
+{
+    "type": "pf2e_action",
+    "name": "attack_of_opportunity",
+    "pf2e_action": {
+        "name": "attack_of_opportunity",
+        "resources": [
+            {
+                "name": "reaction",
+                "count": 1
+            }
+        ],
+        "pipeline": [
+            {
+                "name": "choose_weapon",
+                "type": "function_call",
+                "input": {
+                    "creature": "$self"
+                },
+                "function": "choose_weapon",
+                "output": [ "weapon" ]
+            },
+            {
+                "name": "calculate_AC",
+                "type": "function_call",
+                "input": {
+                    "creature": "$target",
+                    "type": "armor_class"
+                },
+                "function": "calculate_DC",
+                "output": [
+                    "armor_class"
+                ]
+            },
+            {
+                "name": "roll_attack",
+                "type": "function_call",
+                "input": {
+                    "attacker": "$self",
+                    "DC": "$armor_class",
+                    "type": "weapon_attack",
+                    "weapon": "$weapon"
+                },
+                "function": "roll_against_DC",
+                "output": [
+                    "success_level"
+                ]
+            },
+            {
+                "name": "multiple_attack_penalty",
+                "type": "function_call",
+                "input": {
+                    "attacker": "$self",
+                    "condition": "MultipleAttackPenalty",
+                    "weapon": "$weapon"
+                },
+                "function": "add_condition",
+                "output": [
+                    "void"
+                ]
+            },
+            {
+                "name": "attack_result",
+                "type": "switch",
+                "input": {
+                    "value": "$success_level"
+                },
+                "next_table": {
+                    "critical_failure": "finish",
+                    "failure": "finish",
+                    "success": "success",
+                    "critical_success": "critical_success"
+                }
+            },
+            {
+                "name": "success",
+                "next": "deal_damage",
+                "type": "function_call",
+                "input": {
+                    "attacker": "$self",
+                    "weapon": "$weapon"
+                },
+                "function": "weapon_damage_roll",
+                "output": [
+                    "damage"
+                ]
+            },
+            {
+                "name": "critical_success",
+                "next": "deal_damage",
+                "type": "function_call",
+                "input": {
+                    "attacker": "$self",
+                    "weapon": "$weapon"
+                },
+                "function": "crit_weapon_damage_roll",
+                "output": [
+                    "damage"
+                ]
+            },
+            {
+                "name": "deal_damage",
+                "type": "function_call",
+                "function": "deal_damage",
+                "input": {
+                    "damage": "$damage",
+                    "target": "$target"
+                },
+                "output": [
+                    "void"
+                ]
+            },
+            {
+                "name": "finish",
+                "type": "terminate"
+            }
+        ],
+        "trigger": {
+            "type": "on_move",
+            "pipeline": [
+                {
+                    "name": "finish",
+                    "type": "terminate"
+                }
+            ]
+        }
+    }
+}

@@ -16,7 +16,7 @@ static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register
 static const TGameObjectId kTargetId = TGameObjectIdManager::Instance().Register("target");
 static const TGameObjectId kValueId = TGameObjectIdManager::Instance().Register("value");
 
-void FAddCondition::operator ()(TActionContext& ctx) const
+void FAddCondition::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
     ECondition condition = ConditionFromString(input_.GetString(kConditionId));
     switch (condition) {
@@ -29,7 +29,7 @@ void FAddCondition::operator ()(TActionContext& ctx) const
     }
 }
 
-void FAddCondition::MultipleAttackPenaltyHandle(TActionContext& ctx) const
+void FAddCondition::MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
 
@@ -39,13 +39,13 @@ void FAddCondition::MultipleAttackPenaltyHandle(TActionContext& ctx) const
 
     int increase = weapon.HasTrait(EWeaponTrait::Agile) ? 4 : 5;
 
-    auto canceler = ctx.effect_manager->AddEffect(TPlayerConditionSet{
+    auto canceler = ctx->effect_manager->AddEffect(TPlayerConditionSet{
         .player = &attacker,
         .condition = ECondition::MultipleAttackPenalty,
         .value = std::min(10, current + increase),
     });
 
-    ctx.scheduler->AddTask(TTask{
+    ctx->scheduler->AddTask(TTask{
         .events_before_call = {
             TEvent{
                 .type = EEvent::OnTurnEnd,
@@ -56,7 +56,7 @@ void FAddCondition::MultipleAttackPenaltyHandle(TActionContext& ctx) const
     });
 }
 
-void FAddCondition::FrightenedHandle(TActionContext& ctx) const
+void FAddCondition::FrightenedHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
     int value = input_.GetNumber(kValueId);
@@ -67,14 +67,14 @@ void FAddCondition::FrightenedHandle(TActionContext& ctx) const
         .value = value,
     };
 
-    auto canceler = ctx.effect_manager->AddEffect(condition_set);
+    auto canceler = ctx->effect_manager->AddEffect(condition_set);
 
     TEvent event{
         .type = EEvent::OnTurnStart,
         .context = {.player = &target },
     };
 
-    ctx.scheduler->AddTask(TTask{
+    ctx->scheduler->AddTask(TTask{
         .events_before_call = { event },
         .callback = [canceler]() { return canceler(EEffectCancelPolicy::ReduceUntilZero); },
     });

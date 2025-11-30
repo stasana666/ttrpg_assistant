@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 class IActionBlock;
 class TBattle;
 class TTransformator;
@@ -17,5 +19,5 @@ struct TActionContext {
     TTaskScheduler* scheduler;
     TEffectManager* effect_manager;
     IActionBlock* next_block = nullptr;
-    TGameObjectRegistry* game_object_registry = nullptr;
+    std::shared_ptr<TGameObjectRegistry> game_object_registry = nullptr;
 };

@@ -20,7 +20,7 @@ int TBlockInput::GetNumber(TGameObjectId key) const
     return std::get<int>(input_mapping_.at(key));
 }
 
-TGameObjectPtr TBlockInput::Get(TGameObjectId key, TActionContext& ctx) const
+TGameObjectPtr TBlockInput::Get(TGameObjectId key, std::shared_ptr<TActionContext> ctx) const
 {
     if (!input_mapping_.contains(key)) {
         std::cerr << TGameObjectIdManager::Instance().Name(key) << " - not found in block input" << std::endl;
@@ -29,7 +29,7 @@ TGameObjectPtr TBlockInput::Get(TGameObjectId key, TActionContext& ctx) const
     TGameObjectPtr result;
     std::visit(VisitorHelper{
         [&](TGameObjectId id) {
-            result = ctx.game_object_registry->GetGameObjectPtr(id);
+            result = ctx->game_object_registry->GetGameObjectPtr(id);
         },
         [&](const std::string& s) {
             result = s;

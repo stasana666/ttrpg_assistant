@@ -7,8 +7,8 @@ public:
     FGetParameter(TBlockInput&& input, TGameObjectId output)
         : FBaseFunction(std::move(input), output) {}
 
-    void operator() (TActionContext& ctx) const;
+    void operator() (std::shared_ptr<TActionContext> ctx) const;
 
 private:
-    void MovementHandle(TActionContext& ctx) const;
+    void MovementHandle(std::shared_ptr<TActionContext> ctx) const;
 };

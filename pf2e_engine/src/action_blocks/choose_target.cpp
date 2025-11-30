@@ -24,7 +24,7 @@ EAreaType AreaTypeFromString(const std::string& s) {
     abort();
 }
 
-void FChooseTarget::operator ()(TActionContext& ctx) const
+void FChooseTarget::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
     EAreaType type = AreaTypeFromString(input_.GetString(kAreaId));
     switch (type) {
@@ -36,7 +36,7 @@ void FChooseTarget::operator ()(TActionContext& ctx) const
     abort();
 }
 
-void FChooseTarget::EmanationHandle(TActionContext& ctx) const
+void FChooseTarget::EmanationHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPosition center;
     std::visit(VisitorHelper{
@@ -61,17 +61,17 @@ void FChooseTarget::EmanationHandle(TActionContext& ctx) const
         }
     }, input_.Get(kRadiusId, ctx));
 
-    auto targets = ctx.battle->GetIfPlayers([&](const TPlayer* player) {
-        return ctx.battle->BattleMap()->HasLine(center, player->GetPosition(), radius);
+    auto targets = ctx->battle->GetIfPlayers([&](const TPlayer* player) {
+        return ctx->battle->BattleMap()->HasLine(center, player->GetPosition(), radius);
     });
 
     ChooseTarget(targets, ctx);
 }
 
-void FChooseTarget::ChooseTarget(std::vector<TPlayer*> players, TActionContext& ctx) const
+void FChooseTarget::ChooseTarget(std::vector<TPlayer*> players, std::shared_ptr<TActionContext> ctx) const
 {
     // TODO: добавить логику
-    TPlayer* self = &ctx.game_object_registry->Get<TPlayer>(TGameObjectIdManager::Instance().Register("self"));
+    TPlayer* self = &ctx->game_object_registry->Get<TPlayer>(TGameObjectIdManager::Instance().Register("self"));
     if (players.empty()) {
         throw std::logic_error("no targets");
     }
@@ -79,6 +79,6 @@ void FChooseTarget::ChooseTarget(std::vector<TPlayer*> players, TActionContext& 
         if (p == self) {
             continue;
         }
-        ctx.game_object_registry->Add(output_, p);
+        ctx->game_object_registry->Add(output_, p);
     }
 }

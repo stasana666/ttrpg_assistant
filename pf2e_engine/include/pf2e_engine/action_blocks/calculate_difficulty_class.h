@@ -8,12 +8,12 @@ public:
     FCalculateDifficultyClass(TBlockInput&& input, TGameObjectId output)
         : FBaseFunction(std::move(input), output) {}
 
-    void operator() (TActionContext& ctx) const;
+    void operator() (std::shared_ptr<TActionContext> ctx) const;
 
 private:
-    void ArmorClassHandle(TActionContext& ctx) const;
-    void SkillDifficultyClassHandle(TActionContext& ctx) const;
-    void SavethrowDifficultyClassHandle(TActionContext& ctx) const;
+    void ArmorClassHandle(std::shared_ptr<TActionContext> ctx) const;
+    void SkillDifficultyClassHandle(std::shared_ptr<TActionContext> ctx) const;
+    void SavethrowDifficultyClassHandle(std::shared_ptr<TActionContext> ctx) const;
 
     TCombatCalculator calculator_;
 };

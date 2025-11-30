@@ -13,6 +13,8 @@
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
+#include "reaction.h"
+#include "save_point.h"
 #include <condition.h>
 
 const TResourceId kActionId = TResourceIdManager::Instance().Register("action");
@@ -97,10 +99,25 @@ void TBattle::MakeTurn()
 {
     TPlayer& player = *initiative_order_.CurrentPlayer();
 
+    std::optional<TSavepointStackUnwind> last_save_point;
     TAction* action;
-    while (!IsBattleEnd() && player.GetCreature()->IsAlive() && (action = ChooseAction(player)) != nullptr)
+    while (!IsBattleEnd() && player.GetCreature()->IsAlive())
     {
-        action->Apply(MakeActionContext(), player);
+        try {
+            if (last_save_point.has_value()) {
+                last_save_point->Revert(transformator_);
+                last_save_point->Resume();
+                last_save_point = std::nullopt;
+            } else {
+                if ((action = ChooseAction(player)) != nullptr) {
+                    action->Apply(MakeActionContext(), player);
+                } else {
+                    break;
+                }
+            }
+        } catch (TSavepointStackUnwind& save_point) {
+            last_save_point = save_point;
+        }
     }
 }
 
@@ -146,16 +163,16 @@ void TBattle::GiveStartResource(TPlayer& player)
     });
 }
 
-TActionContext TBattle::MakeActionContext()
+std::shared_ptr<TActionContext> TBattle::MakeActionContext()
 {
-    return {
+    return std::make_shared<TActionContext>(TActionContext{
         .battle = this,
         .dice_roller = dice_roller_,
         .transformator = &transformator_,
         .io_system = &io_system_,
         .scheduler = &scheduler_,
         .effect_manager = &effect_manager_,
-    };
+    });
 }
 
 TAction* TBattle::ChooseAction(TPlayer& player) const
@@ -195,4 +212,14 @@ std::shared_ptr<const TBattleMap> TBattle::BattleMap() const
 THolder<TBattleMap>& TBattle::BattleMapMutable()
 {
     return battle_map_;
+}
+
+std::vector<const TReaction*> TBattle::Reactions(ETrigger trigger) const
+{
+    std::vector<const TReaction*> reactions;
+    for (auto& player : players_) {
+        std::vector<const TReaction*> player_reactions = player.GetCreature()->Reactions(trigger);
+        reactions.insert(reactions.begin(), player_reactions.begin(), player_reactions.end());
+    }
+    return reactions;
 }

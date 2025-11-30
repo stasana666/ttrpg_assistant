@@ -7,6 +7,7 @@
 #include <pf2e_engine/interaction_system.h>
 #include <pf2e_engine/scheduler.h>
 #include <pf2e_engine/transformation/transformator.h>
+#include <pf2e_engine/actions/reaction.h>
 
 #include <deque>
 
@@ -24,6 +25,8 @@ public:
     THolder<TBattleMap>& BattleMapMutable();
     TAction* ChooseAction(TPlayer&) const;
 
+    std::vector<const TReaction*> Reactions(ETrigger trigger) const;
+
 private:
     void StartRound();
     void EndRound();
@@ -37,7 +40,7 @@ private:
 
     void GiveStartResource(TPlayer&);
 
-    TActionContext MakeActionContext();
+    std::shared_ptr<TActionContext> MakeActionContext();
 
     THolder<TBattleMap> battle_map_;
     IRandomGenerator* dice_roller_;

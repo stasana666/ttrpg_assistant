@@ -30,7 +30,7 @@ EDifficultyClassType DifficultyClassTypeFromString(const std::string& s) {
     throw std::invalid_argument("unknown DC type: " + s);
 }
 
-void FCalculateDifficultyClass::operator() (TActionContext& ctx) const
+void FCalculateDifficultyClass::operator() (std::shared_ptr<TActionContext> ctx) const
 {
     switch (DifficultyClassTypeFromString(input_.GetString(kTypeId))) {
         case EDifficultyClassType::ArmorClass:
@@ -43,27 +43,27 @@ void FCalculateDifficultyClass::operator() (TActionContext& ctx) const
     throw std::invalid_argument("invalid DC type: FCalculateDifficultyClass::operator()");
 }
 
-void FCalculateDifficultyClass::ArmorClassHandle(TActionContext& ctx) const
+void FCalculateDifficultyClass::ArmorClassHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
     int armor_class = calculator_.ArmorClass(*target.GetCreature());
-    ctx.game_object_registry->Add(output_, armor_class);
+    ctx->game_object_registry->Add(output_, armor_class);
 }
 
-void FCalculateDifficultyClass::SkillDifficultyClassHandle(TActionContext& ctx) const
+void FCalculateDifficultyClass::SkillDifficultyClassHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
     ESkill skill = SkillFromString(input_.GetString(kSkillId));
 
     int difficulty_class = calculator_.DifficultyClass(*target.GetCreature(), skill);
-    ctx.game_object_registry->Add(output_, difficulty_class);
+    ctx->game_object_registry->Add(output_, difficulty_class);
 }
 
-void FCalculateDifficultyClass::SavethrowDifficultyClassHandle(TActionContext& ctx) const
+void FCalculateDifficultyClass::SavethrowDifficultyClassHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
     ESavethrow savethrow = SavethrowFromString(input_.GetString(kSavethrowId));
 
     int difficulty_class = calculator_.DifficultyClass(*target.GetCreature(), savethrow);
-    ctx.game_object_registry->Add(output_, difficulty_class);
+    ctx->game_object_registry->Add(output_, difficulty_class);
 }

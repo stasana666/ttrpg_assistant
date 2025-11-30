@@ -17,12 +17,14 @@ public:
 
     TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name);
 
-    void Apply(TActionContext ctx, TPlayer& player);
+    void Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player);
     void Consume(TPlayer& player);
     bool Check(const TPlayer& self);
     std::string_view Name() const;
 
 private:
+    void ApplyPipeline(std::function<void()> apply, std::shared_ptr<TActionContext> ctx);
+
     TPipeline pipeline_;
     TResources consume_;
     std::string name_;

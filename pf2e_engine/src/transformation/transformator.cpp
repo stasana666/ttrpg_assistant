@@ -3,6 +3,11 @@
 #include <pf2e_engine/interaction_system.h>
 #include <pf2e_engine/player.h>
 
+TState::TState(size_t stack_size)
+    : stack_size_(stack_size)
+{
+}
+
 TTransformator::TTransformator(TInteractionSystem& io_system)
     : io_system_(io_system)
 {
@@ -24,9 +29,9 @@ void TTransformator::Heal(TPlayer* player, int value)
     io_system_.GameLog() << "current hp: " << creature->Hitpoints().GetCurrentHp() << std::endl;
 }
 
-void TTransformator::Undo()
+void TTransformator::Undo(TState state)
 {
-    while (!transformations_.empty()) {
+    while (transformations_.size() > state.stack_size_) {
         std::visit(VisitorHelper{
             [&](auto& v) {
                 v.Undo();
@@ -34,4 +39,9 @@ void TTransformator::Undo()
         }, transformations_.back());
         transformations_.pop_back();
     }
+}
+
+TState TTransformator::CurrentState() const
+{
+    return TState{transformations_.size()};
 }

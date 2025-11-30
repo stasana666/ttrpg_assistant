@@ -9,6 +9,7 @@
 #include <cassert>
 #include <stdexcept>
 #include <sstream>
+#include "save_point.h"
 
 const TGameObjectId kSuccessLevelId = TGameObjectIdManager::Instance().Register("value");
 
@@ -37,17 +38,29 @@ EBlockType BlockTypeFromString(const std::string& type)
     throw std::runtime_error(ss.str());
 }
 
-void TFunctionCallBlock::Apply(TActionContext& ctx)
+void TFunctionCallBlock::Apply(std::shared_ptr<TActionContext> ctx)
 {
-    apply_(ctx);
-    ctx.next_block = next_;
+    ApplyHelper([apply = &apply_, &ctx](){ (*apply)(ctx); }, ctx);
 }
 
-void TSwitchBlock::Apply(TActionContext& ctx)
+void TFunctionCallBlock::ApplyHelper(std::function<void()> apply, std::shared_ptr<TActionContext> ctx)
+{
+    try {
+        apply();
+        ctx->next_block = next_;
+    } catch (TSavepointStackUnwind& save_point) {
+        save_point.AddCallFunctionLevel([this, ctx](TSavepointCallback callback) {
+            ApplyHelper(callback, ctx);
+        });
+        throw save_point;
+    }
+}
+
+void TSwitchBlock::Apply(std::shared_ptr<TActionContext> ctx)
 {
     std::visit(VisitorHelper{
         [&](ESuccessLevel success_level) {
-            ctx.next_block = next_table_[success_level];
+            ctx->next_block = next_table_[success_level];
         },
         [](auto&&) {
             throw std::logic_error("unexpected type");
@@ -55,7 +68,7 @@ void TSwitchBlock::Apply(TActionContext& ctx)
     }, input_.Get(kSuccessLevelId, ctx));
 }
 
-void TTerminateBlock::Apply(TActionContext& ctx)
+void TTerminateBlock::Apply(std::shared_ptr<TActionContext> ctx)
 {
-    ctx.next_block = nullptr;
+    ctx->next_block = nullptr;
 }

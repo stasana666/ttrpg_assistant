@@ -11,7 +11,7 @@
 static const TGameObjectId kAttackerId = TGameObjectIdManager::Instance().Register("attacker");
 static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register("weapon");
 
-void FWeaponDamageRoll::operator ()(TActionContext& ctx) const
+void FWeaponDamageRoll::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer* player = std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
     TWeapon* weapon = std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
@@ -28,10 +28,10 @@ void FWeaponDamageRoll::operator ()(TActionContext& ctx) const
         std::move(str_expr)
     ));
 
-    ctx.game_object_registry->Add(output_, damage);
+    ctx->game_object_registry->Add(output_, damage);
 }
 
-void FCritWeaponDamageRoll::operator ()(TActionContext& ctx) const
+void FCritWeaponDamageRoll::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer* player = std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
     TWeapon* weapon = std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
@@ -51,5 +51,5 @@ void FCritWeaponDamageRoll::operator ()(TActionContext& ctx) const
         std::make_unique<TNumberExpression>(2)
     ));
 
-    ctx.game_object_registry->Add(output_, damage);
+    ctx->game_object_registry->Add(output_, damage);
 }

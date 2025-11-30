@@ -19,7 +19,7 @@ public:
 
 private:
     using FBlockFiller = void(TActionReader::*)(nlohmann::json&, IActionBlock*);
-    using FBlockFunction = std::function<std::function<void(TActionContext&)>(TBlockInput&&, TGameObjectId)>;
+    using FBlockFunction = std::function<std::function<void(std::shared_ptr<TActionContext>)>(TBlockInput&&, TGameObjectId)>;
     static const std::unordered_map<EBlockType, FBlockFiller> kBlockFillerMapping;
     static const std::unordered_map<std::string, FBlockFunction> kFunctionMapping;
 

@@ -2,13 +2,14 @@
 
 #include <pf2e_engine/weapon_slot.h>
 
+#include <pf2e_engine/actions/action.h>
+#include <pf2e_engine/actions/reaction.h>
+#include <pf2e_engine/condition.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/mechanics/characteristics.h>
-#include <pf2e_engine/mechanics/hitpoints.h>
 #include <pf2e_engine/mechanics/damage_resolver.h>
-#include <pf2e_engine/actions/action.h>
+#include <pf2e_engine/mechanics/hitpoints.h>
 #include <pf2e_engine/proficiency.h>
-#include "pf2e_engine/condition.h"
 
 class TCreature {
 public:
@@ -41,6 +42,8 @@ public:
 
     int& Movement();
 
+    std::vector<const TReaction*> Reactions(ETrigger) const;
+
 private:
     TCharacteristicSet stats_;
     TProficiency proficiency_;
@@ -56,4 +59,5 @@ private:
     TArmor armor_;
     TWeaponSlots weapons_;
     std::vector<std::shared_ptr<TAction>> actions_;
+    std::vector<std::shared_ptr<TReaction>> reactions_;
 };

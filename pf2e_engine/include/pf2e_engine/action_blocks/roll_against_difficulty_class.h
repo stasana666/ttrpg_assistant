@@ -8,11 +8,11 @@ public:
     FRollAgainstDifficultyClass(TBlockInput&& input, TGameObjectId output)
         : FBaseFunction(std::move(input), output) {}
 
-    void operator() (TActionContext& ctx) const;
+    void operator() (std::shared_ptr<TActionContext> ctx) const;
 
 private:
-    void WeaponAttackHandle(TActionContext& ctx) const;
-    void SkillHandle(TActionContext& ctx) const;
+    void WeaponAttackHandle(std::shared_ptr<TActionContext> ctx) const;
+    void SkillHandle(std::shared_ptr<TActionContext> ctx) const;
 
     TCombatCalculator calculator_;
 };

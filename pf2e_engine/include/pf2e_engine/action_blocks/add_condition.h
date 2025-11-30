@@ -7,9 +7,9 @@ public:
     FAddCondition(TBlockInput&& input, TGameObjectId output)
         : FBaseFunction(std::move(input), output) {}
 
-    void operator ()(TActionContext& ctx) const;
+    void operator ()(std::shared_ptr<TActionContext> ctx) const;
 
 private:
-    void MultipleAttackPenaltyHandle(TActionContext& ctx) const;
-    void FrightenedHandle(TActionContext& ctx) const;
+    void MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> ctx) const;
+    void FrightenedHandle(std::shared_ptr<TActionContext> ctx) const;
 };

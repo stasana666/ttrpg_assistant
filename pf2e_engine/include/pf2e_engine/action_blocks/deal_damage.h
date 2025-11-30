@@ -7,5 +7,5 @@ public:
     FDealDamage(TBlockInput&& input, TGameObjectId output)
         : FBaseFunction(std::move(input), output) {}
 
-    void operator() (TActionContext& ctx) const;
+    void operator() (std::shared_ptr<TActionContext> ctx) const;
 };

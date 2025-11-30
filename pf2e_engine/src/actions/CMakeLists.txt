@@ -3,6 +3,8 @@ target_sources(pf2e_engine
         action_reader.cpp
         action_block.cpp
         action.cpp
+        reaction.cpp
+        save_point.cpp
 )
 
 target_include_directories(pf2e_engine

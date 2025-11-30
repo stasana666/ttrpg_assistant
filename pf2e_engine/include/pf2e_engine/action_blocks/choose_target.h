@@ -11,9 +11,9 @@ public:
     FChooseTarget(TBlockInput&& input, TGameObjectId output)
         : FBaseFunction(std::move(input), output) {}
 
-    void operator ()(TActionContext& ctx) const;
+    void operator ()(std::shared_ptr<TActionContext> ctx) const;
 
 private:
-    void EmanationHandle(TActionContext& ctx) const;
-    void ChooseTarget(std::vector<TPlayer*> players, TActionContext& ctx) const;
+    void EmanationHandle(std::shared_ptr<TActionContext> ctx) const;
+    void ChooseTarget(std::vector<TPlayer*> players, std::shared_ptr<TActionContext> ctx) const;
 };

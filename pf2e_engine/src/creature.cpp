@@ -100,3 +100,14 @@ int& TCreature::Movement()
 {
     return movement_;
 }
+
+std::vector<const TReaction*> TCreature::Reactions(ETrigger trigger_type) const
+{
+    std::vector<const TReaction*> reactions;
+    for (auto& reaction : reactions_) {
+        if (reaction->TriggerType() == trigger_type) {
+            reactions.emplace_back(reaction.get());
+        }
+    }
+    return reactions;
+}
