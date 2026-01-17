@@ -2,9 +2,9 @@
 
 #include <pf2e_engine/mechanics/damage.h>
 #include <pf2e_engine/inventory/item.h>
+#include <pf2e_engine/traits_haver.h>
 
 #include <vector>
-#include <variant>
 
 enum class EWeaponCategory {
     Unarmed,
@@ -17,20 +17,17 @@ EWeaponCategory WeaponCategoryFromString(std::string weapon_category);
 
 enum class EWeaponTrait {
     Agile,
+    Finesse,
     COUNT
 };
 
 std::string ToString(EWeaponTrait weapon_trait);
 EWeaponTrait WeaponTraitFromString(std::string weapon_trait);
 
-using TTraitValue = std::variant<std::monostate, int>;
+// Backward compatibility: TWeaponTrait is now an alias for TTrait<EWeaponTrait>
+using TWeaponTrait = TTrait<EWeaponTrait>;
 
-struct TWeaponTrait {
-    EWeaponTrait type;
-    TTraitValue value;
-};
-
-class TWeapon : public TItem {
+class TWeapon : public TItem, public TTraitsHaver<EWeaponTrait> {
 public:
     TWeapon(std::string_view name, int base_dice_size, TDamage::Type type, EWeaponCategory category);
 
@@ -41,10 +38,6 @@ public:
     bool ValidGrip(int hand_count) const;
     std::string_view Name() const;
 
-    const std::vector<TWeaponTrait>& Traits() const;
-    bool HasTrait(EWeaponTrait trait) const;
-    void AddTrait(TWeaponTrait trait);
-
 private:
     friend class TGameObjectFactory;
 
@@ -52,5 +45,4 @@ private:
     TDamage::Type type_;
     EWeaponCategory category_;
     std::string name_;
-    std::vector<TWeaponTrait> traits_;
 };

@@ -1,0 +1,14 @@
+{
+    "name": "dagger",
+    "type": "pf2e_weapon",
+    "pf2e_weapon": {
+        "base_die_size": 4,
+        "damage_type": "Piercing",
+        "category": "Simple",
+        "traits": [
+            {
+                "name": "Finesse"
+            }
+        ]
+    }
+}
