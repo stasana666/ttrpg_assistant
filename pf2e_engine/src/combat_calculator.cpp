@@ -72,7 +72,15 @@ template int TCombatCalculator::Penalty<TWeaponAttackTag>(const TCreature&, TWea
 int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon& weapon) const
 {
     int str = creature.GetCharacteristic(ECharacteristic::Strength).GetMod();
-    return str
+    int ability_mod = str;
+
+    // Finesse weapons use the higher of Strength or Dexterity
+    if (weapon.HasTrait(EWeaponTrait::Finesse)) {
+        int dex = creature.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
+        ability_mod = std::max(str, dex);
+    }
+
+    return ability_mod
         + creature.Proficiency().GetProficiency(weapon)
         - Penalty(creature, TWeaponAttackTag{});
 }

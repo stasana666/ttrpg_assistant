@@ -39,6 +39,19 @@
             ]
         },
 
+        "pf2e_weapon_trait": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "enum": ["Agile", "Finesse"]
+                },
+                "value": { "type": "integer" }
+            },
+            "required": ["name"],
+            "additionalProperties": false
+        },
+
         "pf2e_weapon_core": {
             "type": "object",
             "properties": {
@@ -50,6 +63,11 @@
                 "category": {
                     "type": "string",
                     "enum": ["Unarmed", "Simple", "Martial"]
+                },
+                "traits": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/pf2e_weapon_trait" },
+                    "default": []
                 }
             },
             "required": ["base_die_size", "damage_type", "category"],

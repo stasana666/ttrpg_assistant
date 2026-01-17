@@ -113,8 +113,8 @@ int main(int argc, char** argv)
             "warrior.png"
         ),
         TPosition{
-            .x = 1,
-            .y = 1
+            .x = 3,
+            .y = 3
         });
 
     battle.AddPlayer(TPlayer(
@@ -125,8 +125,8 @@ int main(int argc, char** argv)
             "warrior2.png"
         ),
         TPosition{
-            .x = 0,
-            .y = 0
+            .x = 5,
+            .y = 4
         });
 
     std::thread game_logic_thread{[&]() {

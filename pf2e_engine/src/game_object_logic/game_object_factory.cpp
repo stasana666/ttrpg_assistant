@@ -123,6 +123,26 @@ void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjec
     std::string_view name = TGameObjectIdManager::Instance().Name(id);
     TWeapon result(name, base_die_size, damage_type, category);
 
+    // Load traits if present
+    if (json_game_object.contains("traits")) {
+        for (const auto& trait_json : json_game_object["traits"]) {
+            std::string trait_name = trait_json["name"];
+            EWeaponTrait trait_type = WeaponTraitFromString(trait_name);
+
+            TWeaponTrait trait;
+            trait.type = trait_type;
+
+            // Check if trait has a value
+            if (trait_json.contains("value")) {
+                trait.value = trait_json["value"].get<int>();
+            } else {
+                trait.value = std::monostate{};
+            }
+
+            result.AddTrait(trait);
+        }
+    }
+
     weapons_.insert({id, [result]() { return result; }});
 }
 

@@ -34,6 +34,8 @@ std::string ToString(EWeaponTrait weapon_trait)
     switch (weapon_trait) {
         case EWeaponTrait::Agile:
             return "Agile";
+        case EWeaponTrait::Finesse:
+            return "Finesse";
         case EWeaponTrait::COUNT:
             throw std::runtime_error("COUNT is not valid EWeaponTrait");
     }
@@ -93,22 +95,4 @@ std::string_view TWeapon::Name() const
     return name_;
 }
 
-const std::vector<TWeaponTrait>& TWeapon::Traits() const
-{
-    return traits_;
-}
-
-bool TWeapon::HasTrait(EWeaponTrait trait) const
-{
-    for (const auto& t : traits_) {
-        if (t.type == trait) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void TWeapon::AddTrait(TWeaponTrait trait)
-{
-    traits_.emplace_back(trait);
-}
+// Trait methods (Traits, HasTrait, AddTrait) are now inherited from TTraitsHaver<EWeaponTrait>

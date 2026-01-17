@@ -4,7 +4,7 @@
 
 #include <SFML/Graphics/Texture.hpp>
 
-constexpr size_t kTileSize = 200;
+constexpr size_t kTileSize = 100;
 
 TBoardGUI::TBoardGUI(THolder<TBattleMap>& battle_map, std::filesystem::path path_to_image_dir, TChannel<TClickEvent>::TProducer event_queue)
     : battle_map_(battle_map)
@@ -22,7 +22,6 @@ void TBoardGUI::Show()
     current_ = battle_map_.Get();
     window_.clear(sf::Color::Black);
     BuildTiles();
-
     for (const auto& r : tiles_) {
         window_.draw(r);
     }
@@ -41,9 +40,16 @@ void TBoardGUI::BuildTiles()
 {
     tiles_.clear();
     tiles_.reserve(current_->GetXSize() * current_->GetYSize());
+    {
+        sf::Texture& texture = textures_.Get("background.png");
+        tiles_.emplace_back(sf::Vector2f(static_cast<float>(kTileSize * current_->GetXSize()), static_cast<float>(kTileSize  * current_->GetYSize())));
+        tiles_.back().setTexture(&texture);
+    }
     for (int y = 0; y < current_->GetXSize(); ++y) {
         for (int x = 0; x < current_->GetYSize(); ++x) {
-            tiles_.push_back(BuildTile(x, y));
+            if (current_->GetCell(x, y).player != nullptr) {
+                tiles_.push_back(BuildTile(x, y));
+            }
         }
     }
 }
@@ -59,10 +65,7 @@ sf::RectangleShape TBoardGUI::BuildTile(size_t x, size_t y)
     if (cell.player != nullptr) {
         sf::Texture& texture = textures_.Get(cell.player->GetImagePath());
         rect.setTexture(&texture);
-    } else {
-        rect.setFillColor(sf::Color(0, 200, 0));
     }
-
     return rect;
 }
 
