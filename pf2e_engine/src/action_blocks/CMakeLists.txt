@@ -4,10 +4,11 @@ target_sources(pf2e_engine
         base_function.cpp
         block_input.cpp
         calculate_difficulty_class.cpp
-        choose_target.cpp
         choose_weapon.cpp
+        choose_from_list.cpp
         deal_damage.cpp
         get_parameter.cpp
+        get_targets_in_area.cpp
         roll_against_difficulty_class.cpp
         weapon_damage_roll.cpp
         move.cpp

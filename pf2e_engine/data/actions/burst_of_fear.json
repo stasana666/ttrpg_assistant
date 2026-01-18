@@ -1,0 +1,56 @@
+{
+    "type": "pf2e_action",
+    "name": "burst_of_fear",
+    "pf2e_action": {
+        "name": "burst_of_fear",
+        "resources": [
+            {
+                "name": "action",
+                "count": 2
+            }
+        ],
+        "pipeline": [
+            {
+                "name": "get_targets",
+                "type": "function_call",
+                "function": "get_targets_in_area",
+                "input": {
+                    "type": "burst",
+                    "range": 500,
+                    "radius": 4
+                },
+                "output": ["target_list"]
+            },
+            {
+                "name": "apply_to_all",
+                "type": "for_each",
+                "input": {
+                    "list": "$target_list"
+                },
+                "element": "current_target",
+                "body": [
+                    {
+                        "name": "set_frightened",
+                        "type": "function_call",
+                        "function": "add_condition",
+                        "input": {
+                            "target": "$current_target",
+                            "condition": "Frightened",
+                            "value": 2
+                        },
+                        "output": ["void"]
+                    },
+                    {
+                        "name": "body_finish",
+                        "type": "terminate"
+                    }
+                ],
+                "next": "finish"
+            },
+            {
+                "name": "finish",
+                "type": "terminate"
+            }
+        ]
+    }
+}

@@ -1,4 +1,4 @@
-#include <choose_target.h>
+#include <get_targets_in_area.h>
 
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
@@ -17,8 +17,6 @@ static const TGameObjectId kCenterId = TGameObjectIdManager::Instance().Register
 static const TGameObjectId kRadiusId = TGameObjectIdManager::Instance().Register("radius");
 static const TGameObjectId kAreaId = TGameObjectIdManager::Instance().Register("type");
 static const TGameObjectId kRangeId = TGameObjectIdManager::Instance().Register("range");
-static const TGameObjectId kApexId = TGameObjectIdManager::Instance().Register("apex");
-static const TGameObjectId kStartId = TGameObjectIdManager::Instance().Register("start");
 static const TGameObjectId kLengthId = TGameObjectIdManager::Instance().Register("length");
 static const TGameObjectId kWidthId = TGameObjectIdManager::Instance().Register("width");
 
@@ -29,7 +27,7 @@ enum class EAreaType {
     Line,
 };
 
-EAreaType AreaTypeFromString(const std::string& s) {
+static EAreaType AreaTypeFromString(const std::string& s) {
     if (s == "emanation") {
         return EAreaType::Emanation;
     }
@@ -45,31 +43,28 @@ EAreaType AreaTypeFromString(const std::string& s) {
     abort();
 }
 
-void FChooseTarget::operator ()(std::shared_ptr<TActionContext> ctx) const
+void FGetTargetsInArea::operator()(std::shared_ptr<TActionContext> ctx) const
 {
     EAreaType type = AreaTypeFromString(input_.GetString(kAreaId));
+    TPlayerList targets;
     switch (type) {
-        case EAreaType::Emanation: {
-            EmanationHandle(ctx);
-            return;
-        }
-        case EAreaType::Burst: {
-            BurstHandle(ctx);
-            return;
-        }
-        case EAreaType::Cone: {
-            ConeHandle(ctx);
-            return;
-        }
-        case EAreaType::Line: {
-            LineHandle(ctx);
-            return;
-        }
+        case EAreaType::Emanation:
+            targets = GetEmanationTargets(ctx);
+            break;
+        case EAreaType::Burst:
+            targets = GetBurstTargets(ctx);
+            break;
+        case EAreaType::Cone:
+            targets = GetConeTargets(ctx);
+            break;
+        case EAreaType::Line:
+            targets = GetLineTargets(ctx);
+            break;
     }
-    abort();
+    ctx->game_object_registry->Add(output_, targets);
 }
 
-void FChooseTarget::EmanationHandle(std::shared_ptr<TActionContext> ctx) const
+TPlayerList FGetTargetsInArea::GetEmanationTargets(std::shared_ptr<TActionContext> ctx) const
 {
     TPosition center;
     std::visit(VisitorHelper{
@@ -77,7 +72,7 @@ void FChooseTarget::EmanationHandle(std::shared_ptr<TActionContext> ctx) const
             center = player->GetPosition();
         },
         [](auto&&) {
-            throw std::logic_error("unexpected type for center: FChooseTarget::EmanationHandle");
+            throw std::logic_error("unexpected type for center: FGetTargetsInArea::GetEmanationTargets");
         }
     }, input_.Get(kCenterId, ctx));
 
@@ -90,18 +85,16 @@ void FChooseTarget::EmanationHandle(std::shared_ptr<TActionContext> ctx) const
             radius = r;
         },
         [](auto&&) {
-            throw std::logic_error("unexpected type for radius: FChooseTarget::EmanationHandle");
+            throw std::logic_error("unexpected type for radius: FGetTargetsInArea::GetEmanationTargets");
         }
     }, input_.Get(kRadiusId, ctx));
 
-    auto targets = ctx->battle->GetIfPlayers([&](const TPlayer* player) {
+    return ctx->battle->GetIfPlayers([&](const TPlayer* player) {
         return ctx->battle->BattleMap()->HasLine(center, player->GetPosition(), radius);
     });
-
-    ChooseTarget(targets, ctx);
 }
 
-void FChooseTarget::BurstHandle(std::shared_ptr<TActionContext> ctx) const
+TPlayerList FGetTargetsInArea::GetBurstTargets(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer* self = &ctx->game_object_registry->Get<TPlayer>(kSelfId);
     TPosition caster_pos = self->GetPosition();
@@ -127,14 +120,12 @@ void FChooseTarget::BurstHandle(std::shared_ptr<TActionContext> ctx) const
 
     TPosition burst_center = ctx->io_system->ChooseAlternative(self->GetId(), alternatives);
 
-    auto targets = ctx->battle->GetIfPlayers([&](const TPlayer* player) {
+    return ctx->battle->GetIfPlayers([&](const TPlayer* player) {
         return battle_map->InRadius(burst_center, radius, player->GetPosition());
     });
-
-    ChooseTarget(targets, ctx);
 }
 
-void FChooseTarget::ConeHandle(std::shared_ptr<TActionContext> ctx) const
+TPlayerList FGetTargetsInArea::GetConeTargets(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer* self = &ctx->game_object_registry->Get<TPlayer>(kSelfId);
     TPosition apex = self->GetPosition();
@@ -160,14 +151,12 @@ void FChooseTarget::ConeHandle(std::shared_ptr<TActionContext> ctx) const
 
     TPosition direction_cell = ctx->io_system->ChooseAlternative(self->GetId(), alternatives);
 
-    auto targets = ctx->battle->GetIfPlayers([&](const TPlayer* player) {
+    return ctx->battle->GetIfPlayers([&](const TPlayer* player) {
         return battle_map->InCone(apex, direction_cell, length, player->GetPosition());
     });
-
-    ChooseTarget(targets, ctx);
 }
 
-void FChooseTarget::LineHandle(std::shared_ptr<TActionContext> ctx) const
+TPlayerList FGetTargetsInArea::GetLineTargets(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer* self = &ctx->game_object_registry->Get<TPlayer>(kSelfId);
     TPosition start = self->GetPosition();
@@ -194,24 +183,7 @@ void FChooseTarget::LineHandle(std::shared_ptr<TActionContext> ctx) const
 
     TPosition direction_cell = ctx->io_system->ChooseAlternative(self->GetId(), alternatives);
 
-    auto targets = ctx->battle->GetIfPlayers([&](const TPlayer* player) {
+    return ctx->battle->GetIfPlayers([&](const TPlayer* player) {
         return battle_map->InLine(start, direction_cell, length, width, player->GetPosition());
     });
-
-    ChooseTarget(targets, ctx);
-}
-
-void FChooseTarget::ChooseTarget(std::vector<TPlayer*> players, std::shared_ptr<TActionContext> ctx) const
-{
-    // TODO: добавить логику
-    TPlayer* self = &ctx->game_object_registry->Get<TPlayer>(kSelfId);
-    if (players.empty()) {
-        throw std::logic_error("no targets");
-    }
-    for (auto& p : players) {
-        if (p == self) {
-            continue;
-        }
-        ctx->game_object_registry->Add(output_, p);
-    }
 }
