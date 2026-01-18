@@ -103,22 +103,19 @@ TPlayerList FGetTargetsInArea::GetBurstTargets(std::shared_ptr<TActionContext> c
 
     auto battle_map = ctx->battle->BattleMap();
 
-    TAlternatives<TPosition> alternatives("burst center");
+    TAlternatives alternatives = TAlternatives::Create<TPosition>("burst center");
     for (int x = 0; x < battle_map->GetXSize(); ++x) {
         for (int y = 0; y < battle_map->GetYSize(); ++y) {
             TPosition pos{x, y};
             if (battle_map->InRadius(caster_pos, range, pos)) {
                 std::stringstream ss;
                 ss << x << " " << y;
-                alternatives.AddAlternative(TAlternative<TPosition>{
-                    .name = ss.str(),
-                    .value = pos
-                });
+                alternatives.AddAlternative(ss.str(), pos);
             }
         }
     }
 
-    TPosition burst_center = ctx->io_system->ChooseAlternative(self->GetId(), alternatives);
+    TPosition burst_center = ctx->io_system->ChooseAlternative<TPosition>(self->GetId(), alternatives);
 
     return ctx->battle->GetIfPlayers([&](const TPlayer* player) {
         return battle_map->InRadius(burst_center, radius, player->GetPosition());
@@ -133,7 +130,7 @@ TPlayerList FGetTargetsInArea::GetConeTargets(std::shared_ptr<TActionContext> ct
 
     auto battle_map = ctx->battle->BattleMap();
 
-    TAlternatives<TPosition> alternatives("cone direction");
+    TAlternatives alternatives = TAlternatives::Create<TPosition>("cone direction");
     for (int x = 0; x < battle_map->GetXSize(); ++x) {
         for (int y = 0; y < battle_map->GetYSize(); ++y) {
             TPosition pos{x, y};
@@ -142,14 +139,11 @@ TPlayerList FGetTargetsInArea::GetConeTargets(std::shared_ptr<TActionContext> ct
             }
             std::stringstream ss;
             ss << x << " " << y;
-            alternatives.AddAlternative(TAlternative<TPosition>{
-                .name = ss.str(),
-                .value = pos
-            });
+            alternatives.AddAlternative(ss.str(), pos);
         }
     }
 
-    TPosition direction_cell = ctx->io_system->ChooseAlternative(self->GetId(), alternatives);
+    TPosition direction_cell = ctx->io_system->ChooseAlternative<TPosition>(self->GetId(), alternatives);
 
     return ctx->battle->GetIfPlayers([&](const TPlayer* player) {
         return battle_map->InCone(apex, direction_cell, length, player->GetPosition());
@@ -165,7 +159,7 @@ TPlayerList FGetTargetsInArea::GetLineTargets(std::shared_ptr<TActionContext> ct
 
     auto battle_map = ctx->battle->BattleMap();
 
-    TAlternatives<TPosition> alternatives("line direction");
+    TAlternatives alternatives = TAlternatives::Create<TPosition>("line direction");
     for (int x = 0; x < battle_map->GetXSize(); ++x) {
         for (int y = 0; y < battle_map->GetYSize(); ++y) {
             TPosition pos{x, y};
@@ -174,14 +168,11 @@ TPlayerList FGetTargetsInArea::GetLineTargets(std::shared_ptr<TActionContext> ct
             }
             std::stringstream ss;
             ss << x << " " << y;
-            alternatives.AddAlternative(TAlternative<TPosition>{
-                .name = ss.str(),
-                .value = pos
-            });
+            alternatives.AddAlternative(ss.str(), pos);
         }
     }
 
-    TPosition direction_cell = ctx->io_system->ChooseAlternative(self->GetId(), alternatives);
+    TPosition direction_cell = ctx->io_system->ChooseAlternative<TPosition>(self->GetId(), alternatives);
 
     return ctx->battle->GetIfPlayers([&](const TPlayer* player) {
         return battle_map->InLine(start, direction_cell, length, width, player->GetPosition());

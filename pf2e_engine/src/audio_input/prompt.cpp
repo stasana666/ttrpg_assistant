@@ -47,7 +47,7 @@ std::string TPrompt::ToString() const
 
 void TPrompt::AddVariant(int index, std::string variant)
 {
-    auto [_, inserted] = variants_.emplace(index, variant);
+    [[maybe_unused]] auto [_, inserted] = variants_.emplace(index, variant);
     assert(inserted);
 }
 

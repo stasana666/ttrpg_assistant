@@ -65,8 +65,8 @@ TCreature CreateCreature(TGameObjectFactory& factory, TInteractionSystem& intera
     std::function<std::string(const TGameObjectId&)> func = [](const TGameObjectId& id)
         { return std::string(TGameObjectIdManager::Instance().Name(id)); };
 
-    auto player_id = interaction_system.ChooseAlternative(0,
-        TAlternatives<TGameObjectId>("character", factory.AllKnown<TCreature>(), func));
+    auto player_id = interaction_system.ChooseAlternative<TGameObjectId>(0,
+        TAlternatives::Create<TGameObjectId>("character", factory.AllKnown<TCreature>(), func));
 
     return factory.Create<TCreature>(player_id);
 }
@@ -76,8 +76,8 @@ TBattleMap CreateBattleMap(TGameObjectFactory& factory, TInteractionSystem& inte
     std::function<std::string(const TGameObjectId&)> func = [](const TGameObjectId& id)
         { return std::string(TGameObjectIdManager::Instance().Name(id)); };
 
-    auto battle_map_id = interaction_system.ChooseAlternative(0,
-        TAlternatives<TGameObjectId>("battle map", factory.AllKnown<TBattleMap>(), func));
+    auto battle_map_id = interaction_system.ChooseAlternative<TGameObjectId>(0,
+        TAlternatives::Create<TGameObjectId>("battle map", factory.AllKnown<TBattleMap>(), func));
 
     return factory.Create<TBattleMap>(battle_map_id);
 }

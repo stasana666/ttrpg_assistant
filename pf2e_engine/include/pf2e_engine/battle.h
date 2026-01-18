@@ -4,7 +4,7 @@
 #include <pf2e_engine/common/holder.h>
 #include <pf2e_engine/effect_manager.h>
 #include <pf2e_engine/initiative_order.h>
-#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/scheduler.h>
 #include <pf2e_engine/transformation/transformator.h>
 #include <pf2e_engine/actions/reaction.h>
@@ -13,7 +13,7 @@
 
 class TBattle {
 public:
-    explicit TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, TInteractionSystem& io_system);
+    explicit TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, IInteractionSystem& io_system);
 
     void StartBattle();
     void AddPlayer(TPlayer&& player, TPosition position);
@@ -45,7 +45,7 @@ private:
     THolder<TBattleMap> battle_map_;
     IRandomGenerator* dice_roller_;
     TInitiativeOrder initiative_order_;
-    TInteractionSystem& io_system_;
+    IInteractionSystem& io_system_;
     TTransformator transformator_;
     TTaskScheduler scheduler_;
     TEffectManager effect_manager_;

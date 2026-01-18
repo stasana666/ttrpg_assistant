@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/combat_calculator.h>
-#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/i_interaction_system.h>
 
 #include <map>
 
@@ -9,7 +9,7 @@ class IRandomGenerator;
 
 class TInitiativeOrder {
 public:
-    TInitiativeOrder(IRandomGenerator*, TInteractionSystem& io_system);
+    TInitiativeOrder(IRandomGenerator*, IInteractionSystem& io_system);
 
     void AddPlayer(TPlayer* player);
     TPlayer* CurrentPlayer() const;
@@ -37,5 +37,5 @@ private:
     TIterator current_;
     size_t round_{};
     TCombatCalculator combat_calculator_;
-    TInteractionSystem& io_system_;
+    IInteractionSystem& io_system_;
 };

@@ -7,7 +7,7 @@ class TBattle;
 class TTransformator;
 class IRandomGenerator;
 class TGameObjectRegistry;
-class TInteractionSystem;
+class IInteractionSystem;
 class TTaskScheduler;
 class TEffectManager;
 
@@ -15,7 +15,7 @@ struct TActionContext {
     TBattle* battle;
     IRandomGenerator* dice_roller;
     TTransformator* transformator;
-    TInteractionSystem* io_system;
+    IInteractionSystem* io_system;
     TTaskScheduler* scheduler;
     TEffectManager* effect_manager;
     IActionBlock* next_block = nullptr;

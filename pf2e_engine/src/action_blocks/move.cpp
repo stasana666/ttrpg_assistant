@@ -29,11 +29,8 @@ void FMove::TryMove(TPlayer& target, int movement, std::shared_ptr<TActionContex
     }
 
     auto snapshot = ctx->battle->BattleMap();
-    TAlternatives<TPosition> alternatives("move to position");
-    alternatives.AddAlternative(TAlternative<TPosition>{
-        .name = "Завершить перемещение",
-        .value = target.GetPosition()
-    });
+    TAlternatives alternatives = TAlternatives::Create<TPosition>("move to position");
+    alternatives.AddAlternative("Завершить перемещение", target.GetPosition());
     for (size_t dir = 0; dir < 4; ++dir) {
         TPosition position = target.GetPosition();
         position.x += kDx[dir];
@@ -54,12 +51,9 @@ void FMove::TryMove(TPlayer& target, int movement, std::shared_ptr<TActionContex
         std::stringstream ss;
         ss << position.x << " " << position.y;
 
-        alternatives.AddAlternative(TAlternative<TPosition>{
-            .name = ss.str(),
-            .value = position
-        });
+        alternatives.AddAlternative(ss.str(), position);
     }
-    auto choice = ctx->io_system->ChooseAlternative(target.GetId(), alternatives);
+    auto choice = ctx->io_system->ChooseAlternative<TPosition>(target.GetId(), alternatives);
     if (choice == target.GetPosition()) {
         return;
     }

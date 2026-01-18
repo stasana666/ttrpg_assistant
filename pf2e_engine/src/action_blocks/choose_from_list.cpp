@@ -33,14 +33,11 @@ void FChooseFromList::operator()(std::shared_ptr<TActionContext> ctx) const
         throw std::logic_error("no targets in list: FChooseFromList");
     }
 
-    TAlternatives<TPlayer*> alternatives("target");
+    TAlternatives alternatives = TAlternatives::Create<TPlayer*>("target");
     for (TPlayer* p : targets) {
-        alternatives.AddAlternative(TAlternative<TPlayer*>{
-            .name = std::string(p->GetName()),
-            .value = p
-        });
+        alternatives.AddAlternative(std::string(p->GetName()), p);
     }
 
-    TPlayer* chosen = ctx->io_system->ChooseAlternative(self->GetId(), alternatives);
+    TPlayer* chosen = ctx->io_system->ChooseAlternative<TPlayer*>(self->GetId(), alternatives);
     ctx->game_object_registry->Add(output_, chosen);
 }
