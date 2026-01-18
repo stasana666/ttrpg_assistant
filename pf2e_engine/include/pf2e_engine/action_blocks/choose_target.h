@@ -15,5 +15,8 @@ public:
 
 private:
     void EmanationHandle(std::shared_ptr<TActionContext> ctx) const;
+    void BurstHandle(std::shared_ptr<TActionContext> ctx) const;
+    void ConeHandle(std::shared_ptr<TActionContext> ctx) const;
+    void LineHandle(std::shared_ptr<TActionContext> ctx) const;
     void ChooseTarget(std::vector<TPlayer*> players, std::shared_ptr<TActionContext> ctx) const;
 };

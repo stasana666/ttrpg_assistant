@@ -1,4 +1,5 @@
 #include <pf2e_engine/battle_map.h>
+#include <pf2e_engine/vector2d.h>
 
 #include <nlohmann/json.hpp>
 
@@ -29,6 +30,51 @@ bool TBattleMap::HasLine(TPosition src, TPosition dst, int max_length) const
 {
     return (src.x - dst.x) * (src.x - dst.x) * 4 + (src.y - dst.y) * (src.y - dst.y) * 4 <= (2 * max_length + 1) * (2 * max_length + 1)
         && HasLine(src, dst);
+}
+
+bool TBattleMap::InRadius(TPosition center, int radius, TPosition target) const
+{
+    return HasLine(center, target, radius);
+}
+
+bool TBattleMap::InCone(TPosition apex, TPosition direction_cell, int length, TPosition target) const
+{
+    TVector2D dir = TVector2D(direction_cell) - TVector2D(apex);
+    if (dir.IsZero()) {
+        throw std::logic_error("InCone: direction vector is zero");
+    }
+    dir = dir.Normalized();
+
+    TVector2D to_target = TVector2D(target) - TVector2D(apex);
+    if (to_target.IsZero()) {
+        return false;
+    }
+
+    if (to_target.Length() > length) {
+        return false;
+    }
+
+    double dot = dir.Dot(to_target.Normalized());
+    return dot >= TVector2D::kConeHalfAngleCos;
+}
+
+bool TBattleMap::InLine(TPosition start, TPosition direction_cell, int length, int width, TPosition target) const
+{
+    TVector2D dir = TVector2D(direction_cell) - TVector2D(start);
+    if (dir.IsZero()) {
+        throw std::logic_error("InLine: direction vector is zero");
+    }
+    dir = dir.Normalized();
+
+    TVector2D to_target = TVector2D(target) - TVector2D(start);
+
+    double along = dir.Dot(to_target);
+    if (along < 0 || along > length) {
+        return false;
+    }
+
+    double perp = std::abs(dir.Cross(to_target));
+    return perp <= static_cast<double>(width) / 2.0;
 }
 
 TPosition TBattleMap::ChoosePosition() const
