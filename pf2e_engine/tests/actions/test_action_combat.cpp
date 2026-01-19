@@ -76,6 +76,14 @@ TEST_F(ActionCombatTest, TwoWarriorsAttackEachOther) {
     // Let's roll 5 on the d6
     mock_rng_.ExpectCall(6, 5);
 
+    // Verify hitpoints after the attack
+    mock_interaction_.AddCheckCallback([&battle]() {
+        auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+        ASSERT_FALSE(players.empty());
+        // Initial HP: 21, Damage: 5 + 4 = 9, Expected HP: 12
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 12);
+    });
+
     // Start the battle
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
 
@@ -129,17 +137,19 @@ TEST_F(ActionCombatTest, AttackMiss) {
 
     // No damage roll since the attack missed
 
+    // Verify hitpoints after the missed attack (should still be 21)
+    mock_interaction_.AddCheckCallback([&battle]() {
+        auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+        ASSERT_FALSE(players.empty());
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 21);
+    });
+
     // Start the battle (will throw when mock runs out of expected interactions)
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
 
     // Verify that all expected interactions and dice rolls were made
     mock_rng_.Verify();
     mock_interaction_.Verify();
-
-    // Check that player 2 took no damage (HP should still be 21)
-    auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
-    ASSERT_FALSE(players.empty());
-    EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 21);
 }
 
 TEST_F(ActionCombatTest, AttackCriticalHit) {
@@ -179,20 +189,20 @@ TEST_F(ActionCombatTest, AttackCriticalHit) {
     // Roll 1d6, let's say 5, then (5 + 4) * 2 = 18
     mock_rng_.ExpectCall(6, 5);
 
+    // Verify hitpoints after the critical hit
+    mock_interaction_.AddCheckCallback([&battle]() {
+        auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+        ASSERT_FALSE(players.empty());
+        // Initial HP: 21, Critical damage: (5 + 4) * 2 = 18, Expected HP: 3
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 3);
+    });
+
     // Start the battle (will throw when mock runs out of expected interactions)
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
 
     // Verify that all expected interactions and dice rolls were made
     mock_rng_.Verify();
     mock_interaction_.Verify();
-
-    // Check that player 2 took critical damage
-    // Initial HP: 21
-    // Critical damage: (5 + 4) * 2 = 18 damage
-    // Expected HP: 21 - 18 = 3
-    auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
-    ASSERT_FALSE(players.empty());
-    EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 3);
 }
 
 TEST_F(ActionCombatTest, WarriorKillsOtherBattleEnds) {
@@ -230,11 +240,25 @@ TEST_F(ActionCombatTest, WarriorKillsOtherBattleEnds) {
     mock_rng_.ExpectCall(20, 10);  // Hit (10 + 9 = 19 >= 14 AC)
     mock_rng_.ExpectCall(6, 6);    // Max damage: 6 + 4 = 10
 
+    // Verify hitpoints after first attack: 21 - 10 = 11
+    mock_interaction_.AddCheckCallback([&battle]() {
+        auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+        ASSERT_FALSE(players.empty());
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 11);
+    });
+
     // Second attack - hit (with -5 MAP)
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Warrior 2");
     mock_rng_.ExpectCall(20, 15);  // Hit (15 + 9 - 5 = 19 >= 14 AC)
     mock_rng_.ExpectCall(6, 6);    // Max damage: 6 + 4 = 10
+
+    // Verify hitpoints after second attack: 11 - 10 = 1
+    mock_interaction_.AddCheckCallback([&battle]() {
+        auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+        ASSERT_FALSE(players.empty());
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 1);
+    });
 
     // Third attack - critical hit to finish them off (with -10 MAP)
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
@@ -301,11 +325,25 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
     mock_rng_.ExpectCall(20, 5);   // d20 roll = 5, total = 5 + 9 = 14 (hit)
     mock_rng_.ExpectCall(6, 3);    // Damage: 3 + 4 = 7
 
+    // Verify hitpoints after first attack: 21 - 7 = 14
+    mock_interaction_.AddCheckCallback([&battle]() {
+        auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+        ASSERT_FALSE(players.empty());
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 14);
+    });
+
     // Second attack - should miss due to MAP (5 + 9 - 5 = 9 < 14)
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Warrior 2");
     mock_rng_.ExpectCall(20, 5);   // Same d20 roll = 5, but with -5 MAP: 5 + 9 - 5 = 9 (miss)
     // No damage roll since attack missed
+
+    // Verify hitpoints after missed attack (still 14)
+    mock_interaction_.AddCheckCallback([&battle]() {
+        auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+        ASSERT_FALSE(players.empty());
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 14);
+    });
 
     // Start the battle (will throw when mock runs out of expected interactions)
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
