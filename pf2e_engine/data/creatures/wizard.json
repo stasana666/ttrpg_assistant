@@ -1,0 +1,46 @@
+{
+    "name": "wizard",
+    "type": "pf2e_creature",
+    "pf2e_creature": {
+        "level": 5,
+        "race_hitpoints": 6,
+        "hitpoint_per_level": 6,
+        "proficiency": {
+            "armor_category": {
+                "Unarmored": "trained"
+            },
+            "weapon_category": {
+                "Unarmed": "trained",
+                "Simple": "trained"
+            },
+            "savethrow": {
+                "Fortitude": "trained",
+                "Reflex": "trained",
+                "Will": "expert"
+            },
+            "skill": {
+                "Arcana": "expert"
+            },
+            "Perception": "trained"
+        },
+        "characteristics": {
+            "Strength": 10,
+            "Dexterity": 14,
+            "Constitution": 12,
+            "Intelligence": 18,
+            "Wisdom": 12,
+            "Charisma": 10
+        },
+        "resources": {
+            "hand": 2,
+            "spellslot_1": 4,
+            "spellslot_2": 4,
+            "spellslot_3": 3
+        },
+        "actions": [
+            "fireball",
+            "move"
+        ],
+        "movement": 5
+    }
+}

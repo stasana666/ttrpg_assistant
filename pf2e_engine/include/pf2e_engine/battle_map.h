@@ -18,6 +18,11 @@ public:
     bool HasLine(TPosition src, TPosition dst) const;
     bool HasLine(TPosition src, TPosition dst, int max_length) const;
 
+    // Area geometry checks
+    bool InRadius(TPosition center, int radius, TPosition target) const;
+    bool InCone(TPosition apex, TPosition direction_cell, int length, TPosition target) const;
+    bool InLine(TPosition start, TPosition direction_cell, int length, int width, TPosition target) const;
+
     const TCell& GetCell(int x, int y) const;
     TCell& GetCell(int x, int y);
 

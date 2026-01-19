@@ -19,7 +19,7 @@
 
 const TResourceId kActionId = TResourceIdManager::Instance().Register("action");
 
-TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, TInteractionSystem& io_system)
+TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, IInteractionSystem& io_system)
     : battle_map_(std::move(battle_map))
     , dice_roller_(dice_roller)
     , initiative_order_(dice_roller_, io_system)
@@ -71,17 +71,19 @@ void TBattle::StartBattle()
         }
         EndRound();
     }
+    io_system_.GameLog() << "End battle" << std::endl;
 }
 
 void TBattle::StartRound()
 {
     assert(initiative_order_.CurrentPlayer() == nullptr);
     initiative_order_.Next();
-    std::cout << "Start round " << initiative_order_.CurrentRound() << " round" << std::endl;
+    io_system_.GameLog() << "Start round " << initiative_order_.CurrentRound() << " round" << std::endl;
 }
 
 void TBattle::EndRound()
 {
+    io_system_.GameLog() << "End round" << std::endl;
 }
 
 void TBattle::StartTurn()
@@ -188,20 +190,14 @@ TAction* TBattle::ChooseAction(TPlayer& player) const
         return nullptr;
     }
 
-    TAlternatives<TAction*> alternatives("next action");
+    TAlternatives alternatives = TAlternatives::Create<TAction*>("next action");
 
-    alternatives.AddAlternative(TAlternative<TAction*>{
-        .name = "End of turn",
-        .value = nullptr
-    });
+    alternatives.AddAlternative("End of turn", static_cast<TAction*>(nullptr));
     for (auto& action : actions) {
-        alternatives.AddAlternative(TAlternative<TAction*>{
-            .name = std::string(action->Name()),
-            .value = action
-        });
+        alternatives.AddAlternative(std::string(action->Name()), action);
     }
 
-    return io_system_.ChooseAlternative(player.GetId(), alternatives);
+    return io_system_.ChooseAlternative<TAction*>(player.GetId(), alternatives);
 }
 
 std::shared_ptr<const TBattleMap> TBattle::BattleMap() const

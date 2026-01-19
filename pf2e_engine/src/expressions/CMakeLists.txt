@@ -1,7 +1,9 @@
 target_sources(pf2e_engine
     PRIVATE
         dice_expression.cpp
+        dice_expression_parser.cpp
         math_expression.cpp
+        multi_dice_expression.cpp
         number_expression.cpp
 )
 

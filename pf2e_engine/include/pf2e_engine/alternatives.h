@@ -1,43 +1,70 @@
 #pragma once
 
+#include <pf2e_engine/position.h>
+
+#include <any>
 #include <cassert>
 #include <functional>
 #include <string>
 #include <vector>
 
-template <class T>
-struct TAlternative {
-    std::string name;
-    T value;
+enum class EAskingStrategy {
+    Console,
+    Gui
 };
 
-template <class T>
+struct TAlternative {
+    std::string name;
+    std::any value;
+
+    template <class T>
+    TAlternative(std::string name, T value)
+        : name(std::move(name))
+        , value(std::move(value))
+    {
+    }
+
+    template <class T>
+    T Get() const
+    {
+        return std::any_cast<T>(value);
+    }
+};
+
 class TAlternatives {
 public:
-    explicit TAlternatives(std::string kind)
-        : kind_(kind)
+    template <class T>
+    static TAlternatives Create(std::string kind)
     {
+        return TAlternatives(std::move(kind), GetStrategy<T>());
     }
 
-    TAlternatives(std::string kind, std::vector<T>&& values, std::function<std::string(const T&)> descriptor)
-        : kind_(kind)
+    template <class T>
+    static TAlternatives Create(std::string kind, std::vector<T>&& values, std::function<std::string(const T&)> descriptor)
     {
+        TAlternatives result(std::move(kind), GetStrategy<T>());
         for (auto&& v : values) {
-            alternatives_.push_back(TAlternative<T>{
-                .name = descriptor(v),
-                .value = std::move(v)
-            });
+            result.alternatives_.emplace_back(descriptor(v), std::move(v));
         }
-        values.clear();
+        return result;
     }
 
-    TAlternatives& AddAlternative(TAlternative<T> alternative)
+private:
+    TAlternatives(std::string kind, EAskingStrategy strategy)
+        : kind_(std::move(kind))
+        , strategy_(strategy)
     {
-        alternatives_.emplace_back(alternative);
+    }
+
+public:
+    template <class T>
+    TAlternatives& AddAlternative(std::string name, T value)
+    {
+        alternatives_.emplace_back(std::move(name), std::move(value));
         return *this;
     }
 
-    const TAlternative<T>& operator [](size_t index) const
+    const TAlternative& operator [](size_t index) const
     {
         return alternatives_[index];
     }
@@ -57,7 +84,23 @@ public:
         return kind_;
     }
 
+    EAskingStrategy GetAskingStrategy() const
+    {
+        return strategy_;
+    }
+
 private:
+    template <class T>
+    static constexpr EAskingStrategy GetStrategy()
+    {
+        if constexpr (std::is_same_v<T, TPosition>) {
+            return EAskingStrategy::Gui;
+        } else {
+            return EAskingStrategy::Console;
+        }
+    }
+
     std::string kind_;
-    std::vector<TAlternative<T>> alternatives_;
+    EAskingStrategy strategy_;
+    std::vector<TAlternative> alternatives_;
 };

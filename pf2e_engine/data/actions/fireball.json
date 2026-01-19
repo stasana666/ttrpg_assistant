@@ -1,0 +1,76 @@
+{
+    "type": "pf2e_action",
+    "name": "fireball",
+    "pf2e_action": {
+        "name": "fireball",
+        "resources": [
+            {
+                "name": "action",
+                "count": 2
+            }
+        ],
+        "pipeline": [
+            {
+                "name": "get_targets",
+                "type": "function_call",
+                "function": "get_targets_in_area",
+                "input": {
+                    "type": "burst",
+                    "center": "$self",
+                    "radius": 4,
+                    "range": 500
+                },
+                "output": ["target_list"]
+            },
+            {
+                "name": "roll_spell_damage",
+                "type": "function_call",
+                "function": "spell_damage_roll",
+                "input": {
+                    "caster": "$self",
+                    "damage_type": "Fire",
+                    "damage_table": {
+                        "spellslot_3": "6d6",
+                        "spellslot_4": "7d6",
+                        "spellslot_5": "8d6",
+                        "spellslot_6": "9d6",
+                        "spellslot_7": "10d6",
+                        "spellslot_8": "11d6",
+                        "spellslot_9": "12d6",
+                        "spellslot_10": "13d6"
+                    }
+                },
+                "output": ["damage"]
+            },
+            {
+                "name": "apply_damage_to_targets",
+                "type": "for_each",
+                "input": {
+                    "list": "$target_list"
+                },
+                "element": "current_target",
+                "body": [
+                    {
+                        "name": "deal_damage",
+                        "type": "function_call",
+                        "function": "deal_damage",
+                        "input": {
+                            "damage": "$damage",
+                            "target": "$current_target"
+                        },
+                        "output": ["void"]
+                    },
+                    {
+                        "name": "body_finish",
+                        "type": "terminate"
+                    }
+                ],
+                "next": "finish"
+            },
+            {
+                "name": "finish",
+                "type": "terminate"
+            }
+        ]
+    }
+}

@@ -13,33 +13,37 @@ using TActionId = TValueId<struct ActionTag>;
 using TActionIdHasher = TValueIdHash<struct ActionTag>;
 using TActionIdManager = TValueIdManager<struct ActionTag>;
 
-class TActionReader {
+class TPipelineReader {
 public:
-    TAction ReadAction(nlohmann::json&);
-
-private:
-    using FBlockFiller = void(TActionReader::*)(nlohmann::json&, IActionBlock*);
     using FBlockFunction = std::function<std::function<void(std::shared_ptr<TActionContext>)>(TBlockInput&&, TGameObjectId)>;
-    static const std::unordered_map<EBlockType, FBlockFiller> kBlockFillerMapping;
     static const std::unordered_map<std::string, FBlockFunction> kFunctionMapping;
 
-    std::vector<std::unique_ptr<IActionBlock>> ReadBlocks(nlohmann::json& json);
+    TAction::TPipeline ReadPipeline(nlohmann::json& json);
 
-    TAction::TResources ReadResources(nlohmann::json& json) const;
+    static TBlockInput ReadInput(nlohmann::json& json);
 
-    TBlockInput ReadInput(nlohmann::json& json) const;
+private:
+    using FBlockFiller = void(TPipelineReader::*)(nlohmann::json&, IActionBlock*);
+    static const std::unordered_map<EBlockType, FBlockFiller> kBlockFillerMapping;
 
     void FillFunctionCall(nlohmann::json&, IActionBlock*);
     void FillSwitch(nlohmann::json&, IActionBlock*);
     void FillTerminate(nlohmann::json&, IActionBlock*);
+    void FillForEach(nlohmann::json&, IActionBlock*);
 
     void FunctionCallFillNext(nlohmann::json&, TFunctionCallBlock*);
     void FunctionCallFillFunction(nlohmann::json&, TFunctionCallBlock*);
-
-    void Clear();
 
     std::unordered_map<TActionId, IActionBlock*, TActionIdHasher> block_mapping_;
     TAction::TPipeline pipeline_;
     std::unordered_map<IActionBlock*, TAction::TPipeline::iterator> pipeline_place_;
     TActionIdManager id_register_;
+};
+
+class TActionReader {
+public:
+    TAction ReadAction(nlohmann::json&);
+
+private:
+    TAction::TResources ReadResources(nlohmann::json& json) const;
 };

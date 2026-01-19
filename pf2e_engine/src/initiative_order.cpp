@@ -2,7 +2,7 @@
 
 #include <pf2e_engine/player.h>
 
-TInitiativeOrder::TInitiativeOrder(IRandomGenerator* dice_roller, TInteractionSystem& io_system)
+TInitiativeOrder::TInitiativeOrder(IRandomGenerator* dice_roller, IInteractionSystem& io_system)
     : dice_roller_(dice_roller)
     , current_(players_.end())
     , io_system_(io_system)

@@ -5,19 +5,22 @@
 #include <pf2e_engine/action_blocks/add_condition.h>
 #include <pf2e_engine/action_blocks/block_input.h>
 #include <pf2e_engine/action_blocks/calculate_difficulty_class.h>
-#include <pf2e_engine/action_blocks/choose_target.h>
 #include <pf2e_engine/action_blocks/choose_weapon.h>
 #include <pf2e_engine/action_blocks/deal_damage.h>
 #include <pf2e_engine/action_blocks/roll_against_difficulty_class.h>
 #include <pf2e_engine/action_blocks/weapon_damage_roll.h>
 #include <pf2e_engine/action_blocks/get_parameter.h>
 #include <pf2e_engine/action_blocks/move.h>
+#include <pf2e_engine/action_blocks/get_targets_in_area.h>
+#include <pf2e_engine/action_blocks/choose_from_list.h>
+#include <pf2e_engine/action_blocks/spell_damage_roll.h>
 
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/common/errors.h>
 
 #include <pf2e_engine/success_level.h>
 #include <pf2e_engine/resources.h>
+#include <pf2e_engine/expressions/dice_expression_parser.h>
 
 #include <nlohmann/json.hpp>
 
@@ -29,20 +32,21 @@ const std::unordered_map<EBlockType, std::function<IActionBlock*()>> kEmptyBlock
     { EBlockType::FunctionCall, []() -> IActionBlock* { return new TFunctionCallBlock{}; }},
     { EBlockType::Switch, []() -> IActionBlock* { return new TSwitchBlock{}; }},
     { EBlockType::Terminate, []() -> IActionBlock* { return new TTerminateBlock{}; }},
+    { EBlockType::ForEach, []() -> IActionBlock* { return new TForEachBlock{}; }},
 };
 
-const std::unordered_map<EBlockType, TActionReader::FBlockFiller>
-TActionReader::kBlockFillerMapping{
-    { EBlockType::FunctionCall, &TActionReader::FillFunctionCall },
-    { EBlockType::Switch, &TActionReader::FillSwitch },
-    { EBlockType::Terminate, &TActionReader::FillTerminate },
+const std::unordered_map<EBlockType, TPipelineReader::FBlockFiller>
+TPipelineReader::kBlockFillerMapping{
+    { EBlockType::FunctionCall, &TPipelineReader::FillFunctionCall },
+    { EBlockType::Switch, &TPipelineReader::FillSwitch },
+    { EBlockType::Terminate, &TPipelineReader::FillTerminate },
+    { EBlockType::ForEach, &TPipelineReader::FillForEach },
 };
 
-const std::unordered_map<std::string, TActionReader::FBlockFunction>
-TActionReader::kFunctionMapping{
+const std::unordered_map<std::string, TPipelineReader::FBlockFunction>
+TPipelineReader::kFunctionMapping{
     { "add_condition", [](TBlockInput&& input, TGameObjectId output) { return FAddCondition(std::move(input), output); } },
     { "calculate_DC", [](TBlockInput&& input, TGameObjectId output) { return FCalculateDifficultyClass(std::move(input), output); } },
-    { "choose_target", [](TBlockInput&& input, TGameObjectId output) { return FChooseTarget(std::move(input), output); } },
     { "choose_weapon", [](TBlockInput&& input, TGameObjectId output) { return FChooseWeapon(std::move(input), output); } },
     { "crit_weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FCritWeaponDamageRoll(std::move(input), output); } },
     { "deal_damage", [](TBlockInput&& input, TGameObjectId output) { return FDealDamage(std::move(input), output); } },
@@ -50,15 +54,18 @@ TActionReader::kFunctionMapping{
     { "weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FWeaponDamageRoll(std::move(input), output); } },
     { "get_parameter", [](TBlockInput&& input, TGameObjectId output) { return FGetParameter(std::move(input), output); } },
     { "move", [](TBlockInput&& input, TGameObjectId output) { return FMove(std::move(input), output); } },
+    { "get_targets_in_area", [](TBlockInput&& input, TGameObjectId output) { return FGetTargetsInArea(std::move(input), output); } },
+    { "choose_from_list", [](TBlockInput&& input, TGameObjectId output) { return FChooseFromList(std::move(input), output); } },
+    { "spell_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FSpellDamageRoll(std::move(input), output); } },
 };
 
 TAction TActionReader::ReadAction(nlohmann::json& json)
 {
-    auto pipeline = ReadBlocks(json["pipeline"]);
+    TPipelineReader pipeline_reader;
+    auto pipeline = pipeline_reader.ReadPipeline(json["pipeline"]);
     TAction::TResources resources = ReadResources(json["resources"]);
     TAction action(std::move(pipeline), std::move(resources), json["name"]);
 
-    Clear();
     return action;
 }
 
@@ -75,8 +82,12 @@ TAction::TResources TActionReader::ReadResources(nlohmann::json& json) const
     return resources;
 }
 
-auto TActionReader::ReadBlocks(nlohmann::json& json) ->TAction::TPipeline
+TAction::TPipeline TPipelineReader::ReadPipeline(nlohmann::json& json)
 {
+    pipeline_.clear();
+    block_mapping_.clear();
+    pipeline_place_.clear();
+
     pipeline_.reserve(json.size());
     for (auto block : json) {
         EBlockType type = BlockTypeFromString(block["type"]);
@@ -97,7 +108,7 @@ auto TActionReader::ReadBlocks(nlohmann::json& json) ->TAction::TPipeline
     return std::move(pipeline_);
 }
 
-void TActionReader::FillFunctionCall(nlohmann::json& json, IActionBlock* block)
+void TPipelineReader::FillFunctionCall(nlohmann::json& json, IActionBlock* block)
 {
     TFunctionCallBlock* function_block = dynamic_cast<TFunctionCallBlock*>(block);
 
@@ -105,7 +116,7 @@ void TActionReader::FillFunctionCall(nlohmann::json& json, IActionBlock* block)
     FunctionCallFillNext(json, function_block);
 }
 
-void TActionReader::FunctionCallFillNext(nlohmann::json& json, TFunctionCallBlock* function_block)
+void TPipelineReader::FunctionCallFillNext(nlohmann::json& json, TFunctionCallBlock* function_block)
 {
     if (json.contains("next")) {
         auto next_id = id_register_.Register(json["next"]);
@@ -118,7 +129,7 @@ void TActionReader::FunctionCallFillNext(nlohmann::json& json, TFunctionCallBloc
     }
 }
 
-void TActionReader::FunctionCallFillFunction(nlohmann::json& json, TFunctionCallBlock* function_block)
+void TPipelineReader::FunctionCallFillFunction(nlohmann::json& json, TFunctionCallBlock* function_block)
 {
     std::string function_name = json["function"];
 
@@ -134,7 +145,7 @@ void TActionReader::FunctionCallFillFunction(nlohmann::json& json, TFunctionCall
     function_block->apply_ = constructor->second(ReadInput(input), output_id);
 }
 
-TBlockInput TActionReader::ReadInput(nlohmann::json& json) const
+TBlockInput TPipelineReader::ReadInput(nlohmann::json& json)
 {
     TBlockInput input;
     for (auto& [key, value] : json.items()) {
@@ -148,12 +159,19 @@ TBlockInput TActionReader::ReadInput(nlohmann::json& json) const
             }
         } else if (value.is_number()) {
             input.Add(key_id, value.get<int>());
+        } else if (value.is_object()) {
+            // Parse as damage table: map of resource name to dice expression
+            TDamageTable table;
+            for (auto& [slot_name, dice_expr] : value.items()) {
+                table[slot_name] = ParseDiceExpression(dice_expr.get<std::string>());
+            }
+            input.Add(key_id, std::move(table));
         }
     }
     return input;
 }
 
-void TActionReader::FillSwitch(nlohmann::json& json, IActionBlock* block)
+void TPipelineReader::FillSwitch(nlohmann::json& json, IActionBlock* block)
 {
     TSwitchBlock* switch_block = dynamic_cast<TSwitchBlock*>(block);
 
@@ -170,13 +188,32 @@ void TActionReader::FillSwitch(nlohmann::json& json, IActionBlock* block)
     switch_block->input_ = ReadInput(json["input"]);
 }
 
-void TActionReader::FillTerminate(nlohmann::json&, IActionBlock*)
+void TPipelineReader::FillTerminate(nlohmann::json&, IActionBlock*)
 {
 }
 
-void TActionReader::Clear()
+void TPipelineReader::FillForEach(nlohmann::json& json, IActionBlock* block)
 {
-    block_mapping_.clear();
-    pipeline_place_.clear();
-    pipeline_.clear();
+    TForEachBlock* foreach_block = dynamic_cast<TForEachBlock*>(block);
+
+    foreach_block->input_ = ReadInput(json["input"]);
+    foreach_block->element_id_ = TGameObjectIdManager::Instance().Register(json["element"]);
+
+    // Parse body using a new TPipelineReader instance
+    TPipelineReader body_reader;
+    foreach_block->body_ = body_reader.ReadPipeline(json["body"]);
+
+    // Fill next for foreach block
+    if (json.contains("next")) {
+        auto next_id = id_register_.Register(json["next"]);
+        foreach_block->next_ = block_mapping_.at(next_id);
+    } else {
+        auto it = pipeline_place_.at(foreach_block);
+        ++it;
+        if (it != pipeline_.end()) {
+            foreach_block->next_ = it->get();
+        } else {
+            foreach_block->next_ = nullptr;
+        }
+    }
 }

@@ -1,6 +1,6 @@
 #include <pf2e_engine/transformation/transformator.h>
 #include <pf2e_engine/common/visit.h>
-#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/player.h>
 
 TState::TState(size_t stack_size)
@@ -8,7 +8,7 @@ TState::TState(size_t stack_size)
 {
 }
 
-TTransformator::TTransformator(TInteractionSystem& io_system)
+TTransformator::TTransformator(IInteractionSystem& io_system)
     : io_system_(io_system)
 {
 }
