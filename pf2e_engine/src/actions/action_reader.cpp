@@ -13,12 +13,14 @@
 #include <pf2e_engine/action_blocks/move.h>
 #include <pf2e_engine/action_blocks/get_targets_in_area.h>
 #include <pf2e_engine/action_blocks/choose_from_list.h>
+#include <pf2e_engine/action_blocks/spell_damage_roll.h>
 
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/common/errors.h>
 
 #include <pf2e_engine/success_level.h>
 #include <pf2e_engine/resources.h>
+#include <pf2e_engine/expressions/dice_expression_parser.h>
 
 #include <nlohmann/json.hpp>
 
@@ -54,6 +56,7 @@ TPipelineReader::kFunctionMapping{
     { "move", [](TBlockInput&& input, TGameObjectId output) { return FMove(std::move(input), output); } },
     { "get_targets_in_area", [](TBlockInput&& input, TGameObjectId output) { return FGetTargetsInArea(std::move(input), output); } },
     { "choose_from_list", [](TBlockInput&& input, TGameObjectId output) { return FChooseFromList(std::move(input), output); } },
+    { "spell_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FSpellDamageRoll(std::move(input), output); } },
 };
 
 TAction TActionReader::ReadAction(nlohmann::json& json)
@@ -156,6 +159,13 @@ TBlockInput TPipelineReader::ReadInput(nlohmann::json& json)
             }
         } else if (value.is_number()) {
             input.Add(key_id, value.get<int>());
+        } else if (value.is_object()) {
+            // Parse as damage table: map of resource name to dice expression
+            TDamageTable table;
+            for (auto& [slot_name, dice_expr] : value.items()) {
+                table[slot_name] = ParseDiceExpression(dice_expr.get<std::string>());
+            }
+            input.Add(key_id, std::move(table));
         }
     }
     return input;

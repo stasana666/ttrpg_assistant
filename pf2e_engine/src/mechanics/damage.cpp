@@ -57,6 +57,10 @@ TDamage::Type DamageTypeFromString(std::string_view sv)
     {
         return TDamage::Type::Slashing;
     }
+    if (sv == "Fire")
+    {
+        return TDamage::Type::Fire;
+    }
     throw std::logic_error("unknown damage type");
 }
 
@@ -66,6 +70,7 @@ std::string ToString(TDamage::Type type)
         case TDamage::Type::Bludgeoning: return "Bludgeoning";
         case TDamage::Type::Piercing:    return "Piercing";
         case TDamage::Type::Slashing:    return "Slashing";
+        case TDamage::Type::Fire:        return "Fire";
     }
     throw std::runtime_error("invalid damage type");
 }

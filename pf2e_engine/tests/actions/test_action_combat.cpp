@@ -361,3 +361,68 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
     ASSERT_FALSE(players.empty());
     EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 14);
 }
+
+TEST_F(ActionCombatTest, WizardCastsFireball) {
+    // Create creatures
+    auto wizard_id = TGameObjectIdManager::Instance().Register("wizard");
+    auto warrior_id = TGameObjectIdManager::Instance().Register("warrior");
+    TCreature wizard = factory_.Create<TCreature>(wizard_id);
+    TCreature warrior = factory_.Create<TCreature>(warrior_id);
+
+    // Create players
+    TPlayer player1(&wizard, TPlayerTeam{0}, TPlayerId{0}, "Wizard", "");
+    TPlayer player2(&warrior, TPlayerTeam{1}, TPlayerId{1}, "Warrior", "");
+
+    // Create a simple battle map
+    auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
+    TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
+
+    // Create battle
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+
+    // Add players to battle (lower roll = goes first in initiative)
+    mock_rng_.ExpectCall(20, 0);   // Wizard rolls low, wins initiative
+    battle.AddPlayer(std::move(player1), TPosition{0, 0});
+    EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
+
+    mock_rng_.ExpectCall(20, 20);  // Warrior rolls high, loses initiative
+    battle.AddPlayer(std::move(player2), TPosition{5, 5});
+    EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
+
+    // Wizard's turn: cast fireball
+    // Choose action: fireball (costs 2 actions)
+    mock_interaction_.ExpectChoice(0, "next action", "fireball");
+
+    mock_interaction_.ExpectChoice(0, "burst center", "5 5");
+
+    // Choose spell slot: spellslot_3 (6d6 damage)
+    // mock_interaction_.ExpectChoice(0, "spell_slot", "spellslot_3");
+
+    // Roll 6d6 for fire damage
+    mock_rng_.ExpectCall(6, 3);
+    mock_rng_.ExpectCall(6, 4);
+    mock_rng_.ExpectCall(6, 3);
+    mock_rng_.ExpectCall(6, 5);
+    mock_rng_.ExpectCall(6, 2);
+    mock_rng_.ExpectCall(6, 4);
+    // Total: 3+4+3+5+2+4 = 21 fire damage
+
+    // Verify hitpoints after fireball (warrior HP: 21 - 21 = 0)
+    mock_interaction_.AddCheckCallback([&battle]() {
+        auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+        ASSERT_FALSE(players.empty());
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints().GetCurrentHp(), 0);
+    });
+
+    // Battle should end when warrior dies
+    battle.StartBattle();
+
+    // Verify all expectations were met
+    mock_rng_.Verify();
+    mock_interaction_.Verify();
+
+    // Verify warrior is dead
+    auto warriors = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+    ASSERT_FALSE(warriors.empty());
+    EXPECT_FALSE(warriors[0]->GetCreature()->IsAlive());
+}

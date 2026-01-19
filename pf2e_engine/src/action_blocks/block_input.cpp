@@ -20,6 +20,11 @@ int TBlockInput::GetNumber(TGameObjectId key) const
     return std::get<int>(input_mapping_.at(key));
 }
 
+const TDamageTable& TBlockInput::GetDamageTable(TGameObjectId key) const
+{
+    return std::get<TDamageTable>(input_mapping_.at(key));
+}
+
 TGameObjectPtr TBlockInput::Get(TGameObjectId key, std::shared_ptr<TActionContext> ctx) const
 {
     if (!input_mapping_.contains(key)) {
@@ -36,6 +41,10 @@ TGameObjectPtr TBlockInput::Get(TGameObjectId key, std::shared_ptr<TActionContex
         },
         [&](int x) {
             result = x;
+        },
+        [&](const TDamageTable&) {
+            // TDamageTable should be accessed via GetDamageTable(), not Get()
+            throw std::logic_error("TDamageTable cannot be converted to TGameObjectPtr, use GetDamageTable()");
         }
     }, value);
     return result;

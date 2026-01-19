@@ -11,6 +11,7 @@ public:
         Bludgeoning,
         Piercing,
         Slashing,
+        Fire,
     };
 
 private:

@@ -39,12 +39,81 @@ TEST(ExpressionTest, DiceExpression) {
 
 TEST(ExpressionTest, MultiplyExpression) {
     TRandomGenerator _(666);
-    std::unique_ptr<IExpression> expr = 
+    std::unique_ptr<IExpression> expr =
         std::make_unique<TProductExpression>(
             std::make_unique<TNumberExpression>(6),
             std::make_unique<TNumberExpression>(8)
         );
     EXPECT_EQ(expr->Value(_), 48);
+}
+
+TEST(ExpressionTest, MultiDiceExpression) {
+    TMockRng rng;
+    // 6d6: expect 6 calls to d6
+    rng.ExpectCall(6, 1);
+    rng.ExpectCall(6, 2);
+    rng.ExpectCall(6, 3);
+    rng.ExpectCall(6, 4);
+    rng.ExpectCall(6, 5);
+    rng.ExpectCall(6, 6);
+
+    std::unique_ptr<IExpression> expr = std::make_unique<TMultiDiceExpression>(6, 6);
+    EXPECT_EQ(expr->Value(rng), 21);  // 1+2+3+4+5+6 = 21
+    rng.Verify();
+}
+
+TEST(ExpressionTest, MultiDiceExpressionSingle) {
+    TMockRng rng;
+    rng.ExpectCall(8, 5);
+
+    std::unique_ptr<IExpression> expr = std::make_unique<TMultiDiceExpression>(1, 8);
+    EXPECT_EQ(expr->Value(rng), 5);
+    rng.Verify();
+}
+
+TEST(DiceExpressionParserTest, Parse6d6) {
+    auto expr = ParseDiceExpression("6d6");
+
+    TMockRng rng;
+    for (int i = 0; i < 6; ++i) {
+        rng.ExpectCall(6, 3);
+    }
+
+    EXPECT_EQ(expr->Value(rng), 18);  // 6 * 3 = 18
+    rng.Verify();
+}
+
+TEST(DiceExpressionParserTest, Parse2d8) {
+    auto expr = ParseDiceExpression("2d8");
+
+    TMockRng rng;
+    rng.ExpectCall(8, 4);
+    rng.ExpectCall(8, 7);
+
+    EXPECT_EQ(expr->Value(rng), 11);  // 4 + 7 = 11
+    rng.Verify();
+}
+
+TEST(DiceExpressionParserTest, Parse1d20) {
+    auto expr = ParseDiceExpression("1d20");
+
+    TMockRng rng;
+    rng.ExpectCall(20, 15);
+
+    EXPECT_EQ(expr->Value(rng), 15);
+    rng.Verify();
+}
+
+TEST(DiceExpressionParserTest, InvalidExpressionMissingD) {
+    EXPECT_THROW(ParseDiceExpression("66"), std::invalid_argument);
+}
+
+TEST(DiceExpressionParserTest, InvalidExpressionEmptyCount) {
+    EXPECT_THROW(ParseDiceExpression("d6"), std::invalid_argument);
+}
+
+TEST(DiceExpressionParserTest, InvalidExpressionEmptySize) {
+    EXPECT_THROW(ParseDiceExpression("6d"), std::invalid_argument);
 }
 
 /*

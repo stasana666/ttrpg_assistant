@@ -3,14 +3,19 @@
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/game_object_logic/game_object.h>
 #include <pf2e_engine/actions/action_context.h>
+#include <pf2e_engine/expressions/base_expression.h>
 
+#include <memory>
 #include <unordered_map>
 #include <variant>
+
+using TDamageTable = std::unordered_map<std::string, std::shared_ptr<IExpression>>;
 
 using InputValue = std::variant<
     std::string,
     int,
-    TGameObjectId
+    TGameObjectId,
+    TDamageTable
 >;
 
 class TBlockInput {
@@ -19,6 +24,7 @@ public:
 
     std::string GetString(TGameObjectId key) const;
     int GetNumber(TGameObjectId key) const;
+    const TDamageTable& GetDamageTable(TGameObjectId key) const;
     TGameObjectPtr Get(TGameObjectId key, std::shared_ptr<TActionContext> ctx) const;
 
 private:

@@ -10,6 +10,7 @@ target_sources(pf2e_engine
         get_parameter.cpp
         get_targets_in_area.cpp
         roll_against_difficulty_class.cpp
+        spell_damage_roll.cpp
         weapon_damage_roll.cpp
         move.cpp
 )
