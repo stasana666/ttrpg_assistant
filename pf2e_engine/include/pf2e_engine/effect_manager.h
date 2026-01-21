@@ -8,6 +8,7 @@
 #include <set>
 
 class TPlayer;
+class TTransformator;
 
 struct TPlayerConditionSet {
     TPlayer* player;
@@ -28,10 +29,17 @@ using TEffectCanceler = std::function<bool(EEffectCancelPolicy)>;
 
 class TEffectManager {
 public:
-    TEffectCanceler AddEffect(TEffect effect);
+    TEffectCanceler AddEffect(TEffect effect, TTransformator& transformator);
+
+    // Methods for transformation undo access
+    void InsertValue(TPlayer* player, ECondition condition, int value);
+    void EraseValue(TPlayer* player, ECondition condition, int value);
+
+    // Get the current highest value for a player/condition pair (0 if none)
+    int GetHighestValue(TPlayer* player, ECondition condition) const;
 
 private:
-    void Update(TPlayer* player, ECondition condition);
+    void Update(TPlayer* player, ECondition condition, TTransformator& transformator);
 
     using ConditionKey = std::pair<TPlayer*, ECondition>;
 
