@@ -6,6 +6,7 @@
 #include <pf2e_engine/effect_manager.h>
 #include <pf2e_engine/scheduler.h>
 #include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/transformation/transformator.h>
 
 #include <algorithm>
 #include <stdexcept>
@@ -43,9 +44,9 @@ void FAddCondition::MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> 
         .player = &attacker,
         .condition = ECondition::MultipleAttackPenalty,
         .value = std::min(10, current + increase),
-    });
+    }, *ctx->transformator);
 
-    ctx->scheduler->AddTask(TTask{
+    ctx->transformator->AddTask(ctx->scheduler, TTask{
         .events_before_call = {
             TEvent{
                 .type = EEvent::OnTurnEnd,
@@ -67,14 +68,14 @@ void FAddCondition::FrightenedHandle(std::shared_ptr<TActionContext> ctx) const
         .value = value,
     };
 
-    auto canceler = ctx->effect_manager->AddEffect(condition_set);
+    auto canceler = ctx->effect_manager->AddEffect(condition_set, *ctx->transformator);
 
     TEvent event{
         .type = EEvent::OnTurnStart,
         .context = {.player = &target },
     };
 
-    ctx->scheduler->AddTask(TTask{
+    ctx->transformator->AddTask(ctx->scheduler, TTask{
         .events_before_call = { event },
         .callback = [canceler]() { return canceler(EEffectCancelPolicy::ReduceUntilZero); },
     });
