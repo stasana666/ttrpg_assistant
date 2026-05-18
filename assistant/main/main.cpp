@@ -1,4 +1,4 @@
-#include <pf2e_engine/audio_input/audio_input.h>
+#include <assistant/audio_input/audio_input.h>
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/common/channel.h>
@@ -6,12 +6,12 @@
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
-#include <pf2e_engine/gui/board.h>
-#include <pf2e_engine/interaction_system.h>
+#include <assistant/gui/board.h>
+#include <assistant/interaction_system.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/random.h>
-#include <pf2e_engine/audio_input/speech_to_text.h>
-#include <pf2e_engine/audio_input/audio_input_system.h>
+#include <assistant/audio_input/speech_to_text.h>
+#include <assistant/audio_input/audio_input_system.h>
 #include <pf2e_engine/common/config.h>
 
 #include <cpp_config.h>
@@ -29,7 +29,7 @@ using FsDirEntry = std::filesystem::directory_entry;
 using FsRecursiveIterator = std::filesystem::recursive_directory_iterator;
 
 const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
-const std::filesystem::path kPathToImages{kRootDirPath + "/pf2e_engine/images"};
+const std::filesystem::path kPathToImages{kRootDirPath + "/assistant/images"};
 
 TConfig ParseArgs(int argc, char** argv)
 {

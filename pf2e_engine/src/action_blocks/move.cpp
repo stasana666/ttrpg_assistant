@@ -3,7 +3,7 @@
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/alternatives.h>
-#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/actions/reaction.h>
 #include <pf2e_engine/actions/save_point.h>

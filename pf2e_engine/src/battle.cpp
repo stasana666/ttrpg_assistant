@@ -134,15 +134,29 @@ void TBattle::EndTurn()
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{.player = &player}}, transformator_);
 }
 
-bool TBattle::IsBattleEnd() const
+std::vector<int> TBattle::LivingTeams() const
 {
     std::unordered_set<int> alive_teams;
-    for (auto& player : players_) {
+    for (const auto& player : players_) {
         if (player.GetCreature()->IsAlive()) {
             alive_teams.insert(player.GetTeam());
         }
     }
-    return alive_teams.size() < 2;
+    return {alive_teams.begin(), alive_teams.end()};
+}
+
+std::optional<int> TBattle::Winner() const
+{
+    std::vector<int> teams = LivingTeams();
+    if (teams.size() == 1) {
+        return teams.front();
+    }
+    return std::nullopt;
+}
+
+bool TBattle::IsBattleEnd() const
+{
+    return LivingTeams().size() < 2;
 }
 
 bool TBattle::IsRoundEnd() const

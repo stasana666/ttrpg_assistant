@@ -4,7 +4,7 @@
 
 #include <pf2e_engine/common/holder.h>
 #include <pf2e_engine/common/event.h>
-#include <pf2e_engine/gui/texture_storage.h>
+#include <assistant/gui/texture_storage.h>
 #include <pf2e_engine/common/channel.h>
 
 #include <vector>

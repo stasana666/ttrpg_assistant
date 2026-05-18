@@ -1,4 +1,4 @@
-#include <speech_to_text.h>
+#include <assistant/audio_input/speech_to_text.h>
 #include <stdexcept>
 
 TVoskRecognizer::TVoskRecognizer(const std::string& model_path, float sample_rate)

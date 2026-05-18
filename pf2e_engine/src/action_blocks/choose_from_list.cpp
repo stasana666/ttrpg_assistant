@@ -7,7 +7,7 @@
 #include <pf2e_engine/actions/action_context.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/alternatives.h>
-#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/i_interaction_system.h>
 
 #include <stdexcept>
 #include <variant>

@@ -1,4 +1,4 @@
-#include "prompt.h"
+#include <assistant/audio_input/prompt.h>
 
 #include <cassert>
 #include <sstream>

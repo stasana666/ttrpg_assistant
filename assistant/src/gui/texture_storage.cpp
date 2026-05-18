@@ -1,4 +1,4 @@
-#include <texture_storage.h>
+#include <assistant/gui/texture_storage.h>
 
 TTextureStorage::TTextureStorage(std::filesystem::path path_to_image_dir)
     : path_to_image_dir_(std::move(path_to_image_dir))

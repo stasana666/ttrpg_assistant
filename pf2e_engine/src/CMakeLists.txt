@@ -7,7 +7,6 @@ target_sources(pf2e_engine
         creature.cpp
         effect_manager.cpp
         initiative_order.cpp
-        interaction_system.cpp
         player.cpp
         proficiency.cpp
         random.cpp
@@ -24,11 +23,9 @@ target_include_directories(pf2e_engine
 
 add_subdirectory(action_blocks)
 add_subdirectory(actions)
-add_subdirectory(audio_input)
 add_subdirectory(common)
 add_subdirectory(expressions)
 add_subdirectory(game_object_logic)
-add_subdirectory(gui)
 add_subdirectory(inventory)
 add_subdirectory(mechanics)
 add_subdirectory(transformation)
