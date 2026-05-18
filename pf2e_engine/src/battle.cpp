@@ -77,7 +77,7 @@ void TBattle::StartBattle()
 void TBattle::StartRound()
 {
     assert(initiative_order_.CurrentPlayer() == nullptr);
-    initiative_order_.Next();
+    initiative_order_.Next(transformator_);
     io_system_.GameLog() << "Start round " << initiative_order_.CurrentRound() << " round" << std::endl;
 }
 
@@ -94,7 +94,7 @@ void TBattle::StartTurn()
 
     GiveStartResource(player);
 
-    scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnStart, .context = TEventContext{.player = &player}});
+    scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnStart, .context = TEventContext{.player = &player}}, transformator_);
 }
 
 void TBattle::MakeTurn()
@@ -128,10 +128,10 @@ void TBattle::EndTurn()
     assert(initiative_order_.CurrentPlayer() != nullptr);
     TPlayer& player = *initiative_order_.CurrentPlayer();
 
-    initiative_order_.Next();
+    initiative_order_.Next(transformator_);
 
     io_system_.GameLog() << "End turn: player " << player.GetName() << std::endl;
-    scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{.player = &player}});
+    scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{.player = &player}}, transformator_);
 }
 
 bool TBattle::IsBattleEnd() const
@@ -153,13 +153,13 @@ bool TBattle::IsRoundEnd() const
 void TBattle::GiveStartResource(TPlayer& player)
 {
     assert(!player.GetCreature()->Resources().Count(kActionId));
-    player.GetCreature()->Resources().Add(kActionId, 3);
+    transformator_.AddResource(&player.GetCreature()->Resources(), kActionId, 3);
 
-    scheduler_.AddTask(TTask{
+    transformator_.AddTask(&scheduler_, TTask{
         .events_before_call = {TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{&player}}},
-        .callback = [&player]() {
-            size_t resource_count = player.GetCreature()->Resources().Count(kActionId);
-            player.GetCreature()->Resources().Reduce(kActionId, resource_count);
+        .callback = [&player, this]() {
+            int resource_count = static_cast<int>(player.GetCreature()->Resources().Count(kActionId));
+            transformator_.ReduceResource(&player.GetCreature()->Resources(), kActionId, resource_count);
             return false;
         },
     });

@@ -29,6 +29,57 @@ void TTransformator::Heal(TPlayer* player, int value)
     io_system_.GameLog() << "current hp: " << creature->Hitpoints().GetCurrentHp() << std::endl;
 }
 
+void TTransformator::ChangeCondition(TCreature* creature, ECondition condition, int new_value)
+{
+    transformations_.emplace_back(TChangeCondition(creature, condition, new_value));
+}
+
+void TTransformator::AddResource(TResourcePool* pool, TResourceId id, int count)
+{
+    transformations_.emplace_back(TChangeResource(pool, id, count));
+}
+
+void TTransformator::ReduceResource(TResourcePool* pool, TResourceId id, int count)
+{
+    transformations_.emplace_back(TChangeResource(pool, id, -count));
+}
+
+void TTransformator::AddEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value)
+{
+    transformations_.emplace_back(TAddEffect(manager, player, condition, value));
+}
+
+void TTransformator::RemoveEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value)
+{
+    transformations_.emplace_back(TRemoveEffect(manager, player, condition, value));
+}
+
+TTaskId TTransformator::AddTask(TTaskScheduler* scheduler, TTask task)
+{
+    auto& transformation = transformations_.emplace_back(TAddTask(scheduler, std::move(task)));
+    return std::get<TAddTask>(transformation).GetTaskId();
+}
+
+void TTransformator::RemoveTask(TTaskScheduler* scheduler, TTaskId id, TTask task, size_t progress_index)
+{
+    transformations_.emplace_back(TRemoveTask(scheduler, id, std::move(task), progress_index));
+}
+
+void TTransformator::AdvanceTaskProgress(TTaskScheduler* scheduler, TTaskId id, size_t new_index)
+{
+    transformations_.emplace_back(TAdvanceTaskProgress(scheduler, id, new_index));
+}
+
+void TTransformator::ChangeCurrentPlayer(TInitiativeOrder* order, size_t new_position)
+{
+    transformations_.emplace_back(TChangeCurrentPlayer(order, new_position));
+}
+
+void TTransformator::ChangeRound(TInitiativeOrder* order, size_t new_round)
+{
+    transformations_.emplace_back(TChangeRound(order, new_round));
+}
+
 void TTransformator::Undo(TState state)
 {
     while (transformations_.size() > state.stack_size_) {

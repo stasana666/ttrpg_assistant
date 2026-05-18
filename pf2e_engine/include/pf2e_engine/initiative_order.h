@@ -7,6 +7,8 @@
 
 class IRandomGenerator;
 
+class TTransformator;
+
 class TInitiativeOrder {
 public:
     TInitiativeOrder(IRandomGenerator*, IInteractionSystem& io_system);
@@ -14,7 +16,12 @@ public:
     void AddPlayer(TPlayer* player);
     TPlayer* CurrentPlayer() const;
     size_t CurrentRound() const;
-    void Next();
+    void Next(TTransformator& transformator);
+
+    // For transformation undo access
+    void SetCurrentPosition(size_t position);  // SIZE_MAX means end()
+    size_t GetCurrentPosition() const;
+    void SetRound(size_t round);
 
 private:
     struct TInitiative {
