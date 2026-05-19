@@ -10,6 +10,8 @@
 #include <pf2e_engine/actions/reaction.h>
 
 #include <deque>
+#include <optional>
+#include <vector>
 
 class TBattle {
 public:
@@ -20,6 +22,9 @@ public:
 
     const TPlayer* GetPlayer(std::function<bool(const TPlayer*)> predicate) const;
     std::vector<TPlayer*> GetIfPlayers(std::function<bool(const TPlayer*)> predicate);
+
+    std::vector<int> LivingTeams() const;
+    std::optional<int> Winner() const;
 
     std::shared_ptr<const TBattleMap> BattleMap() const;
     THolder<TBattleMap>& BattleMapMutable();

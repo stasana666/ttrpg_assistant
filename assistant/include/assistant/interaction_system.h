@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/i_interaction_system.h>
-#include <pf2e_engine/audio_input/audio_input_system.h>
+#include <assistant/audio_input/audio_input_system.h>
 #include <pf2e_engine/common/channel.h>
 #include <pf2e_engine/common/event.h>
 

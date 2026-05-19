@@ -1,4 +1,4 @@
-#include <intent_recognizer.h>
+#include <assistant/audio_input/intent_recognizer.h>
 #include <iostream>
 #include <vector>
 

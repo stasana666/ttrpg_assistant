@@ -1,6 +1,6 @@
-#include <interaction_system.h>
+#include <assistant/interaction_system.h>
 
-#include <pf2e_engine/audio_input/prompt.h>
+#include <assistant/audio_input/prompt.h>
 
 #include <chrono>
 #include <sstream>

@@ -1,4 +1,4 @@
-#include <board.h>
+#include <assistant/gui/board.h>
 
 #include <pf2e_engine/battle_map.h>
 

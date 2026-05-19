@@ -1,10 +1,10 @@
 #pragma once
 
-#include <pf2e_engine/audio_input/audio_input.h>
-#include <pf2e_engine/audio_input/intent_recognizer.h>
-#include <pf2e_engine/audio_input/speech_to_text.h>
+#include <assistant/audio_input/audio_input.h>
+#include <assistant/audio_input/intent_recognizer.h>
+#include <assistant/audio_input/speech_to_text.h>
 
-#include <pf2e_engine/audio_input/prompt.h>
+#include <assistant/audio_input/prompt.h>
 #include <pf2e_engine/common/channel.h>
 #include <pf2e_engine/common/config.h>
 #include <pf2e_engine/common/event.h>

@@ -2,7 +2,7 @@
 
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/actions/action_context.h>
-#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/player.h>
 #include "save_point.h"
 

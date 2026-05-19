@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a tabletop RPG (TTRPG) assistant for D&D/Pathfinder (PF2e), written in C++23. It provides a game engine for managing combat encounters with support for multiple interfaces: GUI (SFML), CLI, and optional voice input (Vosk + llama.cpp).
 
+The repository is split into three top-level components:
+
+- **`pf2e_engine/`** — the core, headless game-mechanics engine. Built as the `pf2e_engine` library; links only `nlohmann_json` + `json-schema-validator`. No GUI/voice dependencies.
+- **`assistant/`** — the player-facing application (GUI/CLI/voice). Built as the `assistant_lib` library plus the `assistant` executable; links SFML, llama.cpp, Vosk, argparse on top of `pf2e_engine`.
+- **`analyzer/`** — a headless Monte-Carlo combat simulator that runs many automated battles and reports win/death probabilities. Built as `analyzer_lib` plus the `analyzer` executable; links only `pf2e_engine`.
+
+The engine talks to the outside world solely through the `IInteractionSystem` interface (dependency-injected into `TBattle`). `assistant` supplies the human-facing `TInteractionSystem`; `analyzer` supplies the automated `TAutomatedInteractionSystem`.
+
 ## Build Commands
 
 ### Initial Setup
@@ -45,15 +53,21 @@ ctest
 ### Running the Application
 ```bash
 # From build directory - GUI and CLI only (no voice input)
-./pf2e_engine/main/pf2e_engine
+./assistant/assistant
 
 # With voice input support (requires Vosk and llama.cpp models)
-./pf2e_engine/main/pf2e_engine --speech2text /path/to/vosk/model --nlp-model /path/to/llama/model.gguf
+./assistant/assistant --speech2text /path/to/vosk/model --nlp-model /path/to/llama/model.gguf
 ```
 
 Model sources:
 - Vosk models: https://alphacephei.com/vosk/models
 - llama.cpp models: https://huggingface.co/models?apps=llama.cpp
+
+### Running the Analyzer
+```bash
+# From build directory - simulate combats and print win/death probabilities
+./analyzer/analyzer --iterations 1000
+```
 
 ### Data Validation
 ```bash
@@ -78,7 +92,7 @@ The game follows a turn-based battle system orchestrated by `TBattle` ([pf2e_eng
 - **Task Scheduling**: Delayed/scheduled tasks via `TTaskScheduler`, triggered by events (`OnTurnStart`, `OnTurnEnd`)
 - **Transformations**: Observable state changes through `TTransformator` with undo support
 - **Savepoints**: `TSavepointStackUnwind` allows reverting actions mid-turn (e.g., for "undo" functionality)
-- **Battle End**: Battle ends when fewer than 2 teams have living players
+- **Battle End**: Battle ends when fewer than 2 teams have living players. After a battle, query `TBattle::Winner()` (the sole surviving team, or `std::nullopt`) and `TBattle::LivingTeams()`.
 
 ### Game Object System
 All game entities (creatures, weapons, armor, actions, battle maps) are defined in JSON files under [pf2e_engine/data/](pf2e_engine/data/).
@@ -126,13 +140,20 @@ Actions are defined as pipelines of composable blocks in JSON. The pipeline is p
 Actions consume resources (actions, reactions, movement) and execute their pipeline sequentially.
 
 ### Interaction System
-`TInteractionSystem` ([pf2e_engine/src/interaction_system.cpp](pf2e_engine/src/interaction_system.cpp)) provides an abstraction layer for user interaction:
-- Supports multiple simultaneous input sources (GUI, CLI, voice)
-- Uses channel-based communication (`TChannel<TClickEvent>`)
-- GUI runs in main thread, game logic runs in separate thread
-- Voice input system (`TAudioInputSystem`) uses Vosk for speech-to-text and llama.cpp for intent recognition
-- **Asking Strategies**: `EAskingStrategy::Console` for CLI/voice, `EAskingStrategy::Gui` for click-based input
+The engine asks the outside world to make choices through the `IInteractionSystem` interface ([pf2e_engine/include/pf2e_engine/i_interaction_system.h](pf2e_engine/include/pf2e_engine/i_interaction_system.h)). It is dependency-injected into `TBattle` as `IInteractionSystem&`, so the engine never depends on any concrete implementation.
 - Choices are presented via `TAlternatives` with kind labels (e.g., "next action", "target", "burst center")
+- `IInteractionSystem::ChooseAlternative<T>()` short-circuits when only one alternative exists
+
+Concrete implementations:
+- **`TInteractionSystem`** ([assistant/src/interaction_system.cpp](assistant/src/interaction_system.cpp)) — the player-facing implementation. Supports multiple simultaneous input sources (GUI, CLI, voice), uses channel-based communication (`TChannel<TClickEvent>`), runs the GUI in the main thread and game logic in a separate thread. Voice input (`TAudioInputSystem`) uses Vosk for speech-to-text and llama.cpp for intent recognition. **Asking Strategies**: `EAskingStrategy::Console` for CLI/voice, `EAskingStrategy::Gui` for click-based input.
+- **`TAutomatedInteractionSystem`** ([analyzer/include/analyzer/automated_interaction_system.h](analyzer/include/analyzer/automated_interaction_system.h)) — the headless simulation implementation. Delegates every choice to an `IDecisionStrategy` and discards all log output.
+- **`TMockInteractionSystem`** ([pf2e_engine/tests/test_lib/mock_interaction_system.h](pf2e_engine/tests/test_lib/mock_interaction_system.h)) — the scripted test implementation.
+
+### Analyzer
+The combat analyzer ([analyzer/](analyzer/)) runs Monte-Carlo simulations on top of the headless engine:
+- **`IDecisionStrategy`** ([analyzer/include/analyzer/decision_strategy.h](analyzer/include/analyzer/decision_strategy.h)) — pluggable policy that picks a choice index from `TAlternatives` by inspecting its `Kind()`. New strategies (defensive, random, etc.) are added by implementing this interface.
+- **`TAggressiveMeleeStrategy`** ([analyzer/src/aggressive_melee_strategy.cpp](analyzer/src/aggressive_melee_strategy.cpp)) — the first concrete strategy: always picks the weapon-attack action and an enemy target.
+- **`TCombatAnalyzer`** ([analyzer/src/combat_analyzer.cpp](analyzer/src/combat_analyzer.cpp)) — builds the `TGameObjectFactory` once, then loops fresh `TBattle` + seeded `TRandomGenerator` per run, aggregating per-team win rate and per-creature death probability into `TAnalysisResult`.
 
 ### Expression System
 Mathematical expressions (damage rolls, stat calculations) use a compositional expression tree:
@@ -181,12 +202,17 @@ When mocks run out of expected calls, `TTooManyCallsError` is thrown. See [test_
 The path to `libvosk.so` is configured in [extern/CMakeLists.txt](extern/CMakeLists.txt):8. Default location assumes Python venv installation. Update `VOSK_LIB` variable if Vosk is installed elsewhere.
 
 ### Important File Locations
-- Source code: [pf2e_engine/src/](pf2e_engine/src/) and [pf2e_engine/include/pf2e_engine/](pf2e_engine/include/pf2e_engine/)
-- Entry point: [pf2e_engine/main/main.cpp](pf2e_engine/main/main.cpp)
-- Tests: [pf2e_engine/tests/](pf2e_engine/tests/)
+- Engine source: [pf2e_engine/src/](pf2e_engine/src/) and [pf2e_engine/include/pf2e_engine/](pf2e_engine/include/pf2e_engine/)
+- Engine tests: [pf2e_engine/tests/](pf2e_engine/tests/)
 - Game data: [pf2e_engine/data/](pf2e_engine/data/)
 - JSON schemas: [pf2e_engine/schemas/](pf2e_engine/schemas/)
-- Images: [pf2e_engine/images/](pf2e_engine/images/)
+- Assistant app (GUI/CLI/voice): [assistant/src/](assistant/src/), [assistant/include/assistant/](assistant/include/assistant/)
+- Assistant entry point: [assistant/main/main.cpp](assistant/main/main.cpp)
+- Images: [assistant/images/](assistant/images/)
+- Analyzer: [analyzer/src/](analyzer/src/), [analyzer/include/analyzer/](analyzer/include/analyzer/)
+- Analyzer entry point: [analyzer/main/analyzer_main.cpp](analyzer/main/analyzer_main.cpp)
+
+Each component has its own CMakeLists.txt; the top-level [CMakeLists.txt](CMakeLists.txt) adds `extern`, then `pf2e_engine`, `assistant`, `analyzer`. Game data and schemas stay under `pf2e_engine/`; `kRootDirPath` (from generated `cpp_config.h`) resolves data via `kRootDirPath + "/pf2e_engine/data"`.
 
 ## Compilation Settings
 - C++ Standard: C++23 (required)

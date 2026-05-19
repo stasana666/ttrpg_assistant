@@ -1,4 +1,4 @@
-#include "audio_input.h"
+#include <assistant/audio_input/audio_input.h>
 
 #include <iostream>
 #include <mutex>

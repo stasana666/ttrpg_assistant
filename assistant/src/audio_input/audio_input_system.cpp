@@ -1,6 +1,6 @@
-#include "audio_input_system.h"
-#include "event.h"
-#include "intent_recognizer.h"
+#include <assistant/audio_input/audio_input_system.h>
+#include <pf2e_engine/common/event.h>
+#include <assistant/audio_input/intent_recognizer.h>
 
 #include <chrono>
 #include <iostream>

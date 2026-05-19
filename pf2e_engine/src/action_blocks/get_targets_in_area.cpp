@@ -7,7 +7,7 @@
 #include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/alternatives.h>
-#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/i_interaction_system.h>
 
 #include <sstream>
 #include <variant>

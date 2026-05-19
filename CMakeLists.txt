@@ -21,3 +21,5 @@ set(CMAKE_CXX_CLANG_TIDY "clang-tidy")
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cpp_config/cpp_config.h.in ${CMAKE_CURRENT_BINARY_DIR}/cpp_config/cpp_config.h)
 
 add_subdirectory(pf2e_engine)
+add_subdirectory(assistant)
+add_subdirectory(analyzer)

@@ -4,7 +4,7 @@
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/inventory/weapon.h>
-#include <pf2e_engine/interaction_system.h>
+#include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/common/errors.h>
 #include "skills.h"
 
