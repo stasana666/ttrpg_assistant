@@ -19,6 +19,8 @@ public:
     std::ostream& GameLog() override;
     std::ostream& DevLog() override;
 
+    void HandleReactionTrigger(const TTriggerContext& trigger, const TState& state) override;
+
 protected:
     size_t ChooseAlternativeIndex(int player_id, const TAlternatives& alternatives) override;
 

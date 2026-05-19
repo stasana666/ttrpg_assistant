@@ -5,8 +5,11 @@
 #include <pf2e_engine/alternatives.h>
 #include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/battle.h>
+#include <pf2e_engine/common/continuation.h>
 #include <pf2e_engine/actions/reaction.h>
-#include <pf2e_engine/actions/save_point.h>
+
+#include <memory>
+#include <sstream>
 
 static const TGameObjectId kTargetId = TGameObjectIdManager::Instance().Register("creature");
 static const TGameObjectId kMovementId = TGameObjectIdManager::Instance().Register("movement");
@@ -16,18 +19,20 @@ constexpr int kDy[4] = {1, 0, -1, 0};
 
 void FMove::operator() (std::shared_ptr<TActionContext> ctx) const
 {
-    TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
+    TPlayer* target = std::get<TPlayer*>(input_.Get(kTargetId, ctx));
     int movement = std::get<int>(input_.Get(kMovementId, ctx));
 
-    return TryMove(target, movement, ctx);
+    // `budget` lives on the heap so it survives a suspension and is shared by the
+    // condition and body across continuation copies. Step decrements it, or
+    // zeroes it when the player chooses to stop early.
+    auto budget = std::make_shared<int>(movement);
+    continuation::While(
+        [budget]() { return *budget > 0; },
+        [this, ctx, target, budget]() { Step(*target, *budget, ctx); });
 }
 
-void FMove::TryMove(TPlayer& target, int movement, std::shared_ptr<TActionContext> ctx) const
+void FMove::Step(TPlayer& target, int& budget, std::shared_ptr<TActionContext> ctx) const
 {
-    if (movement == 0) {
-        return;
-    }
-
     auto snapshot = ctx->battle->BattleMap();
     TAlternatives alternatives = TAlternatives::Create<TPosition>("move to position");
     alternatives.AddAlternative("Завершить перемещение", target.GetPosition());
@@ -53,20 +58,22 @@ void FMove::TryMove(TPlayer& target, int movement, std::shared_ptr<TActionContex
 
         alternatives.AddAlternative(ss.str(), position);
     }
+
     auto choice = ctx->io_system->ChooseAlternative<TPosition>(target.GetId(), alternatives);
     if (choice == target.GetPosition()) {
+        budget = 0;
         return;
     }
 
-    TSavepointCallback continue_movement = [this, target_ptr = &target, movement, ctx, choice]() {
-        target_ptr->SetPosition(choice);
-        this->TryMove(*target_ptr, movement - 1, ctx);
-    };
+    target.SetPosition(choice);
+    --budget;
 
-    TTriggerContext trigger_context{
+    // A move just happened: report the reaction opportunity. The interaction
+    // system decides whether to resolve it now or to suspend us via a savepoint
+    // (e.g. for a voice assistant); the engine just continues the loop afterwards.
+    TTriggerContext trigger{
         .type = ETrigger::OnMove,
         .triggered_player = &target,
     };
-    throw TSavepointStackUnwind(ctx->transformator->CurrentState(), std::move(continue_movement));
-    throw TReactionStackUnwind(ctx->transformator->CurrentState(), std::move(continue_movement), trigger_context);
+    ctx->io_system->HandleReactionTrigger(trigger, ctx->transformator->CurrentState());
 }

@@ -37,8 +37,6 @@ public:
     void Apply(std::shared_ptr<TActionContext> ctx) override;
 
 private:
-    void ApplyHelper(std::function<void()> apply, std::shared_ptr<TActionContext> ctx);
-
     std::function<void(std::shared_ptr<TActionContext>)> apply_;
     IActionBlock* next_;
 

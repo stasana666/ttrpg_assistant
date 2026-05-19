@@ -1,6 +1,7 @@
 #include <assistant/interaction_system.h>
 
 #include <assistant/audio_input/prompt.h>
+#include <pf2e_engine/actions/save_point.h>
 
 #include <chrono>
 #include <sstream>
@@ -146,4 +147,12 @@ size_t TInteractionSystem::ChooseAlternativeIndex(int player_id, const TAlternat
     }
 
     return result;
+}
+
+void TInteractionSystem::HandleReactionTrigger(const TTriggerContext&, const TState& state)
+{
+    // The voice assistant must not block the game flow while a reaction is
+    // pending. Defer it: throw a savepoint so the engine unwinds and TBattle
+    // resumes the rest of the turn. The reaction can later be applied from here.
+    throw TSavepointStackUnwind(state, []() {});
 }
