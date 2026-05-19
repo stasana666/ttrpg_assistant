@@ -10,5 +10,7 @@ public:
     void operator() (std::shared_ptr<TActionContext> ctx) const;
 
 private:
-    void TryMove(TPlayer& target, int movement, std::shared_ptr<TActionContext> ctx) const;
+    // Performs one step of movement and reports the resulting OnMove reaction
+    // opportunity. Decrements `budget`, or sets it to 0 when the player stops.
+    void Step(TPlayer& target, int& budget, std::shared_ptr<TActionContext> ctx) const;
 };

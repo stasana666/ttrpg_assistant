@@ -2,6 +2,7 @@ add_executable(test_pf2_engine
     test_armor.cpp
     test_resources.cpp
     test_random.cpp
+    test_continuation.cpp
 )
 
 target_link_libraries(test_pf2_engine

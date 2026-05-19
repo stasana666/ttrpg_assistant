@@ -91,7 +91,7 @@ The game follows a turn-based battle system orchestrated by `TBattle` ([pf2e_eng
 - **Effect Management**: Temporary effects handled by `TEffectManager`
 - **Task Scheduling**: Delayed/scheduled tasks via `TTaskScheduler`, triggered by events (`OnTurnStart`, `OnTurnEnd`)
 - **Transformations**: Observable state changes through `TTransformator` with undo support
-- **Savepoints**: `TSavepointStackUnwind` allows reverting actions mid-turn (e.g., for "undo" functionality)
+- **Savepoints / Continuations**: `TSavepointStackUnwind` suspends execution mid-turn; the `continuation::` helpers propagate it across the call stack so it can be resumed exactly where it stopped (see Continuation System below)
 - **Battle End**: Battle ends when fewer than 2 teams have living players. After a battle, query `TBattle::Winner()` (the sole surviving team, or `std::nullopt`) and `TBattle::LivingTeams()`.
 
 ### Game Object System
@@ -143,6 +143,7 @@ Actions consume resources (actions, reactions, movement) and execute their pipel
 The engine asks the outside world to make choices through the `IInteractionSystem` interface ([pf2e_engine/include/pf2e_engine/i_interaction_system.h](pf2e_engine/include/pf2e_engine/i_interaction_system.h)). It is dependency-injected into `TBattle` as `IInteractionSystem&`, so the engine never depends on any concrete implementation.
 - Choices are presented via `TAlternatives` with kind labels (e.g., "next action", "target", "burst center")
 - `IInteractionSystem::ChooseAlternative<T>()` short-circuits when only one alternative exists
+- `IInteractionSystem::HandleReactionTrigger()` reports a reaction opportunity (e.g. `OnMove`); the implementation alone decides whether to resolve it immediately (return) or defer it by throwing `TSavepointStackUnwind` — the engine never makes this decision
 
 Concrete implementations:
 - **`TInteractionSystem`** ([assistant/src/interaction_system.cpp](assistant/src/interaction_system.cpp)) — the player-facing implementation. Supports multiple simultaneous input sources (GUI, CLI, voice), uses channel-based communication (`TChannel<TClickEvent>`), runs the GUI in the main thread and game logic in a separate thread. Voice input (`TAudioInputSystem`) uses Vosk for speech-to-text and llama.cpp for intent recognition. **Asking Strategies**: `EAskingStrategy::Console` for CLI/voice, `EAskingStrategy::Gui` for click-based input.
@@ -166,6 +167,16 @@ Mathematical expressions (damage rolls, stat calculations) use a compositional e
 State changes use a command pattern for reversibility ([pf2e_engine/src/transformation/transformation.cpp](pf2e_engine/src/transformation/transformation.cpp)):
 - `TChangeHitPoints`: Modify HP with stored previous state for undo
 - `TTransformator`: Manages transformation queue and rollback
+
+### Continuation / Savepoint System
+Some interactions must be deferred without halting the game (e.g. a reaction opportunity raised when a creature moves). `TSavepointStackUnwind` ([pf2e_engine/include/pf2e_engine/actions/save_point.h](pf2e_engine/include/pf2e_engine/actions/save_point.h)) is an exception thrown to *suspend* execution: as it unwinds, each continuation-aware frame appends "the rest of its work" via `AddCallFunctionLevel`; `TBattle::MakeTurn` catches it, and `Resume()` re-enters every frame at its suspension point.
+
+The `continuation::` helpers ([pf2e_engine/include/pf2e_engine/common/continuation.h](pf2e_engine/include/pf2e_engine/common/continuation.h)) centralize that propagation so call sites never hand-write the `try/catch(TSavepointStackUnwind)/rethrow` pattern:
+- `continuation::Then(step, tail)` — run `step` then `tail`; `tail` survives a suspension inside `step`
+- `continuation::While(condition, body)` — continuation-aware loop; `TAction::Apply` uses it to drive the block pipeline
+- `continuation::ForEach` / `ForEachOwned` — continuation-aware iteration; `TForEachBlock` uses them
+
+Whether to suspend at all is decided solely by `IInteractionSystem::HandleReactionTrigger` — the analyzer resolves reactions immediately, while the assistant defers them so the game flow is not blocked.
 
 ### Testing Framework
 Tests use GoogleTest with custom mocks ([pf2e_engine/tests/test_lib/](pf2e_engine/tests/test_lib/)):
@@ -260,6 +271,7 @@ Each component has its own CMakeLists.txt; the top-level [CMakeLists.txt](CMakeL
 - **Observable**: `TObservable<Context>` for publish-subscribe state changes
 - **Channel**: `TChannel<T>` for lock-free inter-thread communication (GUI ↔ game logic)
 - **Variant Types**: Heavy use of `std::variant` for polymorphic values
+- **Continuation**: `continuation::While`/`ForEach`/`Then` ([continuation.h](pf2e_engine/include/pf2e_engine/common/continuation.h)) propagate `TSavepointStackUnwind` suspensions across the call stack
 
 ## Known Limitations
 - Weapon selection always chooses first in slots (hardcoded in `choose_weapon.cpp`)
