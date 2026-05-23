@@ -5,7 +5,6 @@ target_sources(pf2e_engine
         block_input.cpp
         calculate_difficulty_class.cpp
         check_ally_adjacent.cpp
-        choose_natural_weapon.cpp
         choose_weapon.cpp
         choose_from_list.cpp
         contribute_damage_bonus.cpp

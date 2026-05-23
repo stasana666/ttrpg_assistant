@@ -39,7 +39,7 @@
             "Charisma": 8
         },
         "actions": [
-            "wolf_jaws_attack",
+            "attack_with_weapon",
             "move"
         ],
         "natural_weapons": [

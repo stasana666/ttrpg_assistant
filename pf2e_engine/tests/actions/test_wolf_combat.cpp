@@ -15,9 +15,9 @@ namespace {
 const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
 }
 
-// Exercises the wolf: a natural-attack action (no inventory weapon, weapon
-// defined in the action's `variables` section) plus the "Pack Attack" feat
-// (+1d4 damage when an ally is adjacent to the target).
+// Exercises the wolf: a natural attack (no inventory weapon -- the jaws live
+// on the creature's `natural_weapons` and are picked by `choose_weapon`) plus
+// the "Pack Attack" feat (+1d4 damage when an ally is adjacent to the target).
 class WolfCombatTest : public ::testing::Test {
 protected:
     using FsDirEntry = std::filesystem::directory_entry;
@@ -76,7 +76,7 @@ TEST_F(WolfCombatTest, NaturalAttackHitsWithoutPack) {
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
-    mock_interaction_.ExpectChoice(0, "next action", "wolf_jaws_attack");
+    mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Warrior");
     mock_rng_.ExpectCall(20, 15);  // attack roll -> hit
     mock_rng_.ExpectCall(6, 5);    // jaws damage d6 (no Pack Attack d4)
@@ -114,7 +114,7 @@ TEST_F(WolfCombatTest, PackAttackAddsBonusDamage) {
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
-    mock_interaction_.ExpectChoice(0, "next action", "wolf_jaws_attack");
+    mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Warrior");
     mock_rng_.ExpectCall(20, 15);  // attack roll -> hit
     mock_rng_.ExpectCall(6, 5);    // jaws damage d6
@@ -152,7 +152,7 @@ TEST_F(WolfCombatTest, PackAttackGatedByAdjacency) {
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
-    mock_interaction_.ExpectChoice(0, "next action", "wolf_jaws_attack");
+    mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Warrior");
     mock_rng_.ExpectCall(20, 15);  // attack roll -> hit
     mock_rng_.ExpectCall(6, 5);    // jaws damage d6 only -- no d4
@@ -189,7 +189,7 @@ TEST_F(WolfCombatTest, PackAttackCriticalDoublesBonus) {
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
-    mock_interaction_.ExpectChoice(0, "next action", "wolf_jaws_attack");
+    mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Warrior");
     mock_rng_.ExpectCall(20, 20);  // natural 20 -> critical hit
     mock_rng_.ExpectCall(6, 5);    // jaws damage d6
