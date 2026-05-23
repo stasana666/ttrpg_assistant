@@ -6,6 +6,7 @@
 class TGameObjectRegistry {
 public:
     void Add(TGameObjectId id, TGameObjectPtr object);
+    bool Contains(TGameObjectId id) const;
 
     template <class T>
     T& Get(TGameObjectId id);

@@ -1,8 +1,6 @@
 #include <weapon_damage_roll.h>
 
-#include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/expressions/expressions.h>
-#include <pf2e_engine/feat.h>
 #include <pf2e_engine/mechanics/characteristics.h>
 #include <pf2e_engine/mechanics/damage.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
@@ -42,30 +40,14 @@ std::unique_ptr<IExpression> MaybeDouble(std::unique_ptr<IExpression> expr, bool
         std::move(expr), std::make_unique<TNumberExpression>(2));
 }
 
-// Exposes an empty $damage_bonus accumulator and runs every feat pipeline of
-// the attacker on the current context, so feats may contribute into it.
-std::shared_ptr<TDamage> GatherDamageBonus(std::shared_ptr<TActionContext> ctx, TPlayer* attacker)
-{
-    auto bonus = std::make_shared<TDamage>();
-    ctx->game_object_registry->Add(kDamageBonusId, bonus);
-    for (const auto& feat : attacker->GetCreature()->Feats()) {
-        if (!feat->pipeline.empty()) {
-            RunSubPipeline(ctx, feat->pipeline.begin()->get());
-        }
-    }
-    return bonus;
-}
-
-// Builds weapon damage (base dice + Strength), evaluates the attacker's feats
-// and folds the resulting $damage_bonus in. On a critical hit every term --
+// Builds weapon damage (base dice + Strength) and folds in $damage_bonus if
+// any feat hooked into this block created one. On a critical hit every term --
 // weapon dice and bonus dice alike -- is doubled.
 void ApplyWeaponDamage(std::shared_ptr<TActionContext> ctx, const TBlockInput& input,
                        TGameObjectId output, bool crit)
 {
     TPlayer* player = std::get<TPlayer*>(input.Get(kAttackerId, ctx));
     TWeapon* weapon = std::get<TWeapon*>(input.Get(kWeaponId, ctx));
-
-    std::shared_ptr<TDamage> bonus = GatherDamageBonus(ctx, player);
 
     auto damage = std::make_shared<TDamage>();
 
@@ -75,8 +57,12 @@ void ApplyWeaponDamage(std::shared_ptr<TActionContext> ctx, const TBlockInput& i
         std::make_unique<TNumberExpression>(str));
     damage->Add(weapon->GetDamageType(), MaybeDouble(std::move(weapon_expr), crit));
 
-    for (auto [type, expr] : *bonus) {
-        damage->Add(type, MaybeDouble(std::make_unique<TBorrowedExpression>(expr), crit));
+    if (ctx->game_object_registry->Contains(kDamageBonusId)) {
+        auto bonus = std::get<std::shared_ptr<TDamage>>(
+            ctx->game_object_registry->GetGameObjectPtr(kDamageBonusId));
+        for (auto [type, expr] : *bonus) {
+            damage->Add(type, MaybeDouble(std::make_unique<TBorrowedExpression>(expr), crit));
+        }
     }
 
     ctx->game_object_registry->Add(output, damage);

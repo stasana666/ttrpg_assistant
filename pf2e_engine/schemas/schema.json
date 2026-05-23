@@ -278,9 +278,10 @@
             "type": "object",
             "properties": {
                 "name": { "type": "string" },
+                "block": { "type": "string" },
                 "pipeline": { "type": "array", "items": {} }
             },
-            "required": ["name", "pipeline"],
+            "required": ["name", "block", "pipeline"],
             "additionalProperties": false
         },
 

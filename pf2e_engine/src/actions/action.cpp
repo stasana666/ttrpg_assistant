@@ -38,7 +38,7 @@ void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player)
     // savepoint) resumes with the remaining blocks intact.
     continuation::While(
         [ctx]() { return ctx->next_block != nullptr; },
-        [ctx]() { ctx->next_block->Apply(ctx); });
+        [ctx]() { ctx->next_block->Run(ctx); });
 }
 
 void TAction::Consume(TPlayer& player)
@@ -69,6 +69,6 @@ void RunSubPipeline(std::shared_ptr<TActionContext> ctx, IActionBlock* first)
     ctx->next_block = first;
     continuation::While(
         [ctx]() { return ctx->next_block != nullptr; },
-        [ctx]() { ctx->next_block->Apply(ctx); });
+        [ctx]() { ctx->next_block->Run(ctx); });
     ctx->next_block = saved;
 }

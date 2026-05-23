@@ -56,6 +56,53 @@
         "feats": [
             {
                 "name": "Pack Attack",
+                "block": "weapon_damage_roll",
+                "pipeline": [
+                    {
+                        "name": "check_pack",
+                        "type": "function_call",
+                        "input": {
+                            "self": "$self",
+                            "target": "$target",
+                            "count": 2
+                        },
+                        "function": "check_ally_adjacent",
+                        "output": [ "pack_check" ]
+                    },
+                    {
+                        "name": "branch",
+                        "type": "switch",
+                        "input": {
+                            "value": "$pack_check"
+                        },
+                        "next_table": {
+                            "critical_failure": "done",
+                            "failure": "done",
+                            "success": "contribute",
+                            "critical_success": "contribute"
+                        }
+                    },
+                    {
+                        "name": "contribute",
+                        "next": "done",
+                        "type": "function_call",
+                        "input": {
+                            "dice": "1d4",
+                            "damage_type": "Piercing",
+                            "damage_bonus": "$damage_bonus"
+                        },
+                        "function": "contribute_damage_bonus",
+                        "output": [ "void" ]
+                    },
+                    {
+                        "name": "done",
+                        "type": "terminate"
+                    }
+                ]
+            },
+            {
+                "name": "Pack Attack (crit)",
+                "block": "crit_weapon_damage_roll",
                 "pipeline": [
                     {
                         "name": "check_pack",

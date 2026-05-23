@@ -1,10 +1,14 @@
 #include <action_block.h>
 
+#include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/common/errors.h>
 #include <pf2e_engine/common/continuation.h>
+#include <pf2e_engine/creature.h>
+#include <pf2e_engine/feat.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/game_object_logic/game_object.h>
+#include <pf2e_engine/player.h>
 #include <pf2e_engine/success_level.h>
 #include <pf2e_engine/common/visit.h>
 
@@ -13,6 +17,19 @@
 #include <sstream>
 
 const TGameObjectId kSuccessLevelId = TGameObjectIdManager::Instance().Register("value");
+static const TGameObjectId kSelfId = TGameObjectIdManager::Instance().Register("self");
+
+void IActionBlock::Run(std::shared_ptr<TActionContext> ctx)
+{
+    TPlayer& self = ctx->game_object_registry->Get<TPlayer>(kSelfId);
+    std::string name = GetName();
+    for (const auto& feat : self.GetCreature()->Feats()) {
+        if (feat->block == name && !feat->pipeline.empty()) {
+            RunSubPipeline(ctx, feat->pipeline.begin()->get());
+        }
+    }
+    Apply(ctx);
+}
 
 constexpr std::string ToString(EBlockType type)
 {
@@ -91,7 +108,7 @@ void TForEachBlock::Apply(std::shared_ptr<TActionContext> ctx)
                 ctx->game_object_registry->Add(*element_id_, target);
                 continuation::ForEach(body_.begin(), body_.end(),
                     [ctx](const std::unique_ptr<IActionBlock>& block) {
-                        block->Apply(ctx);
+                        block->Run(ctx);
                     });
             });
         },

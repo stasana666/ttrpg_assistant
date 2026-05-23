@@ -171,6 +171,7 @@ void TPipelineReader::FunctionCallFillFunction(nlohmann::json& json, TFunctionCa
         throw std::invalid_argument("unknown function block: " + function_name);
     }
     function_block->apply_ = constructor->second(ReadInput(input), output_id);
+    function_block->function_name_ = function_name;
 }
 
 TBlockInput TPipelineReader::ReadInput(nlohmann::json& json)
