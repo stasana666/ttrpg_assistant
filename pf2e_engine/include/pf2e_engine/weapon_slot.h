@@ -31,6 +31,7 @@ public:
     TWeaponDescriptor Equip(THoldedWeapon weapon);
 
     TWeaponDescriptor operator [](size_t idx);
+    const TWeapon& WeaponAt(size_t idx) const;
 
     size_t Size() const;
     bool Empty() const;

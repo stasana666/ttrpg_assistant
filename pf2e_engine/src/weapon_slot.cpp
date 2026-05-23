@@ -11,6 +11,11 @@ auto TWeaponSlots::operator [](size_t idx) -> TWeaponDescriptor
     return TWeaponDescriptor(this, idx);
 }
 
+const TWeapon& TWeaponSlots::WeaponAt(size_t idx) const
+{
+    return weapons_[idx].weapon;
+}
+
 size_t TWeaponSlots::Size() const
 {
     return weapons_.size();

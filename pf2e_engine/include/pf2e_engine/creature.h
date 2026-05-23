@@ -32,6 +32,10 @@ public:
     std::vector<TWeapon>& NaturalWeapons();
     const std::vector<TWeapon>& NaturalWeapons() const;
 
+    // Max reach (in cells) across all weapons this creature can attack with --
+    // inventory and natural. Returns 0 if the creature has no weapons at all.
+    int MaxWeaponReach() const;
+
     int GetLevel() const;
 
     const TProficiency& Proficiency() const;

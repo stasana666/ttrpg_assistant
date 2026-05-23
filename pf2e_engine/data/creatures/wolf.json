@@ -62,7 +62,8 @@
                         "type": "function_call",
                         "input": {
                             "self": "$self",
-                            "target": "$target"
+                            "target": "$target",
+                            "count": 2
                         },
                         "function": "check_ally_adjacent",
                         "output": [ "pack_check" ]

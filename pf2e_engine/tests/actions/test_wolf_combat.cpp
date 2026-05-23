@@ -93,16 +93,18 @@ TEST_F(WolfCombatTest, NaturalAttackHitsWithoutPack) {
     EXPECT_EQ(WarriorHp(battle, 1), 14);
 }
 
-// Two wolves flank the warrior. Wolf A bites; Pack Attack sees ally Wolf B
-// adjacent to the target and contributes +1d4.
+// Three wolves surround the warrior. Wolf A bites; Pack Attack sees both
+// allies (Wolf B and Wolf C) within reach of the target and contributes +1d4.
 TEST_F(WolfCombatTest, PackAttackAddsBonusDamage) {
     TCreature wolf_a = MakeWolf();
     TCreature wolf_b = MakeWolf();
+    TCreature wolf_c = MakeWolf();
     TCreature warrior = MakeWarrior();
 
     TPlayer wolf_a_player(&wolf_a, TPlayerTeam{0}, TPlayerId{0}, "Wolf A", "");
     TPlayer wolf_b_player(&wolf_b, TPlayerTeam{0}, TPlayerId{1}, "Wolf B", "");
-    TPlayer warrior_player(&warrior, TPlayerTeam{1}, TPlayerId{2}, "Warrior", "");
+    TPlayer wolf_c_player(&wolf_c, TPlayerTeam{0}, TPlayerId{2}, "Wolf C", "");
+    TPlayer warrior_player(&warrior, TPlayerTeam{1}, TPlayerId{3}, "Warrior", "");
 
     TBattleMap battle_map = MakeMap();
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
@@ -111,6 +113,8 @@ TEST_F(WolfCombatTest, PackAttackAddsBonusDamage) {
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 10);
     battle.AddPlayer(std::move(wolf_b_player), TPosition{2, 0});
+    mock_rng_.ExpectCall(20, 15);
+    battle.AddPlayer(std::move(wolf_c_player), TPosition{1, 1});
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
@@ -122,25 +126,28 @@ TEST_F(WolfCombatTest, PackAttackAddsBonusDamage) {
 
     // Warrior HP 21, damage (5 + 2) + 3 = 10 -> 11.
     mock_interaction_.AddCheckCallback([&]() {
-        EXPECT_EQ(WarriorHp(battle, 2), 11);
+        EXPECT_EQ(WarriorHp(battle, 3), 11);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
     mock_rng_.Verify();
     mock_interaction_.Verify();
 
-    EXPECT_EQ(WarriorHp(battle, 2), 11);
+    EXPECT_EQ(WarriorHp(battle, 3), 11);
 }
 
-// Wolf B is far from the warrior, so Pack Attack does not trigger -- no d4.
-TEST_F(WolfCombatTest, PackAttackGatedByAdjacency) {
+// Only Wolf B is in reach of the target -- Wolf C is far. One adjacent ally
+// is below Pack Attack's threshold of two, so no d4 is rolled.
+TEST_F(WolfCombatTest, PackAttackGatedByAllyCount) {
     TCreature wolf_a = MakeWolf();
     TCreature wolf_b = MakeWolf();
+    TCreature wolf_c = MakeWolf();
     TCreature warrior = MakeWarrior();
 
     TPlayer wolf_a_player(&wolf_a, TPlayerTeam{0}, TPlayerId{0}, "Wolf A", "");
     TPlayer wolf_b_player(&wolf_b, TPlayerTeam{0}, TPlayerId{1}, "Wolf B", "");
-    TPlayer warrior_player(&warrior, TPlayerTeam{1}, TPlayerId{2}, "Warrior", "");
+    TPlayer wolf_c_player(&wolf_c, TPlayerTeam{0}, TPlayerId{2}, "Wolf C", "");
+    TPlayer warrior_player(&warrior, TPlayerTeam{1}, TPlayerId{3}, "Warrior", "");
 
     TBattleMap battle_map = MakeMap();
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
@@ -148,7 +155,9 @@ TEST_F(WolfCombatTest, PackAttackGatedByAdjacency) {
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 10);
-    battle.AddPlayer(std::move(wolf_b_player), TPosition{5, 5});  // far away
+    battle.AddPlayer(std::move(wolf_b_player), TPosition{2, 0});      // in reach
+    mock_rng_.ExpectCall(20, 15);
+    battle.AddPlayer(std::move(wolf_c_player), TPosition{5, 5});      // far away
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
@@ -159,25 +168,27 @@ TEST_F(WolfCombatTest, PackAttackGatedByAdjacency) {
 
     // Warrior HP 21, damage 5 + 2 = 7 -> 14.
     mock_interaction_.AddCheckCallback([&]() {
-        EXPECT_EQ(WarriorHp(battle, 2), 14);
+        EXPECT_EQ(WarriorHp(battle, 3), 14);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
     mock_rng_.Verify();
     mock_interaction_.Verify();
 
-    EXPECT_EQ(WarriorHp(battle, 2), 14);
+    EXPECT_EQ(WarriorHp(battle, 3), 14);
 }
 
 // On a critical hit the Pack Attack d4 doubles along with the weapon damage.
 TEST_F(WolfCombatTest, PackAttackCriticalDoublesBonus) {
     TCreature wolf_a = MakeWolf();
     TCreature wolf_b = MakeWolf();
+    TCreature wolf_c = MakeWolf();
     TCreature warrior = MakeWarrior();
 
     TPlayer wolf_a_player(&wolf_a, TPlayerTeam{0}, TPlayerId{0}, "Wolf A", "");
     TPlayer wolf_b_player(&wolf_b, TPlayerTeam{0}, TPlayerId{1}, "Wolf B", "");
-    TPlayer warrior_player(&warrior, TPlayerTeam{1}, TPlayerId{2}, "Warrior", "");
+    TPlayer wolf_c_player(&wolf_c, TPlayerTeam{0}, TPlayerId{2}, "Wolf C", "");
+    TPlayer warrior_player(&warrior, TPlayerTeam{1}, TPlayerId{3}, "Warrior", "");
 
     TBattleMap battle_map = MakeMap();
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
@@ -186,6 +197,8 @@ TEST_F(WolfCombatTest, PackAttackCriticalDoublesBonus) {
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 10);
     battle.AddPlayer(std::move(wolf_b_player), TPosition{2, 0});
+    mock_rng_.ExpectCall(20, 15);
+    battle.AddPlayer(std::move(wolf_c_player), TPosition{1, 1});
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
@@ -197,12 +210,12 @@ TEST_F(WolfCombatTest, PackAttackCriticalDoublesBonus) {
 
     // Warrior HP 21, crit damage ((5 + 2) + 3) * 2 = 20 -> 1.
     mock_interaction_.AddCheckCallback([&]() {
-        EXPECT_EQ(WarriorHp(battle, 2), 1);
+        EXPECT_EQ(WarriorHp(battle, 3), 1);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
     mock_rng_.Verify();
     mock_interaction_.Verify();
 
-    EXPECT_EQ(WarriorHp(battle, 2), 1);
+    EXPECT_EQ(WarriorHp(battle, 3), 1);
 }
