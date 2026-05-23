@@ -25,6 +25,8 @@ void FAddCondition::operator ()(std::shared_ptr<TActionContext> ctx) const
             return MultipleAttackPenaltyHandle(ctx);
         case ECondition::Frightened:
             return FrightenedHandle(ctx);
+        case ECondition::Prone:
+            return ProneHandle(ctx);
         case ECondition::COUNT:
             throw std::runtime_error("COUNT is not valid value of ECondition: FAddCondition");
     }
@@ -36,9 +38,15 @@ void FAddCondition::MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> 
 
     int current = attacker.GetCreature()->Get(ECondition::MultipleAttackPenalty);
 
-    TWeapon& weapon = *std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
-
-    int increase = weapon.HasTrait(EWeaponTrait::Agile) ? 4 : 5;
+    // Weapon is optional: Strike provides one (Agile -> 4, non-Agile -> 5);
+    // weaponless attack-trait actions (e.g. Trip) default to 5.
+    int increase = 5;
+    if (input_.Has(kWeaponId)) {
+        TWeapon& weapon = *std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
+        if (weapon.HasTrait(EWeaponTrait::Agile)) {
+            increase = 4;
+        }
+    }
 
     auto canceler = ctx->effect_manager->AddEffect(TPlayerConditionSet{
         .player = &attacker,
@@ -79,4 +87,11 @@ void FAddCondition::FrightenedHandle(std::shared_ptr<TActionContext> ctx) const
         .events_before_call = { event },
         .callback = [canceler]() { return canceler(EEffectCancelPolicy::ReduceUntilZero); },
     });
+}
+
+void FAddCondition::ProneHandle(std::shared_ptr<TActionContext> ctx) const
+{
+    // Prone is a binary flag with no auto-expiration; Stand removes it.
+    TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
+    ctx->transformator->ChangeCondition(target.GetCreature(), ECondition::Prone, 1);
 }

@@ -141,6 +141,16 @@ int& TCreature::Movement()
     return movement_;
 }
 
+ECreatureSize TCreature::Size() const
+{
+    return size_;
+}
+
+void TCreature::SetSize(ECreatureSize size)
+{
+    size_ = size;
+}
+
 std::vector<const TReaction*> TCreature::Reactions(ETrigger trigger_type) const
 {
     std::vector<const TReaction*> reactions;

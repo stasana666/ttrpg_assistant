@@ -5,6 +5,7 @@
         "level": 1,
         "race_hitpoints": 8,
         "hitpoint_per_level": 10,
+        "size": "Medium",
         "proficiency": {
             "armor_category": {
                 "Heavy": "trained",
@@ -50,7 +51,9 @@
         "actions": [
             "attack_with_weapon",
             "demoralize",
-            "move"
+            "move",
+            "trip",
+            "stand"
         ],
         "movement": 5
     }

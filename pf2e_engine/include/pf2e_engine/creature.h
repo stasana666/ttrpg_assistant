@@ -5,6 +5,7 @@
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/reaction.h>
 #include <pf2e_engine/condition.h>
+#include <pf2e_engine/creature_size.h>
 #include <pf2e_engine/feat.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/mechanics/characteristics.h>
@@ -53,6 +54,9 @@ public:
 
     int& Movement();
 
+    ECreatureSize Size() const;
+    void SetSize(ECreatureSize size);
+
     std::vector<const TReaction*> Reactions(ETrigger) const;
 
 private:
@@ -66,6 +70,7 @@ private:
     TResourcePool resources_;
 
     int movement_;
+    ECreatureSize size_ = ECreatureSize::Medium;
 
     TArmor armor_;
     TWeaponSlots weapons_;

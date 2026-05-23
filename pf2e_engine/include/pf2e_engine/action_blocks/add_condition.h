@@ -12,4 +12,5 @@ public:
 private:
     void MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> ctx) const;
     void FrightenedHandle(std::shared_ptr<TActionContext> ctx) const;
+    void ProneHandle(std::shared_ptr<TActionContext> ctx) const;
 };

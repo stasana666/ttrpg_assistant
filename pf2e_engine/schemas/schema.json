@@ -246,6 +246,10 @@
                 "movement": {
                     "type": "integer"
                 },
+                "size": {
+                    "type": "string",
+                    "enum": ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
+                },
                 "equipped": { "$ref": "#/$defs/pf2e_creature_equipped" },
                 "resources": { "$ref": "#/$defs/pf2e_creature_resources" },
                 "proficiency": { "$ref": "#/$defs/pf2e_proficiency" },
@@ -269,7 +273,8 @@
             "required": [
                 "characteristics",
                 "level",
-                "race_hitpoints"
+                "race_hitpoints",
+                "size"
             ],
             "additionalProperties": false
         },

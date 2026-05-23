@@ -6,6 +6,7 @@
 enum class ECondition {
     MultipleAttackPenalty,
     Frightened,
+    Prone,
     COUNT,
 };
 

@@ -9,8 +9,10 @@ target_sources(pf2e_engine
         choose_from_list.cpp
         contribute_damage_bonus.cpp
         deal_damage.cpp
+        flat_damage_roll.cpp
         get_parameter.cpp
         get_targets_in_area.cpp
+        remove_condition.cpp
         roll_against_difficulty_class.cpp
         spell_damage_roll.cpp
         weapon_damage_roll.cpp

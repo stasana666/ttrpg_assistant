@@ -20,6 +20,7 @@
 #include "weapon.h"
 
 #include <pf2e_engine/actions/action_reader.h>
+#include <pf2e_engine/creature_size.h>
 #include <pf2e_engine/feat.h>
 
 const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.json";
@@ -223,6 +224,7 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
     int race_hp = json_game_object["race_hitpoints"];
     int hp_per_level = json_game_object["hitpoint_per_level"];
     int movement = json_game_object["movement"];
+    ECreatureSize size = CreatureSizeFromString(json_game_object["size"]);
 
     TProficiency proficiency = ReadProficiency(json_game_object);
 
@@ -261,10 +263,11 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
     }
 
-    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency, movement, feats, natural_weapons]() {
+    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency, movement, size, feats, natural_weapons]() {
         TArmor armor = armor_id ? this->Create<TArmor>(*armor_id) : TArmor{};
         THitPoints hp(race_hp + (hp_per_level + stats[ECharacteristic::Constitution].GetMod()) * proficiency.GetLevel());
         TCreature creature(stats, proficiency, armor, hp);
+        creature.SetSize(size);
         creature.Resources() = resource_pool;
 
         auto hand_id = TResourceIdManager::Instance().Register("hand");

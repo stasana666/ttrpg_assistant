@@ -9,6 +9,8 @@ std::string ToString(ECondition condition)
             return "MultipleAttackPenalty";
         case ECondition::Frightened:
             return "Frightened";
+        case ECondition::Prone:
+            return "Prone";
         case ECondition::COUNT:
             throw std::invalid_argument("COUNT is not valid ECondition");
     }

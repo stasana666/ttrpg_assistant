@@ -1,0 +1,29 @@
+{
+    "type": "pf2e_action",
+    "name": "stand",
+    "pf2e_action": {
+        "name": "stand",
+        "resources": [
+            {
+                "name": "action",
+                "count": 1
+            }
+        ],
+        "pipeline": [
+            {
+                "name": "remove_prone",
+                "type": "function_call",
+                "input": {
+                    "target": "$self",
+                    "condition": "Prone"
+                },
+                "function": "remove_condition",
+                "output": ["void"]
+            },
+            {
+                "name": "finish",
+                "type": "terminate"
+            }
+        ]
+    }
+}

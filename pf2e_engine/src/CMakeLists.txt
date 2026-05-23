@@ -5,6 +5,7 @@ target_sources(pf2e_engine
         combat_calculator.cpp
         condition.cpp
         creature.cpp
+        creature_size.cpp
         effect_manager.cpp
         initiative_order.cpp
         player.cpp
