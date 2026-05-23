@@ -40,7 +40,8 @@
         },
         "actions": [
             "fireball",
-            "move"
+            "move",
+            "remove_fear"
         ],
         "movement": 5
     }
