@@ -4,6 +4,9 @@
 #include <pf2e_engine/inventory/item.h>
 #include <pf2e_engine/traits_haver.h>
 
+#include <nlohmann/json_fwd.hpp>
+
+#include <string_view>
 #include <vector>
 
 enum class EWeaponCategory {
@@ -46,3 +49,8 @@ private:
     EWeaponCategory category_;
     std::string name_;
 };
+
+// Builds a TWeapon from a "pf2e_weapon" core JSON object (base_die_size,
+// damage_type, category, optional traits). Shared by the game-object factory
+// and the action-variable reader.
+TWeapon WeaponFromJson(std::string_view name, const nlohmann::json& weapon_core);

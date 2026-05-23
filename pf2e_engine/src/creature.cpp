@@ -82,6 +82,16 @@ std::vector<std::shared_ptr<TAction>>& TCreature::Actions()
     return actions_;
 }
 
+void TCreature::AddFeat(std::shared_ptr<TCreatureFeat> feat)
+{
+    feats_.emplace_back(std::move(feat));
+}
+
+const std::vector<std::shared_ptr<TCreatureFeat>>& TCreature::Feats() const
+{
+    return feats_;
+}
+
 int TCreature::Get(ECondition condition) const
 {
     auto it = conditions_.find(condition);

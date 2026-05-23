@@ -4,8 +4,10 @@ target_sources(pf2e_engine
         base_function.cpp
         block_input.cpp
         calculate_difficulty_class.cpp
+        check_ally_adjacent.cpp
         choose_weapon.cpp
         choose_from_list.cpp
+        contribute_damage_bonus.cpp
         deal_damage.cpp
         get_parameter.cpp
         get_targets_in_area.cpp

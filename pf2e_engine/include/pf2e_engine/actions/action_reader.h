@@ -46,4 +46,5 @@ public:
 
 private:
     TAction::TResources ReadResources(nlohmann::json& json) const;
+    TAction::TVariables ReadVariables(nlohmann::json& json) const;
 };

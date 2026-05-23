@@ -12,3 +12,20 @@ target_include_directories(test_actions
     PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/include/pf2e_engine/actions
     PRIVATE ${CMAKE_BINARY_DIR}/cpp_config
 )
+
+add_executable(test_wolf_combat
+    test_wolf_combat.cpp
+)
+
+target_link_libraries(test_wolf_combat
+    gtest_main
+    pf2e_engine
+    nlohmann_json
+)
+
+target_include_directories(test_wolf_combat
+    PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/include/pf2e_engine/actions
+    PRIVATE ${CMAKE_BINARY_DIR}/cpp_config
+)
+
+gtest_discover_tests(test_wolf_combat)

@@ -5,6 +5,7 @@
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/reaction.h>
 #include <pf2e_engine/condition.h>
+#include <pf2e_engine/feat.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/mechanics/characteristics.h>
 #include <pf2e_engine/mechanics/damage_resolver.h>
@@ -37,6 +38,9 @@ public:
     void AddAction(std::shared_ptr<TAction> action);
     std::vector<std::shared_ptr<TAction>>& Actions();
 
+    void AddFeat(std::shared_ptr<TCreatureFeat> feat);
+    const std::vector<std::shared_ptr<TCreatureFeat>>& Feats() const;
+
     int Get(ECondition condition) const;
     void Set(ECondition condition, int value);
 
@@ -60,4 +64,5 @@ private:
     TWeaponSlots weapons_;
     std::vector<std::shared_ptr<TAction>> actions_;
     std::vector<std::shared_ptr<TReaction>> reactions_;
+    std::vector<std::shared_ptr<TCreatureFeat>> feats_;
 };
