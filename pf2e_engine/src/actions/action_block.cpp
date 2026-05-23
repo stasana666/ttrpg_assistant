@@ -12,6 +12,7 @@
 #include <pf2e_engine/success_level.h>
 #include <pf2e_engine/common/visit.h>
 
+#include <algorithm>
 #include <cassert>
 #include <stdexcept>
 #include <sstream>
@@ -24,7 +25,12 @@ void IActionBlock::Run(std::shared_ptr<TActionContext> ctx)
     TPlayer& self = ctx->game_object_registry->Get<TPlayer>(kSelfId);
     std::string name = GetName();
     for (const auto& feat : self.GetCreature()->Feats()) {
-        if (feat->block == name && !feat->pipeline.empty()) {
+        if (feat->pipeline.empty()) {
+            continue;
+        }
+        bool matches = std::find(feat->blocks.begin(), feat->blocks.end(), name)
+            != feat->blocks.end();
+        if (matches) {
             RunSubPipeline(ctx, feat->pipeline.begin()->get());
         }
     }

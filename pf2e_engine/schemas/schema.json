@@ -278,7 +278,12 @@
             "type": "object",
             "properties": {
                 "name": { "type": "string" },
-                "block": { "type": "string" },
+                "block": {
+                    "oneOf": [
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
+                    ]
+                },
                 "pipeline": { "type": "array", "items": {} }
             },
             "required": ["name", "block", "pipeline"],

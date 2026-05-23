@@ -248,7 +248,14 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
             TPipelineReader reader;
             auto feat = std::make_shared<TCreatureFeat>();
             feat->name = feat_json["name"];
-            feat->block = feat_json["block"];
+            const auto& block_json = feat_json["block"];
+            if (block_json.is_string()) {
+                feat->blocks.push_back(block_json.get<std::string>());
+            } else {
+                for (const auto& name : block_json) {
+                    feat->blocks.push_back(name.get<std::string>());
+                }
+            }
             feat->pipeline = reader.ReadPipeline(feat_json["pipeline"]);
             feats.push_back(std::move(feat));
         }
