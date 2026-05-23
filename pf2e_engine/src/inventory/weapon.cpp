@@ -1,4 +1,7 @@
 #include <weapon.h>
+
+#include <nlohmann/json.hpp>
+
 #include <stdexcept>
 
 
@@ -96,3 +99,29 @@ std::string_view TWeapon::Name() const
 }
 
 // Trait methods (Traits, HasTrait, AddTrait) are now inherited from TTraitsHaver<EWeaponTrait>
+
+TWeapon WeaponFromJson(std::string_view name, const nlohmann::json& weapon_core)
+{
+    int base_die_size = weapon_core["base_die_size"];
+    TDamage::Type damage_type = DamageTypeFromString(std::string{weapon_core["damage_type"]});
+    EWeaponCategory category = WeaponCategoryFromString(weapon_core["category"]);
+    TWeapon result(name, base_die_size, damage_type, category);
+
+    if (weapon_core.contains("traits")) {
+        for (const auto& trait_json : weapon_core["traits"]) {
+            std::string trait_name = trait_json["name"];
+            EWeaponTrait trait_type = WeaponTraitFromString(trait_name);
+
+            TWeaponTrait trait;
+            trait.type = trait_type;
+            if (trait_json.contains("value")) {
+                trait.value = trait_json["value"].get<int>();
+            } else {
+                trait.value = std::monostate{};
+            }
+            result.AddTrait(trait);
+        }
+    }
+
+    return result;
+}

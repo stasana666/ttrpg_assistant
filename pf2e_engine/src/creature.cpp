@@ -4,6 +4,8 @@
 #include <pf2e_engine/common/errors.h>
 #include <pf2e_engine/proficiency.h>
 
+#include <algorithm>
+
 TCreature::TCreature(TCharacteristicSet stats, TProficiency proficiency, TArmor armor, THitPoints hitpoints)
     : stats_(stats)
     , proficiency_(proficiency)
@@ -52,6 +54,34 @@ TWeaponSlots& TCreature::Weapons()
     return weapons_;
 }
 
+std::vector<TWeapon>& TCreature::NaturalWeapons()
+{
+    return natural_weapons_;
+}
+
+const std::vector<TWeapon>& TCreature::NaturalWeapons() const
+{
+    return natural_weapons_;
+}
+
+int TCreature::MaxWeaponReach() const
+{
+    // TODO: TWeapon has no `reach` field yet. PF2e melee defaults to 5ft
+    // (1 cell); reach weapons (e.g. glaive) extend to 10ft (2 cells). Once a
+    // reach attribute exists, replace the literal 1 below with weapon.Reach().
+    int reach = 0;
+    auto consider = [&](const TWeapon&) {
+        reach = std::max(reach, 1);
+    };
+    for (size_t i = 0; i < weapons_.Size(); ++i) {
+        consider(weapons_.WeaponAt(i));
+    }
+    for (const TWeapon& weapon : natural_weapons_) {
+        consider(weapon);
+    }
+    return reach;
+}
+
 const TProficiency& TCreature::Proficiency() const
 {
     return proficiency_;
@@ -80,6 +110,16 @@ void TCreature::AddAction(std::shared_ptr<TAction> action)
 std::vector<std::shared_ptr<TAction>>& TCreature::Actions()
 {
     return actions_;
+}
+
+void TCreature::AddFeat(std::shared_ptr<TCreatureFeat> feat)
+{
+    feats_.emplace_back(std::move(feat));
+}
+
+const std::vector<std::shared_ptr<TCreatureFeat>>& TCreature::Feats() const
+{
+    return feats_;
 }
 
 int TCreature::Get(ECondition condition) const

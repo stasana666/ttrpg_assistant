@@ -19,6 +19,9 @@
 #include "resources.h"
 #include "weapon.h"
 
+#include <pf2e_engine/actions/action_reader.h>
+#include <pf2e_engine/feat.h>
+
 const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.json";
 
 const std::unordered_map<std::string, TGameObjectFactory::FMethod>
@@ -117,31 +120,8 @@ void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object, TGameObject
 
 void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    int base_die_size = json_game_object["base_die_size"];
-    TDamage::Type damage_type = DamageTypeFromString(std::string{json_game_object["damage_type"]});
-    EWeaponCategory category = WeaponCategoryFromString(json_game_object["category"]);
     std::string_view name = TGameObjectIdManager::Instance().Name(id);
-    TWeapon result(name, base_die_size, damage_type, category);
-
-    // Load traits if present
-    if (json_game_object.contains("traits")) {
-        for (const auto& trait_json : json_game_object["traits"]) {
-            std::string trait_name = trait_json["name"];
-            EWeaponTrait trait_type = WeaponTraitFromString(trait_name);
-
-            TWeaponTrait trait;
-            trait.type = trait_type;
-
-            // Check if trait has a value
-            if (trait_json.contains("value")) {
-                trait.value = trait_json["value"].get<int>();
-            } else {
-                trait.value = std::monostate{};
-            }
-
-            result.AddTrait(trait);
-        }
-    }
+    TWeapon result = WeaponFromJson(name, json_game_object);
 
     weapons_.insert({id, [result]() { return result; }});
 }
@@ -246,7 +226,42 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
     TProficiency proficiency = ReadProficiency(json_game_object);
 
-    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency, movement]() {
+    // Parse natural weapons (jaws, claws, etc.) — embedded weapon definitions
+    // that live on the creature itself, not in inventory. Shared across all
+    // instances of this creature; an FChooseNaturalWeapon block in an attack
+    // action looks one up by name at runtime.
+    std::vector<TWeapon> natural_weapons;
+    if (json_game_object.contains("natural_weapons")) {
+        for (auto& weapon_json : json_game_object["natural_weapons"]) {
+            std::string weapon_name = weapon_json["name"];
+            natural_weapons.push_back(
+                WeaponFromJson(weapon_name, weapon_json["pf2e_weapon"]));
+        }
+    }
+
+    // Parse persistent feats (each carries its own block pipeline). Pipelines
+    // are parsed once here and shared across all instances of this creature,
+    // exactly like actions.
+    std::vector<std::shared_ptr<TCreatureFeat>> feats;
+    if (json_game_object.contains("feats")) {
+        for (auto& feat_json : json_game_object["feats"]) {
+            TPipelineReader reader;
+            auto feat = std::make_shared<TCreatureFeat>();
+            feat->name = feat_json["name"];
+            const auto& block_json = feat_json["block"];
+            if (block_json.is_string()) {
+                feat->blocks.push_back(block_json.get<std::string>());
+            } else {
+                for (const auto& name : block_json) {
+                    feat->blocks.push_back(name.get<std::string>());
+                }
+            }
+            feat->pipeline = reader.ReadPipeline(feat_json["pipeline"]);
+            feats.push_back(std::move(feat));
+        }
+    }
+
+    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency, movement, feats, natural_weapons]() {
         TArmor armor = armor_id ? this->Create<TArmor>(*armor_id) : TArmor{};
         THitPoints hp(race_hp + (hp_per_level + stats[ECharacteristic::Constitution].GetMod()) * proficiency.GetLevel());
         TCreature creature(stats, proficiency, armor, hp);
@@ -267,6 +282,14 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
         for (auto action_id : actions) {
             creature.AddAction(Create<TAction>(action_id));
+        }
+
+        for (const auto& feat : feats) {
+            creature.AddFeat(feat);
+        }
+
+        for (const auto& weapon : natural_weapons) {
+            creature.NaturalWeapons().push_back(weapon);
         }
 
         creature.Movement() = movement;

@@ -8,15 +8,17 @@ static const TGameObjectId kCreatureId = TGameObjectIdManager::Instance().Regist
 void FChooseWeapon::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer* player = std::get<TPlayer*>(input_.Get(kCreatureId, ctx));
-    TWeaponSlots& weapons = player->GetCreature()->Weapons();
-    if (weapons.Empty()) {
-        throw std::logic_error("can't find weapon");
-    }
-    if (weapons.Size() > 1) {
-        // TODO: нужно спрашивать пользователя каким оружием он хочет ударить, а в дальнейшем добавить более сложную логику.
-        // Сейчас выбираем первое в списке - условно в ведущей руке
-        ctx->game_object_registry->Add(output_, TGameObjectPtr{&weapons[0].Weapon()});
+    TWeaponSlots& inventory = player->GetCreature()->Weapons();
+    std::vector<TWeapon>& natural = player->GetCreature()->NaturalWeapons();
+    // TODO: ask the user which weapon to use; for now pick the first available,
+    // preferring an inventory weapon over a natural one.
+    if (!inventory.Empty()) {
+        ctx->game_object_registry->Add(output_, TGameObjectPtr{&inventory[0].Weapon()});
         return;
     }
-    ctx->game_object_registry->Add(output_, TGameObjectPtr{&weapons[0].Weapon()});
+    if (!natural.empty()) {
+        ctx->game_object_registry->Add(output_, TGameObjectPtr{&natural.front()});
+        return;
+    }
+    throw std::logic_error("can't find weapon");
 }

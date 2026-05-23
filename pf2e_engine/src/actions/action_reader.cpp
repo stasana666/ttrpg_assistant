@@ -5,7 +5,9 @@
 #include <pf2e_engine/action_blocks/add_condition.h>
 #include <pf2e_engine/action_blocks/block_input.h>
 #include <pf2e_engine/action_blocks/calculate_difficulty_class.h>
+#include <pf2e_engine/action_blocks/check_ally_adjacent.h>
 #include <pf2e_engine/action_blocks/choose_weapon.h>
+#include <pf2e_engine/action_blocks/contribute_damage_bonus.h>
 #include <pf2e_engine/action_blocks/deal_damage.h>
 #include <pf2e_engine/action_blocks/roll_against_difficulty_class.h>
 #include <pf2e_engine/action_blocks/weapon_damage_roll.h>
@@ -16,6 +18,7 @@
 #include <pf2e_engine/action_blocks/spell_damage_roll.h>
 
 #include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/common/errors.h>
 
 #include <pf2e_engine/success_level.h>
@@ -57,6 +60,8 @@ TPipelineReader::kFunctionMapping{
     { "get_targets_in_area", [](TBlockInput&& input, TGameObjectId output) { return FGetTargetsInArea(std::move(input), output); } },
     { "choose_from_list", [](TBlockInput&& input, TGameObjectId output) { return FChooseFromList(std::move(input), output); } },
     { "spell_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FSpellDamageRoll(std::move(input), output); } },
+    { "check_ally_adjacent", [](TBlockInput&& input, TGameObjectId output) { return FCheckAllyAdjacent(std::move(input), output); } },
+    { "contribute_damage_bonus", [](TBlockInput&& input, TGameObjectId output) { return FContributeDamageBonus(std::move(input), output); } },
 };
 
 TAction TActionReader::ReadAction(nlohmann::json& json)
@@ -64,9 +69,32 @@ TAction TActionReader::ReadAction(nlohmann::json& json)
     TPipelineReader pipeline_reader;
     auto pipeline = pipeline_reader.ReadPipeline(json["pipeline"]);
     TAction::TResources resources = ReadResources(json["resources"]);
-    TAction action(std::move(pipeline), std::move(resources), json["name"]);
+    TAction::TVariables variables = ReadVariables(json);
+    TAction action(std::move(pipeline), std::move(resources), json["name"],
+                   std::move(variables));
 
     return action;
+}
+
+TAction::TVariables TActionReader::ReadVariables(nlohmann::json& json) const
+{
+    TAction::TVariables variables;
+    if (!json.contains("variables")) {
+        return variables;
+    }
+    for (auto& [var_name, var_def] : json["variables"].items()) {
+        std::string type = var_def["type"];
+        if (type != "pf2e_weapon") {
+            throw std::runtime_error("action variable type not supported yet: " + type);
+        }
+        std::string weapon_name = var_def.value("name", var_name);
+        variables.push_back(TAction::TActionVariable{
+            .id = TGameObjectIdManager::Instance().Register(var_name),
+            .weapon = std::make_shared<TWeapon>(
+                WeaponFromJson(weapon_name, var_def["pf2e_weapon"])),
+        });
+    }
+    return variables;
 }
 
 TAction::TResources TActionReader::ReadResources(nlohmann::json& json) const
@@ -143,6 +171,7 @@ void TPipelineReader::FunctionCallFillFunction(nlohmann::json& json, TFunctionCa
         throw std::invalid_argument("unknown function block: " + function_name);
     }
     function_block->apply_ = constructor->second(ReadInput(input), output_id);
+    function_block->function_name_ = function_name;
 }
 
 TBlockInput TPipelineReader::ReadInput(nlohmann::json& json)

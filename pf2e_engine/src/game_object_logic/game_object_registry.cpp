@@ -6,6 +6,11 @@ void TGameObjectRegistry::Add(TGameObjectId id, TGameObjectPtr object)
     objects_.insert({id, object});
 }
 
+bool TGameObjectRegistry::Contains(TGameObjectId id) const
+{
+    return objects_.contains(id);
+}
+
 TGameObjectPtr TGameObjectRegistry::GetGameObjectPtr(TGameObjectId id)
 {
     return objects_.at(id);

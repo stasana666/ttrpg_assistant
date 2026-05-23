@@ -254,6 +254,16 @@
                     "items": {
                         "type": "string"
                     }
+                },
+                "feats": {
+                    "type": "array",
+                    "default": [],
+                    "items": { "$ref": "#/$defs/pf2e_creature_feat" }
+                },
+                "natural_weapons": {
+                    "type": "array",
+                    "default": [],
+                    "items": { "$ref": "#/$defs/pf2e_weapon" }
                 }
             },
             "required": [
@@ -261,6 +271,22 @@
                 "level",
                 "race_hitpoints"
             ],
+            "additionalProperties": false
+        },
+
+        "pf2e_creature_feat": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "block": {
+                    "oneOf": [
+                        { "type": "string" },
+                        { "type": "array", "items": { "type": "string" } }
+                    ]
+                },
+                "pipeline": { "type": "array", "items": {} }
+            },
+            "required": ["name", "block", "pipeline"],
             "additionalProperties": false
         },
 
@@ -281,6 +307,14 @@
         "pf2e_action_data": {
             "type": "object",
             "properties": {
+                "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": { "type": { "type": "string" } },
+                        "required": ["type"]
+                    }
+                },
                 "pipeline": {
                     "type": "array",
                     "items": {}
