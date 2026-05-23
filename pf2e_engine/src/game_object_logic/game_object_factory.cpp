@@ -226,6 +226,19 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
     TProficiency proficiency = ReadProficiency(json_game_object);
 
+    // Parse natural weapons (jaws, claws, etc.) — embedded weapon definitions
+    // that live on the creature itself, not in inventory. Shared across all
+    // instances of this creature; an FChooseNaturalWeapon block in an attack
+    // action looks one up by name at runtime.
+    std::vector<TWeapon> natural_weapons;
+    if (json_game_object.contains("natural_weapons")) {
+        for (auto& weapon_json : json_game_object["natural_weapons"]) {
+            std::string weapon_name = weapon_json["name"];
+            natural_weapons.push_back(
+                WeaponFromJson(weapon_name, weapon_json["pf2e_weapon"]));
+        }
+    }
+
     // Parse persistent feats (each carries its own block pipeline). Pipelines
     // are parsed once here and shared across all instances of this creature,
     // exactly like actions.
@@ -240,7 +253,7 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
     }
 
-    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency, movement, feats]() {
+    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency, movement, feats, natural_weapons]() {
         TArmor armor = armor_id ? this->Create<TArmor>(*armor_id) : TArmor{};
         THitPoints hp(race_hp + (hp_per_level + stats[ECharacteristic::Constitution].GetMod()) * proficiency.GetLevel());
         TCreature creature(stats, proficiency, armor, hp);
@@ -265,6 +278,10 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
         for (const auto& feat : feats) {
             creature.AddFeat(feat);
+        }
+
+        for (const auto& weapon : natural_weapons) {
+            creature.NaturalWeapons().push_back(weapon);
         }
 
         creature.Movement() = movement;

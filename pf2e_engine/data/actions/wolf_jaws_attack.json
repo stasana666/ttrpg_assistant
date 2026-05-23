@@ -9,18 +9,17 @@
                 "count": 1
             }
         ],
-        "variables": {
-            "weapon": {
-                "type": "pf2e_weapon",
-                "name": "jaws",
-                "pf2e_weapon": {
-                    "base_die_size": 6,
-                    "damage_type": "Piercing",
-                    "category": "Unarmed"
-                }
-            }
-        },
         "pipeline": [
+            {
+                "name": "pick_weapon",
+                "type": "function_call",
+                "input": {
+                    "creature": "$self",
+                    "name": "jaws"
+                },
+                "function": "choose_natural_weapon",
+                "output": [ "weapon" ]
+            },
             {
                 "name": "get_targets",
                 "type": "function_call",

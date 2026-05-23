@@ -6,6 +6,7 @@
 #include <pf2e_engine/action_blocks/block_input.h>
 #include <pf2e_engine/action_blocks/calculate_difficulty_class.h>
 #include <pf2e_engine/action_blocks/check_ally_adjacent.h>
+#include <pf2e_engine/action_blocks/choose_natural_weapon.h>
 #include <pf2e_engine/action_blocks/choose_weapon.h>
 #include <pf2e_engine/action_blocks/contribute_damage_bonus.h>
 #include <pf2e_engine/action_blocks/deal_damage.h>
@@ -50,6 +51,7 @@ const std::unordered_map<std::string, TPipelineReader::FBlockFunction>
 TPipelineReader::kFunctionMapping{
     { "add_condition", [](TBlockInput&& input, TGameObjectId output) { return FAddCondition(std::move(input), output); } },
     { "calculate_DC", [](TBlockInput&& input, TGameObjectId output) { return FCalculateDifficultyClass(std::move(input), output); } },
+    { "choose_natural_weapon", [](TBlockInput&& input, TGameObjectId output) { return FChooseNaturalWeapon(std::move(input), output); } },
     { "choose_weapon", [](TBlockInput&& input, TGameObjectId output) { return FChooseWeapon(std::move(input), output); } },
     { "crit_weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FCritWeaponDamageRoll(std::move(input), output); } },
     { "deal_damage", [](TBlockInput&& input, TGameObjectId output) { return FDealDamage(std::move(input), output); } },

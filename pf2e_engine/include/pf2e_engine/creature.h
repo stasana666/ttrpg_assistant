@@ -29,6 +29,9 @@ public:
     const TArmor& Armor() const;
     TWeaponSlots& Weapons();
 
+    std::vector<TWeapon>& NaturalWeapons();
+    const std::vector<TWeapon>& NaturalWeapons() const;
+
     int GetLevel() const;
 
     const TProficiency& Proficiency() const;
@@ -62,6 +65,7 @@ private:
 
     TArmor armor_;
     TWeaponSlots weapons_;
+    std::vector<TWeapon> natural_weapons_;
     std::vector<std::shared_ptr<TAction>> actions_;
     std::vector<std::shared_ptr<TReaction>> reactions_;
     std::vector<std::shared_ptr<TCreatureFeat>> feats_;

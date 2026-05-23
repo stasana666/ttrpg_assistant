@@ -52,6 +52,16 @@ TWeaponSlots& TCreature::Weapons()
     return weapons_;
 }
 
+std::vector<TWeapon>& TCreature::NaturalWeapons()
+{
+    return natural_weapons_;
+}
+
+const std::vector<TWeapon>& TCreature::NaturalWeapons() const
+{
+    return natural_weapons_;
+}
+
 const TProficiency& TCreature::Proficiency() const
 {
     return proficiency_;

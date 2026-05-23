@@ -259,6 +259,11 @@
                     "type": "array",
                     "default": [],
                     "items": { "$ref": "#/$defs/pf2e_creature_feat" }
+                },
+                "natural_weapons": {
+                    "type": "array",
+                    "default": [],
+                    "items": { "$ref": "#/$defs/pf2e_weapon" }
                 }
             },
             "required": [
