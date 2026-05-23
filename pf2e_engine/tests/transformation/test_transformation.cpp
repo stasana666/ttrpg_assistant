@@ -590,3 +590,69 @@ TEST_F(IntegrationRollbackTest, MultipleEffectsAndTasksRollback) {
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::MultipleAttackPenalty), 0);
 }
+
+// Regression: clearing a condition that was added via AddEffect MUST also
+// neutralize the per-turn ReduceUntilZero task that captured a copy of the
+// canceler. Without shared state between the canceler and the task's copy,
+// the task would re-add a decremented value on the next OnTurnStart and the
+// condition would silently come back.
+TEST_F(IntegrationRollbackTest, ClearConditionStopsScheduledRevival) {
+    // Apply Frightened 2 the same way FAddCondition::FrightenedHandle does.
+    auto canceler = effect_manager_->AddEffect(TPlayerConditionSet{
+        .player = player_.get(),
+        .condition = ECondition::Frightened,
+        .value = 2,
+    }, *transformator_);
+    transformator_->AddTask(scheduler_.get(), TTask{
+        .events_before_call = {{EEvent::OnTurnStart, TEventContext{player_.get()}}},
+        .callback = [canceler]() { return canceler(EEffectCancelPolicy::ReduceUntilZero); },
+    });
+
+    EXPECT_EQ(creature_->Get(ECondition::Frightened), 2);
+
+    // Cast RemoveFear-equivalent: drain the effect now.
+    effect_manager_->ClearCondition(player_.get(), ECondition::Frightened, *transformator_);
+    EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
+    EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 0);
+
+    // Next turn fires. With the old bug, the task's independent canceler copy
+    // would re-add Frightened 1 here. With shared state, state->value is 0 in
+    // every copy, so the task is a no-op and removes itself.
+    scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
+    EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
+    EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 0);
+
+    // Even after several more ticks the condition stays dead.
+    scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
+    scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
+    EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
+}
+
+// Natural decay must still work after the shared-state refactor.
+TEST_F(IntegrationRollbackTest, FrightenedNaturalDecayUnaffected) {
+    auto canceler = effect_manager_->AddEffect(TPlayerConditionSet{
+        .player = player_.get(),
+        .condition = ECondition::Frightened,
+        .value = 2,
+    }, *transformator_);
+    transformator_->AddTask(scheduler_.get(), TTask{
+        .events_before_call = {{EEvent::OnTurnStart, TEventContext{player_.get()}}},
+        .callback = [canceler]() { return canceler(EEffectCancelPolicy::ReduceUntilZero); },
+    });
+
+    EXPECT_EQ(creature_->Get(ECondition::Frightened), 2);
+    scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
+    EXPECT_EQ(creature_->Get(ECondition::Frightened), 1);
+    scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
+    EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
+}
+
+// ClearCondition on a directly-set condition (Prone) must fall back to
+// ChangeCondition(0) since there's no active_canceler entry.
+TEST_F(IntegrationRollbackTest, ClearConditionFallbackForDirectSet) {
+    transformator_->ChangeCondition(creature_.get(), ECondition::Prone, 1);
+    EXPECT_EQ(creature_->Get(ECondition::Prone), 1);
+
+    effect_manager_->ClearCondition(player_.get(), ECondition::Prone, *transformator_);
+    EXPECT_EQ(creature_->Get(ECondition::Prone), 0);
+}

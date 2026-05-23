@@ -22,6 +22,7 @@ class TBlockInput {
 public:
     void Add(TGameObjectId key, InputValue value);
 
+    bool Has(TGameObjectId key) const;
     std::string GetString(TGameObjectId key) const;
     int GetNumber(TGameObjectId key) const;
     const TDamageTable& GetDamageTable(TGameObjectId key) const;

@@ -6,6 +6,7 @@
         "race_hitpoints": 14,
         "hitpoint_per_level": 8,
         "movement": 7,
+        "size": "Medium",
         "proficiency": {
             "armor_category": {
                 "Heavy": "untrained",

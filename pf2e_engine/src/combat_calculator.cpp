@@ -14,14 +14,23 @@ int TCombatCalculator::InitiativeBonus(const TCreature& creature) const
     return creature.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
 }
 
-int TCombatCalculator::ArmorClass(const TCreature& creature) const
+int TCombatCalculator::ArmorClass(const TCreature& target, const TCreature& attacker) const
 {
-    const TArmor& armor = creature.Armor();
-    int dex = creature.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
-    return 10 + armor.AcBonus()
+    const TArmor& armor = target.Armor();
+    int dex = target.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
+    int ac = 10 + armor.AcBonus()
         + std::min(armor.DexCap(), dex)
-        + creature.Proficiency().GetProficiency(armor)
-        - Penalty(creature, TArmorClassTag{});
+        + target.Proficiency().GetProficiency(armor)
+        - Penalty(target, TArmorClassTag{});
+    if (IsOffGuardFor(target, attacker)) {
+        ac -= 2;
+    }
+    return ac;
+}
+
+bool TCombatCalculator::IsOffGuardFor(const TCreature& target, [[maybe_unused]] const TCreature& attacker) const
+{
+    return target.Get(ECondition::Prone) > 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -56,7 +65,8 @@ template <class T>
 int TCombatCalculator::Penalty(const TCreature& creature, T) const
 {
     if constexpr (std::is_same_v<T, TWeaponAttackTag>) {
-        return creature.Get(ECondition::Frightened) + creature.Get(ECondition::MultipleAttackPenalty);
+        return creature.Get(ECondition::Frightened)
+            + (creature.Get(ECondition::Prone) ? 2 : 0);
     }
     return creature.Get(ECondition::Frightened);
 }

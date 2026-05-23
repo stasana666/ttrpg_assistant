@@ -10,6 +10,11 @@ void TBlockInput::Add(TGameObjectId key, InputValue value)
     input_mapping_.insert({key, std::move(value)});
 }
 
+bool TBlockInput::Has(TGameObjectId key) const
+{
+    return input_mapping_.contains(key);
+}
+
 std::string TBlockInput::GetString(TGameObjectId key) const
 {
     return std::get<std::string>(input_mapping_.at(key));

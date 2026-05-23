@@ -33,34 +33,65 @@ TEffectCanceler TEffectManager::AddEffect(TEffect effect, TTransformator& transf
 {
     TEffectCanceler canceler;
     std::visit(VisitorHelper{
-        [&](TPlayerConditionSet effect) {
+        [&](TPlayerConditionSet effect_pcs) {
             // Record the effect addition via transformation
-            transformator.AddEffect(this, effect.player, effect.condition, effect.value);
+            transformator.AddEffect(this, effect_pcs.player, effect_pcs.condition, effect_pcs.value);
             // Update the creature's condition via transformation
-            Update(effect.player, effect.condition, transformator);
+            Update(effect_pcs.player, effect_pcs.condition, transformator);
 
-            canceler = [effect, this, &transformator](EEffectCancelPolicy ecp) mutable {
+            // Shared state: any copy of `canceler` (e.g. one captured into a
+            // scheduled task via [canceler]) sees the same `state->value`.
+            // Without this, ClearCondition could neutralize the original
+            // canceler while a copy in a task still holds value=2 and would
+            // resurrect the condition on the next OnTurnStart by re-adding
+            // a decremented value.
+            auto state = std::make_shared<TPlayerConditionSet>(effect_pcs);
+
+            canceler = [state, this, &transformator](EEffectCancelPolicy ecp) {
                 bool need_repeat = false;
-                switch (ecp) {
-                    case EEffectCancelPolicy::Cancel:
-                        transformator.RemoveEffect(this, effect.player, effect.condition, effect.value);
-                        break;
-                    case EEffectCancelPolicy::ReduceUntilZero:
-                        transformator.RemoveEffect(this, effect.player, effect.condition, effect.value);
-                        --effect.value;
-                        if (effect.value > 0) {
-                            transformator.AddEffect(this, effect.player, effect.condition, effect.value);
-                            need_repeat = true;
-                        }
-                        break;
+                if (state->value > 0) {
+                    switch (ecp) {
+                        case EEffectCancelPolicy::Cancel:
+                            transformator.RemoveEffect(this, state->player, state->condition, state->value);
+                            state->value = 0;
+                            break;
+                        case EEffectCancelPolicy::ReduceUntilZero:
+                            transformator.RemoveEffect(this, state->player, state->condition, state->value);
+                            --state->value;
+                            if (state->value > 0) {
+                                transformator.AddEffect(this, state->player, state->condition, state->value);
+                                need_repeat = true;
+                            }
+                            break;
+                    }
+                    Update(state->player, state->condition, transformator);
                 }
-                Update(effect.player, effect.condition, transformator);
                 return need_repeat;
             };
+
+            active_cancelers_[std::make_pair(effect_pcs.player, effect_pcs.condition)].push_back(canceler);
         }
     }, effect);
 
     return canceler;
+}
+
+void TEffectManager::ClearCondition(TPlayer* player, ECondition condition, TTransformator& transformator)
+{
+    auto key = std::make_pair(player, condition);
+    auto it = active_cancelers_.find(key);
+    if (it == active_cancelers_.end()) {
+        // No effect_manager-tracked source — condition was set directly via
+        // ChangeCondition (e.g. Prone). Just zero it out.
+        transformator.ChangeCondition(player->GetCreature(), condition, 0);
+        return;
+    }
+    // Move cancelers out before invoking so re-entry via task callbacks is safe.
+    auto cancelers = std::move(it->second);
+    active_cancelers_.erase(it);
+    for (auto& canceler : cancelers) {
+        canceler(EEffectCancelPolicy::Cancel);
+    }
 }
 
 void TEffectManager::Update(TPlayer* player, ECondition condition, TTransformator& transformator)

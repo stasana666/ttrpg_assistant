@@ -1,5 +1,6 @@
 #include <roll_against_difficulty_class.h>
 
+#include <pf2e_engine/condition.h>
 #include <pf2e_engine/success_level.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
@@ -13,6 +14,8 @@ static const TGameObjectId kDifficultyClassValueId = TGameObjectIdManager::Insta
 static const TGameObjectId kAttackerId = TGameObjectIdManager::Instance().Register("attacker");
 static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register("weapon");
 static const TGameObjectId kSkillId = TGameObjectIdManager::Instance().Register("skill");
+static const TGameObjectId kAppliesMultipleAttackPenaltyId =
+    TGameObjectIdManager::Instance().Register("applies_multiple_attack_penalty");
 
 enum class EAttackType {
     Skill,
@@ -45,7 +48,8 @@ void FRollAgainstDifficultyClass::WeaponAttackHandle(std::shared_ptr<TActionCont
     TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
     TWeapon& weapon = *std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
     int armor_class = std::get<int>(input_.Get(kDifficultyClassValueId, ctx));
-    int attack_bonus = calculator_.AttackRollBonus(*attacker.GetCreature(), weapon);
+    int attack_bonus = calculator_.AttackRollBonus(*attacker.GetCreature(), weapon)
+        - MultipleAttackPenaltyFor(attacker);
 
     ctx->io_system->GameLog() << attacker.GetName() << " attack with " << weapon.Name() << std::endl;
 
@@ -62,7 +66,8 @@ void FRollAgainstDifficultyClass::SkillHandle(std::shared_ptr<TActionContext> ct
     ESkill skill = SkillFromString(input_.GetString(kSkillId));
 
     int difficulty_class = std::get<int>(input_.Get(kDifficultyClassValueId, ctx));
-    int roll_bonus = calculator_.RollBonus(*attacker.GetCreature(), skill);
+    int roll_bonus = calculator_.RollBonus(*attacker.GetCreature(), skill)
+        - MultipleAttackPenaltyFor(attacker);
 
     ctx->io_system->GameLog() << attacker.GetName() << " roll " << ToString(skill) << std::endl;
     ESuccessLevel result = calculator_.RollD20(ctx->dice_roller, roll_bonus, difficulty_class);
@@ -70,4 +75,15 @@ void FRollAgainstDifficultyClass::SkillHandle(std::shared_ptr<TActionContext> ct
         << " => " << ToString(result) << std::endl;
 
     ctx->game_object_registry->Add(output_, result);
+}
+
+int FRollAgainstDifficultyClass::MultipleAttackPenaltyFor(const TPlayer& attacker) const
+{
+    if (!input_.Has(kAppliesMultipleAttackPenaltyId)) {
+        return 0;
+    }
+    if (input_.GetNumber(kAppliesMultipleAttackPenaltyId) == 0) {
+        return 0;
+    }
+    return attacker.GetCreature()->Get(ECondition::MultipleAttackPenalty);
 }

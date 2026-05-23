@@ -5,6 +5,7 @@
         "level": 5,
         "race_hitpoints": 6,
         "hitpoint_per_level": 6,
+        "size": "Medium",
         "proficiency": {
             "armor_category": {
                 "Unarmored": "trained"
@@ -39,7 +40,8 @@
         },
         "actions": [
             "fireball",
-            "move"
+            "move",
+            "remove_fear"
         ],
         "movement": 5
     }

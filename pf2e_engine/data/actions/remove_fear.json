@@ -1,0 +1,49 @@
+{
+    "type": "pf2e_action",
+    "name": "remove_fear",
+    "pf2e_action": {
+        "name": "remove_fear",
+        "resources": [
+            {
+                "name": "action",
+                "count": 1
+            }
+        ],
+        "pipeline": [
+            {
+                "name": "get_targets",
+                "type": "function_call",
+                "input": {
+                    "type": "emanation",
+                    "center": "$self",
+                    "radius": 6
+                },
+                "function": "get_targets_in_area",
+                "output": ["target_list"]
+            },
+            {
+                "name": "choose_target",
+                "type": "function_call",
+                "input": {
+                    "list": "$target_list"
+                },
+                "function": "choose_from_list",
+                "output": ["target"]
+            },
+            {
+                "name": "clear_frightened",
+                "type": "function_call",
+                "input": {
+                    "target": "$target",
+                    "condition": "Frightened"
+                },
+                "function": "remove_condition",
+                "output": ["void"]
+            },
+            {
+                "name": "finish",
+                "type": "terminate"
+            }
+        ]
+    }
+}

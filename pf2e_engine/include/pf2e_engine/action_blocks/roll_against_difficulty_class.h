@@ -3,6 +3,8 @@
 #include <pf2e_engine/action_blocks/base_function.h>
 #include <pf2e_engine/combat_calculator.h>
 
+class TPlayer;
+
 class FRollAgainstDifficultyClass : public FBaseFunction {
 public:
     FRollAgainstDifficultyClass(TBlockInput&& input, TGameObjectId output)
@@ -13,6 +15,8 @@ public:
 private:
     void WeaponAttackHandle(std::shared_ptr<TActionContext> ctx) const;
     void SkillHandle(std::shared_ptr<TActionContext> ctx) const;
+
+    int MultipleAttackPenaltyFor(const TPlayer& attacker) const;
 
     TCombatCalculator calculator_;
 };

@@ -9,6 +9,8 @@
 #include <pf2e_engine/action_blocks/choose_weapon.h>
 #include <pf2e_engine/action_blocks/contribute_damage_bonus.h>
 #include <pf2e_engine/action_blocks/deal_damage.h>
+#include <pf2e_engine/action_blocks/flat_damage_roll.h>
+#include <pf2e_engine/action_blocks/remove_condition.h>
 #include <pf2e_engine/action_blocks/roll_against_difficulty_class.h>
 #include <pf2e_engine/action_blocks/weapon_damage_roll.h>
 #include <pf2e_engine/action_blocks/get_parameter.h>
@@ -49,10 +51,12 @@ TPipelineReader::kBlockFillerMapping{
 const std::unordered_map<std::string, TPipelineReader::FBlockFunction>
 TPipelineReader::kFunctionMapping{
     { "add_condition", [](TBlockInput&& input, TGameObjectId output) { return FAddCondition(std::move(input), output); } },
+    { "remove_condition", [](TBlockInput&& input, TGameObjectId output) { return FRemoveCondition(std::move(input), output); } },
     { "calculate_DC", [](TBlockInput&& input, TGameObjectId output) { return FCalculateDifficultyClass(std::move(input), output); } },
     { "choose_weapon", [](TBlockInput&& input, TGameObjectId output) { return FChooseWeapon(std::move(input), output); } },
     { "crit_weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FCritWeaponDamageRoll(std::move(input), output); } },
     { "deal_damage", [](TBlockInput&& input, TGameObjectId output) { return FDealDamage(std::move(input), output); } },
+    { "flat_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FFlatDamageRoll(std::move(input), output); } },
     { "roll_against_DC", [](TBlockInput&& input, TGameObjectId output) { return FRollAgainstDifficultyClass(std::move(input), output); } },
     { "weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FWeaponDamageRoll(std::move(input), output); } },
     { "get_parameter", [](TBlockInput&& input, TGameObjectId output) { return FGetParameter(std::move(input), output); } },
