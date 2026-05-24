@@ -1,6 +1,10 @@
 #include <player.h>
 
 #include <pf2e_engine/battle_map.h>
+
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
+
 #include <stdexcept>
 
 using TCell = TBattleMap::TCell;
@@ -81,4 +85,23 @@ void TPlayer::BindWith(THolder<TBattleMap>& battle_map, const TPosition position
 void TPlayer::Unbind()
 {
     battle_map_ = nullptr;
+}
+
+TAstNode TPlayer::GetAst(TAstContext& ctx) const
+{
+    // TPlayer is non-standard-layout (mixes private + has access-specifier
+    // changes; offsetof on the sentinel is UB). sizeof alone here.
+    static constexpr size_t kExpectedSize = 112;
+    AST_ASSERT_LAYOUT(TPlayer, kExpectedSize);
+
+    TAstNode node = TAstNode::MakeObject("TPlayer");
+    AddValueField(node, "id", id_);
+    AddValueField(node, "team", team_);
+    AddValueField(node, "name", name_);
+    AddValueField(node, "image_path", image_path_);
+    AddValueField(node, "position", position_);
+    AddReference(node, "battle_map", battle_map_, "battle.map");
+    // creature_ is non-owning but AST-traversed (see header comment).
+    AddOwnedObject(node, "creature", creature_, ctx);
+    return node;
 }

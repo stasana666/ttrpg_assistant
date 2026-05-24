@@ -1,5 +1,6 @@
 #pragma once
 
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/player.h>
 
 #include <nlohmann/json_fwd.hpp>
@@ -26,10 +27,16 @@ public:
     const TCell& GetCell(int x, int y) const;
     TCell& GetCell(int x, int y);
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     TPosition ChoosePosition() const;
 
     int x_size_;
     int y_size_;
     std::vector<std::vector<TCell>> battlemap_;
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TBattleMap> : std::true_type {};

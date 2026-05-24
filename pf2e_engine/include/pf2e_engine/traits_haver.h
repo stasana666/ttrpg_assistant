@@ -1,5 +1,8 @@
 #pragma once
 
+#include <pf2e_engine/common/ast/ast_serialize.h>
+
+#include <string>
 #include <vector>
 #include <variant>
 #include <optional>
@@ -13,6 +16,13 @@ struct TTrait {
     TTraitEnum type;
     TTraitValue value;
 };
+
+template <typename TTraitEnum>
+std::string AstSerialize(const TTrait<TTraitEnum>& trait)
+{
+    return "TTrait{" + AstSerialize(trait.type) + "," +
+           AstSerialize(trait.value) + "}";
+}
 
 // Base class for game objects that can have traits
 // TTraitEnum: enum class defining available trait types

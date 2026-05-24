@@ -1,5 +1,6 @@
 #pragma once
 
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/weapon.h>
 
@@ -44,6 +45,8 @@ public:
     int GetProficiency(TPerceptionTag) const;
     int GetLevel() const;
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     int GetProficiency(Value proficiency) const;
     int GetProficiency(EProficiencyLevel proficiency) const;
@@ -54,4 +57,8 @@ private:
     std::map<ESavethrow, Value> savethrow_;
     std::map<ESkill, Value> skill_;
     Value perception_{0};
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TProficiency> : std::true_type {};

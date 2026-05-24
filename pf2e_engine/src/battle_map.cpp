@@ -1,6 +1,9 @@
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/vector2d.h>
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
+
 #include <nlohmann/json.hpp>
 
 TBattleMap::TBattleMap(nlohmann::json& json)
@@ -97,4 +100,31 @@ const TBattleMap::TCell& TBattleMap::GetCell(int x, int y) const
 TBattleMap::TCell& TBattleMap::GetCell(int x, int y)
 {
     return battlemap_[x][y];
+}
+
+TAstNode TBattleMap::GetAst(TAstContext& ctx) const
+{
+    static constexpr size_t kExpectedSize = 40;
+    static constexpr size_t kExpectedSentinelOffset = 32;
+    AST_ASSERT_LAYOUT_WITH_SENTINEL(TBattleMap, kExpectedSize, kExpectedSentinelOffset);
+
+    TAstNode node = TAstNode::MakeObject("TBattleMap");
+    AddValueField(node, "x_size", x_size_);
+    AddValueField(node, "y_size", y_size_);
+
+    TAstNode grid = TAstNode::MakeObject("cells");
+    for (size_t x = 0; x < battlemap_.size(); ++x) {
+        TAstNode row = TAstNode::MakeObject("row");
+        for (size_t y = 0; y < battlemap_[x].size(); ++y) {
+            const TPlayer* p = battlemap_[x][y].player;
+            std::string id = ctx.IdentityOf(p);
+            if (id.empty()) {
+                id = p == nullptr ? "<null>" : "<unregistered>";
+            }
+            AddValueField(row, std::to_string(y), id);
+        }
+        grid.AddChild(std::to_string(x), std::move(row));
+    }
+    node.AddChild("cells", std::move(grid));
+    return node;
 }

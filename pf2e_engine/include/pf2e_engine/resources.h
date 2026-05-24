@@ -1,6 +1,8 @@
 #pragma once
 
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/common/value_id.h>
+
 #include <unordered_map>
 
 struct TResourceTag {};
@@ -16,6 +18,12 @@ public:
     void Add(TResourceId id, int count);
     int Count(TResourceId id) const;
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     std::unordered_map<TResourceId, int, TResourceIdHash> resources_;
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TResourcePool> : std::true_type {};

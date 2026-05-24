@@ -3,6 +3,9 @@
 #include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/player.h>
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
+
 TState::TState(size_t stack_size)
     : stack_size_(stack_size)
 {
@@ -95,4 +98,27 @@ void TTransformator::Undo(TState state)
 TState TTransformator::CurrentState() const
 {
     return TState{transformations_.size()};
+}
+
+TAstNode TTransformator::GetAst(TAstContext& ctx) const
+{
+    // io_system_ is a reference; skip offsetof. sizeof + sentinel covers it.
+    // TTransformator is non-standard-layout (holds IInteractionSystem&);
+    // offsetof on the sentinel is UB. sizeof alone here.
+    static constexpr size_t kExpectedSize = 40;
+    AST_ASSERT_LAYOUT(TTransformator, kExpectedSize);
+
+    TAstNode node = TAstNode::MakeObject("TTransformator");
+    AddValueField(node, "depth", transformations_.size());
+
+    TAstNode stack = TAstNode::MakeObject("transformations");
+    for (size_t i = 0; i < transformations_.size(); ++i) {
+        std::visit(
+            [&](const auto& t) {
+                stack.AddChild(std::to_string(i), t.GetAst(ctx));
+            },
+            transformations_[i]);
+    }
+    node.AddChild("transformations", std::move(stack));
+    return node;
 }

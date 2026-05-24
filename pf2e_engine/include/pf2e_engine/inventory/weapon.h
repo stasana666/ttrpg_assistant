@@ -1,11 +1,13 @@
 #pragma once
 
-#include <pf2e_engine/mechanics/damage.h>
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/inventory/item.h>
+#include <pf2e_engine/mechanics/damage.h>
 #include <pf2e_engine/traits_haver.h>
 
 #include <nlohmann/json_fwd.hpp>
 
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -41,6 +43,8 @@ public:
     bool ValidGrip(int hand_count) const;
     std::string_view Name() const;
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     friend class TGameObjectFactory;
 
@@ -48,7 +52,11 @@ private:
     TDamage::Type type_;
     EWeaponCategory category_;
     std::string name_;
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TWeapon> : std::true_type {};
 
 // Builds a TWeapon from a "pf2e_weapon" core JSON object (base_die_size,
 // damage_type, category, optional traits). Shared by the game-object factory

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/combat_calculator.h>
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/i_interaction_system.h>
 
 #include <map>
@@ -22,6 +23,8 @@ public:
     void SetCurrentPosition(size_t position);  // SIZE_MAX means end()
     size_t GetCurrentPosition() const;
     void SetRound(size_t round);
+
+    TAstNode GetAst(TAstContext& ctx) const;
 
 private:
     struct TInitiative {
@@ -45,4 +48,8 @@ private:
     size_t round_{};
     TCombatCalculator combat_calculator_;
     IInteractionSystem& io_system_;
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TInitiativeOrder> : std::true_type {};

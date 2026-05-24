@@ -1,5 +1,8 @@
 #include "hitpoints.h"
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
+
 #include <stdexcept>
 
 THitPoints::THitPoints(int max_hp)
@@ -50,4 +53,20 @@ void THitPoints::SetTemporaryHp(int hp)
 int THitPoints::GetTemporaryHp() const
 {
     return temporary_hp_;
+}
+
+TAstNode THitPoints::GetAst([[maybe_unused]] TAstContext& ctx) const
+{
+    static constexpr size_t kExpectedSize = 16;
+    static constexpr size_t kExpectedSentinelOffset = 12;
+    AST_ASSERT_LAYOUT_WITH_SENTINEL(THitPoints, kExpectedSize, kExpectedSentinelOffset);
+    AST_ASSERT_OFFSET(THitPoints, max_hp_, 0);
+    AST_ASSERT_OFFSET(THitPoints, current_hp_, 4);
+    AST_ASSERT_OFFSET(THitPoints, temporary_hp_, 8);
+
+    TAstNode node = TAstNode::MakeObject("THitPoints");
+    AddValueField(node, "max_hp", max_hp_);
+    AddValueField(node, "current_hp", current_hp_);
+    AddValueField(node, "temporary_hp", temporary_hp_);
+    return node;
 }

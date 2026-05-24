@@ -10,6 +10,9 @@
 #include <pf2e_engine/transformation/transformator.h>
 #include <pf2e_engine/scheduler.h>
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
+
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
@@ -233,3 +236,58 @@ std::vector<const TReaction*> TBattle::Reactions(ETrigger trigger) const
     }
     return reactions;
 }
+
+TAstNode TBattle::GetAst(TAstContext& ctx) const
+{
+    // dice_roller_ pointer + io_system_ reference are not state; sizeof +
+    // sentinel still catch any added field.
+    // TBattle is non-standard-layout (it holds an IInteractionSystem& reference),
+    // so offsetof on the sentinel is UB. Rely on sizeof alone here; a field
+    // that fits in trailing padding will not be caught for TBattle specifically.
+    static constexpr size_t kExpectedSize = 472;
+    AST_ASSERT_LAYOUT(TBattle, kExpectedSize);
+
+    // Pre-seed stable IDs for every reachable non-owning-pointer target.
+    // The pointer-keyed AST helpers (AddReference, AddReferenceContainer)
+    // and transformation records (TChangeHitPoints etc.) look these up via
+    // ctx.IdentityOf to render references in a deterministic, address-free
+    // way.
+    ctx.RegisterIdentity(&initiative_order_, "battle.initiative_order");
+    ctx.RegisterIdentity(&scheduler_,        "battle.scheduler");
+    ctx.RegisterIdentity(&effect_manager_,   "battle.effect_manager");
+    ctx.RegisterIdentity(&transformator_,    "battle.transformator");
+    ctx.RegisterIdentity(&battle_map_,       "battle.map_holder");
+    auto map_snapshot = battle_map_.Get();
+    ctx.RegisterIdentity(map_snapshot.get(), "battle.map");
+    for (const auto& player : players_) {
+        std::string player_id = "player#" + std::to_string(player.GetId());
+        ctx.RegisterIdentity(&player, player_id);
+        if (const TCreature* c = player.GetCreature()) {
+            ctx.RegisterIdentity(c, player_id + ".creature");
+            ctx.RegisterIdentity(&c->Hitpoints(),  player_id + ".creature.hitpoints");
+            ctx.RegisterIdentity(&c->Resources(),  player_id + ".creature.resources");
+        }
+    }
+
+    TAstNode node = TAstNode::MakeObject("TBattle");
+    // battle_map_ owns a TBattleMap via shared_ptr; recurse into the
+    // read-only snapshot we already took above.
+    AddOwnedObject(node, "battle_map", *map_snapshot, ctx);
+    AddOwnedObject(node, "initiative_order", initiative_order_, ctx);
+    AddOwnedObject(node, "transformator", transformator_, ctx);
+    AddOwnedObject(node, "scheduler", scheduler_, ctx);
+    AddOwnedObject(node, "effect_manager", effect_manager_, ctx);
+
+    TAstNode players_node = TAstNode::MakeObject("players");
+    for (const auto& player : players_) {
+        AddOwnedObject(players_node, "player#" + std::to_string(player.GetId()),
+                       player, ctx);
+    }
+    node.AddChild("players", std::move(players_node));
+    return node;
+}
+
+// Mutable accessor for THitPoints (used by TChangeHitPoints) — needed only
+// after the AST-related includes pulled in non-const requirements; kept here
+// as a tiny non-mutating addition. (This stub does nothing — actual mutations
+// happen via TTransformator.)

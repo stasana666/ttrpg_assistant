@@ -1,5 +1,8 @@
 #include <weapon.h>
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
+
 #include <nlohmann/json.hpp>
 
 #include <stdexcept>
@@ -96,6 +99,22 @@ bool TWeapon::ValidGrip(int hand_count) const
 std::string_view TWeapon::Name() const
 {
     return name_;
+}
+
+TAstNode TWeapon::GetAst([[maybe_unused]] TAstContext& ctx) const
+{
+    // TWeapon is non-standard-layout (multiple bases). offsetof on the sentinel
+    // is UB. sizeof alone here.
+    static constexpr size_t kExpectedSize = 80;
+    AST_ASSERT_LAYOUT(TWeapon, kExpectedSize);
+
+    TAstNode node = TAstNode::MakeObject("TWeapon");
+    AddValueField(node, "name", name_);
+    AddValueField(node, "base_dice_size", base_dice_size_);
+    AddValueField(node, "type", type_);
+    AddValueField(node, "category", category_);
+    AddValueField(node, "traits", Traits());
+    return node;
 }
 
 // Trait methods (Traits, HasTrait, AddTrait) are now inherited from TTraitsHaver<EWeaponTrait>

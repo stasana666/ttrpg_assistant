@@ -4,6 +4,12 @@
 #include <pf2e_engine/condition.h>
 #include <pf2e_engine/transformation/transformator.h>
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
+
+#include <algorithm>
+#include <vector>
+
 void TEffectManager::InsertValue(TPlayer* player, ECondition condition, int value)
 {
     condition_values_[std::make_pair(player, condition)].insert(value);
@@ -98,4 +104,63 @@ void TEffectManager::Update(TPlayer* player, ECondition condition, TTransformato
 {
     int new_value = GetHighestValue(player, condition);
     transformator.ChangeCondition(player->GetCreature(), condition, new_value);
+}
+
+TAstNode TEffectManager::GetAst(TAstContext& ctx) const
+{
+    // TEffectManager is non-standard-layout (has private FConditionKeyHasher
+    // member class). offsetof on the sentinel is UB. sizeof alone here.
+    static constexpr size_t kExpectedSize = 136;
+    AST_ASSERT_LAYOUT(TEffectManager, kExpectedSize);
+
+    auto make_key = [&](const ConditionKey& k) {
+        std::string player_id = ctx.IdentityOf(k.first);
+        if (player_id.empty()) {
+            player_id = k.first == nullptr ? "<null>" : "<unregistered>";
+        }
+        return player_id + ":" + ToString(k.second);
+    };
+
+    TAstNode node = TAstNode::MakeObject("TEffectManager");
+
+    // condition_values_: sort by (player_id, condition); the multiset itself
+    // is already sorted, render as a vector of values.
+    std::vector<std::pair<std::string, const std::multiset<int>*>> values_sorted;
+    values_sorted.reserve(condition_values_.size());
+    for (const auto& [key, mset] : condition_values_) {
+        values_sorted.emplace_back(make_key(key), &mset);
+    }
+    std::sort(values_sorted.begin(), values_sorted.end(),
+        [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    TAstNode values_node = TAstNode::MakeObject("condition_values");
+    for (const auto& [key, mset] : values_sorted) {
+        std::vector<int> as_vec(mset->begin(), mset->end());
+        AddValueField(values_node, key, as_vec);
+    }
+    node.AddChild("condition_values", std::move(values_node));
+
+    // active_cancelers_: same sort; for each, emit count and per-canceler
+    // target type. See the AddCallbackPlaceholder note about std::function.
+    std::vector<std::pair<std::string, const std::vector<TEffectCanceler>*>>
+        cancelers_sorted;
+    cancelers_sorted.reserve(active_cancelers_.size());
+    for (const auto& [key, vec] : active_cancelers_) {
+        cancelers_sorted.emplace_back(make_key(key), &vec);
+    }
+    std::sort(cancelers_sorted.begin(), cancelers_sorted.end(),
+        [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    TAstNode cancelers_node = TAstNode::MakeObject("active_cancelers");
+    for (const auto& [key, vec] : cancelers_sorted) {
+        TAstNode entry = TAstNode::MakeObject("cancelers");
+        AddValueField(entry, "count", vec->size());
+        for (size_t i = 0; i < vec->size(); ++i) {
+            AddCallbackPlaceholder(entry, std::to_string(i), (*vec)[i]);
+        }
+        cancelers_node.AddChild(key, std::move(entry));
+    }
+    node.AddChild("active_cancelers", std::move(cancelers_node));
+
+    return node;
 }

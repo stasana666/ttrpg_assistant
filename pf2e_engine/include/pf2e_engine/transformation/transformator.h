@@ -1,5 +1,6 @@
 #pragma once
 
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/transformation/state.h>
 #include <pf2e_engine/transformation/transformation.h>
 #include <pf2e_engine/i_interaction_system.h>
@@ -30,7 +31,13 @@ public:
 
     TState CurrentState() const;
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     IInteractionSystem& io_system_;
     std::vector<TTransformation> transformations_;
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TTransformator> : std::true_type {};
