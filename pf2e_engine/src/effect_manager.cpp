@@ -106,59 +106,70 @@ void TEffectManager::Update(TPlayer* player, ECondition condition, TTransformato
     transformator.ChangeCondition(player->GetCreature(), condition, new_value);
 }
 
-TAstNode TEffectManager::GetAst(TAstContext& ctx) const
+TAstNode TEffectManager::GetAst([[maybe_unused]] TAstContext& ctx) const
 {
     // TEffectManager is non-standard-layout (has private FConditionKeyHasher
     // member class). offsetof on the sentinel is UB. sizeof alone here.
     static constexpr size_t kExpectedSize = 136;
     AST_ASSERT_LAYOUT(TEffectManager, kExpectedSize);
 
-    auto make_key = [&](const ConditionKey& k) {
-        std::string player_id = ctx.IdentityOf(k.first);
-        if (player_id.empty()) {
-            player_id = k.first == nullptr ? "<null>" : "<unregistered>";
-        }
-        return player_id + ":" + ToString(k.second);
+    // Sort by (player_id_int, condition_enum_int). Both are build-time-known
+    // and stable across runs (unlike pointer addresses or resolved string
+    // names which would require the context's identity table). std::stable_sort
+    // is used so that any two entries that compare equal — which should not
+    // happen since (player, condition) is unique in the map — keep their
+    // arrival order rather than producing run-to-run noise.
+    using SortKey = std::pair<int, int>;
+    auto make_sort_key = [](const ConditionKey& k) -> SortKey {
+        const int player_id = k.first == nullptr ? -1 : k.first->GetId();
+        return {player_id, static_cast<int>(k.second)};
+    };
+    auto make_label = [&](const ConditionKey& k) {
+        std::string label = k.first == nullptr
+            ? std::string("<null>")
+            : "player#" + std::to_string(k.first->GetId());
+        label += ":";
+        label += ToString(k.second);
+        return label;
     };
 
     TAstNode node = TAstNode::MakeObject("TEffectManager");
 
-    // condition_values_: sort by (player_id, condition); the multiset itself
-    // is already sorted, render as a vector of values.
-    std::vector<std::pair<std::string, const std::multiset<int>*>> values_sorted;
+    // condition_values_: multiset is already sorted, render as a vector of values.
+    std::vector<std::pair<SortKey, const ConditionKey*>> values_sorted;
     values_sorted.reserve(condition_values_.size());
-    for (const auto& [key, mset] : condition_values_) {
-        values_sorted.emplace_back(make_key(key), &mset);
+    for (const auto& [key, _] : condition_values_) {
+        values_sorted.emplace_back(make_sort_key(key), &key);
     }
-    std::sort(values_sorted.begin(), values_sorted.end(),
+    std::stable_sort(values_sorted.begin(), values_sorted.end(),
         [](const auto& a, const auto& b) { return a.first < b.first; });
 
     TAstNode values_node = TAstNode::MakeObject("condition_values");
-    for (const auto& [key, mset] : values_sorted) {
-        std::vector<int> as_vec(mset->begin(), mset->end());
-        AddValueField(values_node, key, as_vec);
+    for (const auto& [_, kptr] : values_sorted) {
+        const auto& mset = condition_values_.at(*kptr);
+        std::vector<int> as_vec(mset.begin(), mset.end());
+        AddValueField(values_node, make_label(*kptr), as_vec);
     }
     node.AddChild("condition_values", std::move(values_node));
 
-    // active_cancelers_: same sort; for each, emit count and per-canceler
-    // target type. See the AddCallbackPlaceholder note about std::function.
-    std::vector<std::pair<std::string, const std::vector<TEffectCanceler>*>>
-        cancelers_sorted;
+    // active_cancelers_: same sort key, same stability guarantee.
+    std::vector<std::pair<SortKey, const ConditionKey*>> cancelers_sorted;
     cancelers_sorted.reserve(active_cancelers_.size());
-    for (const auto& [key, vec] : active_cancelers_) {
-        cancelers_sorted.emplace_back(make_key(key), &vec);
+    for (const auto& [key, _] : active_cancelers_) {
+        cancelers_sorted.emplace_back(make_sort_key(key), &key);
     }
-    std::sort(cancelers_sorted.begin(), cancelers_sorted.end(),
+    std::stable_sort(cancelers_sorted.begin(), cancelers_sorted.end(),
         [](const auto& a, const auto& b) { return a.first < b.first; });
 
     TAstNode cancelers_node = TAstNode::MakeObject("active_cancelers");
-    for (const auto& [key, vec] : cancelers_sorted) {
+    for (const auto& [_, kptr] : cancelers_sorted) {
+        const auto& vec = active_cancelers_.at(*kptr);
         TAstNode entry = TAstNode::MakeObject("cancelers");
-        AddValueField(entry, "count", vec->size());
-        for (size_t i = 0; i < vec->size(); ++i) {
-            AddCallbackPlaceholder(entry, std::to_string(i), (*vec)[i]);
+        AddValueField(entry, "count", vec.size());
+        for (size_t i = 0; i < vec.size(); ++i) {
+            AddCallbackPlaceholder(entry, std::to_string(i), vec[i]);
         }
-        cancelers_node.AddChild(key, std::move(entry));
+        cancelers_node.AddChild(make_label(*kptr), std::move(entry));
     }
     node.AddChild("active_cancelers", std::move(cancelers_node));
 

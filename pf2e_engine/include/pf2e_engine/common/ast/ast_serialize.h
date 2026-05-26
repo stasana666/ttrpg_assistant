@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -110,28 +111,30 @@ std::string AstSerialize(const std::variant<Ts...>& v)
 template <class T>
 std::string AstSerialize(const std::vector<T>& v)
 {
-    std::string s = "vector[";
+    std::ostringstream oss;
+    oss << "vector[";
     for (size_t i = 0; i < v.size(); ++i) {
         if (i > 0) {
-            s += ",";
+            oss << ",";
         }
-        s += AstSerialize(v[i]);
+        oss << AstSerialize(v[i]);
     }
-    s += "]";
-    return s;
+    oss << "]";
+    return oss.str();
 }
 
 // std::array<T, N>: serialize each element in index order.
 template <class T, std::size_t N>
 std::string AstSerialize(const std::array<T, N>& a)
 {
-    std::string s = "array[";
+    std::ostringstream oss;
+    oss << "array[";
     for (std::size_t i = 0; i < N; ++i) {
         if (i > 0) {
-            s += ",";
+            oss << ",";
         }
-        s += AstSerialize(a[i]);
+        oss << AstSerialize(a[i]);
     }
-    s += "]";
-    return s;
+    oss << "]";
+    return oss.str();
 }

@@ -78,10 +78,8 @@ void TInitiativeOrder::SetRound(size_t round)
     round_ = round;
 }
 
-TAstNode TInitiativeOrder::GetAst(TAstContext& ctx) const
+TAstNode TInitiativeOrder::GetAst([[maybe_unused]] TAstContext& ctx) const
 {
-    // io_system_ is a reference; offsetof on references is UB. Rely on the
-    // sizeof check + sentinel offset to catch any added field.
     // TInitiativeOrder is non-standard-layout (holds IInteractionSystem&);
     // offsetof on the sentinel is UB. sizeof alone here.
     static constexpr size_t kExpectedSize = 96;
@@ -99,11 +97,7 @@ TAstNode TInitiativeOrder::GetAst(TAstContext& ctx) const
         TAstNode entry = TAstNode::MakeObject("entry");
         AddValueField(entry, "initiative", init.initiative);
         AddValueField(entry, "initiative_bonus", init.initiative_bonus);
-        std::string id = ctx.IdentityOf(player);
-        if (id.empty()) {
-            id = player == nullptr ? "<null>" : "<unregistered>";
-        }
-        AddValueField(entry, "player", id);
+        AddReference(entry, "player", player);
         order.AddChild(std::to_string(idx++), std::move(entry));
     }
     node.AddChild("players", std::move(order));

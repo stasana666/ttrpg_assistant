@@ -135,25 +135,25 @@ void AddOwnedContainer(TAstNode& parent, std::string_view label,
 }
 
 // ------------------------------------------------------------------
-// AddReference: non-owning pointer. Records identity (resolved to a stable
-// id via the context) without recursing into the referent.
+// AddReference: non-owning pointer. Emits a DEFERRED reference node that
+// carries the raw pointer; the final string ("ref:<id>") is filled in by
+// TAstNode::Resolve once every owning class has had a chance to call
+// ctx.RegisterIdentity. This lets owners register their sub-objects' IDs
+// inside their own GetAst, in any visitation order, without forcing the
+// root (TBattle::GetAst) to pre-walk the whole graph.
 // ------------------------------------------------------------------
 inline void AddReference(TAstNode& parent, std::string_view label,
-                         const void* identity, const TAstContext& ctx)
+                         const void* identity)
 {
     if (identity == nullptr) {
         parent.AddChild(label, TAstNode::MakeNull());
         return;
     }
-    std::string id = ctx.IdentityOf(identity);
-    if (id.empty()) {
-        id = "<unregistered>";
-    }
-    parent.AddChild(label, TAstNode::MakeValue("ref:" + id));
+    parent.AddChild(label, TAstNode::MakeDeferredRef(identity));
 }
 
-// AddReference with an explicit stable id (use when the referent has a
-// well-known fixed name, e.g. the battle map).
+// Eager overload: when the caller already knows the stable name (e.g. a
+// well-known sentinel like "battle.map_holder"), emit it directly.
 inline void AddReference(TAstNode& parent, std::string_view label,
                          const void* identity, std::string_view stable_id)
 {
@@ -165,20 +165,24 @@ inline void AddReference(TAstNode& parent, std::string_view label,
 }
 
 // ------------------------------------------------------------------
-// AddReferenceContainer: container of non-owning pointers. id_fn(element)
-// returns a stable string id for each entry. Order in the produced AST is
-// determined by the iteration order of the container (use ordered
-// containers, or pre-sort by key, when calling this).
+// AddReferenceContainer: container of non-owning pointers. ptr_fn(element)
+// returns the raw pointer to defer-resolve for each entry. Order in the
+// produced AST is the iteration order of the container (use ordered
+// containers, or pre-sort by stable build-time key, when calling this).
 // ------------------------------------------------------------------
-template <class Container, class IdFn>
+template <class Container, class PtrFn>
 void AddReferenceContainer(TAstNode& parent, std::string_view label,
-                           const Container& c, IdFn id_fn)
+                           const Container& c, PtrFn ptr_fn)
 {
     TAstNode node = TAstNode::MakeObject("ref_container");
     size_t idx = 0;
     for (auto it = c.begin(); it != c.end(); ++it, ++idx) {
-        node.AddChild(std::to_string(idx),
-            TAstNode::MakeValue("ref:" + std::string(id_fn(*it, idx))));
+        const void* target = ptr_fn(*it, idx);
+        if (target == nullptr) {
+            node.AddChild(std::to_string(idx), TAstNode::MakeNull());
+        } else {
+            node.AddChild(std::to_string(idx), TAstNode::MakeDeferredRef(target));
+        }
     }
     parent.AddChild(label, std::move(node));
 }

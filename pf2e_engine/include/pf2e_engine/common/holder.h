@@ -1,5 +1,8 @@
 #pragma once
 
+#include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/ast/ast_node.h>
+
 #include <cassert>
 #include <memory>
 #include <mutex>
@@ -36,7 +39,25 @@ public:
         value_ = value;
     }
 
+    // AST traversal of the held T, performed under the holder's mutex so the
+    // snapshot is consistent. T must provide GetAst(TAstContext&).
+    TAstNode GetAst(TAstContext& ctx) const
+    {
+        std::shared_ptr<const T> snapshot;
+        {
+            std::lock_guard lock(mutex_);
+            snapshot = value_;
+        }
+        if (!snapshot) {
+            return TAstNode::MakeNull();
+        }
+        return snapshot->GetAst(ctx);
+    }
+
 private:
     std::shared_ptr<T> value_;
     mutable std::mutex mutex_;
 };
+
+template <class T>
+struct TIsAstRecursive<THolder<T>> : TIsAstRecursive<T> {};

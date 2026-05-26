@@ -1,5 +1,7 @@
 #include <pf2e_engine/common/ast/ast_node.h>
 
+#include <pf2e_engine/common/ast/ast_context.h>
+
 #include <sstream>
 
 TAstNode TAstNode::MakeNull()
@@ -23,6 +25,29 @@ TAstNode TAstNode::MakeObject(std::string_view type_name)
     n.kind_ = EKind::Object;
     n.content_ = std::string(type_name);
     return n;
+}
+
+TAstNode TAstNode::MakeDeferredRef(const void* target)
+{
+    TAstNode n;
+    n.kind_ = EKind::DeferredRef;
+    n.deferred_target_ = target;
+    return n;
+}
+
+void TAstNode::Resolve(const TAstContext& ctx)
+{
+    if (kind_ == EKind::DeferredRef) {
+        const std::string id = ctx.IdentityOf(deferred_target_);
+        kind_ = EKind::Value;
+        content_ = "ref:" + (id.empty() ? std::string("<unresolved>") : id);
+        deferred_target_ = nullptr;
+        // DeferredRef has no children to recurse into.
+        return;
+    }
+    for (auto& [_, child] : children_) {
+        child.Resolve(ctx);
+    }
 }
 
 TAstNode& TAstNode::AddChild(std::string_view label, TAstNode child)
@@ -77,6 +102,10 @@ std::string TAstNode::PrettyPrint(int indent) const
         IndentTo(oss, indent);
         oss << content_;
         break;
+    case EKind::DeferredRef:
+        IndentTo(oss, indent);
+        oss << "<deferred-ref@" << deferred_target_ << ">";
+        break;
     case EKind::Object:
         IndentTo(oss, indent);
         oss << content_ << " {";
@@ -103,9 +132,10 @@ std::string TAstNode::PrettyPrint(int indent) const
 std::string TAstNode::KindName(int kind)
 {
     switch (static_cast<EKind>(kind)) {
-    case EKind::Null:   return "Null";
-    case EKind::Value:  return "Value";
-    case EKind::Object: return "Object";
+    case EKind::Null:        return "Null";
+    case EKind::Value:       return "Value";
+    case EKind::Object:      return "Object";
+    case EKind::DeferredRef: return "DeferredRef";
     }
     return "?";
 }

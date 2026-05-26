@@ -94,13 +94,22 @@ TAstNode TPlayer::GetAst(TAstContext& ctx) const
     static constexpr size_t kExpectedSize = 112;
     AST_ASSERT_LAYOUT(TPlayer, kExpectedSize);
 
+    // Self-register our own id and our owned creature pointer with hierarchical
+    // names so deferred refs anywhere in the AST (e.g. inside transformations
+    // that hold a TCreature* or THitPoints*) resolve to readable strings.
+    const std::string my_id = "player#" + std::to_string(GetId());
+    ctx.RegisterIdentity(this, my_id);
+    if (creature_ != nullptr) {
+        ctx.RegisterIdentity(creature_, my_id + ".creature");
+    }
+
     TAstNode node = TAstNode::MakeObject("TPlayer");
     AddValueField(node, "id", id_);
     AddValueField(node, "team", team_);
     AddValueField(node, "name", name_);
     AddValueField(node, "image_path", image_path_);
     AddValueField(node, "position", position_);
-    AddReference(node, "battle_map", battle_map_, "battle.map");
+    AddReference(node, "battle_map", battle_map_, "battle.map_holder");
     // creature_ is non-owning but AST-traversed (see header comment).
     AddOwnedObject(node, "creature", creature_, ctx);
     return node;

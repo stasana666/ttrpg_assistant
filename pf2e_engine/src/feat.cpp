@@ -1,9 +1,17 @@
 #include <pf2e_engine/feat.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
 
 TAstNode TCreatureFeat::GetAst([[maybe_unused]] TAstContext& ctx) const
 {
+    // TCreatureFeat is a struct (no private members, no sentinel) — we cannot
+    // use AST_ASSERT_LAYOUT_WITH_SENTINEL here. The sizeof check alone catches
+    // most layout changes (any added field changes total size unless it
+    // exactly fills trailing padding).
+    static constexpr size_t kExpectedSize = 80;
+    AST_ASSERT_LAYOUT(TCreatureFeat, kExpectedSize);
+
     TAstNode node = TAstNode::MakeObject("TCreatureFeat");
     AddValueField(node, "name", name);
     AddValueField(node, "blocks", blocks);

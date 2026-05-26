@@ -204,6 +204,16 @@ TAstNode TCreature::GetAst(TAstContext& ctx) const
     static constexpr size_t kExpectedSize = 888;
     AST_ASSERT_LAYOUT(TCreature, kExpectedSize);
 
+    // Self-register sub-objects with hierarchical names. We read our own id
+    // from the context (registered by TPlayer::GetAst). If the creature is
+    // ever rendered without a player owner, the id falls back to the address
+    // — visible in diffs as an unresolved marker.
+    const std::string my_id = ctx.IdentityOf(this);
+    if (!my_id.empty()) {
+        ctx.RegisterIdentity(&hitpoints_, my_id + ".hitpoints");
+        ctx.RegisterIdentity(&resources_, my_id + ".resources");
+    }
+
     TAstNode node = TAstNode::MakeObject("TCreature");
     AddOwnedObject(node, "stats", stats_, ctx);
     AddOwnedObject(node, "proficiency", proficiency_, ctx);

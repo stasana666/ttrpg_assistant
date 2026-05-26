@@ -85,15 +85,11 @@ TTask TTaskScheduler::GetTaskCopy(TTaskId id) const
     return TTask{};
 }
 
-TAstNode GetEventAst(const TEvent& event, TAstContext& ctx)
+TAstNode GetEventAst(const TEvent& event, [[maybe_unused]] TAstContext& ctx)
 {
     TAstNode node = TAstNode::MakeObject("TEvent");
     AddValueField(node, "type", event.type);
-    std::string player_id = ctx.IdentityOf(event.context.player);
-    if (player_id.empty()) {
-        player_id = event.context.player == nullptr ? "<null>" : "<unregistered>";
-    }
-    AddValueField(node, "player", player_id);
+    AddReference(node, "player", event.context.player);
     return node;
 }
 
