@@ -1,7 +1,5 @@
 #include <pf2e_engine/common/ast/ast_node.h>
 
-#include <pf2e_engine/common/ast/ast_context.h>
-
 #include <sstream>
 
 TAstNode TAstNode::MakeNull()
@@ -27,33 +25,16 @@ TAstNode TAstNode::MakeObject(std::string_view type_name)
     return n;
 }
 
-TAstNode TAstNode::MakeDeferredRef(const void* target)
-{
-    TAstNode n;
-    n.kind_ = EKind::DeferredRef;
-    n.deferred_target_ = target;
-    return n;
-}
-
-void TAstNode::Resolve(const TAstContext& ctx)
-{
-    if (kind_ == EKind::DeferredRef) {
-        const std::string id = ctx.IdentityOf(deferred_target_);
-        kind_ = EKind::Value;
-        content_ = "ref:" + (id.empty() ? std::string("<unresolved>") : id);
-        deferred_target_ = nullptr;
-        // DeferredRef has no children to recurse into.
-        return;
-    }
-    for (auto& [_, child] : children_) {
-        child.Resolve(ctx);
-    }
-}
-
-TAstNode& TAstNode::AddChild(std::string_view label, TAstNode child)
+TAstNode* TAstNode::AddChild(std::string_view label, TAstNode child)
 {
     children_.emplace_back(std::string(label), std::move(child));
-    return *this;
+    return &children_.back().second;
+}
+
+void TAstNode::SetValueContent(std::string serialized)
+{
+    kind_ = EKind::Value;
+    content_ = std::move(serialized);
 }
 
 bool TAstNode::operator ==(const TAstNode& other) const
@@ -67,11 +48,13 @@ bool TAstNode::operator ==(const TAstNode& other) const
     if (children_.size() != other.children_.size()) {
         return false;
     }
-    for (size_t i = 0; i < children_.size(); ++i) {
-        if (children_[i].first != other.children_[i].first) {
+    auto it_a = children_.begin();
+    auto it_b = other.children_.begin();
+    for (; it_a != children_.end(); ++it_a, ++it_b) {
+        if (it_a->first != it_b->first) {
             return false;
         }
-        if (children_[i].second != other.children_[i].second) {
+        if (it_a->second != it_b->second) {
             return false;
         }
     }
@@ -102,10 +85,6 @@ std::string TAstNode::PrettyPrint(int indent) const
         IndentTo(oss, indent);
         oss << content_;
         break;
-    case EKind::DeferredRef:
-        IndentTo(oss, indent);
-        oss << "<deferred-ref@" << deferred_target_ << ">";
-        break;
     case EKind::Object:
         IndentTo(oss, indent);
         oss << content_ << " {";
@@ -132,10 +111,9 @@ std::string TAstNode::PrettyPrint(int indent) const
 std::string TAstNode::KindName(int kind)
 {
     switch (static_cast<EKind>(kind)) {
-    case EKind::Null:        return "Null";
-    case EKind::Value:       return "Value";
-    case EKind::Object:      return "Object";
-    case EKind::DeferredRef: return "DeferredRef";
+    case EKind::Null:   return "Null";
+    case EKind::Value:  return "Value";
+    case EKind::Object: return "Object";
     }
     return "?";
 }
@@ -163,13 +141,16 @@ std::string TAstNode::DiffImpl(const TAstNode& other, const std::string& path) c
                std::to_string(children_.size()) + " vs " +
                std::to_string(other.children_.size()) + ")";
     }
-    for (size_t i = 0; i < children_.size(); ++i) {
-        if (children_[i].first != other.children_[i].first) {
+    auto it_a = children_.begin();
+    auto it_b = other.children_.begin();
+    size_t i = 0;
+    for (; it_a != children_.end(); ++it_a, ++it_b, ++i) {
+        if (it_a->first != it_b->first) {
             return path + ": child label[" + std::to_string(i) + "] mismatch (\"" +
-                   children_[i].first + "\" vs \"" + other.children_[i].first + "\")";
+                   it_a->first + "\" vs \"" + it_b->first + "\")";
         }
-        const std::string sub = children_[i].second.DiffImpl(
-            other.children_[i].second, path + "/" + children_[i].first);
+        const std::string sub = it_a->second.DiffImpl(it_b->second,
+                                                     path + "/" + it_a->first);
         if (!sub.empty()) {
             return sub;
         }

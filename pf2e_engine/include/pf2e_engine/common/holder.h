@@ -39,8 +39,6 @@ public:
         value_ = value;
     }
 
-    // AST traversal of the held T, performed under the holder's mutex so the
-    // snapshot is consistent. T must provide GetAst(TAstContext&).
     TAstNode GetAst(TAstContext& ctx) const
     {
         std::shared_ptr<const T> snapshot;

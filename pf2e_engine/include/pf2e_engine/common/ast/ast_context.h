@@ -4,32 +4,21 @@
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
-// Threaded through every GetAst(ctx) call. Owns:
-//   - the Visited set used for ownership-cycle detection;
-//   - an identity table mapping non-owning pointers (e.g. TPlayer*) to
-//     stable string IDs (e.g. "player#3") so references can serialize
-//     deterministically without exposing addresses.
-//
-// Cycle detection applies ONLY to ownership traversal. Non-owning references
-// do not participate (AddReference does not call Visit).
-//
-// The visited set is keyed on (address, type) — NOT address alone — because
-// a child member often shares its parent's address (e.g. the first array
-// element of a class member is at the same byte offset as the class itself,
-// and TCharacteristicSet's `stats_[0]` lives at offsetof(stats_) == 0).
-// Without the type key, a parent and its first-member child would falsely
-// register as a cycle on every traversal.
+class TAstNode;
+
 class TAstContext {
 public:
-    // Throws std::runtime_error if (p, type) was already visited.
     void Visit(const void* p, std::string_view type);
     void Unvisit(const void* p, std::string_view type);
 
     void RegisterIdentity(const void* p, std::string id);
-    std::string IdentityOf(const void* p) const;  // "" if unknown
+    std::string IdentityOf(const void* p) const;
 
-    // RAII guard: visits on construction, unvisits on destruction.
+    void RegisterPending(const void* p, TAstNode* node);
+
     class TGuard {
     public:
         TGuard(TAstContext& ctx, const void* p, std::string_view type);
@@ -55,4 +44,5 @@ private:
 
     std::unordered_set<TKey, FKeyHash> visited_;
     std::unordered_map<const void*, std::string> identity_;
+    std::unordered_map<const void*, std::vector<TAstNode*>> pending_;
 };

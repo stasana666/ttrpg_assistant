@@ -102,7 +102,7 @@ TBattleMap::TCell& TBattleMap::GetCell(int x, int y)
     return battlemap_[x][y];
 }
 
-TAstNode TBattleMap::GetAst([[maybe_unused]] TAstContext& ctx) const
+TAstNode TBattleMap::GetAst(TAstContext& ctx) const
 {
     static constexpr size_t kExpectedSize = 40;
     static constexpr size_t kExpectedSentinelOffset = 32;
@@ -116,7 +116,7 @@ TAstNode TBattleMap::GetAst([[maybe_unused]] TAstContext& ctx) const
     for (size_t x = 0; x < battlemap_.size(); ++x) {
         TAstNode row = TAstNode::MakeObject("row");
         for (size_t y = 0; y < battlemap_[x].size(); ++y) {
-            AddReference(row, std::to_string(y), battlemap_[x][y].player);
+            AddReference(row, std::to_string(y), battlemap_[x][y].player, ctx);
         }
         grid.AddChild(std::to_string(x), std::move(row));
     }

@@ -167,8 +167,6 @@ TAstNode SerializeProfMap(const std::map<K, TProficiency::Value>& m,
 
 TAstNode TProficiency::GetAst([[maybe_unused]] TAstContext& ctx) const
 {
-    // TProficiency is non-standard-layout; offsetof on the sentinel is UB.
-    // sizeof alone here.
     static constexpr size_t kExpectedSize = 216;
     AST_ASSERT_LAYOUT(TProficiency, kExpectedSize);
 

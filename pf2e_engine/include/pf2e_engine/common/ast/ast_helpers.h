@@ -6,6 +6,7 @@
 #include <pf2e_engine/common/ast/ast_serialize.h>
 
 #include <algorithm>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -13,10 +14,6 @@
 #include <utility>
 #include <vector>
 
-// ------------------------------------------------------------------
-// AddValueField: trivially-comparable, value-semantic field.
-// Rejected at compile time for any T that is marked AST-recursive.
-// ------------------------------------------------------------------
 template <class V>
 void AddValueField(TAstNode& parent, std::string_view label, const V& v)
 {
@@ -25,21 +22,16 @@ void AddValueField(TAstNode& parent, std::string_view label, const V& v)
     parent.AddChild(label, TAstNode::MakeValue(AstSerialize(v)));
 }
 
-// ------------------------------------------------------------------
-// AddOwnedObject: recurse into an owned IAstConstructable.
-// The reference overload is constrained to non-pointer T so that calling
-// with `AddOwnedObject(node, "x", some_ptr, ctx)` unambiguously selects
-// the pointer overload below. Without this guard, the reference overload
-// also matches (deducing T as TFoo*) and then fails inside the body when
-// trying obj.GetAst().
-// ------------------------------------------------------------------
+// SFINAE on non-pointer prevents the value-ref overload from matching when
+// the caller passes a raw pointer (which would otherwise deduce T as Foo*
+// and then fail trying to call obj.GetAst(ctx) on the pointer).
 template <class T,
           std::enable_if_t<!std::is_pointer_v<T>, int> = 0>
 void AddOwnedObject(TAstNode& parent, std::string_view label,
                     const T& obj, TAstContext& ctx)
 {
     static_assert(TIsAstRecursive<T>::value,
-        "AddOwnedObject: T is not marked AST-recursive. Add TIsAstRecursive specialization.");
+        "AddOwnedObject: T is not marked AST-recursive.");
     TAstContext::TGuard guard(ctx, static_cast<const void*>(&obj), typeid(T).name());
     parent.AddChild(label, obj.GetAst(ctx));
 }
@@ -57,22 +49,7 @@ void AddOwnedObject(TAstNode& parent, std::string_view label,
     AddOwnedObject(parent, label, *obj, ctx);
 }
 
-// ------------------------------------------------------------------
-// AddOwnedContainer: recurse into every element of an owned container.
-// Element type T may be a value, raw pointer, or shared/unique_ptr to an
-// IAstConstructable; the wrapping is unpacked transparently here.
-// `key_fn(element)` returns a sortable key used to make iteration order
-// deterministic for unordered containers. For naturally-ordered containers
-// (vector, list, map) `key_fn` may return the index — the relative order
-// is preserved either way.
-// ------------------------------------------------------------------
 namespace ast_detail {
-
-template <class E>
-auto Deref(const E& e) -> decltype(*e) { return *e; }
-
-template <class E>
-const E& Deref(const E* e) { return *e; }
 
 template <class T>
 TAstNode RecurseElement(const T& elem, TAstContext& ctx)
@@ -134,26 +111,22 @@ void AddOwnedContainer(TAstNode& parent, std::string_view label,
     parent.AddChild(label, std::move(node));
 }
 
-// ------------------------------------------------------------------
-// AddReference: non-owning pointer. Emits a DEFERRED reference node that
-// carries the raw pointer; the final string ("ref:<id>") is filled in by
-// TAstNode::Resolve once every owning class has had a chance to call
-// ctx.RegisterIdentity. This lets owners register their sub-objects' IDs
-// inside their own GetAst, in any visitation order, without forcing the
-// root (TBattle::GetAst) to pre-walk the whole graph.
-// ------------------------------------------------------------------
 inline void AddReference(TAstNode& parent, std::string_view label,
-                         const void* identity)
+                         const void* identity, TAstContext& ctx)
 {
     if (identity == nullptr) {
         parent.AddChild(label, TAstNode::MakeNull());
         return;
     }
-    parent.AddChild(label, TAstNode::MakeDeferredRef(identity));
+    const std::string known = ctx.IdentityOf(identity);
+    if (!known.empty()) {
+        parent.AddChild(label, TAstNode::MakeValue("ref:" + known));
+        return;
+    }
+    TAstNode* added = parent.AddChild(label, TAstNode::MakeValue(""));
+    ctx.RegisterPending(identity, added);
 }
 
-// Eager overload: when the caller already knows the stable name (e.g. a
-// well-known sentinel like "battle.map_holder"), emit it directly.
 inline void AddReference(TAstNode& parent, std::string_view label,
                          const void* identity, std::string_view stable_id)
 {
@@ -164,37 +137,18 @@ inline void AddReference(TAstNode& parent, std::string_view label,
     parent.AddChild(label, TAstNode::MakeValue("ref:" + std::string(stable_id)));
 }
 
-// ------------------------------------------------------------------
-// AddReferenceContainer: container of non-owning pointers. ptr_fn(element)
-// returns the raw pointer to defer-resolve for each entry. Order in the
-// produced AST is the iteration order of the container (use ordered
-// containers, or pre-sort by stable build-time key, when calling this).
-// ------------------------------------------------------------------
 template <class Container, class PtrFn>
 void AddReferenceContainer(TAstNode& parent, std::string_view label,
-                           const Container& c, PtrFn ptr_fn)
+                           const Container& c, TAstContext& ctx, PtrFn ptr_fn)
 {
     TAstNode node = TAstNode::MakeObject("ref_container");
     size_t idx = 0;
     for (auto it = c.begin(); it != c.end(); ++it, ++idx) {
-        const void* target = ptr_fn(*it, idx);
-        if (target == nullptr) {
-            node.AddChild(std::to_string(idx), TAstNode::MakeNull());
-        } else {
-            node.AddChild(std::to_string(idx), TAstNode::MakeDeferredRef(target));
-        }
+        AddReference(node, std::to_string(idx), ptr_fn(*it, idx), ctx);
     }
     parent.AddChild(label, std::move(node));
 }
 
-// ------------------------------------------------------------------
-// AddCallbackPlaceholder: documents the presence of a std::function-typed
-// field without attempting to compare its captured state. AST equality
-// across save/rollback holds only because TTransformator restores the same
-// function object verbatim (TRemoveTask::Undo, TRemoveEffect::Undo).
-// Do NOT use this for any field that is constructed/replaced outside of
-// the rollback-symmetric paths.
-// ------------------------------------------------------------------
 template <class Fn>
 void AddCallbackPlaceholder(TAstNode& parent, std::string_view label, const Fn& fn)
 {

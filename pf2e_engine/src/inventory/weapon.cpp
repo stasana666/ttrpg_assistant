@@ -103,8 +103,6 @@ std::string_view TWeapon::Name() const
 
 TAstNode TWeapon::GetAst([[maybe_unused]] TAstContext& ctx) const
 {
-    // TWeapon is non-standard-layout (multiple bases). offsetof on the sentinel
-    // is UB. sizeof alone here.
     static constexpr size_t kExpectedSize = 80;
     AST_ASSERT_LAYOUT(TWeapon, kExpectedSize);
 

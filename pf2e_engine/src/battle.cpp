@@ -239,19 +239,9 @@ std::vector<const TReaction*> TBattle::Reactions(ETrigger trigger) const
 
 TAstNode TBattle::GetAst(TAstContext& ctx) const
 {
-    // TBattle is non-standard-layout (holds an IInteractionSystem& reference),
-    // so offsetof on the sentinel is UB. Rely on sizeof alone here; a field
-    // that exactly fills trailing padding will not be caught for TBattle
-    // specifically.
     static constexpr size_t kExpectedSize = 472;
     AST_ASSERT_LAYOUT(TBattle, kExpectedSize);
 
-    // Register only the identities this class owns the names for. Each child
-    // class self-registers its own internal sub-objects (TPlayer registers
-    // its creature, TCreature registers its hitpoints/resources, etc.).
-    // Order does not matter: AddReference emits a deferred placeholder and
-    // node.Resolve(ctx) at the end looks every placeholder up after the whole
-    // graph has been walked.
     ctx.RegisterIdentity(&initiative_order_, "battle.initiative_order");
     ctx.RegisterIdentity(&scheduler_,        "battle.scheduler");
     ctx.RegisterIdentity(&effect_manager_,   "battle.effect_manager");
@@ -262,7 +252,7 @@ TAstNode TBattle::GetAst(TAstContext& ctx) const
     }
 
     TAstNode node = TAstNode::MakeObject("TBattle");
-    AddOwnedObject(node, "battle_map", battle_map_, ctx);  // THolder::GetAst locks internally
+    AddOwnedObject(node, "battle_map", battle_map_, ctx);
     AddOwnedObject(node, "initiative_order", initiative_order_, ctx);
     AddOwnedObject(node, "transformator", transformator_, ctx);
     AddOwnedObject(node, "scheduler", scheduler_, ctx);
@@ -274,9 +264,6 @@ TAstNode TBattle::GetAst(TAstContext& ctx) const
                        player, ctx);
     }
     node.AddChild("players", std::move(players_node));
-
-    // Replace every deferred reference placeholder with the resolved stable id.
-    node.Resolve(ctx);
     return node;
 }
 

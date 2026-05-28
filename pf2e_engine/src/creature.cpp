@@ -185,8 +185,6 @@ TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& react
 {
     TAstNode node = TAstNode::MakeObject("reactions");
     AddValueField(node, "count", reactions.size());
-    // TReaction doesn't expose a stable name; emit per-index trigger type only,
-    // which is what changes if a reaction is swapped out.
     for (size_t i = 0; i < reactions.size(); ++i) {
         if (reactions[i]) {
             AddValueField(node, std::to_string(i), reactions[i]->TriggerType());
@@ -199,15 +197,9 @@ TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& react
 
 TAstNode TCreature::GetAst(TAstContext& ctx) const
 {
-    // TCreature is non-standard-layout (contains TCharacteristic which has the
-    // TObservable<> base). offsetof on the sentinel is UB. sizeof alone here.
     static constexpr size_t kExpectedSize = 888;
     AST_ASSERT_LAYOUT(TCreature, kExpectedSize);
 
-    // Self-register sub-objects with hierarchical names. We read our own id
-    // from the context (registered by TPlayer::GetAst). If the creature is
-    // ever rendered without a player owner, the id falls back to the address
-    // — visible in diffs as an unresolved marker.
     const std::string my_id = ctx.IdentityOf(this);
     if (!my_id.empty()) {
         ctx.RegisterIdentity(&hitpoints_, my_id + ".hitpoints");

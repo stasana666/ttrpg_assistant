@@ -17,7 +17,4 @@ ECondition ConditionFromString(std::string);
 
 using TConditions = std::unordered_map<ECondition, int>;
 
-// TConditions is a typedef, so it cannot carry a member GetAst. This free
-// function emits the conditions as an AST object node, sorted by the
-// underlying ECondition enum value for determinism.
 TAstNode GetConditionsAst(const TConditions& conditions);

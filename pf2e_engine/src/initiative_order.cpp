@@ -78,10 +78,8 @@ void TInitiativeOrder::SetRound(size_t round)
     round_ = round;
 }
 
-TAstNode TInitiativeOrder::GetAst([[maybe_unused]] TAstContext& ctx) const
+TAstNode TInitiativeOrder::GetAst(TAstContext& ctx) const
 {
-    // TInitiativeOrder is non-standard-layout (holds IInteractionSystem&);
-    // offsetof on the sentinel is UB. sizeof alone here.
     static constexpr size_t kExpectedSize = 96;
     AST_ASSERT_LAYOUT(TInitiativeOrder, kExpectedSize);
 
@@ -89,15 +87,13 @@ TAstNode TInitiativeOrder::GetAst([[maybe_unused]] TAstContext& ctx) const
     AddValueField(node, "round", round_);
     AddValueField(node, "current_position", GetCurrentPosition());
 
-    // multimap iterates in key order — deterministic. TPlayer* are non-owning
-    // refs into TBattle's deque; resolve to stable IDs via the context.
     TAstNode order = TAstNode::MakeObject("players");
     size_t idx = 0;
     for (const auto& [init, player] : players_) {
         TAstNode entry = TAstNode::MakeObject("entry");
         AddValueField(entry, "initiative", init.initiative);
         AddValueField(entry, "initiative_bonus", init.initiative_bonus);
-        AddReference(entry, "player", player);
+        AddReference(entry, "player", player, ctx);
         order.AddChild(std::to_string(idx++), std::move(entry));
     }
     node.AddChild("players", std::move(order));

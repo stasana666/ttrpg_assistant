@@ -102,9 +102,6 @@ TState TTransformator::CurrentState() const
 
 TAstNode TTransformator::GetAst(TAstContext& ctx) const
 {
-    // io_system_ is a reference; skip offsetof. sizeof + sentinel covers it.
-    // TTransformator is non-standard-layout (holds IInteractionSystem&);
-    // offsetof on the sentinel is UB. sizeof alone here.
     static constexpr size_t kExpectedSize = 40;
     AST_ASSERT_LAYOUT(TTransformator, kExpectedSize);
 

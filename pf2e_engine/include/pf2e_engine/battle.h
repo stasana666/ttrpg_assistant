@@ -33,12 +33,6 @@ public:
 
     std::vector<const TReaction*> Reactions(ETrigger trigger) const;
 
-    // Root of the AST traversal. Pre-seeds the context's identity table with
-    // stable IDs for every TPlayer*, its TCreature, its THitPoints, its
-    // TResourcePool, plus the sibling subsystem pointers (effect_manager,
-    // scheduler, initiative_order, battle_map). Transformation records that
-    // hold non-owning pointers then resolve them via ctx.IdentityOf during
-    // traversal.
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:

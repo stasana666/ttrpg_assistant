@@ -24,8 +24,6 @@ public:
     int GetValue() const;
     void Set(int value);
 
-    // Only `value_` is emitted; the inherited TObservable subscribers_ list
-    // is runtime callbacks, not save/rollback state.
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:

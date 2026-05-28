@@ -108,17 +108,9 @@ void TEffectManager::Update(TPlayer* player, ECondition condition, TTransformato
 
 TAstNode TEffectManager::GetAst([[maybe_unused]] TAstContext& ctx) const
 {
-    // TEffectManager is non-standard-layout (has private FConditionKeyHasher
-    // member class). offsetof on the sentinel is UB. sizeof alone here.
     static constexpr size_t kExpectedSize = 136;
     AST_ASSERT_LAYOUT(TEffectManager, kExpectedSize);
 
-    // Sort by (player_id_int, condition_enum_int). Both are build-time-known
-    // and stable across runs (unlike pointer addresses or resolved string
-    // names which would require the context's identity table). std::stable_sort
-    // is used so that any two entries that compare equal — which should not
-    // happen since (player, condition) is unique in the map — keep their
-    // arrival order rather than producing run-to-run noise.
     using SortKey = std::pair<int, int>;
     auto make_sort_key = [](const ConditionKey& k) -> SortKey {
         const int player_id = k.first == nullptr ? -1 : k.first->GetId();
@@ -135,7 +127,6 @@ TAstNode TEffectManager::GetAst([[maybe_unused]] TAstContext& ctx) const
 
     TAstNode node = TAstNode::MakeObject("TEffectManager");
 
-    // condition_values_: multiset is already sorted, render as a vector of values.
     std::vector<std::pair<SortKey, const ConditionKey*>> values_sorted;
     values_sorted.reserve(condition_values_.size());
     for (const auto& [key, _] : condition_values_) {
@@ -152,7 +143,6 @@ TAstNode TEffectManager::GetAst([[maybe_unused]] TAstContext& ctx) const
     }
     node.AddChild("condition_values", std::move(values_node));
 
-    // active_cancelers_: same sort key, same stability guarantee.
     std::vector<std::pair<SortKey, const ConditionKey*>> cancelers_sorted;
     cancelers_sorted.reserve(active_cancelers_.size());
     for (const auto& [key, _] : active_cancelers_) {

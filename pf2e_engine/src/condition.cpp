@@ -34,12 +34,6 @@ ECondition ConditionFromString(std::string condition)
 
 TAstNode GetConditionsAst(const TConditions& conditions)
 {
-    // Filter out 0-valued entries. TCreature::Get(condition) returns 0 both
-    // when the key is absent and when it is mapped to 0, so they are logically
-    // the same state. TChangeCondition::Undo restores the value but does not
-    // erase the key, leaving stale {cond, 0} entries that would falsely fail
-    // rollback equality otherwise. The AST represents logical state, not
-    // physical map structure.
     std::vector<std::pair<ECondition, int>> sorted;
     sorted.reserve(conditions.size());
     for (const auto& [cond, value] : conditions) {

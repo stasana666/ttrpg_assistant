@@ -21,9 +21,6 @@ struct TCreatureFeat {
     std::vector<std::string> blocks;
     TAction::TPipeline pipeline;
 
-    // pipeline holds unique_ptrs to IActionBlock — code, not state. We emit
-    // only the count and block typeids so any "different feat" attached
-    // would change the AST, without trying to compare opaque callable trees.
     TAstNode GetAst(TAstContext& ctx) const;
 };
 

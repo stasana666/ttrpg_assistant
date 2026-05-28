@@ -45,12 +45,6 @@ public:
     void BindWith(THolder<TBattleMap>& battle_map, const TPosition position);
     void Unbind();
 
-    // creature_ is a non-owning raw pointer in this codebase (TCreature is
-    // owned outside the battle — typically by a test fixture or app). For AST
-    // purposes we *do* recurse into it: creature state (HP, conditions,
-    // resources) is the bulk of what save/rollback must restore, and in
-    // practice there is exactly one TPlayer per TCreature. The cycle set
-    // catches any violation of that 1:1 assumption.
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:

@@ -66,8 +66,6 @@ const TCharacteristic& TCharacteristicSet::operator[](ECharacteristic name) cons
 
 TAstNode TCharacteristic::GetAst([[maybe_unused]] TAstContext& ctx) const
 {
-    // TCharacteristic is non-standard-layout (inherits TObservable<>). offsetof
-    // on the sentinel is UB. sizeof alone here.
     static constexpr size_t kExpectedSize = 32;
     AST_ASSERT_LAYOUT(TCharacteristic, kExpectedSize);
 
@@ -78,8 +76,6 @@ TAstNode TCharacteristic::GetAst([[maybe_unused]] TAstContext& ctx) const
 
 TAstNode TCharacteristicSet::GetAst(TAstContext& ctx) const
 {
-    // TCharacteristicSet is non-standard-layout (contains non-SL TCharacteristic).
-    // sizeof alone here.
     static constexpr size_t kExpectedSize = 200;
     AST_ASSERT_LAYOUT(TCharacteristicSet, kExpectedSize);
 

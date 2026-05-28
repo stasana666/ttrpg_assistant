@@ -46,11 +46,6 @@ TAstNode TResourcePool::GetAst([[maybe_unused]] TAstContext& ctx) const
     static constexpr size_t kExpectedSentinelOffset = 56;
     AST_ASSERT_LAYOUT_WITH_SENTINEL(TResourcePool, kExpectedSize, kExpectedSentinelOffset);
 
-    // Sort entries by resource name (stable across runs, unlike the integer id).
-    // Filter out 0-counts: TResourcePool::Count(id) returns 0 both for absent
-    // keys and zero-mapped keys. TChangeResource::Undo reduces but does not
-    // erase, leaving stale {id, 0} entries that would falsely fail rollback
-    // equality otherwise. AST represents logical state, not map structure.
     std::vector<std::pair<std::string, int>> sorted;
     sorted.reserve(resources_.size());
     for (const auto& [id, count] : resources_) {

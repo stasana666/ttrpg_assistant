@@ -85,11 +85,11 @@ TTask TTaskScheduler::GetTaskCopy(TTaskId id) const
     return TTask{};
 }
 
-TAstNode GetEventAst(const TEvent& event, [[maybe_unused]] TAstContext& ctx)
+TAstNode GetEventAst(const TEvent& event, TAstContext& ctx)
 {
     TAstNode node = TAstNode::MakeObject("TEvent");
     AddValueField(node, "type", event.type);
-    AddReference(node, "player", event.context.player);
+    AddReference(node, "player", event.context.player, ctx);
     return node;
 }
 
@@ -105,18 +105,12 @@ TAstNode GetTaskAst(const TTask& task, TAstContext& ctx, size_t progress_index)
     }
     node.AddChild("events_before_call", std::move(events_node));
 
-    // The callback is an opaque std::function; comparing captured state across
-    // two separately-constructed lambdas is impossible. AST equality across
-    // save/rollback relies on TRemoveTask::Undo restoring the same TTask
-    // object (same captured state).
     AddCallbackPlaceholder(node, "callback", task.callback);
     return node;
 }
 
 TAstNode TTaskScheduler::GetAst(TAstContext& ctx) const
 {
-    // TTaskScheduler is non-standard-layout; offsetof on the sentinel is UB.
-    // sizeof alone here.
     static constexpr size_t kExpectedSize = 40;
     AST_ASSERT_LAYOUT(TTaskScheduler, kExpectedSize);
 

@@ -88,8 +88,5 @@ private:
 template <>
 struct TIsAstRecursive<TCreature> : std::true_type {};
 
-// TAction and TReaction are runtime callable trees (code, not state). We emit
-// only counts/names; they don't change during play and aren't subject to
-// rollback. These free helpers keep the per-class noise down.
 TAstNode GetActionListAst(const std::vector<std::shared_ptr<TAction>>& actions);
 TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& reactions);
