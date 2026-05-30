@@ -44,10 +44,13 @@ ctest
 # Run specific test suite
 ./pf2e_engine/tests/test_pf2_engine
 ./pf2e_engine/tests/actions/test_actions
+./pf2e_engine/tests/actions/test_wolf_combat
+./pf2e_engine/tests/ast/test_ast_state
 ./pf2e_engine/tests/expressions/test_expressions
 ./pf2e_engine/tests/game_object_logic/test_game_object_logic
 ./pf2e_engine/tests/inventory/test_inventory
 ./pf2e_engine/tests/mechanics/test_mechanics
+./pf2e_engine/tests/transformation/test_transformation
 ```
 
 ### Running the Application
@@ -131,6 +134,10 @@ Actions are defined as pipelines of composable blocks in JSON. The pipeline is p
 - `spell_damage_roll`: Roll spell damage (e.g., fireball 6d6)
 - `deal_damage`: Apply damage to target
 - `add_condition`: Apply status condition
+- `remove_condition`: Remove a status condition
+- `flat_damage_roll`: Roll a flat dice expression as damage (no weapon)
+- `check_ally_adjacent`: Emit success if an ally is adjacent to `$target` (e.g., flanking check); pair with `Switch`
+- `contribute_damage_bonus`: Add fixed bonus damage of a given type into the damage-roll accumulator
 - `move`: Move character on battle map
 - `get_parameter`: Extract parameter from context
 - `get_targets_in_area`: Find all targets in an area (burst, cone, etc.)
@@ -157,16 +164,33 @@ The combat analyzer ([analyzer/](analyzer/)) runs Monte-Carlo simulations on top
 - **`TCombatAnalyzer`** ([analyzer/src/combat_analyzer.cpp](analyzer/src/combat_analyzer.cpp)) — builds the `TGameObjectFactory` once, then loops fresh `TBattle` + seeded `TRandomGenerator` per run, aggregating per-team win rate and per-creature death probability into `TAnalysisResult`.
 
 ### Expression System
-Mathematical expressions (damage rolls, stat calculations) use a compositional expression tree:
-- `TDiceExpression`: Dice rolls (e.g., "2d6")
-- `TNumberExpression`: Constant values
-- `TMathExpression`: Arithmetic operations (+, -, *, /)
+Mathematical expressions (damage rolls, stat calculations) use a compositional expression tree, all implementing `IExpression`:
+- `TDiceExpression`: Single dice roll (e.g., "2d6")
+- `TMultiDiceExpression`: Sum of several `TDiceExpression`s
+- `TNumberExpression`: Constant value
+- `TSumExpression`: Addition / subtraction of sub-expressions
+- `TProductExpression`: Multiplication / division of sub-expressions
 - Defined in [pf2e_engine/include/pf2e_engine/expressions/](pf2e_engine/include/pf2e_engine/expressions/)
 
 ### Transformation System
-State changes use a command pattern for reversibility ([pf2e_engine/src/transformation/transformation.cpp](pf2e_engine/src/transformation/transformation.cpp)):
-- `TChangeHitPoints`: Modify HP with stored previous state for undo
-- `TTransformator`: Manages transformation queue and rollback
+State changes use a command pattern for reversibility. `TTransformator` ([pf2e_engine/src/transformation/transformator.cpp](pf2e_engine/src/transformation/transformator.cpp)) is a variant-based command queue; `Undo(state)` rolls back to a previously-captured `TState`. Each variant stores the prior value it needs to invert itself (defined in [transformation.h](pf2e_engine/include/pf2e_engine/transformation/transformation.h)):
+- `TChangeHitPoints` — modify HP
+- `TChangeCondition` — set a creature condition value
+- `TChangeResource` — add or reduce a resource (actions, reactions, movement, spellslots)
+- `TAddEffect` / `TRemoveEffect` — install or uninstall a timed effect on a player
+- `TAddTask` / `TRemoveTask` — schedule or unschedule a `TTask` in `TTaskScheduler`
+- `TAdvanceTaskProgress` — advance a task's event-cursor
+- `TChangeCurrentPlayer` / `TChangeRound` — initiative-order updates
+
+Any mutation that skips `TTransformator` will survive rollback — see the AST-Based State Comparison section below for the test that catches that.
+
+### AST-Based State Comparison
+Validates save/rollback correctness: `TTransformator::Undo` must restore **all** engine state. The AST system serializes a `TBattle` into a deterministic tree (`TAstNode GetAst(TAstContext&) const` on each instrumented class) so tests can assert byte-equal trees before vs. after a mutate/rollback cycle. Any mutation that bypassed `TTransformator` shows up as a diff at a named path.
+
+Layout-change detection: every instrumented class ends with a trailing `ast_layout_sentinel_` member and `GetAst` opens with `AST_ASSERT_LAYOUT[_WITH_SENTINEL]`. Adding a new field forces a compile failure, so the contributor must audit `GetAst` and decide the field's ownership category.
+
+- Tests: [pf2e_engine/tests/ast/test_ast_state.cpp](pf2e_engine/tests/ast/test_ast_state.cpp)
+- Design doc: [pf2e_engine/include/pf2e_engine/common/ast/CLAUDE.md](pf2e_engine/include/pf2e_engine/common/ast/CLAUDE.md) — read this before adding `GetAst` to a new class or changing the AST infrastructure.
 
 ### Continuation / Savepoint System
 Some interactions must be deferred without halting the game (e.g. a reaction opportunity raised when a creature moves). `TSavepointStackUnwind` ([pf2e_engine/include/pf2e_engine/actions/save_point.h](pf2e_engine/include/pf2e_engine/actions/save_point.h)) is an exception thrown to *suspend* execution: as it unwinds, each continuation-aware frame appends "the rest of its work" via `AddCallFunctionLevel`; `TBattle::MakeTurn` catches it, and `Resume()` re-enters every frame at its suspension point.
@@ -214,6 +238,7 @@ The path to `libvosk.so` is configured in [extern/CMakeLists.txt](extern/CMakeLi
 
 ### Important File Locations
 - Engine source: [pf2e_engine/src/](pf2e_engine/src/) and [pf2e_engine/include/pf2e_engine/](pf2e_engine/include/pf2e_engine/)
+- AST state-comparison infrastructure: [pf2e_engine/include/pf2e_engine/common/ast/](pf2e_engine/include/pf2e_engine/common/ast/) (has its own CLAUDE.md)
 - Engine tests: [pf2e_engine/tests/](pf2e_engine/tests/)
 - Game data: [pf2e_engine/data/](pf2e_engine/data/)
 - JSON schemas: [pf2e_engine/schemas/](pf2e_engine/schemas/)
