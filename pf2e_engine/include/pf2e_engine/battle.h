@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/battle_map.h>
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/common/holder.h>
 #include <pf2e_engine/effect_manager.h>
 #include <pf2e_engine/initiative_order.h>
@@ -32,6 +33,8 @@ public:
 
     std::vector<const TReaction*> Reactions(ETrigger trigger) const;
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     void StartRound();
     void EndRound();
@@ -55,4 +58,8 @@ private:
     TTaskScheduler scheduler_;
     TEffectManager effect_manager_;
     std::deque<TPlayer> players_;
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TBattle> : std::true_type {};

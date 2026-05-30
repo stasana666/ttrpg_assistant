@@ -10,6 +10,9 @@
 #include <pf2e_engine/transformation/transformator.h>
 #include <pf2e_engine/scheduler.h>
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
+
 #include <cassert>
 #include <iostream>
 #include <stdexcept>
@@ -233,3 +236,38 @@ std::vector<const TReaction*> TBattle::Reactions(ETrigger trigger) const
     }
     return reactions;
 }
+
+TAstNode TBattle::GetAst(TAstContext& ctx) const
+{
+    static constexpr size_t kExpectedSize = 472;
+    AST_ASSERT_LAYOUT(TBattle, kExpectedSize);
+
+    ctx.RegisterIdentity(&initiative_order_, "battle.initiative_order");
+    ctx.RegisterIdentity(&scheduler_,        "battle.scheduler");
+    ctx.RegisterIdentity(&effect_manager_,   "battle.effect_manager");
+    ctx.RegisterIdentity(&transformator_,    "battle.transformator");
+    ctx.RegisterIdentity(&battle_map_,       "battle.map_holder");
+    for (const auto& player : players_) {
+        ctx.RegisterIdentity(&player, "player#" + std::to_string(player.GetId()));
+    }
+
+    TAstNode node = TAstNode::MakeObject("TBattle");
+    AddOwnedObject(node, "battle_map", battle_map_, ctx);
+    AddOwnedObject(node, "initiative_order", initiative_order_, ctx);
+    AddOwnedObject(node, "transformator", transformator_, ctx);
+    AddOwnedObject(node, "scheduler", scheduler_, ctx);
+    AddOwnedObject(node, "effect_manager", effect_manager_, ctx);
+
+    TAstNode players_node = TAstNode::MakeObject("players");
+    for (const auto& player : players_) {
+        AddOwnedObject(players_node, "player#" + std::to_string(player.GetId()),
+                       player, ctx);
+    }
+    node.AddChild("players", std::move(players_node));
+    return node;
+}
+
+// Mutable accessor for THitPoints (used by TChangeHitPoints) — needed only
+// after the AST-related includes pulled in non-const requirements; kept here
+// as a tiny non-mutating addition. (This stub does nothing — actual mutations
+// happen via TTransformator.)

@@ -1,18 +1,30 @@
 #pragma once
 
 #include <pf2e_engine/creature.h>
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/common/holder.h>
 #include <pf2e_engine/position.h>
 
 #include <filesystem>
+#include <string>
 
 struct TPlayerId {
     int id;
 };
 
+inline std::string AstSerialize(const TPlayerId& v)
+{
+    return "TPlayerId{" + std::to_string(v.id) + "}";
+}
+
 struct TPlayerTeam {
     int team;
 };
+
+inline std::string AstSerialize(const TPlayerTeam& v)
+{
+    return "TPlayerTeam{" + std::to_string(v.team) + "}";
+}
 
 class TBattleMap;
 
@@ -33,6 +45,8 @@ public:
     void BindWith(THolder<TBattleMap>& battle_map, const TPosition position);
     void Unbind();
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     TCreature* creature_;
     TPlayerTeam team_;
@@ -41,4 +55,8 @@ private:
     std::string name_;
     std::filesystem::path image_path_;
     THolder<TBattleMap>* battle_map_;
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TPlayer> : std::true_type {};

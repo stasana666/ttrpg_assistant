@@ -1,5 +1,7 @@
 #include <pf2e_engine/initiative_order.h>
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/transformation/transformator.h>
 
@@ -74,4 +76,26 @@ size_t TInitiativeOrder::GetCurrentPosition() const
 void TInitiativeOrder::SetRound(size_t round)
 {
     round_ = round;
+}
+
+TAstNode TInitiativeOrder::GetAst(TAstContext& ctx) const
+{
+    static constexpr size_t kExpectedSize = 96;
+    AST_ASSERT_LAYOUT(TInitiativeOrder, kExpectedSize);
+
+    TAstNode node = TAstNode::MakeObject("TInitiativeOrder");
+    AddValueField(node, "round", round_);
+    AddValueField(node, "current_position", GetCurrentPosition());
+
+    TAstNode order = TAstNode::MakeObject("players");
+    size_t idx = 0;
+    for (const auto& [init, player] : players_) {
+        TAstNode entry = TAstNode::MakeObject("entry");
+        AddValueField(entry, "initiative", init.initiative);
+        AddValueField(entry, "initiative_bonus", init.initiative_bonus);
+        AddReference(entry, "player", player, ctx);
+        order.AddChild(std::to_string(idx++), std::move(entry));
+    }
+    node.AddChild("players", std::move(order));
+    return node;
 }

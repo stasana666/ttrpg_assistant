@@ -4,6 +4,12 @@
 #include <pf2e_engine/condition.h>
 #include <pf2e_engine/transformation/transformator.h>
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
+
+#include <algorithm>
+#include <vector>
+
 void TEffectManager::InsertValue(TPlayer* player, ECondition condition, int value)
 {
     condition_values_[std::make_pair(player, condition)].insert(value);
@@ -98,4 +104,64 @@ void TEffectManager::Update(TPlayer* player, ECondition condition, TTransformato
 {
     int new_value = GetHighestValue(player, condition);
     transformator.ChangeCondition(player->GetCreature(), condition, new_value);
+}
+
+TAstNode TEffectManager::GetAst([[maybe_unused]] TAstContext& ctx) const
+{
+    static constexpr size_t kExpectedSize = 136;
+    AST_ASSERT_LAYOUT(TEffectManager, kExpectedSize);
+
+    using SortKey = std::pair<int, int>;
+    auto make_sort_key = [](const ConditionKey& k) -> SortKey {
+        const int player_id = k.first == nullptr ? -1 : k.first->GetId();
+        return {player_id, static_cast<int>(k.second)};
+    };
+    auto make_label = [&](const ConditionKey& k) {
+        std::string label = k.first == nullptr
+            ? std::string("<null>")
+            : "player#" + std::to_string(k.first->GetId());
+        label += ":";
+        label += ToString(k.second);
+        return label;
+    };
+
+    TAstNode node = TAstNode::MakeObject("TEffectManager");
+
+    std::vector<std::pair<SortKey, const ConditionKey*>> values_sorted;
+    values_sorted.reserve(condition_values_.size());
+    for (const auto& [key, _] : condition_values_) {
+        values_sorted.emplace_back(make_sort_key(key), &key);
+    }
+    std::stable_sort(values_sorted.begin(), values_sorted.end(),
+        [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    TAstNode values_node = TAstNode::MakeObject("condition_values");
+    for (const auto& [_, kptr] : values_sorted) {
+        const auto& mset = condition_values_.at(*kptr);
+        std::vector<int> as_vec(mset.begin(), mset.end());
+        AddValueField(values_node, make_label(*kptr), as_vec);
+    }
+    node.AddChild("condition_values", std::move(values_node));
+
+    std::vector<std::pair<SortKey, const ConditionKey*>> cancelers_sorted;
+    cancelers_sorted.reserve(active_cancelers_.size());
+    for (const auto& [key, _] : active_cancelers_) {
+        cancelers_sorted.emplace_back(make_sort_key(key), &key);
+    }
+    std::stable_sort(cancelers_sorted.begin(), cancelers_sorted.end(),
+        [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    TAstNode cancelers_node = TAstNode::MakeObject("active_cancelers");
+    for (const auto& [_, kptr] : cancelers_sorted) {
+        const auto& vec = active_cancelers_.at(*kptr);
+        TAstNode entry = TAstNode::MakeObject("cancelers");
+        AddValueField(entry, "count", vec.size());
+        for (size_t i = 0; i < vec.size(); ++i) {
+            AddCallbackPlaceholder(entry, std::to_string(i), vec[i]);
+        }
+        cancelers_node.AddChild(make_label(*kptr), std::move(entry));
+    }
+    node.AddChild("active_cancelers", std::move(cancelers_node));
+
+    return node;
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <pf2e_engine/common/ast/ast_node.h>
+
 #include <string>
 #include <unordered_map>
 
@@ -14,3 +16,5 @@ std::string ToString(ECondition);
 ECondition ConditionFromString(std::string);
 
 using TConditions = std::unordered_map<ECondition, int>;
+
+TAstNode GetConditionsAst(const TConditions& conditions);

@@ -1,7 +1,8 @@
 #pragma once
 
-#include <pf2e_engine/condition.h>
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/common/hash_combine.h>
+#include <pf2e_engine/condition.h>
 
 #include <functional>
 #include <variant>
@@ -47,6 +48,8 @@ public:
     // Get the current highest value for a player/condition pair (0 if none)
     int GetHighestValue(TPlayer* player, ECondition condition) const;
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     void Update(TPlayer* player, ECondition condition, TTransformator& transformator);
 
@@ -67,4 +70,8 @@ private:
 
     std::unordered_map<ConditionKey, std::multiset<int>, FConditionKeyHasher> condition_values_;
     std::unordered_map<ConditionKey, std::vector<TEffectCanceler>, FConditionKeyHasher> active_cancelers_;
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TEffectManager> : std::true_type {};

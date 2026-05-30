@@ -1,4 +1,8 @@
 #include <characteristics.h>
+
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
+
 #include <stdexcept>
 
 TCharacteristic::TCharacteristic(int value)
@@ -58,6 +62,29 @@ const TCharacteristic& TCharacteristicSet::operator[](ECharacteristic name) cons
         case ECharacteristic::Charisma:     return stats_[5];
     }
     throw std::logic_error("unreachable");
+}
+
+TAstNode TCharacteristic::GetAst([[maybe_unused]] TAstContext& ctx) const
+{
+    static constexpr size_t kExpectedSize = 32;
+    AST_ASSERT_LAYOUT(TCharacteristic, kExpectedSize);
+
+    TAstNode node = TAstNode::MakeObject("TCharacteristic");
+    AddValueField(node, "value", value_);
+    return node;
+}
+
+TAstNode TCharacteristicSet::GetAst(TAstContext& ctx) const
+{
+    static constexpr size_t kExpectedSize = 200;
+    AST_ASSERT_LAYOUT(TCharacteristicSet, kExpectedSize);
+
+    TAstNode node = TAstNode::MakeObject("TCharacteristicSet");
+    for (size_t i = 0; i < kCharacteristicCount; ++i) {
+        AddOwnedObject(node, ToString(static_cast<ECharacteristic>(i)),
+                       stats_[i], ctx);
+    }
+    return node;
 }
 
 ////////////////////////////////////////////////////////////////////

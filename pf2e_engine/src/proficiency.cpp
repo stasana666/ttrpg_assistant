@@ -1,6 +1,9 @@
 #include <pf2e_engine/proficiency.h>
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/ast/ast_layout_assert.h>
 #include <pf2e_engine/common/visit.h>
+
 #include <stdexcept>
 #include "characteristics.h"
 #include "savethrows.h"
@@ -145,4 +148,34 @@ int TProficiency::GetProficiency(EProficiencyLevel proficiency) const
 int TProficiency::GetLevel() const
 {
     return level_;
+}
+
+namespace {
+
+template <class K>
+TAstNode SerializeProfMap(const std::map<K, TProficiency::Value>& m,
+                          std::string_view label)
+{
+    TAstNode node = TAstNode::MakeObject(std::string(label));
+    for (const auto& [k, v] : m) {
+        AddValueField(node, ToString(k), v);
+    }
+    return node;
+}
+
+}  // namespace
+
+TAstNode TProficiency::GetAst([[maybe_unused]] TAstContext& ctx) const
+{
+    static constexpr size_t kExpectedSize = 216;
+    AST_ASSERT_LAYOUT(TProficiency, kExpectedSize);
+
+    TAstNode node = TAstNode::MakeObject("TProficiency");
+    AddValueField(node, "level", level_);
+    node.AddChild("armor_category",  SerializeProfMap(armor_category_,  "map"));
+    node.AddChild("weapon_category", SerializeProfMap(weapon_category_, "map"));
+    node.AddChild("savethrow",       SerializeProfMap(savethrow_,       "map"));
+    node.AddChild("skill",           SerializeProfMap(skill_,           "map"));
+    AddValueField(node, "perception", perception_);
+    return node;
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/condition.h>
 #include <pf2e_engine/mechanics/hitpoints.h>
 #include <pf2e_engine/resources.h>
@@ -18,6 +19,8 @@ public:
 
     void Undo();
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     THitPoints* hitpoints_;
     THitPoints prev_;
@@ -28,6 +31,8 @@ public:
     TChangeCondition(TCreature* creature, ECondition condition, int new_value);
 
     void Undo();
+
+    TAstNode GetAst(TAstContext& ctx) const;
 
 private:
     TCreature* creature_;
@@ -41,6 +46,8 @@ public:
 
     void Undo();
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     TResourcePool* pool_;
     TResourceId id_;
@@ -52,6 +59,8 @@ public:
     TAddEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value);
 
     void Undo();
+
+    TAstNode GetAst(TAstContext& ctx) const;
 
 private:
     TEffectManager* manager_;
@@ -65,6 +74,8 @@ public:
     TRemoveEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value);
 
     void Undo();
+
+    TAstNode GetAst(TAstContext& ctx) const;
 
 private:
     TEffectManager* manager_;
@@ -81,6 +92,8 @@ public:
 
     TTaskId GetTaskId() const { return task_id_; }
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     TTaskScheduler* scheduler_;
     TTaskId task_id_;
@@ -91,6 +104,8 @@ public:
     TRemoveTask(TTaskScheduler* scheduler, TTaskId id, TTask task, size_t progress_index);
 
     void Undo();
+
+    TAstNode GetAst(TAstContext& ctx) const;
 
 private:
     TTaskScheduler* scheduler_;
@@ -105,6 +120,8 @@ public:
 
     void Undo();
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     TTaskScheduler* scheduler_;
     TTaskId task_id_;
@@ -117,6 +134,8 @@ public:
 
     void Undo();
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     TInitiativeOrder* order_;
     size_t prev_position_;
@@ -127,6 +146,8 @@ public:
     TChangeRound(TInitiativeOrder* order, size_t new_round);
 
     void Undo();
+
+    TAstNode GetAst(TAstContext& ctx) const;
 
 private:
     TInitiativeOrder* order_;

@@ -7,6 +7,7 @@ target_sources(pf2e_engine
         creature.cpp
         creature_size.cpp
         effect_manager.cpp
+        feat.cpp
         initiative_order.cpp
         player.cpp
         proficiency.cpp

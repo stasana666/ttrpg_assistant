@@ -3,6 +3,8 @@
 #include <pf2e_engine/effect_manager.h>
 #include <pf2e_engine/initiative_order.h>
 
+#include <pf2e_engine/common/ast/ast_helpers.h>
+
 TChangeHitPoints::TChangeHitPoints(THitPoints* hitpoints, int value)
     : hitpoints_(hitpoints)
     , prev_(*hitpoints_)
@@ -141,4 +143,92 @@ TChangeRound::TChangeRound(TInitiativeOrder* order, size_t new_round)
 void TChangeRound::Undo()
 {
     order_->SetRound(prev_round_);
+}
+
+TAstNode TChangeHitPoints::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TChangeHitPoints");
+    AddReference(node, "hitpoints_ref", hitpoints_, ctx);
+    AddOwnedObject(node, "prev", prev_, ctx);
+    return node;
+}
+
+TAstNode TChangeCondition::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TChangeCondition");
+    AddReference(node, "creature_ref", creature_, ctx);
+    AddValueField(node, "condition", condition_);
+    AddValueField(node, "prev_value", prev_value_);
+    return node;
+}
+
+TAstNode TChangeResource::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TChangeResource");
+    AddReference(node, "pool_ref", pool_, ctx);
+    AddValueField(node, "resource", id_);
+    AddValueField(node, "delta", delta_);
+    return node;
+}
+
+TAstNode TAddEffect::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TAddEffect");
+    AddReference(node, "manager_ref", manager_, ctx);
+    AddReference(node, "player_ref", player_, ctx);
+    AddValueField(node, "condition", condition_);
+    AddValueField(node, "value", value_);
+    return node;
+}
+
+TAstNode TRemoveEffect::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TRemoveEffect");
+    AddReference(node, "manager_ref", manager_, ctx);
+    AddReference(node, "player_ref", player_, ctx);
+    AddValueField(node, "condition", condition_);
+    AddValueField(node, "value", value_);
+    return node;
+}
+
+TAstNode TAddTask::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TAddTask");
+    AddReference(node, "scheduler_ref", scheduler_, ctx);
+    AddValueField(node, "task_id", task_id_);
+    return node;
+}
+
+TAstNode TRemoveTask::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TRemoveTask");
+    AddReference(node, "scheduler_ref", scheduler_, ctx);
+    AddValueField(node, "task_id", task_id_);
+    node.AddChild("task", GetTaskAst(task_, ctx, progress_index_));
+    return node;
+}
+
+TAstNode TAdvanceTaskProgress::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TAdvanceTaskProgress");
+    AddReference(node, "scheduler_ref", scheduler_, ctx);
+    AddValueField(node, "task_id", task_id_);
+    AddValueField(node, "prev_index", prev_index_);
+    return node;
+}
+
+TAstNode TChangeCurrentPlayer::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TChangeCurrentPlayer");
+    AddReference(node, "order_ref", order_, ctx);
+    AddValueField(node, "prev_position", prev_position_);
+    return node;
+}
+
+TAstNode TChangeRound::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TChangeRound");
+    AddReference(node, "order_ref", order_, ctx);
+    AddValueField(node, "prev_round", prev_round_);
+    return node;
 }

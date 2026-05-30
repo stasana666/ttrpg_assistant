@@ -1,5 +1,6 @@
 #pragma once
 
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/player.h>
 
 #include <list>
@@ -47,7 +48,16 @@ public:
     size_t GetTaskProgress(TTaskId id) const;
     TTask GetTaskCopy(TTaskId id) const;
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     TTaskId next_task_id_ = 0;
     std::list<std::tuple<TTaskId, TTask, std::vector<TEvent>::iterator>> tasks_;
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TTaskScheduler> : std::true_type {};
+
+TAstNode GetEventAst(const TEvent& event, TAstContext& ctx);
+TAstNode GetTaskAst(const TTask& task, TAstContext& ctx, size_t progress_index);

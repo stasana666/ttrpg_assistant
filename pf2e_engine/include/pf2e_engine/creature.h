@@ -1,5 +1,6 @@
 #pragma once
 
+#include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/weapon_slot.h>
 
 #include <pf2e_engine/actions/action.h>
@@ -21,6 +22,7 @@ public:
 
     TCharacteristicSet& Characteristics();
     THitPoints& Hitpoints();
+    const THitPoints& Hitpoints() const;
 
     const TResourcePool& Resources() const;
     TResourcePool& Resources();
@@ -59,6 +61,8 @@ public:
 
     std::vector<const TReaction*> Reactions(ETrigger) const;
 
+    TAstNode GetAst(TAstContext& ctx) const;
+
 private:
     TCharacteristicSet stats_;
     TProficiency proficiency_;
@@ -78,4 +82,11 @@ private:
     std::vector<std::shared_ptr<TAction>> actions_;
     std::vector<std::shared_ptr<TReaction>> reactions_;
     std::vector<std::shared_ptr<TCreatureFeat>> feats_;
+    [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
+
+template <>
+struct TIsAstRecursive<TCreature> : std::true_type {};
+
+TAstNode GetActionListAst(const std::vector<std::shared_ptr<TAction>>& actions);
+TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& reactions);
