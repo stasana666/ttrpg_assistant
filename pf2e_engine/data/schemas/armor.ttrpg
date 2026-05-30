@@ -1,0 +1,17 @@
+// Single source of truth for the TArmor data class.
+// Edit this file to add/remove/rename fields; everything (C++ class,
+// JSON loading, AST serialization, DSL property registration) is derived
+// automatically by tools/codegen.
+
+enum EArmorCategory {
+    Unarmored,
+    Light,
+    Medium,
+    Heavy,
+}
+
+class TArmor {
+    EArmorCategory Category;
+    int ArmorClassBonus = 0;
+    int DexterityCap = max_int;
+}

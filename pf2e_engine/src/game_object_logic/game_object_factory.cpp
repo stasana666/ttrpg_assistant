@@ -10,7 +10,7 @@
 #include <stdexcept>
 #include <sstream>
 
-#include "armor.h"
+#include <pf2e_engine/inventory/armor.h>
 #include "battle_map.h"
 #include "characteristics.h"
 #include "game_object_id.h"
@@ -109,11 +109,7 @@ TGameObjectId TGameObjectFactory::ReadGameObjectName(nlohmann::json& json_game_o
 
 void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    TArmor result;
-    result.ac_bonus_ = json_game_object["armor_class_bonus"];
-    result.dex_cap_ = json_game_object["dexterity_cap"];
-    result.category_ = ArmorCategoryFromString(json_game_object["category"]);
-
+    TArmor result = TArmor::FromJson(json_game_object);
     armors_.insert({id, [result]() { return result; }});
 }
 
@@ -160,7 +156,7 @@ TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_objec
     };
 
     for (auto& [json_key, json_value] : json_proficiency["armor_category"].items()) {
-        proficiency.SetProficiency(ArmorCategoryFromString(json_key), get_value(json_value));
+        proficiency.SetProficiency(EArmorCategoryFromString(json_key), get_value(json_value));
     }
 
     for (auto& [json_key, json_value] : json_proficiency["weapon_category"].items()) {
