@@ -125,8 +125,7 @@ Actions are defined as pipelines of composable blocks in JSON. The pipeline is p
 - `Terminate`: End the action pipeline
 
 **Available Functions** (in [pf2e_engine/include/pf2e_engine/action_blocks/](pf2e_engine/include/pf2e_engine/action_blocks/)):
-- `choose_weapon`: Select weapon for attack
-- `choose_from_list`: Present choices to player
+- `choose_from_list`: Prompt the player to pick one element from a list (works on player lists, weapon lists, or DSL lists)
 - `calculate_DC`: Calculate difficulty class (AC, saving throw DC)
 - `roll_against_DC`: Make d20 roll against DC
 - `weapon_damage_roll`: Roll weapon damage dice
@@ -140,11 +139,37 @@ Actions are defined as pipelines of composable blocks in JSON. The pipeline is p
 - `contribute_damage_bonus`: Add fixed bonus damage of a given type into the damage-roll accumulator
 - `move`: Move character on battle map
 - `get_parameter`: Extract parameter from context
-- `get_targets_in_area`: Find all targets in an area (burst, cone, etc.)
+- `get_targets_in_area`: Find all targets in an area (burst, cone, line). Use this for the burst/cone/line patterns that need a user-picked center cell; for emanation-shaped targeting prefer the DSL pattern (see [DSL Expression Layer](#dsl-expression-layer) below).
+- `let`, `filter`, `map`, `foldl`: Generic DSL primitives (see [DSL Expression Layer](#dsl-expression-layer))
 
-**JSON Input Syntax**: Variables are referenced with `$` prefix (e.g., `"$target"`). Damage tables map resource names to dice expressions (e.g., `{"spellslot_3": "6d6"}`).
+**JSON Input Syntax**: Variables are referenced with `$` prefix (e.g., `"$target"`). Damage tables map resource names to dice expressions (e.g., `{"spellslot_3": "6d6"}`). String inputs that start with `$` followed by a bare identifier (`$weapon`, `$target`) become variable references; anything else starting with `$` (like `"$item.reach >= $min_distance"`) is kept as a raw string for the DSL parser.
 
 Actions consume resources (actions, reactions, movement) and execute their pipeline sequentially.
+
+### DSL Expression Layer
+The action pipeline embeds a small expression DSL ([pf2e_engine/{include,src}/pf2e_engine/dsl/](pf2e_engine/include/pf2e_engine/dsl/)) so that filtering, predicates, and computed values can be written inline in JSON instead of as bespoke C++ blocks. The classic example is the new [attack.json](pf2e_engine/data/actions/attack.json) pipeline: it gets all creatures, filters by line of effect, computes the minimum distance, filters weapons by reach, chooses a weapon, filters targets by that weapon's reach, and chooses a target — all expressed declaratively.
+
+**Grammar** ([pf2e_engine/src/dsl/parser.cpp](pf2e_engine/src/dsl/parser.cpp)): variables `$name`, property access `$x.prop`, function calls `f(a, b)`, comparison `>= <= > < == !=`, logical `&& || !`, integer literals, parentheses. Arithmetic (`+ - * /`) is intentionally deferred.
+
+**Generic blocks** (registered in [action_reader.cpp:51](pf2e_engine/src/actions/action_reader.cpp#L51)):
+- `let`: evaluate a DSL `expression` and bind the result to the block's output.
+- `filter`: keep elements of `list` where `predicate` (DSL with `$item` bound) is true.
+- `map`: transform each element of `list` by `expression` (DSL with `$item` bound).
+- `foldl`: reduce `list` via `expression` (DSL with `$acc` and `$item` bound). With optional `init`; without `init`, seeds from the list head (throws on empty). Reductions like min/max/sum are built by pairing `foldl` with a binary DSL function — no per-reduction block is needed.
+
+**Registries** ([property_registry.h](pf2e_engine/include/pf2e_engine/dsl/property_registry.h), [function_registry.h](pf2e_engine/include/pf2e_engine/dsl/function_registry.h)): properties are registered per-class as `name → lambda(const T*, TEvalContext&) → TDslValue`; functions are stored in a single global `name → lambda(args, TEvalContext&) → TDslValue` map. Initial bindings live in [builtins.cpp](pf2e_engine/src/dsl/builtins.cpp):
+- Properties: `TWeapon.reach`, `TPlayer.creature`, `TPlayer.weapons`.
+- Functions: `creatures()`, `distance(a, b)`, `has_line_of_effect(a, b)`, `min(a, b)`, `max(a, b)`.
+
+**Value type**: [`TDslValue`](pf2e_engine/include/pf2e_engine/dsl/value.h) is a separate variant from `TGameObjectPtr`, kept separate so adding bool/list alternatives doesn't ripple into every `std::visit` site on the registry. Conversion happens at the pipeline boundary via [value_convert.h](pf2e_engine/include/pf2e_engine/dsl/value_convert.h). When extending: prefer adding properties/functions over adding new block types; the existing four collection blocks cover almost everything once a binary reducer is registered.
+
+**Scope binding**: `filter`/`map`/`foldl` bind `$item` (and `$acc` for foldl) into a scoped variable map on `TEvalContext` via [`TScopeGuard`](pf2e_engine/include/pf2e_engine/dsl/expression.h). The scope shadows the registry, so nested filters/maps with the same name correctly nest and restore.
+
+**`TDslValue(bool)` is constrained to `std::same_as<B, bool>`** ([value.h](pf2e_engine/include/pf2e_engine/dsl/value.h)) — without it, a `const T*` (when no matching non-const pointer overload exists) silently coerces to `bool` via implicit pointer-to-bool conversion and the variant ends up with the wrong alternative. If you add a new pointer alternative, prefer non-const access at the call site rather than introducing const-pointer constructors.
+
+**Examples in data**: [attack.json](pf2e_engine/data/actions/attack.json), [demoralize.json](pf2e_engine/data/actions/demoralize.json), [remove_fear.json](pf2e_engine/data/actions/remove_fear.json), [trip.json](pf2e_engine/data/actions/trip.json), [attacks_of_opportunity.json](pf2e_engine/data/actions/attacks_of_opportunity.json) all use the DSL for targeting. [fireball.json](pf2e_engine/data/actions/fireball.json) and [burst_of_fear.json](pf2e_engine/data/actions/burst_of_fear.json) still use `get_targets_in_area` because the burst pattern needs the engine to prompt for a center cell — adding that to the DSL would require a `TPosition` value type and a `choose_position` function.
+
+**Tests**: [pf2e_engine/tests/dsl/](pf2e_engine/tests/dsl/) covers the lexer, parser, evaluator, property access, function calls, and scope nesting.
 
 ### Interaction System
 The engine asks the outside world to make choices through the `IInteractionSystem` interface ([pf2e_engine/include/pf2e_engine/i_interaction_system.h](pf2e_engine/include/pf2e_engine/i_interaction_system.h)). It is dependency-injected into `TBattle` as `IInteractionSystem&`, so the engine never depends on any concrete implementation.
@@ -259,11 +284,22 @@ Each component has its own CMakeLists.txt; the top-level [CMakeLists.txt](CMakeL
 - **Types**: `T` prefix (e.g., `TBattle`, `TWeapon`, `TAction`)
 - **Enums**: `E` prefix (e.g., `ECondition`, `ESuccessLevel`, `EProficiencyLevel`)
 - **Interfaces**: `I` prefix for abstract base classes (e.g., `IActionBlock`, `IExpression`, `IInteractionSystem`)
-- **Functions**: `F` prefix for callable action block functions (e.g., `FChooseWeapon`, `FAddCondition`)
+- **Functions**: `F` prefix for callable action block functions (e.g., `FAddCondition`, `FFilter`)
 - **Constants**: `k` prefix with PascalCase (e.g., `kEmptyBlockFactory`, `kFunctionMapping`)
 - **ID Types**: `T{Name}Id` with `T{Name}IdManager` singleton (e.g., `TGameObjectId`, `TResourceId`)
 
-## How to Add New Action Blocks
+## How to Extend the Action Language
+
+**Prefer the DSL first.** Most "new block" needs really mean "expose a new property or function so the existing `let`/`filter`/`map`/`foldl` can do the job in JSON":
+- New property (e.g. `$creature.hp`): add an entry to the appropriate `TPropertyRegistry<T>::Instance().Register(...)` in [builtins.cpp](pf2e_engine/src/dsl/builtins.cpp).
+- New function (e.g. `is_ally(a, b)`): add an entry to `TDslFunctionRegistry::Instance().Register(...)` in the same file.
+No new C++ class, no `kFunctionMapping` change. The existing combat tests will exercise it automatically once an action JSON uses it.
+
+**Add a new action block only when:**
+- The work has irreducible C++ side effects on engine state — e.g. rolling dice via the RNG, recording a transformation, scheduling a task, prompting the interaction system. These can't be expressed as pure DSL expressions.
+- The new operation needs to write a NAMED output back into the registry beyond what `let` covers.
+
+Steps to add a new block:
 1. **Create header** in `pf2e_engine/include/pf2e_engine/action_blocks/`:
    ```cpp
    class FYourBlock : public FBaseFunction {
@@ -299,6 +335,7 @@ Each component has its own CMakeLists.txt; the top-level [CMakeLists.txt](CMakeL
 - **Continuation**: `continuation::While`/`ForEach`/`Then` ([continuation.h](pf2e_engine/include/pf2e_engine/common/continuation.h)) propagate `TSavepointStackUnwind` suspensions across the call stack
 
 ## Known Limitations
-- Weapon selection always chooses first in slots (hardcoded in `choose_weapon.cpp`)
 - Inline armor/weapon definitions in creature JSON not yet supported
 - Interaction system uses spinlock polling (TODO: condition_variable)
+- DSL has no arithmetic operators (`+ - * /`) yet — comparison and logical only
+- Burst/cone/line AoE patterns still go through `get_targets_in_area` because the DSL has no `TPosition` value type or position-picking function — would be a small extension if needed

@@ -11,21 +11,29 @@
         ],
         "pipeline": [
             {
-                "name": "get_targets",
+                "name": "all_creatures",
                 "type": "function_call",
                 "input": {
-                    "type": "emanation",
-                    "center": "$self",
-                    "radius": 5
+                    "expression": "creatures()"
                 },
-                "function": "get_targets_in_area",
-                "output": ["target_list"]
+                "function": "let",
+                "output": ["all_creatures"]
+            },
+            {
+                "name": "in_range",
+                "type": "function_call",
+                "input": {
+                    "list": "$all_creatures",
+                    "predicate": "has_line_of_effect($self, $item) && distance($self, $item) <= 5"
+                },
+                "function": "filter",
+                "output": ["targets"]
             },
             {
                 "name": "choose_target",
                 "type": "function_call",
                 "input": {
-                    "list": "$target_list"
+                    "list": "$targets"
                 },
                 "function": "choose_from_list",
                 "output": ["target"]
