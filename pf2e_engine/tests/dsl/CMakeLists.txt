@@ -1,6 +1,7 @@
 add_executable(test_dsl
     test_dsl_parser.cpp
     test_dsl_evaluator.cpp
+    test_dsl_armor_property.cpp
 )
 
 target_link_libraries(test_dsl

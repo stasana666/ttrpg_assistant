@@ -7,6 +7,7 @@
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/creature.h>
+#include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/player.h>
 
@@ -23,6 +24,9 @@ TPlayer* RequirePlayer(const TDslValue& v, const char* fn) {
 }
 
 void RegisterAll() {
+    // Properties on TArmor (generated from armor.ttrpg)
+    TArmor::RegisterDslProperties();
+
     // Properties on TWeapon
     auto& weapon_props = TPropertyRegistry<TWeapon>::Instance();
     weapon_props.Register("reach", [](const TWeapon* w, TEvalContext&) {

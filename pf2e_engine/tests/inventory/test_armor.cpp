@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include "armor.h"
+#include <pf2e_engine/inventory/armor.h>
 /*
 TEST(ArmorTest, SimpleArmor) {
     TArmor armor(18, 1);

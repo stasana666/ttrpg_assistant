@@ -87,10 +87,10 @@ int TProficiency::GetProficiency(const TWeapon& weapon) const
 
 int TProficiency::GetProficiency(const TArmor& armor) const
 {
-    if (!armor_category_.contains(armor.ArmorCategory())) {
+    if (!armor_category_.contains(armor.Category())) {
         return 0;
     }
-    return GetProficiency(armor_category_.at(armor.ArmorCategory()));
+    return GetProficiency(armor_category_.at(armor.Category()));
 }
 
 int TProficiency::GetProficiency(ESavethrow savethrow) const
