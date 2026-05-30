@@ -34,7 +34,8 @@ using TWeaponTrait = TTrait<EWeaponTrait>;
 
 class TWeapon : public TItem, public TTraitsHaver<EWeaponTrait> {
 public:
-    TWeapon(std::string_view name, int base_dice_size, TDamage::Type type, EWeaponCategory category);
+    TWeapon(std::string_view name, int base_dice_size, TDamage::Type type,
+            EWeaponCategory category, int reach = 1);
 
     EWeaponCategory WeaponCategory() const;
     int GetBaseDiceSize() const;
@@ -42,6 +43,7 @@ public:
     std::vector<int> Grips() const;
     bool ValidGrip(int hand_count) const;
     std::string_view Name() const;
+    int Reach() const;
 
     TAstNode GetAst(TAstContext& ctx) const;
 
@@ -52,6 +54,7 @@ private:
     TDamage::Type type_;
     EWeaponCategory category_;
     std::string name_;
+    int reach_;
     [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
 

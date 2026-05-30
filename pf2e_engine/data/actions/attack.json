@@ -11,30 +11,87 @@
         ],
         "pipeline": [
             {
+                "name": "all_creatures",
+                "type": "function_call",
+                "input": {
+                    "expression": "creatures()"
+                },
+                "function": "let",
+                "output": ["all_creatures"]
+            },
+            {
+                "name": "visible_creatures",
+                "type": "function_call",
+                "input": {
+                    "list": "$all_creatures",
+                    "predicate": "has_line_of_effect($self, $item)"
+                },
+                "function": "filter",
+                "output": ["visible_creatures"]
+            },
+            {
+                "name": "distances",
+                "type": "function_call",
+                "input": {
+                    "list": "$visible_creatures",
+                    "expression": "distance($self, $item)"
+                },
+                "function": "map",
+                "output": ["distances"]
+            },
+            {
+                "name": "min_distance",
+                "type": "function_call",
+                "input": {
+                    "list": "$distances",
+                    "expression": "min($acc, $item)"
+                },
+                "function": "foldl",
+                "output": ["min_distance"]
+            },
+            {
+                "name": "weapons",
+                "type": "function_call",
+                "input": {
+                    "expression": "$self.weapons"
+                },
+                "function": "let",
+                "output": ["weapons"]
+            },
+            {
+                "name": "reachable_weapons",
+                "type": "function_call",
+                "input": {
+                    "list": "$weapons",
+                    "predicate": "$item.reach >= $min_distance"
+                },
+                "function": "filter",
+                "output": ["reachable_weapons"]
+            },
+            {
                 "name": "choose_weapon",
                 "type": "function_call",
                 "input": {
-                    "creature": "$self"
+                    "list": "$reachable_weapons"
                 },
-                "function": "choose_weapon",
-                "output": [ "weapon" ]
+                "function": "choose_from_list",
+                "output": ["weapon"]
             },
             {
-                "name": "get_targets",
+                "name": "valid_targets",
                 "type": "function_call",
                 "input": {
-                    "type": "emanation",
-                    "center": "$self",
-                    "radius": "$weapon"
+                    "list": "$visible_creatures",
+                    "predicate": "distance($self, $item) <= $weapon.reach"
                 },
-                "function": "get_targets_in_area",
-                "output": ["target_list"]
+                "function": "filter",
+                "output": ["valid_targets"]
             },
             {
                 "name": "choose_target",
                 "type": "function_call",
                 "input": {
-                    "list": "$target_list"
+                    "list": "$valid_targets"
                 },
                 "function": "choose_from_list",
                 "output": ["target"]

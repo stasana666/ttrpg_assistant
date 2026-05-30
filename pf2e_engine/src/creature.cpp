@@ -74,12 +74,9 @@ const std::vector<TWeapon>& TCreature::NaturalWeapons() const
 
 int TCreature::MaxWeaponReach() const
 {
-    // TODO: TWeapon has no `reach` field yet. PF2e melee defaults to 5ft
-    // (1 cell); reach weapons (e.g. glaive) extend to 10ft (2 cells). Once a
-    // reach attribute exists, replace the literal 1 below with weapon.Reach().
     int reach = 0;
-    auto consider = [&](const TWeapon&) {
-        reach = std::max(reach, 1);
+    auto consider = [&](const TWeapon& w) {
+        reach = std::max(reach, w.Reach());
     };
     for (size_t i = 0; i < weapons_.Size(); ++i) {
         consider(weapons_.WeaponAt(i));

@@ -6,10 +6,13 @@
 #include <pf2e_engine/action_blocks/block_input.h>
 #include <pf2e_engine/action_blocks/calculate_difficulty_class.h>
 #include <pf2e_engine/action_blocks/check_ally_adjacent.h>
-#include <pf2e_engine/action_blocks/choose_weapon.h>
 #include <pf2e_engine/action_blocks/contribute_damage_bonus.h>
 #include <pf2e_engine/action_blocks/deal_damage.h>
+#include <pf2e_engine/action_blocks/filter.h>
 #include <pf2e_engine/action_blocks/flat_damage_roll.h>
+#include <pf2e_engine/action_blocks/foldl.h>
+#include <pf2e_engine/action_blocks/let.h>
+#include <pf2e_engine/action_blocks/map.h>
 #include <pf2e_engine/action_blocks/remove_condition.h>
 #include <pf2e_engine/action_blocks/roll_against_difficulty_class.h>
 #include <pf2e_engine/action_blocks/weapon_damage_roll.h>
@@ -53,7 +56,6 @@ TPipelineReader::kFunctionMapping{
     { "add_condition", [](TBlockInput&& input, TGameObjectId output) { return FAddCondition(std::move(input), output); } },
     { "remove_condition", [](TBlockInput&& input, TGameObjectId output) { return FRemoveCondition(std::move(input), output); } },
     { "calculate_DC", [](TBlockInput&& input, TGameObjectId output) { return FCalculateDifficultyClass(std::move(input), output); } },
-    { "choose_weapon", [](TBlockInput&& input, TGameObjectId output) { return FChooseWeapon(std::move(input), output); } },
     { "crit_weapon_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FCritWeaponDamageRoll(std::move(input), output); } },
     { "deal_damage", [](TBlockInput&& input, TGameObjectId output) { return FDealDamage(std::move(input), output); } },
     { "flat_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FFlatDamageRoll(std::move(input), output); } },
@@ -66,6 +68,10 @@ TPipelineReader::kFunctionMapping{
     { "spell_damage_roll", [](TBlockInput&& input, TGameObjectId output) { return FSpellDamageRoll(std::move(input), output); } },
     { "check_ally_adjacent", [](TBlockInput&& input, TGameObjectId output) { return FCheckAllyAdjacent(std::move(input), output); } },
     { "contribute_damage_bonus", [](TBlockInput&& input, TGameObjectId output) { return FContributeDamageBonus(std::move(input), output); } },
+    { "let", [](TBlockInput&& input, TGameObjectId output) { return FLet(std::move(input), output); } },
+    { "filter", [](TBlockInput&& input, TGameObjectId output) { return FFilter(std::move(input), output); } },
+    { "map", [](TBlockInput&& input, TGameObjectId output) { return FMap(std::move(input), output); } },
+    { "foldl", [](TBlockInput&& input, TGameObjectId output) { return FFoldL(std::move(input), output); } },
 };
 
 TAction TActionReader::ReadAction(nlohmann::json& json)
@@ -178,6 +184,37 @@ void TPipelineReader::FunctionCallFillFunction(nlohmann::json& json, TFunctionCa
     function_block->function_name_ = function_name;
 }
 
+namespace {
+
+// True iff `s` is a pure C identifier (letters, digits, underscores; first
+// char letter or underscore). Used to distinguish a bare variable reference
+// ("$weapon") from a DSL expression starting with a variable reference
+// ("$item.reach >= $min_distance"). Only the former is rewritten to a
+// TGameObjectId; the latter stays as a raw string for the DSL parser.
+bool IsBareIdentifier(std::string_view s)
+{
+    if (s.empty()) {
+        return false;
+    }
+    auto is_id_start = [](char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+    };
+    auto is_id_cont = [&](char c) {
+        return is_id_start(c) || (c >= '0' && c <= '9');
+    };
+    if (!is_id_start(s[0])) {
+        return false;
+    }
+    for (size_t i = 1; i < s.size(); ++i) {
+        if (!is_id_cont(s[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+}  // namespace
+
 TBlockInput TPipelineReader::ReadInput(nlohmann::json& json)
 {
     TBlockInput input;
@@ -185,7 +222,9 @@ TBlockInput TPipelineReader::ReadInput(nlohmann::json& json)
         TGameObjectId key_id =  TGameObjectIdManager::Instance().Register(key);
         if (value.is_string()) {
             std::string str_value = value;
-            if (str_value[0] == '$') {
+            if (!str_value.empty() && str_value[0] == '$'
+                && IsBareIdentifier(std::string_view{str_value}.substr(1)))
+            {
                 input.Add(key_id, TGameObjectIdManager::Instance().Register(str_value.substr(1)));
             } else {
                 input.Add(key_id, str_value);
