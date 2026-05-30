@@ -426,3 +426,38 @@ TEST_F(ActionCombatTest, WizardCastsFireball) {
     ASSERT_FALSE(warriors.empty());
     EXPECT_FALSE(warriors[0]->GetCreature()->IsAlive());
 }
+
+// Exercises the new DSL pipeline in attack.json: the `valid_targets` filter
+// drops creatures further away than the chosen weapon's reach. With a
+// longsword (reach 1) and a creature 5 cells away, the far creature must not
+// appear in the target prompt — proven by having the mock ask for it by
+// name, which the mock rejects when the name is absent from the alternatives.
+TEST_F(ActionCombatTest, ReachFilterExcludesOutOfRangeTargets) {
+    auto warrior_id = TGameObjectIdManager::Instance().Register("warrior");
+    TCreature attacker_c = factory_.Create<TCreature>(warrior_id);
+    TCreature near_c = factory_.Create<TCreature>(warrior_id);
+    TCreature far_c = factory_.Create<TCreature>(warrior_id);
+
+    TPlayer attacker(&attacker_c, TPlayerTeam{0}, TPlayerId{0}, "Attacker", "");
+    TPlayer near_target(&near_c, TPlayerTeam{1}, TPlayerId{1}, "Near", "");
+    TPlayer far_target(&far_c, TPlayerTeam{1}, TPlayerId{2}, "Far", "");
+
+    auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
+    TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+
+    // Initiative rolls put Attacker first.
+    mock_rng_.ExpectCall(20, 20);
+    battle.AddPlayer(std::move(attacker), TPosition{0, 0});
+    mock_rng_.ExpectCall(20, 10);
+    battle.AddPlayer(std::move(near_target), TPosition{1, 0});
+    mock_rng_.ExpectCall(20, 0);
+    battle.AddPlayer(std::move(far_target), TPosition{5, 0});
+
+    mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
+    // Asking for "Far" must fail — the reach filter excludes it from the
+    // alternatives, so the mock will throw with "choice name not found".
+    mock_interaction_.ExpectChoice(0, "target", "Far");
+
+    EXPECT_THROW(battle.StartBattle(), std::logic_error);
+}

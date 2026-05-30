@@ -64,6 +64,10 @@
                     "type": "string",
                     "enum": ["Unarmed", "Simple", "Martial"]
                 },
+                "reach": {
+                    "type": "integer",
+                    "default": 1
+                },
                 "traits": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/pf2e_weapon_trait" },

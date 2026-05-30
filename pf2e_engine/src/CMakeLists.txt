@@ -26,6 +26,7 @@ target_include_directories(pf2e_engine
 add_subdirectory(action_blocks)
 add_subdirectory(actions)
 add_subdirectory(common)
+add_subdirectory(dsl)
 add_subdirectory(expressions)
 add_subdirectory(game_object_logic)
 add_subdirectory(inventory)

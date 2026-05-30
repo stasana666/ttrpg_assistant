@@ -5,13 +5,16 @@ target_sources(pf2e_engine
         block_input.cpp
         calculate_difficulty_class.cpp
         check_ally_adjacent.cpp
-        choose_weapon.cpp
         choose_from_list.cpp
         contribute_damage_bonus.cpp
         deal_damage.cpp
+        filter.cpp
         flat_damage_roll.cpp
+        foldl.cpp
         get_parameter.cpp
         get_targets_in_area.cpp
+        let.cpp
+        map.cpp
         remove_condition.cpp
         roll_against_difficulty_class.cpp
         spell_damage_roll.cpp

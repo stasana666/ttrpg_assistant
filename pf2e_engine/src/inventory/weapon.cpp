@@ -58,11 +58,13 @@ EWeaponTrait WeaponTraitFromString(std::string weapon_trait)
     throw std::runtime_error("unknown EWeaponTrait: \"" + weapon_trait + "\"");
 }
 
-TWeapon::TWeapon(std::string_view name, int base_die_size, TDamage::Type type, EWeaponCategory category)
+TWeapon::TWeapon(std::string_view name, int base_die_size, TDamage::Type type,
+                 EWeaponCategory category, int reach)
     : base_dice_size_(base_die_size)
     , type_(type)
     , category_(category)
     , name_(name)
+    , reach_(reach)
 {
 }
 
@@ -101,6 +103,11 @@ std::string_view TWeapon::Name() const
     return name_;
 }
 
+int TWeapon::Reach() const
+{
+    return reach_;
+}
+
 TAstNode TWeapon::GetAst([[maybe_unused]] TAstContext& ctx) const
 {
     static constexpr size_t kExpectedSize = 80;
@@ -111,6 +118,7 @@ TAstNode TWeapon::GetAst([[maybe_unused]] TAstContext& ctx) const
     AddValueField(node, "base_dice_size", base_dice_size_);
     AddValueField(node, "type", type_);
     AddValueField(node, "category", category_);
+    AddValueField(node, "reach", reach_);
     AddValueField(node, "traits", Traits());
     return node;
 }
@@ -122,7 +130,8 @@ TWeapon WeaponFromJson(std::string_view name, const nlohmann::json& weapon_core)
     int base_die_size = weapon_core["base_die_size"];
     TDamage::Type damage_type = DamageTypeFromString(std::string{weapon_core["damage_type"]});
     EWeaponCategory category = WeaponCategoryFromString(weapon_core["category"]);
-    TWeapon result(name, base_die_size, damage_type, category);
+    int reach = weapon_core.value("reach", 1);
+    TWeapon result(name, base_die_size, damage_type, category, reach);
 
     if (weapon_core.contains("traits")) {
         for (const auto& trait_json : weapon_core["traits"]) {
