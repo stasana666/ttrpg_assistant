@@ -26,5 +26,5 @@ void FContributeDamageBonus::operator()(std::shared_ptr<TActionContext> ctx) con
         ctx->game_object_registry->Add(kDamageBonusId, std::make_shared<TDamage>());
     }
     auto damage_bonus = std::get<std::shared_ptr<TDamage>>(input_.Get(kDamageBonusId, ctx));
-    damage_bonus->Add(DamageTypeFromString(damage_type_), ParseDiceExpression(dice_));
+    damage_bonus->Add(EDamageTypeFromString(damage_type_), ParseDiceExpression(dice_));
 }

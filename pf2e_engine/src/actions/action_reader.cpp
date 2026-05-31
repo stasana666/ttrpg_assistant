@@ -74,19 +74,20 @@ TPipelineReader::kFunctionMapping{
     { "foldl", [](TBlockInput&& input, TGameObjectId output) { return FFoldL(std::move(input), output); } },
 };
 
-TAction TActionReader::ReadAction(nlohmann::json& json)
+TAction TActionReader::ReadAction(nlohmann::json& json, const TGameObjectFactory& factory)
 {
     TPipelineReader pipeline_reader;
     auto pipeline = pipeline_reader.ReadPipeline(json["pipeline"]);
     TAction::TResources resources = ReadResources(json["resources"]);
-    TAction::TVariables variables = ReadVariables(json);
+    TAction::TVariables variables = ReadVariables(json, factory);
     TAction action(std::move(pipeline), std::move(resources), json["name"],
                    std::move(variables));
 
     return action;
 }
 
-TAction::TVariables TActionReader::ReadVariables(nlohmann::json& json) const
+TAction::TVariables TActionReader::ReadVariables(nlohmann::json& json,
+                                                  const TGameObjectFactory& factory) const
 {
     TAction::TVariables variables;
     if (!json.contains("variables")) {
@@ -98,10 +99,13 @@ TAction::TVariables TActionReader::ReadVariables(nlohmann::json& json) const
             throw std::runtime_error("action variable type not supported yet: " + type);
         }
         std::string weapon_name = var_def.value("name", var_name);
+        nlohmann::json weapon_json = var_def["pf2e_weapon"];
+        if (!weapon_json.contains("name")) {
+            weapon_json["name"] = weapon_name;
+        }
         variables.push_back(TAction::TActionVariable{
             .id = TGameObjectIdManager::Instance().Register(var_name),
-            .weapon = std::make_shared<TWeapon>(
-                WeaponFromJson(weapon_name, var_def["pf2e_weapon"])),
+            .weapon = std::make_shared<TWeapon>(TWeapon::FromJson(weapon_json, factory)),
         });
     }
     return variables;

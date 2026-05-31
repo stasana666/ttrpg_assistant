@@ -43,6 +43,8 @@ enum class ETok {
     StringLiteral,
     LBrace,
     RBrace,
+    LAngle,
+    RAngle,
     Semi,
     Comma,
     Equals,
@@ -82,6 +84,8 @@ std::vector<TToken> Tokenize(std::string src) {
         switch (c) {
             case '{': s.Advance(); out.push_back({ETok::LBrace, "{", loc}); continue;
             case '}': s.Advance(); out.push_back({ETok::RBrace, "}", loc}); continue;
+            case '<': s.Advance(); out.push_back({ETok::LAngle, "<", loc}); continue;
+            case '>': s.Advance(); out.push_back({ETok::RAngle, ">", loc}); continue;
             case ';': s.Advance(); out.push_back({ETok::Semi,   ";", loc}); continue;
             case ',': s.Advance(); out.push_back({ETok::Comma,  ",", loc}); continue;
             case '=': s.Advance(); out.push_back({ETok::Equals, "=", loc}); continue;
@@ -100,8 +104,14 @@ struct TEnumDecl {
     std::vector<std::string> Values;
 };
 
+enum class EContainer {
+    None,
+    Set,
+};
+
 struct TFieldDecl {
-    std::string TypeName;
+    std::string TypeName;          // element type when Container != None
+    EContainer Container = EContainer::None;
     std::string Name;
     std::optional<std::string> DefaultExpr;
 };
@@ -184,9 +194,20 @@ private:
 
     TFieldDecl ParseField() {
         TFieldDecl f;
-        f.TypeName = ExpectIdent("field type");
+        std::string head = ExpectIdent("field type");
+        if (head == "set") {
+            f.Container = EContainer::Set;
+            ts_.Expect(ETok::LAngle, "'<' after 'set'");
+            f.TypeName = ExpectIdent("set element type");
+            ts_.Expect(ETok::RAngle, "'>'");
+        } else {
+            f.TypeName = head;
+        }
         f.Name = ExpectIdent("field name");
         if (ts_.Peek().kind == ETok::Equals) {
+            if (f.Container != EContainer::None) {
+                ts_.Throw("container fields cannot have a default value");
+            }
             ts_.Advance();
             f.DefaultExpr = ParseDefault();
         }
@@ -368,9 +389,28 @@ EFieldKind FieldKindOf(const TFieldDecl& f,
 }
 
 bool IsDslSupported(const TFieldDecl& f) {
-    // Only primitives that fit into TDslValue. Enums and class refs are
-    // never DSL-exposed by the generator (would require widening TDslValue).
+    // Only scalar primitives that fit into TDslValue. Enums, class refs, and
+    // containers are never DSL-exposed by the generator (would require
+    // widening TDslValue).
+    if (f.Container != EContainer::None) {
+        return false;
+    }
     return IsBuiltinInt(f.TypeName) || IsBuiltinBool(f.TypeName);
+}
+
+// True if the field's element type is a class declared in a schema (vs.
+// a primitive or enum). Used to route AST emission for scalar class fields.
+bool IsClassElement(const TFieldDecl& f,
+                    const std::unordered_map<std::string, TTypeInfo>& symbols)
+{
+    if (IsBuiltinPrimitive(f.TypeName)) {
+        return false;
+    }
+    auto it = symbols.find(f.TypeName);
+    if (it == symbols.end()) {
+        throw std::runtime_error("unknown type '" + f.TypeName + "'");
+    }
+    return !it->second.IsEnum;
 }
 
 std::string DefaultExprToCpp(const std::string& expr, const std::string& schemaType) {
@@ -391,7 +431,7 @@ std::string DefaultExprToCpp(const std::string& expr, const std::string& schemaT
 
 // Returns the C++ expression that loads `f` from JSON. Dispatches by field
 // kind:
-//   - primitive:  j.at("key").get<T>()
+//   - primitive:  j.at("key").get<T>()  (or j.value("key", default) if default present)
 //   - enum:       EFooFromString(j.at("key").get<std::string>())
 //   - class:      factory.Create<TFoo>(TGameObjectIdManager::Instance().Register(...))
 std::string LoadFieldCall(const TFieldDecl& f,
@@ -399,14 +439,21 @@ std::string LoadFieldCall(const TFieldDecl& f,
                           const std::string& jsonKey)
 {
     switch (kind) {
-        case EFieldKind::Primitive:
-            if (IsBuiltinInt(f.TypeName)) {
-                return "j.at(\"" + jsonKey + "\").get<int>()";
-            }
+        case EFieldKind::Primitive: {
+            std::string cppType = "int";
             if (IsBuiltinBool(f.TypeName)) {
-                return "j.at(\"" + jsonKey + "\").get<bool>()";
+                cppType = "bool";
+            } else if (IsBuiltinString(f.TypeName)) {
+                cppType = "std::string";
             }
-            return "j.at(\"" + jsonKey + "\").get<std::string>()";
+            if (f.DefaultExpr) {
+                // JSON key may be absent; fall back to the schema default.
+                return "j.value(\"" + jsonKey + "\", " +
+                       cppType + "{" + DefaultExprToCpp(*f.DefaultExpr, f.TypeName) +
+                       "})";
+            }
+            return "j.at(\"" + jsonKey + "\").get<" + cppType + ">()";
+        }
         case EFieldKind::Enum:
             return f.TypeName + "FromString(j.at(\"" + jsonKey +
                    "\").get<std::string>())";
@@ -446,12 +493,29 @@ void EmitEnumDecl(std::ostream& os, const TEnumDecl& e) {
     os << e.Name << " " << e.Name << "FromString(const std::string& s);\n\n";
 }
 
+std::string CppMemberType(const TFieldDecl& f) {
+    switch (f.Container) {
+        case EContainer::None:
+            return CppTypeFor(f.TypeName);
+        case EContainer::Set:
+            return "std::set<" + f.TypeName + ">";
+    }
+    return CppTypeFor(f.TypeName);
+}
+
 void EmitClassDecl(std::ostream& os, const TClassDecl& c) {
     os << "class " << c.Name << " {\n";
     os << "public:\n";
     for (const auto& f : c.Fields) {
-        os << "    " << CppTypeFor(f.TypeName) << " " << f.Name
-           << "() const { return " << f.Name << "_; }\n";
+        std::string mt = CppMemberType(f);
+        if (f.Container != EContainer::None) {
+            // Return by const-ref to avoid copying the container.
+            os << "    const " << mt << "& " << f.Name
+               << "() const { return " << f.Name << "_; }\n";
+        } else {
+            os << "    " << mt << " " << f.Name
+               << "() const { return " << f.Name << "_; }\n";
+        }
     }
     os << "\n";
     os << "    static " << c.Name
@@ -461,10 +525,16 @@ void EmitClassDecl(std::ostream& os, const TClassDecl& c) {
     os << "\n";
     os << "private:\n";
     for (const auto& f : c.Fields) {
-        std::string init = f.DefaultExpr
-                               ? "{" + DefaultExprToCpp(*f.DefaultExpr, f.TypeName) + "}"
-                               : "{}";
-        os << "    " << CppTypeFor(f.TypeName) << " " << f.Name << "_" << init << ";\n";
+        std::string mt = CppMemberType(f);
+        std::string init;
+        if (f.Container != EContainer::None) {
+            init = "{}";  // empty container
+        } else if (f.DefaultExpr) {
+            init = "{" + DefaultExprToCpp(*f.DefaultExpr, f.TypeName) + "}";
+        } else {
+            init = "{}";
+        }
+        os << "    " << mt << " " << f.Name << "_" << init << ";\n";
     }
     os << "    [[maybe_unused]] char ast_layout_sentinel_[1] = {};\n";
     os << "};\n\n";
@@ -487,10 +557,24 @@ void EmitHeader(std::ostream& os,
     os << "#include <nlohmann/json_fwd.hpp>\n";
     os << "\n";
     os << "#include <limits>\n";
-    os << "#include <string>\n\n";
+    os << "#include <string>\n";
 
-    // Cross-file includes: any external type used as a field type (incl. refs)
-    // pulls in the generated header that declares it.
+    // Include <set> if any class has a set field.
+    bool anySet = false;
+    for (const auto& c : mod.Classes) {
+        for (const auto& f : c.Fields) {
+            if (f.Container == EContainer::Set) {
+                anySet = true;
+            }
+        }
+    }
+    if (anySet) {
+        os << "#include <set>\n";
+    }
+    os << "\n";
+
+    // Cross-file includes: any external type used as a field type (incl.
+    // set element types) pulls in the generated header that declares it.
     std::unordered_set<std::string> externalStems;
     for (const auto& c : mod.Classes) {
         for (const auto& f : c.Fields) {
@@ -500,6 +584,11 @@ void EmitHeader(std::ostream& os,
                 throw std::runtime_error(
                     "unknown type '" + f.TypeName + "' referenced in class '" +
                     c.Name + "' (declare it in this file or import another .ttrpg)");
+            }
+            if (f.Container == EContainer::Set && !it->second.IsEnum) {
+                throw std::runtime_error(
+                    "set<T> element type '" + f.TypeName +
+                    "' must be a schema-declared enum");
             }
             if (it->second.OwnerStem != loaded.PrimaryStem) {
                 externalStems.insert(it->second.OwnerStem);
@@ -547,11 +636,17 @@ void EmitClassImpl(std::ostream& os,
                    const TClassDecl& c,
                    const std::unordered_map<std::string, TTypeInfo>& symbols)
 {
-    // Pre-classify each field once.
+    // Pre-classify each scalar field once. Set fields are handled separately
+    // by inspecting f.Container.
     std::vector<EFieldKind> kinds;
     kinds.reserve(c.Fields.size());
     bool usesFactory = false;
     for (const auto& f : c.Fields) {
+        if (f.Container != EContainer::None) {
+            // Sentinel; not used.
+            kinds.push_back(EFieldKind::Primitive);
+            continue;
+        }
         EFieldKind k = FieldKindOf(f, symbols);
         kinds.push_back(k);
         if (k == EFieldKind::Class) {
@@ -568,7 +663,17 @@ void EmitClassImpl(std::ostream& os,
     for (size_t i = 0; i < c.Fields.size(); ++i) {
         const auto& f = c.Fields[i];
         std::string key = PascalToSnake(f.Name);
-        os << "    r." << f.Name << "_ = " << LoadFieldCall(f, kinds[i], key) << ";\n";
+        if (f.Container == EContainer::Set) {
+            // Absent key is treated as an empty set.
+            os << "    if (j.contains(\"" << key << "\")) {\n";
+            os << "        for (const auto& item : j.at(\"" << key << "\")) {\n";
+            os << "            r." << f.Name << "_.insert("
+               << f.TypeName << "FromString(item.get<std::string>()));\n";
+            os << "        }\n";
+            os << "    }\n";
+        } else {
+            os << "    r." << f.Name << "_ = " << LoadFieldCall(f, kinds[i], key) << ";\n";
+        }
     }
     os << "    return r;\n";
     os << "}\n\n";
@@ -578,7 +683,18 @@ void EmitClassImpl(std::ostream& os,
     for (size_t i = 0; i < c.Fields.size(); ++i) {
         const auto& f = c.Fields[i];
         std::string key = PascalToSnake(f.Name);
-        if (kinds[i] == EFieldKind::Class) {
+        if (f.Container == EContainer::Set) {
+            // std::set<E> iterates in sorted order by enum value, which is
+            // deterministic per declaration order. Emit each as its own
+            // value child under a container node keyed by ToString.
+            os << "    {\n";
+            os << "        TAstNode set_node = TAstNode::MakeObject(\"container\");\n";
+            os << "        for (auto v : " << f.Name << "_) {\n";
+            os << "            AddValueField(set_node, ToString(v), v);\n";
+            os << "        }\n";
+            os << "        node.AddChild(\"" << key << "\", std::move(set_node));\n";
+            os << "    }\n";
+        } else if (kinds[i] == EFieldKind::Class) {
             // Generated class types are TIsAstRecursive::true_type, so use
             // AddOwnedObject which recurses; AddValueField would static_assert.
             os << "    AddOwnedObject(node, \"" << key << "\", " << f.Name << "_, ctx);\n";
@@ -601,10 +717,14 @@ void EmitClassImpl(std::ostream& os,
             os << "    });\n";
         } else {
             const char* reasonPrefix = "unsupported type";
-            switch (kinds[i]) {
-                case EFieldKind::Class: reasonPrefix = "class field"; break;
-                case EFieldKind::Enum:  reasonPrefix = "enum field"; break;
-                case EFieldKind::Primitive: reasonPrefix = "unsupported primitive"; break;
+            if (f.Container == EContainer::Set) {
+                reasonPrefix = "set field";
+            } else {
+                switch (kinds[i]) {
+                    case EFieldKind::Class: reasonPrefix = "class field"; break;
+                    case EFieldKind::Enum:  reasonPrefix = "enum field"; break;
+                    case EFieldKind::Primitive: reasonPrefix = "unsupported primitive"; break;
+                }
             }
             os << "    // dsl: '" << key << "' skipped -- " << reasonPrefix
                << " '" << f.TypeName << "'\n";

@@ -1,0 +1,6 @@
+enum EDamageType {
+    Bludgeoning,
+    Piercing,
+    Slashing,
+    Fire,
+}

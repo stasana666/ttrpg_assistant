@@ -8,17 +8,17 @@
 #include <damage_resolver.h>
 #include <utility>
 
-void TDamageResolver::AddImmunity(TDamage::Type type)
+void TDamageResolver::AddImmunity(EDamageType type)
 {
     immunities_.insert(type);
 }
 
-void TDamageResolver::AddResistance(TDamage::Type type, int value)
+void TDamageResolver::AddResistance(EDamageType type, int value)
 {
     resistances_[type].push_back(value);
 }
 
-void TDamageResolver::AddVulnerability(TDamage::Type type, int value)
+void TDamageResolver::AddVulnerability(EDamageType type, int value)
 {
     vulnerabilities_[type].push_back(value);
 }
@@ -56,10 +56,10 @@ int TDamageResolver::operator()(const TDamage& damage, IRandomGenerator& rng) co
 namespace {
 
 TAstNode SerializeTypeMap(
-    const std::unordered_map<TDamage::Type, std::vector<int>>& m,
+    const std::unordered_map<EDamageType, std::vector<int>>& m,
     std::string_view label)
 {
-    std::vector<std::pair<TDamage::Type, std::vector<int>>> sorted(
+    std::vector<std::pair<EDamageType, std::vector<int>>> sorted(
         m.begin(), m.end());
     std::sort(sorted.begin(), sorted.end(),
         [](const auto& a, const auto& b) { return a.first < b.first; });
@@ -81,7 +81,7 @@ TAstNode TDamageResolver::GetAst([[maybe_unused]] TAstContext& ctx) const
     static constexpr size_t kExpectedSentinelOffset = 168;
     AST_ASSERT_LAYOUT_WITH_SENTINEL(TDamageResolver, kExpectedSize, kExpectedSentinelOffset);
 
-    std::vector<TDamage::Type> sorted_immunities(
+    std::vector<EDamageType> sorted_immunities(
         immunities_.begin(), immunities_.end());
     std::sort(sorted_immunities.begin(), sorted_immunities.end());
 

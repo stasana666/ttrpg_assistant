@@ -18,7 +18,8 @@
 #include "hitpoints.h"
 #include "proficiency.h"
 #include "resources.h"
-#include "weapon.h"
+#include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/inventory/weapon_grips.h>
 
 #include <pf2e_engine/actions/action_reader.h>
 #include <pf2e_engine/creature_size.h>
@@ -126,9 +127,7 @@ void TGameObjectFactory::ReadMaterial(nlohmann::json& json_game_object, TGameObj
 
 void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    std::string_view name = TGameObjectIdManager::Instance().Name(id);
-    TWeapon result = WeaponFromJson(name, json_game_object);
-
+    TWeapon result = TWeapon::FromJson(json_game_object, *this);
     weapons_.insert({id, [result]() { return result; }});
 }
 
@@ -169,7 +168,7 @@ TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_objec
     }
 
     for (auto& [json_key, json_value] : json_proficiency["weapon_category"].items()) {
-        proficiency.SetProficiency(WeaponCategoryFromString(json_key), get_value(json_value));
+        proficiency.SetProficiency(EWeaponCategoryFromString(json_key), get_value(json_value));
     }
 
     for (auto& [json_key, json_value] : json_proficiency["savethrow"].items()) {
@@ -240,9 +239,8 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
     std::vector<TWeapon> natural_weapons;
     if (json_game_object.contains("natural_weapons")) {
         for (auto& weapon_json : json_game_object["natural_weapons"]) {
-            std::string weapon_name = weapon_json["name"];
             natural_weapons.push_back(
-                WeaponFromJson(weapon_name, weapon_json["pf2e_weapon"]));
+                TWeapon::FromJson(weapon_json["pf2e_weapon"], *this));
         }
     }
 
@@ -279,7 +277,7 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
         for (auto [weapon_id, hand_count] : weapon_ids) {
             TWeapon weapon = this->Create<TWeapon>(weapon_id);
-            assert(weapon.ValidGrip(hand_count));
+            assert(ValidGrip(weapon, hand_count));
             creature.Weapons().Equip({weapon, hand_count});
 
             if (!creature.Resources().HasResource(hand_id, hand_count)) {
@@ -310,7 +308,7 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
 void TGameObjectFactory::ReadAction(nlohmann::json& json, TGameObjectId id)
 {
-    std::shared_ptr<TAction> action = std::make_shared<TAction>(action_reader_.ReadAction(json));
+    std::shared_ptr<TAction> action = std::make_shared<TAction>(action_reader_.ReadAction(json, *this));
     actions_.insert({id, [=]() {
         return action;
     }});
