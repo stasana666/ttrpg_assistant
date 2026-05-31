@@ -32,7 +32,7 @@ void FSpellDamageRoll::operator()(std::shared_ptr<TActionContext> ctx) const
     TPlayer* caster = std::get<TPlayer*>(input_.Get(kCasterId, ctx));
     const TDamageTable& damage_table = input_.GetDamageTable(kDamageTableId);
     std::string damage_type_str = input_.GetString(kDamageTypeId);
-    TDamage::Type damage_type = DamageTypeFromString(damage_type_str);
+    EDamageType damage_type = EDamageTypeFromString(damage_type_str);
 
     TAlternatives alternatives = TAlternatives::Create<std::string>("spell_slot");
 

@@ -63,26 +63,14 @@
             ]
         },
 
-        "pf2e_weapon_trait": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "enum": ["Agile", "Finesse"]
-                },
-                "value": { "type": "integer" }
-            },
-            "required": ["name"],
-            "additionalProperties": false
-        },
-
         "pf2e_weapon_core": {
             "type": "object",
             "properties": {
-                "base_die_size": { "type": "integer" },
+                "name": { "type": "string" },
+                "base_dice_size": { "type": "integer" },
                 "damage_type": {
                     "type": "string",
-                    "enum": ["Bludgeoning", "Piercing", "Slashing"]
+                    "enum": ["Bludgeoning", "Piercing", "Slashing", "Fire"]
                 },
                 "category": {
                     "type": "string",
@@ -94,11 +82,14 @@
                 },
                 "traits": {
                     "type": "array",
-                    "items": { "$ref": "#/$defs/pf2e_weapon_trait" },
+                    "items": {
+                        "type": "string",
+                        "enum": ["Agile", "Finesse"]
+                    },
                     "default": []
                 }
             },
-            "required": ["base_die_size", "damage_type", "category"],
+            "required": ["name", "base_dice_size", "damage_type", "category"],
             "additionalProperties": false
         },
 

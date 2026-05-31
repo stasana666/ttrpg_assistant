@@ -40,11 +40,14 @@ private:
     TActionIdManager id_register_;
 };
 
+class TGameObjectFactory;
+
 class TActionReader {
 public:
-    TAction ReadAction(nlohmann::json&);
+    TAction ReadAction(nlohmann::json&, const TGameObjectFactory& factory);
 
 private:
     TAction::TResources ReadResources(nlohmann::json& json) const;
-    TAction::TVariables ReadVariables(nlohmann::json& json) const;
+    TAction::TVariables ReadVariables(nlohmann::json& json,
+                                      const TGameObjectFactory& factory) const;
 };

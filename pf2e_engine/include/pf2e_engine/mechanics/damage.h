@@ -1,31 +1,24 @@
 #pragma once
 
 #include <pf2e_engine/expressions/base_expression.h>
+#include <pf2e_engine/inventory/damage.h>  // generated; defines EDamageType
 
 #include <memory>
 #include <unordered_map>
 
 class TDamage {
-public:
-    enum class Type {
-        Bludgeoning,
-        Piercing,
-        Slashing,
-        Fire,
-    };
-
 private:
-    using Container = std::unordered_map<Type, std::unique_ptr<IExpression>>;
+    using Container = std::unordered_map<EDamageType, std::unique_ptr<IExpression>>;
 
 public:
-    void Add(Type type, std::unique_ptr<IExpression>&& damage);
+    void Add(EDamageType type, std::unique_ptr<IExpression>&& damage);
 
     class TIterator {
     public:
         bool operator !=(const TIterator&) const;
         TIterator& operator++();
-        std::pair<Type, const IExpression*> operator *() const;
-    
+        std::pair<EDamageType, const IExpression*> operator *() const;
+
     private:
         friend TDamage;
 
@@ -41,6 +34,3 @@ private:
 
     Container damage_expressions_;
 };
-
-TDamage::Type DamageTypeFromString(std::string_view);
-std::string ToString(TDamage::Type);

@@ -79,10 +79,10 @@ void TProficiency::SetProficiency(TPerceptionTag, Value value)
 
 int TProficiency::GetProficiency(const TWeapon& weapon) const
 {
-    if (!weapon_category_.contains(weapon.WeaponCategory())) {
+    if (!weapon_category_.contains(weapon.Category())) {
         return 0;
     }
-    return GetProficiency(weapon_category_.at(weapon.WeaponCategory()));
+    return GetProficiency(weapon_category_.at(weapon.Category()));
 }
 
 int TProficiency::GetProficiency(const TArmor& armor) const

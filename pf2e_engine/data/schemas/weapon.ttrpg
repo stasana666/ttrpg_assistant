@@ -1,0 +1,21 @@
+import "damage.ttrpg";
+
+enum EWeaponCategory {
+    Unarmed,
+    Simple,
+    Martial,
+}
+
+enum EWeaponTrait {
+    Agile,
+    Finesse,
+}
+
+class TWeapon {
+    string Name;
+    int BaseDiceSize;
+    EDamageType DamageType;
+    EWeaponCategory Category;
+    int Reach = 1;
+    set<EWeaponTrait> Traits;
+}

@@ -24,14 +24,9 @@ TPlayer* RequirePlayer(const TDslValue& v, const char* fn) {
 }
 
 void RegisterAll() {
-    // Properties on TArmor (generated from armor.ttrpg)
+    // Properties on generated classes (armor.ttrpg, weapon.ttrpg, ...)
     TArmor::RegisterDslProperties();
-
-    // Properties on TWeapon
-    auto& weapon_props = TPropertyRegistry<TWeapon>::Instance();
-    weapon_props.Register("reach", [](const TWeapon* w, TEvalContext&) {
-        return TDslValue(w->Reach());
-    });
+    TWeapon::RegisterDslProperties();
 
     // Properties on TPlayer
     auto& player_props = TPropertyRegistry<TPlayer>::Instance();

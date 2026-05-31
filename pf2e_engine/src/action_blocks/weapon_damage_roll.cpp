@@ -53,9 +53,9 @@ void ApplyWeaponDamage(std::shared_ptr<TActionContext> ctx, const TBlockInput& i
 
     int str = player->GetCreature()->GetCharacteristic(ECharacteristic::Strength).GetMod();
     auto weapon_expr = std::make_unique<TSumExpression>(
-        std::make_unique<TDiceExpression>(weapon->GetBaseDiceSize()),
+        std::make_unique<TDiceExpression>(weapon->BaseDiceSize()),
         std::make_unique<TNumberExpression>(str));
-    damage->Add(weapon->GetDamageType(), MaybeDouble(std::move(weapon_expr), crit));
+    damage->Add(weapon->DamageType(), MaybeDouble(std::move(weapon_expr), crit));
 
     if (ctx->game_object_registry->Contains(kDamageBonusId)) {
         auto bonus = std::get<std::shared_ptr<TDamage>>(

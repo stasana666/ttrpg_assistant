@@ -8,11 +8,32 @@
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/game_object_logic/game_object.h>
+#include <pf2e_engine/game_object_logic/game_object_factory.h>
 #include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/mechanics/damage.h>
 
+#include <nlohmann/json.hpp>
+
 #include <memory>
 #include <string>
+
+namespace {
+
+// Construct a TWeapon for testing using the generated FromJson path.
+TWeapon MakeWeapon(const std::string& name, int dice, const std::string& damage,
+                   const std::string& category, int reach) {
+    nlohmann::json j = {
+        {"name", name},
+        {"base_dice_size", dice},
+        {"damage_type", damage},
+        {"category", category},
+        {"reach", reach},
+    };
+    TGameObjectFactory factory;
+    return TWeapon::FromJson(j, factory);
+}
+
+}  // namespace
 
 namespace {
 
@@ -47,11 +68,11 @@ TEST_F(DslEvaluatorTest, MissingVariableThrows) {
 }
 
 TEST_F(DslEvaluatorTest, WeaponReachProperty) {
-    TWeapon w("longsword", 8, TDamage::Type::Slashing, EWeaponCategory::Martial, 1);
+    TWeapon w = MakeWeapon("longsword", 8, "Slashing", "Martial", 1);
     Bind("weapon", &w);
     EXPECT_EQ(Eval("$weapon.reach").AsInt(), 1);
 
-    TWeapon glaive("glaive", 8, TDamage::Type::Slashing, EWeaponCategory::Martial, 2);
+    TWeapon glaive = MakeWeapon("glaive", 8, "Slashing", "Martial", 2);
     Bind("polearm", &glaive);
     EXPECT_EQ(Eval("$polearm.reach").AsInt(), 2);
     EXPECT_TRUE(Eval("$polearm.reach > $weapon.reach").AsBool());
@@ -81,7 +102,7 @@ TEST_F(DslEvaluatorTest, NestedScopeRestoresPriorBinding) {
 }
 
 TEST_F(DslEvaluatorTest, UnknownPropertyThrows) {
-    TWeapon w("dagger", 4, TDamage::Type::Piercing, EWeaponCategory::Simple, 1);
+    TWeapon w = MakeWeapon("dagger", 4, "Piercing", "Simple", 1);
     Bind("weapon", &w);
     EXPECT_THROW(Eval("$weapon.no_such_property"), std::runtime_error);
 }

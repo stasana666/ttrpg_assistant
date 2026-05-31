@@ -10,18 +10,18 @@
 
 class TDamageResolver {
 public:
-    void AddImmunity(TDamage::Type);
-    void AddResistance(TDamage::Type type, int value);
-    void AddVulnerability(TDamage::Type type, int value);
+    void AddImmunity(EDamageType);
+    void AddResistance(EDamageType type, int value);
+    void AddVulnerability(EDamageType type, int value);
 
     int operator()(const TDamage&, IRandomGenerator&) const;
 
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:
-    std::unordered_set<TDamage::Type> immunities_;
-    std::unordered_map<TDamage::Type, std::vector<int>> resistances_;
-    std::unordered_map<TDamage::Type, std::vector<int>> vulnerabilities_;
+    std::unordered_set<EDamageType> immunities_;
+    std::unordered_map<EDamageType, std::vector<int>> resistances_;
+    std::unordered_map<EDamageType, std::vector<int>> vulnerabilities_;
     [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
 

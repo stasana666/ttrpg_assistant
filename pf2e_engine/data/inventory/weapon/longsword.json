@@ -2,7 +2,8 @@
     "name": "longsword",
     "type": "pf2e_weapon",
     "pf2e_weapon": {
-        "base_die_size": 6,
+        "name": "longsword",
+        "base_dice_size": 6,
         "damage_type": "Slashing",
         "category": "Martial"
     }

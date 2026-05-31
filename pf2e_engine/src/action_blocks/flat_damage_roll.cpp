@@ -10,7 +10,7 @@ static const TGameObjectId kDamageTypeId = TGameObjectIdManager::Instance().Regi
 void FFlatDamageRoll::operator()(std::shared_ptr<TActionContext> ctx) const
 {
     std::string dice = input_.GetString(kDiceId);
-    TDamage::Type damage_type = DamageTypeFromString(input_.GetString(kDamageTypeId));
+    EDamageType damage_type = EDamageTypeFromString(input_.GetString(kDamageTypeId));
 
     auto damage = std::make_shared<TDamage>();
     damage->Add(damage_type, ParseDiceExpression(dice));
