@@ -1,7 +1,4 @@
-// Single source of truth for the TArmor data class.
-// Edit this file to add/remove/rename fields; everything (C++ class,
-// JSON loading, AST serialization, DSL property registration) is derived
-// automatically by tools/codegen.
+import "material.ttrpg";
 
 enum EArmorCategory {
     Unarmored,
@@ -14,4 +11,5 @@ class TArmor {
     EArmorCategory Category;
     int ArmorClassBonus = 0;
     int DexterityCap = max_int;
+    TMaterial Material;
 }

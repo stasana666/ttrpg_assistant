@@ -4,7 +4,12 @@
 #include <pf2e_engine/dsl/expression.h>
 #include <pf2e_engine/dsl/parser.h>
 
+#include <pf2e_engine/game_object_logic/game_object_factory.h>
+#include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/inventory/armor.h>
+#include <pf2e_engine/inventory/material.h>
+
+#include <cpp_config.h>
 
 #include <nlohmann/json.hpp>
 
@@ -18,6 +23,10 @@ protected:
     void SetUp() override {
         EnsureDslBuiltinsRegistered();
         ctx_.scope.clear();
+
+        // The test factory holds a single "steel" material so generated
+        // FromJson can resolve the ref TMaterial Material field.
+        factory_.AddSource(kRootDirPath + "/pf2e_engine/data/inventory/material/steel.json");
     }
 
     TDslValue Eval(const std::string& src) {
@@ -25,18 +34,24 @@ protected:
         return expr->Evaluate(ctx_);
     }
 
+    // Build a fully-populated armor JSON suitable for the generated FromJson.
+    static nlohmann::json MakeArmorJson(const std::string& category, int ac, int dex) {
+        return {
+            {"category", category},
+            {"armor_class_bonus", ac},
+            {"dexterity_cap", dex},
+            {"material", "steel"},
+        };
+    }
+
     TEvalContext ctx_;
+    TGameObjectFactory factory_;
 };
 
 }  // namespace
 
 TEST_F(DslArmorPropertyTest, GeneratedAcBonusProperty) {
-    nlohmann::json j = {
-        {"category", "Medium"},
-        {"armor_class_bonus", 4},
-        {"dexterity_cap", 2},
-    };
-    TArmor armor = TArmor::FromJson(j);
+    TArmor armor = TArmor::FromJson(MakeArmorJson("Medium", 4, 2), factory_);
 
     ctx_.scope.emplace("armor", TDslValue(&armor));
 
@@ -46,12 +61,7 @@ TEST_F(DslArmorPropertyTest, GeneratedAcBonusProperty) {
 }
 
 TEST_F(DslArmorPropertyTest, FromJsonRoundTrip) {
-    nlohmann::json j = {
-        {"category", "Heavy"},
-        {"armor_class_bonus", 6},
-        {"dexterity_cap", 0},
-    };
-    TArmor armor = TArmor::FromJson(j);
+    TArmor armor = TArmor::FromJson(MakeArmorJson("Heavy", 6, 0), factory_);
 
     EXPECT_EQ(armor.Category(), EArmorCategory::Heavy);
     EXPECT_EQ(armor.ArmorClassBonus(), 6);

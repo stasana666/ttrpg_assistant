@@ -6,6 +6,7 @@
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/game_object_logic/game_object.h>
 #include <pf2e_engine/inventory/armor.h>
+#include <pf2e_engine/inventory/material.h>
 #include <pf2e_engine/inventory/weapon.h>
 
 #include <nlohmann/json_fwd.hpp>
@@ -43,6 +44,7 @@ private:
     TProficiency ReadProficiency(nlohmann::json& json_game_object);
 
     void ReadArmor(nlohmann::json&, TGameObjectId);
+    void ReadMaterial(nlohmann::json&, TGameObjectId);
     void ReadWeapon(nlohmann::json&, TGameObjectId);
     void ReadCreature(nlohmann::json&, TGameObjectId);
     void ReadAction(nlohmann::json&, TGameObjectId);
@@ -56,6 +58,7 @@ private:
     TActionReader action_reader_;
 
     TFactoryStorage<TArmor> armors_;
+    TFactoryStorage<TMaterial> materials_;
     TFactoryStorage<TWeapon> weapons_;
     TFactoryStorage<TCreature> creatures_;
     TFactoryStorage<std::shared_ptr<TAction>> actions_;
@@ -69,6 +72,9 @@ auto TGameObjectFactory::GetFactoryStorage() const -> const TFactoryStorage<T>&
 {
     if constexpr (std::is_same_v<T, TArmor>) {
         return armors_;
+    } else
+    if constexpr (std::is_same_v<T, TMaterial>) {
+        return materials_;
     } else
     if constexpr (std::is_same_v<T, TWeapon>) {
         return weapons_;

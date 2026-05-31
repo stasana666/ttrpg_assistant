@@ -11,6 +11,7 @@
 #include <sstream>
 
 #include <pf2e_engine/inventory/armor.h>
+#include <pf2e_engine/inventory/material.h>
 #include "battle_map.h"
 #include "characteristics.h"
 #include "game_object_id.h"
@@ -28,6 +29,7 @@ const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.js
 const std::unordered_map<std::string, TGameObjectFactory::FMethod>
 TGameObjectFactory::kReaderMapping = {
     {"pf2e_armor", &TGameObjectFactory::ReadArmor},
+    {"pf2e_material", &TGameObjectFactory::ReadMaterial},
     {"pf2e_weapon", &TGameObjectFactory::ReadWeapon},
     {"pf2e_creature", &TGameObjectFactory::ReadCreature},
     {"pf2e_action", &TGameObjectFactory::ReadAction},
@@ -109,8 +111,15 @@ TGameObjectId TGameObjectFactory::ReadGameObjectName(nlohmann::json& json_game_o
 
 void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    TArmor result = TArmor::FromJson(json_game_object);
-    armors_.insert({id, [result]() { return result; }});
+    armors_.insert({id, [this, json_game_object]() {
+        return TArmor::FromJson(json_game_object, *this);
+    }});
+}
+
+void TGameObjectFactory::ReadMaterial(nlohmann::json& json_game_object, TGameObjectId id)
+{
+    TMaterial result = TMaterial::FromJson(json_game_object, *this);
+    materials_.insert({id, [result]() { return result; }});
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
