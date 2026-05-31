@@ -28,25 +28,25 @@ TDslValue Eval(const std::string& src) {
 TEST(DslLexerTest, BasicTokens) {
     auto tokens = Tokenize("$item.reach >= 5");
     ASSERT_EQ(tokens.size(), 7u);  // $ item . reach >= 5 End
-    EXPECT_EQ(tokens[0].type, ETokenType::Dollar);
-    EXPECT_EQ(tokens[1].type, ETokenType::Identifier);
+    EXPECT_EQ(tokens[0].kind, ETokenType::Dollar);
+    EXPECT_EQ(tokens[1].kind, ETokenType::Identifier);
     EXPECT_EQ(tokens[1].text, "item");
-    EXPECT_EQ(tokens[2].type, ETokenType::Dot);
-    EXPECT_EQ(tokens[3].type, ETokenType::Identifier);
+    EXPECT_EQ(tokens[2].kind, ETokenType::Dot);
+    EXPECT_EQ(tokens[3].kind, ETokenType::Identifier);
     EXPECT_EQ(tokens[3].text, "reach");
-    EXPECT_EQ(tokens[4].type, ETokenType::Ge);
-    EXPECT_EQ(tokens[5].type, ETokenType::Number);
-    EXPECT_EQ(tokens[5].number, 5);
+    EXPECT_EQ(tokens[4].kind, ETokenType::Ge);
+    EXPECT_EQ(tokens[5].kind, ETokenType::Number);
+    EXPECT_EQ(std::stoi(tokens[5].text), 5);
 }
 
 TEST(DslLexerTest, LogicalAndComparison) {
     auto tokens = Tokenize("!a && (b || c) == d");
     // ! a && ( b || c ) == d End
     ASSERT_GE(tokens.size(), 10u);
-    EXPECT_EQ(tokens[0].type, ETokenType::Not);
-    EXPECT_EQ(tokens[2].type, ETokenType::And);
-    EXPECT_EQ(tokens[5].type, ETokenType::Or);
-    EXPECT_EQ(tokens[8].type, ETokenType::Eq);
+    EXPECT_EQ(tokens[0].kind, ETokenType::Not);
+    EXPECT_EQ(tokens[2].kind, ETokenType::And);
+    EXPECT_EQ(tokens[5].kind, ETokenType::Or);
+    EXPECT_EQ(tokens[8].kind, ETokenType::Eq);
 }
 
 TEST(DslLexerTest, RejectsUnknownChar) {

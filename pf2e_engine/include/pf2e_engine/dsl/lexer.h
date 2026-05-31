@@ -1,5 +1,7 @@
 #pragma once
 
+#include <parse/token_stream.h>
+
 #include <string>
 #include <string_view>
 #include <vector>
@@ -10,17 +12,12 @@ enum class ETokenType {
     Dollar,
     Dot,
     Comma,
-    LParen,
-    RParen,
+    LParen, RParen,
     Lt, Le, Gt, Ge, Eq, Ne,
     And, Or, Not,
     End,
 };
 
-struct TToken {
-    ETokenType type;
-    std::string text;   // identifier name; numeric literal text
-    int number = 0;     // parsed value when type == Number
-};
+using TToken = parse::TToken<ETokenType>;
 
 std::vector<TToken> Tokenize(std::string_view src);

@@ -18,7 +18,9 @@
 //   - `import "other.ttrpg";` at the top of a file makes types declared in
 //     "other.ttrpg" visible. Imports are resolved relative to the importing file.
 
-#include <cctype>
+#include <parse/scanner.h>
+#include <parse/token_stream.h>
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -28,6 +30,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -46,117 +49,49 @@ enum class ETok {
     End,
 };
 
-struct TToken {
-    ETok kind = ETok::End;
-    std::string text;
-    int line = 0;
-    int col = 0;
-};
+using TToken = parse::TToken<ETok>;
 
-class TLexer {
-public:
-    explicit TLexer(std::string src) : src_(std::move(src)) {}
-
-    std::vector<TToken> Tokenize() {
-        std::vector<TToken> out;
-        while (pos_ < src_.size()) {
-            SkipWsAndComments();
-            if (pos_ >= src_.size()) {
-                break;
-            }
-            int sl = line_, sc = col_;
-            char c = src_[pos_];
-            if (std::isalpha(static_cast<unsigned char>(c)) || c == '_') {
-                std::string id;
-                while (pos_ < src_.size() &&
-                       (std::isalnum(static_cast<unsigned char>(src_[pos_])) || src_[pos_] == '_')) {
-                    id += src_[pos_];
-                    Advance();
-                }
-                out.push_back({ETok::Ident, id, sl, sc});
-            } else if (std::isdigit(static_cast<unsigned char>(c)) ||
-                       (c == '-' && pos_ + 1 < src_.size() &&
-                        std::isdigit(static_cast<unsigned char>(src_[pos_ + 1])))) {
-                std::string n;
-                if (c == '-') {
-                    n += '-';
-                    Advance();
-                }
-                while (pos_ < src_.size() && std::isdigit(static_cast<unsigned char>(src_[pos_]))) {
-                    n += src_[pos_];
-                    Advance();
-                }
-                out.push_back({ETok::IntLiteral, n, sl, sc});
-            } else if (c == '"') {
-                Advance();
-                std::string s;
-                while (pos_ < src_.size() && src_[pos_] != '"') {
-                    if (src_[pos_] == '\n') {
-                        throw std::runtime_error(
-                            "lexer: newline inside string literal at line " +
-                            std::to_string(sl) + ", col " + std::to_string(sc));
-                    }
-                    s += src_[pos_];
-                    Advance();
-                }
-                if (pos_ >= src_.size()) {
-                    throw std::runtime_error(
-                        "lexer: unterminated string literal starting at line " +
-                        std::to_string(sl) + ", col " + std::to_string(sc));
-                }
-                Advance();
-                out.push_back({ETok::StringLiteral, s, sl, sc});
-            } else {
-                switch (c) {
-                    case '{': out.push_back({ETok::LBrace, "{", sl, sc}); Advance(); break;
-                    case '}': out.push_back({ETok::RBrace, "}", sl, sc}); Advance(); break;
-                    case ';': out.push_back({ETok::Semi, ";", sl, sc}); Advance(); break;
-                    case ',': out.push_back({ETok::Comma, ",", sl, sc}); Advance(); break;
-                    case '=': out.push_back({ETok::Equals, "=", sl, sc}); Advance(); break;
-                    default:
-                        throw std::runtime_error(
-                            "lexer: unexpected character '" + std::string(1, c) +
-                            "' at line " + std::to_string(sl) + ", col " + std::to_string(sc));
-                }
-            }
-        }
-        out.push_back({ETok::End, "", line_, col_});
-        return out;
-    }
-
-private:
-    void Advance() {
-        if (pos_ < src_.size()) {
-            if (src_[pos_] == '\n') {
-                ++line_;
-                col_ = 1;
-            } else {
-                ++col_;
-            }
-            ++pos_;
-        }
-    }
-
-    void SkipWsAndComments() {
-        while (pos_ < src_.size()) {
-            char c = src_[pos_];
-            if (std::isspace(static_cast<unsigned char>(c))) {
-                Advance();
-            } else if (c == '/' && pos_ + 1 < src_.size() && src_[pos_ + 1] == '/') {
-                while (pos_ < src_.size() && src_[pos_] != '\n') {
-                    Advance();
-                }
-            } else {
+std::vector<TToken> Tokenize(std::string src) {
+    parse::TScanner s(std::move(src));
+    std::vector<TToken> out;
+    while (true) {
+        // Skip whitespace + `//` line comments until a real token or EOF.
+        for (;;) {
+            s.SkipWhitespace();
+            if (!s.SkipLineComment("//")) {
                 break;
             }
         }
+        if (s.Eof()) {
+            break;
+        }
+        parse::TSourceLocation loc = s.Loc();
+        char c = s.Peek();
+        if (parse::IsIdentStart(c)) {
+            out.push_back({ETok::Ident, s.ScanIdent(), loc});
+            continue;
+        }
+        if (parse::IsDigit(c) || (c == '-' && parse::IsDigit(s.PeekAt(1)))) {
+            out.push_back({ETok::IntLiteral, s.ScanInteger(), loc});
+            continue;
+        }
+        if (c == '"') {
+            out.push_back({ETok::StringLiteral, s.ScanQuotedString(), loc});
+            continue;
+        }
+        switch (c) {
+            case '{': s.Advance(); out.push_back({ETok::LBrace, "{", loc}); continue;
+            case '}': s.Advance(); out.push_back({ETok::RBrace, "}", loc}); continue;
+            case ';': s.Advance(); out.push_back({ETok::Semi,   ";", loc}); continue;
+            case ',': s.Advance(); out.push_back({ETok::Comma,  ",", loc}); continue;
+            case '=': s.Advance(); out.push_back({ETok::Equals, "=", loc}); continue;
+            default:
+                s.Throw(std::string("unexpected character '") + c + "'");
+        }
     }
-
-    std::string src_;
-    size_t pos_ = 0;
-    int line_ = 1;
-    int col_ = 1;
-};
+    out.push_back({ETok::End, "", s.Loc()});
+    return out;
+}
 
 // =================== Schema AST ===================
 
@@ -186,32 +121,32 @@ struct TSchemaModule {
 
 class TParser {
 public:
-    explicit TParser(std::vector<TToken> toks) : toks_(std::move(toks)) {}
+    explicit TParser(std::vector<TToken> toks) : ts_(std::move(toks)) {}
 
     TSchemaModule Parse() {
         TSchemaModule mod;
-        while (Peek().kind == ETok::Ident && Peek().text == "import") {
-            Advance();
-            if (Peek().kind != ETok::StringLiteral) {
-                Throw("expected string literal after 'import'");
+        while (ts_.Peek().kind == ETok::Ident && ts_.Peek().text == "import") {
+            ts_.Advance();
+            if (ts_.Peek().kind != ETok::StringLiteral) {
+                ts_.Throw("expected string literal after 'import'");
             }
-            mod.Imports.push_back(Peek().text);
-            Advance();
-            Expect(ETok::Semi);
+            mod.Imports.push_back(ts_.Peek().text);
+            ts_.Advance();
+            ts_.Expect(ETok::Semi, "';'");
         }
-        while (Peek().kind != ETok::End) {
-            const TToken& t = Peek();
+        while (ts_.Peek().kind != ETok::End) {
+            const TToken& t = ts_.Peek();
             if (t.kind != ETok::Ident) {
-                Throw("expected 'enum' or 'class'");
+                ts_.Throw("expected 'enum' or 'class'");
             }
             if (t.text == "enum") {
                 mod.Enums.push_back(ParseEnum());
             } else if (t.text == "class") {
                 mod.Classes.push_back(ParseClass());
             } else if (t.text == "import") {
-                Throw("'import' must appear before any class/enum");
+                ts_.Throw("'import' must appear before any class/enum");
             } else {
-                Throw("expected 'enum' or 'class'");
+                ts_.Throw("expected 'enum' or 'class'");
             }
         }
         return mod;
@@ -222,16 +157,16 @@ private:
         ExpectIdentText("enum");
         TEnumDecl e;
         e.Name = ExpectIdent("enum name");
-        Expect(ETok::LBrace);
-        while (Peek().kind != ETok::RBrace) {
+        ts_.Expect(ETok::LBrace, "'{'");
+        while (ts_.Peek().kind != ETok::RBrace) {
             e.Values.push_back(ExpectIdent("enum value"));
-            if (Peek().kind == ETok::Comma) {
-                Advance();
+            if (ts_.Peek().kind == ETok::Comma) {
+                ts_.Advance();
             } else {
                 break;
             }
         }
-        Expect(ETok::RBrace);
+        ts_.Expect(ETok::RBrace, "'}'");
         return e;
     }
 
@@ -239,11 +174,11 @@ private:
         ExpectIdentText("class");
         TClassDecl c;
         c.Name = ExpectIdent("class name");
-        Expect(ETok::LBrace);
-        while (Peek().kind != ETok::RBrace) {
+        ts_.Expect(ETok::LBrace, "'{'");
+        while (ts_.Peek().kind != ETok::RBrace) {
             c.Fields.push_back(ParseField());
         }
-        Expect(ETok::RBrace);
+        ts_.Expect(ETok::RBrace, "'}'");
         return c;
     }
 
@@ -251,64 +186,41 @@ private:
         TFieldDecl f;
         f.TypeName = ExpectIdent("field type");
         f.Name = ExpectIdent("field name");
-        if (Peek().kind == ETok::Equals) {
-            Advance();
+        if (ts_.Peek().kind == ETok::Equals) {
+            ts_.Advance();
             f.DefaultExpr = ParseDefault();
         }
-        Expect(ETok::Semi);
+        ts_.Expect(ETok::Semi, "';'");
         return f;
     }
 
     std::string ParseDefault() {
-        const TToken& t = Peek();
-        if (t.kind == ETok::IntLiteral) {
+        const TToken& t = ts_.Peek();
+        if (t.kind == ETok::IntLiteral || t.kind == ETok::Ident) {
             std::string s = t.text;
-            Advance();
+            ts_.Advance();
             return s;
         }
-        if (t.kind == ETok::Ident) {
-            std::string s = t.text;
-            Advance();
-            return s;
-        }
-        Throw("expected default value");
-    }
-
-    const TToken& Peek() const { return toks_[pos_]; }
-    void Advance() { ++pos_; }
-
-    void Expect(ETok k) {
-        if (Peek().kind != k) {
-            Throw("unexpected token");
-        }
-        Advance();
+        ts_.Throw("expected default value");
     }
 
     void ExpectIdentText(const std::string& text) {
-        if (Peek().kind != ETok::Ident || Peek().text != text) {
-            Throw("expected '" + text + "'");
+        if (ts_.Peek().kind != ETok::Ident || ts_.Peek().text != text) {
+            ts_.Throw("expected '" + text + "'");
         }
-        Advance();
+        ts_.Advance();
     }
 
     std::string ExpectIdent(const std::string& what) {
-        if (Peek().kind != ETok::Ident) {
-            Throw("expected " + what);
+        if (ts_.Peek().kind != ETok::Ident) {
+            ts_.Throw("expected " + what);
         }
-        std::string s = Peek().text;
-        Advance();
+        std::string s = ts_.Peek().text;
+        ts_.Advance();
         return s;
     }
 
-    [[noreturn]] void Throw(const std::string& msg) {
-        const TToken& t = Peek();
-        throw std::runtime_error(
-            "parser: " + msg + " (got '" + t.text + "' at line " +
-            std::to_string(t.line) + ", col " + std::to_string(t.col) + ")");
-    }
-
-    std::vector<TToken> toks_;
-    size_t pos_ = 0;
+    parse::TTokenStream<ETok> ts_;
 };
 
 // =================== Module loading & symbol table ===================
@@ -320,9 +232,7 @@ TSchemaModule ParseFile(const fs::path& path) {
     }
     std::stringstream buf;
     buf << in.rdbuf();
-    TLexer lex(buf.str());
-    auto toks = lex.Tokenize();
-    TParser parser(std::move(toks));
+    TParser parser(Tokenize(buf.str()));
     return parser.Parse();
 }
 
