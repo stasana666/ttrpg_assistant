@@ -1,6 +1,7 @@
 add_executable(test_dsl
     test_dsl_parser.cpp
     test_dsl_evaluator.cpp
+    test_dsl_armor_property.cpp
 )
 
 target_link_libraries(test_dsl
@@ -11,6 +12,7 @@ target_link_libraries(test_dsl
 target_include_directories(test_dsl
     PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/include
     PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/tests/test_lib
+    PRIVATE ${CMAKE_BINARY_DIR}/cpp_config
 )
 
 include(GoogleTest)

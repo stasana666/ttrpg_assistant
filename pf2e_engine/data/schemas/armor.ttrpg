@@ -1,0 +1,15 @@
+import "material.ttrpg";
+
+enum EArmorCategory {
+    Unarmored,
+    Light,
+    Medium,
+    Heavy,
+}
+
+class TArmor {
+    EArmorCategory Category;
+    int ArmorClassBonus = 0;
+    int DexterityCap = max_int;
+    TMaterial Material;
+}

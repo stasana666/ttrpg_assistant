@@ -19,9 +19,10 @@
                 "category": {
                     "type": "string",
                     "enum": ["Unarmored", "Light", "Medium", "Heavy"]
-                }
+                },
+                "material": { "type": "string" }
             },
-            "required": ["armor_class_bonus", "dexterity_cap", "category"],
+            "required": ["armor_class_bonus", "dexterity_cap", "category", "material"],
             "additionalProperties": false
         },
 
@@ -35,6 +36,29 @@
                         "pf2e_armor": { "$ref": "#/$defs/pf2e_armor_core" }
                     },
                     "required": ["pf2e_armor"]
+                }
+            ]
+        },
+
+        "pf2e_material_core": {
+            "type": "object",
+            "properties": {
+                "hardness": { "type": "integer" }
+            },
+            "required": ["hardness"],
+            "additionalProperties": false
+        },
+
+        "pf2e_material": {
+            "allOf": [
+                { "$ref": "#/$defs/pf2e_base" },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": { "const": "pf2e_material" },
+                        "pf2e_material": { "$ref": "#/$defs/pf2e_material_core" }
+                    },
+                    "required": ["pf2e_material"]
                 }
             ]
         },

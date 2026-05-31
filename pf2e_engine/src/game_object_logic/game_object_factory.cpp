@@ -10,7 +10,8 @@
 #include <stdexcept>
 #include <sstream>
 
-#include "armor.h"
+#include <pf2e_engine/inventory/armor.h>
+#include <pf2e_engine/inventory/material.h>
 #include "battle_map.h"
 #include "characteristics.h"
 #include "game_object_id.h"
@@ -28,6 +29,7 @@ const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.js
 const std::unordered_map<std::string, TGameObjectFactory::FMethod>
 TGameObjectFactory::kReaderMapping = {
     {"pf2e_armor", &TGameObjectFactory::ReadArmor},
+    {"pf2e_material", &TGameObjectFactory::ReadMaterial},
     {"pf2e_weapon", &TGameObjectFactory::ReadWeapon},
     {"pf2e_creature", &TGameObjectFactory::ReadCreature},
     {"pf2e_action", &TGameObjectFactory::ReadAction},
@@ -109,12 +111,15 @@ TGameObjectId TGameObjectFactory::ReadGameObjectName(nlohmann::json& json_game_o
 
 void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    TArmor result;
-    result.ac_bonus_ = json_game_object["armor_class_bonus"];
-    result.dex_cap_ = json_game_object["dexterity_cap"];
-    result.category_ = ArmorCategoryFromString(json_game_object["category"]);
+    armors_.insert({id, [this, json_game_object]() {
+        return TArmor::FromJson(json_game_object, *this);
+    }});
+}
 
-    armors_.insert({id, [result]() { return result; }});
+void TGameObjectFactory::ReadMaterial(nlohmann::json& json_game_object, TGameObjectId id)
+{
+    TMaterial result = TMaterial::FromJson(json_game_object, *this);
+    materials_.insert({id, [result]() { return result; }});
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -160,7 +165,7 @@ TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_objec
     };
 
     for (auto& [json_key, json_value] : json_proficiency["armor_category"].items()) {
-        proficiency.SetProficiency(ArmorCategoryFromString(json_key), get_value(json_value));
+        proficiency.SetProficiency(EArmorCategoryFromString(json_key), get_value(json_value));
     }
 
     for (auto& [json_key, json_value] : json_proficiency["weapon_category"].items()) {

@@ -18,8 +18,8 @@ int TCombatCalculator::ArmorClass(const TCreature& target, const TCreature& atta
 {
     const TArmor& armor = target.Armor();
     int dex = target.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
-    int ac = 10 + armor.AcBonus()
-        + std::min(armor.DexCap(), dex)
+    int ac = 10 + armor.ArmorClassBonus()
+        + std::min(armor.DexterityCap(), dex)
         + target.Proficiency().GetProficiency(armor)
         - Penalty(target, TArmorClassTag{});
     if (IsOffGuardFor(target, attacker)) {
