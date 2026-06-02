@@ -6,6 +6,6 @@
         "base_dice_size": 4,
         "damage_type": "Piercing",
         "category": "Simple",
-        "traits": ["Finesse"]
+        "traits": ["Agile", "Finesse", {"Thrown": 10}, {"Versatile": "Slashing"}]
     }
 }

@@ -43,7 +43,7 @@ void FAddCondition::MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> 
     int increase = 5;
     if (input_.Has(kWeaponId)) {
         TWeapon& weapon = *std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
-        if (weapon.Traits().contains(EWeaponTrait::Agile)) {
+        if (weapon.Traits().Has(EWeaponTraitKind::Agile)) {
             increase = 4;
         }
     }

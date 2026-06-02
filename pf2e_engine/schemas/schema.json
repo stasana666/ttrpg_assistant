@@ -83,8 +83,20 @@
                 "traits": {
                     "type": "array",
                     "items": {
-                        "type": "string",
-                        "enum": ["Agile", "Finesse"]
+                        "oneOf": [
+                            {
+                                "type": "string",
+                                "enum": [
+                                    "Agile", "Finesse", "Nonlethal", "Fatal",
+                                    "Deadly", "Versatile", "Thrown", "TwoHand"
+                                ]
+                            },
+                            {
+                                "type": "object",
+                                "minProperties": 1,
+                                "maxProperties": 1
+                            }
+                        ]
                     },
                     "default": []
                 }
