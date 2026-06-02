@@ -118,70 +118,59 @@ All game entities (creatures, weapons, armor, actions, battle maps) are defined 
 ### Schema-Driven Code Generation
 Some data-oriented game-object classes are generated from `.ttrpg` schemas instead of being handwritten. The schema is the single source of truth — editing it regenerates the C++ class, JSON loader, AST serialization, and DSL property registration on the next `make` with no manual step.
 
-**Generator**: [tools/codegen/main.cpp](tools/codegen/main.cpp) — standalone C++23 executable; tokenizer + recursive-descent parser + emitter. Built as `ttrpg_codegen` (clang-tidy disabled on this target). The top-level CMake adds `tools/codegen` before `pf2e_engine` so the binary is available when custom commands resolve.
+**Generator**: [tools/ttrpg/](tools/ttrpg/) — a `ttrpg` static library (frontend lexer/parser/module-loader → semantic conventions layer → C++ emission via a `TCppWriter`) plus a thin `ttrpg_codegen` CLI and a `test_ttrpg` test target. **It has its own [tools/ttrpg/CLAUDE.md](tools/ttrpg/CLAUDE.md)** — read that before changing the parser, emitters, `TCppWriter`, schema grammar, or adding a new field shape. The summary below is enough for routine schema edits. (clang-tidy is disabled on these targets; IDE diagnostics about missing `ttrpg/*.h` or "invalid case style" are spurious.)
 
 **Schemas**: [pf2e_engine/data/schemas/](pf2e_engine/data/schemas/) — one `.ttrpg` per related-types module.
 
 **Generated output**: emitted into `${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/...` and `.../src/...`. The build dir is on `pf2e_engine`'s public include path, so consumers `#include <pf2e_engine/inventory/armor.h>` exactly as before.
 
-**Currently migrated**: `TArmor` + `EArmorCategory` (from [armor.ttrpg](pf2e_engine/data/schemas/armor.ttrpg)) and `TMaterial` (from [material.ttrpg](pf2e_engine/data/schemas/material.ttrpg)). Everything else still handwritten.
+**Currently migrated**: `TArmor` + `EArmorCategory` ([armor.ttrpg](pf2e_engine/data/schemas/armor.ttrpg)), `TMaterial` ([material.ttrpg](pf2e_engine/data/schemas/material.ttrpg)), `EDamageType` ([damage.ttrpg](pf2e_engine/data/schemas/damage.ttrpg)), `EDieSize` ([dice.ttrpg](pf2e_engine/data/schemas/dice.ttrpg)), and `TWeapon` + `EWeaponCategory` + the `TWeaponTrait` **variant** ([weapon.ttrpg](pf2e_engine/data/schemas/weapon.ttrpg)). `TCreature` and the remaining mechanical enums are still handwritten.
 
-**Schema syntax** (see [armor.ttrpg](pf2e_engine/data/schemas/armor.ttrpg)):
+**Three top-level constructs**: `enum` (→ plain `enum class` + `ToString`/`FromString`), `class` (data type → `FromJson`/`GetAst`/`RegisterDslProperties`), and `variant` (a **closed sum type** with named, possibly-parameterized payloads). Schema syntax:
 ```
 import "material.ttrpg";
+import "dice.ttrpg";
 
-enum EArmorCategory {
-    Unarmored,
-    Light,
-    Medium,
-    Heavy,
+enum EArmorCategory { Unarmored, Light, Medium, Heavy }
+
+variant TWeaponTrait {                 // closed sum type
+    Agile;                             //   flag alternative (no payload)
+    Finesse;
+    Fatal     { EDieSize Die; }        //   single-field alternative
+    Versatile { EDamageType Type; }
+    Thrown    { int RangeFeet; }
 }
 
 class TArmor {
     EArmorCategory Category;
     int ArmorClassBonus = 0;
     int DexterityCap = max_int;
-    TMaterial Material;
+    TMaterial Material;                // class field — resolves via factory
+    set<TWeaponTrait> Traits;          // set<Variant> -> TVariantMap; set<Enum> -> std::set
 }
 ```
 - Type names appear verbatim as in C++ (`TArmor`, `EArmorCategory`); the generator does not silently add `T`/`E`.
-- Field types: `int`, `bool`, `string`, a schema-declared enum, or a schema-declared class. The generator dispatches on the symbol table — no `ref`/`owned` keyword needed.
-- `import "other.ttrpg";` at the top of a file makes types from `other.ttrpg` visible. Paths are relative to the importing file; the generator resolves imports recursively and detects cycles.
-- Default values: integer literals, `true`/`false`, enum value identifier, or the special tokens `max_int` / `min_int` (expand to `std::numeric_limits<int>::max/min()`). Class-typed fields have no defaults.
+- Field types: `int`, `bool`, `string`, or a schema-declared enum / class / variant. The generator dispatches on the symbol table — no `ref`/`owned` keyword needed.
+- `set<T>`: `T` must be a schema-declared **enum** (→ `std::set`) or **variant** (→ `TVariantMap`). Set fields take no default (absent JSON key ⇒ empty).
+- `import "other.ttrpg";` makes another file's types visible. Paths are relative; imports resolve recursively with cycle detection.
+- Default values: integer literals, `true`/`false`, an enum value identifier, or `max_int` / `min_int`. Class/variant fields have no defaults.
 - Comments: `//` to end of line.
 
-**Naming conventions are automatic — no per-field attributes.** A PascalCase field `FooBar` produces:
-| Aspect | Result |
-|---|---|
-| C++ member | `FooBar_` |
-| Public getter | `FooBar()` |
-| JSON key | `foo_bar` |
-| DSL property | `$obj.foo_bar` |
-| AST key | `foo_bar` |
+**Naming conventions are automatic — no per-field attributes.** A PascalCase field `FooBar` produces member `FooBar_` (class) / `FooBar` (variant payload struct), getter `FooBar()`, JSON key `foo_bar`, DSL property `$obj.foo_bar`, AST key `foo_bar`. Enum/variant JSON tokens are the identifier **verbatim** (PascalCase: `"Finesse"`, `"D8"`).
 
-**What gets emitted** (per class):
-- Fields + getters
-- `static T FromJson(const nlohmann::json&, const TGameObjectFactory&)` — primitives use `j.at("...").get<T>()`, enums use `FromString`, class fields resolve through `factory.Create<T>(TGameObjectIdManager::Instance().Register(...))`.
-- `TAstNode GetAst(TAstContext&) const` + `TIsAstRecursive<T>` specialization. Class fields use `AddOwnedObject` (recursive); everything else uses `AddValueField`.
-- `static void RegisterDslProperties()` — registers `int`/`bool` fields on `TPropertyRegistry<T>`. Other types are skipped with a `// dsl: 'name' skipped` comment; widen `TDslValue` first if you need them.
+**What gets emitted**: per **enum** → `enum class` + `ToString` + `<Name>FromString`. Per **class** → getters, `FromJson`, `GetAst` (+`TIsAstRecursive`), `RegisterDslProperties` (only `int`/`bool` fields; others get a `// dsl: skipped` comment). Per **variant** `TBar` → a kind enum `EBarKind`, one payload struct per alternative (each with `static constexpr Kind`), and a wrapper class with `std::variant` payload, `Kind()`, `TryGet<T>()`, `FromJson`, `GetAst`. **Querying a variant set**: `weapon.Traits().Has(EWeaponTraitKind::Finesse)` and `weapon.Traits().Get<TWeaponTraitFatal>()` (nullptr if absent); exhaustive consumption via `std::visit` + the `overloaded` helper from [variant_map.h](pf2e_engine/include/pf2e_engine/common/variant_map.h). The full emitted shapes, the three JSON authoring forms, and `TVariantMap` are documented in [tools/ttrpg/CLAUDE.md](tools/ttrpg/CLAUDE.md).
 
-**What gets emitted** (per enum):
-- `enum class EFoo { ... }`
-- `std::string ToString(EFoo)`
-- `EFoo EFooFromString(const std::string&)`
+**Factory plumbing for class fields**: when a schema's class type is loaded by name from JSON (e.g. `TArmor` has a `TMaterial Material;` field, and armor JSON contains `"material": "steel"`), the referenced class must be registered with `TGameObjectFactory` — its own `TFactoryStorage<T>`, a `Read<T>` method, a branch in `GetFactoryStorage<T>`, and a `kReaderMapping` entry ([game_object_factory.h](pf2e_engine/include/pf2e_engine/game_object_logic/game_object_factory.h)). Read methods for classes that have class fields store **lazy** lambdas so refs resolve at `Create` time, independent of load order. Variants load eagerly via their own `FromJson` and need no factory storage.
 
-**Factory plumbing for class fields**: when a schema's class type is loaded by name from JSON (e.g. `TArmor` has a `TMaterial Material;` field, and armor JSON contains `"material": "steel"`), the referenced class must be registered with `TGameObjectFactory` — i.e. have its own `TFactoryStorage<T>`, a `Read<T>` method, a branch in `GetFactoryStorage<T>`, and a `kReaderMapping` entry ([game_object_factory.h](pf2e_engine/include/pf2e_engine/game_object_logic/game_object_factory.h)). Read methods for classes that have class fields must store **lazy** lambdas so refs resolve at `Create` time, independent of load order — same pattern `ReadCreature` has always used.
+**Build integration** ([pf2e_engine/src/inventory/CMakeLists.txt](pf2e_engine/src/inventory/CMakeLists.txt)): one `add_custom_command` per schema invokes `$<TARGET_FILE:ttrpg_codegen>`. When schema A imports schema B, A's `DEPENDS` must list B's `.ttrpg` so editing B regenerates A too. A `pf2e_engine_generated_headers` custom target forces ordering; `CMP0118 NEW` (top-level) lets the `GENERATED` source property cross directory scopes.
 
-**Build integration** ([pf2e_engine/src/inventory/CMakeLists.txt](pf2e_engine/src/inventory/CMakeLists.txt)): one `add_custom_command` per schema invokes `$<TARGET_FILE:ttrpg_codegen>`. When schema A imports schema B, A's `DEPENDS` must list B's `.ttrpg` so editing B regenerates A too. A `pf2e_engine_generated_headers` custom target forces ordering so every consumer sees the headers before compiling. `CMP0118 NEW` (set at top-level) lets the `GENERATED` source property cross directory scopes.
+**Adding a new field** to a generated class: edit the `.ttrpg`, `make`. Getter, JSON key, and DSL property appear automatically. Wire up callers.
 
-**Adding a new field** to a generated class: edit the `.ttrpg`, `make`. The new getter, JSON key, and DSL property all appear automatically. Wire up callers as needed.
+**Adding a new generated module**: create `pf2e_engine/data/schemas/<name>.ttrpg`, mirror an existing custom-command block in [the inventory CMake](pf2e_engine/src/inventory/CMakeLists.txt) (command + `.cpp` in `target_sources` + outputs in `pf2e_engine_generated_headers`), and call `T<Class>::RegisterDslProperties()` from `RegisterAll()` in [builtins.cpp](pf2e_engine/src/dsl/builtins.cpp) for classes.
 
-**Adding a new generated class**: create `pf2e_engine/data/schemas/<name>.ttrpg`, then mirror the `ARMOR_*` block in [pf2e_engine/src/inventory/CMakeLists.txt](pf2e_engine/src/inventory/CMakeLists.txt) (custom command + add the `.cpp` to `target_sources` + add the generated outputs to the `pf2e_engine_generated_headers` dependency target). Then call `T<Class>::RegisterDslProperties()` from `RegisterAll()` in [builtins.cpp](pf2e_engine/src/dsl/builtins.cpp).
-
-**Limitations of the current generator**:
-- No `string` fields in DSL (no `string` alternative in `TDslValue`).
-- No enum fields in DSL.
-- No inheritance, traits, or methods — only data + the four generated functions above. `TWeapon` (with `TItem`/`TTraitsHaver` bases) is intentionally not yet migrated.
+**Limitations of the current generator** (more in [tools/ttrpg/CLAUDE.md](tools/ttrpg/CLAUDE.md)):
+- DSL exposes only `int`/`bool` scalar fields — no `string`, enum, variant, or container (needs new `TDslValue` alternatives).
+- No inheritance, methods, or `list`/`optional`/`map` field shapes yet.
 - Generated classes do NOT include `AST_ASSERT_LAYOUT` checks — the schema is the source of truth, so the "developer changed fields without updating GetAst" failure mode is structurally impossible. Handwritten AST-instrumented classes still need the layout assert (see AST design doc).
 
 ### Action Pipeline System
@@ -338,7 +327,7 @@ The path to `libvosk.so` is configured in [extern/CMakeLists.txt](extern/CMakeLi
 - Game data: [pf2e_engine/data/](pf2e_engine/data/)
 - JSON schemas: [pf2e_engine/schemas/](pf2e_engine/schemas/)
 - Code-gen schemas (`.ttrpg`): [pf2e_engine/data/schemas/](pf2e_engine/data/schemas/) — see Schema-Driven Code Generation
-- Code generator: [tools/codegen/](tools/codegen/) — builds the `ttrpg_codegen` executable
+- Code generator: [tools/ttrpg/](tools/ttrpg/) — the `ttrpg` language library + `ttrpg_codegen` executable (has its own CLAUDE.md)
 - Generated headers/sources: `${CMAKE_BINARY_DIR}/generated/` (build dir, not committed)
 - Assistant app (GUI/CLI/voice): [assistant/src/](assistant/src/), [assistant/include/assistant/](assistant/include/assistant/)
 - Assistant entry point: [assistant/main/main.cpp](assistant/main/main.cpp)

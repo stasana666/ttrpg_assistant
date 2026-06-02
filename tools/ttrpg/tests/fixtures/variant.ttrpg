@@ -1,0 +1,16 @@
+enum EColor {
+    Red,
+    Green,
+}
+
+variant TEffect {
+    Stun;
+    Burn { int Damage; }
+    Tint { EColor Color; }
+    Zone { int Radius = 1; EColor Color; }
+}
+
+class TSpell {
+    string Name;
+    set<TEffect> Effects;
+}

@@ -1,0 +1,12 @@
+enum EColor {
+    Red,
+    Green,
+    Blue,
+}
+
+class TThing {
+    string Name;
+    int Count = 3;
+    EColor Color;
+    set<EColor> Tags;
+}

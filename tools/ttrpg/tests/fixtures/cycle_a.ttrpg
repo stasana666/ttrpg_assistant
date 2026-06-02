@@ -1,0 +1,6 @@
+import "cycle_b.ttrpg";
+
+enum EA {
+    A1,
+    A2,
+}

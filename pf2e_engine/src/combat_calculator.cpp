@@ -85,7 +85,7 @@ int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon&
     int ability_mod = str;
 
     // Finesse weapons use the higher of Strength or Dexterity
-    if (weapon.Traits().contains(EWeaponTrait::Finesse)) {
+    if (weapon.Traits().Has(EWeaponTraitKind::Finesse)) {
         int dex = creature.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
         ability_mod = std::max(str, dex);
     }

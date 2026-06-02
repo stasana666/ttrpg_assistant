@@ -1,4 +1,5 @@
 import "damage.ttrpg";
+import "dice.ttrpg";
 
 enum EWeaponCategory {
     Unarmed,
@@ -6,9 +7,15 @@ enum EWeaponCategory {
     Martial,
 }
 
-enum EWeaponTrait {
-    Agile,
-    Finesse,
+variant TWeaponTrait {
+    Agile;
+    Finesse;
+    Nonlethal;
+    Fatal     { EDieSize Die; }
+    Deadly    { EDieSize Die; }
+    Versatile { EDamageType Type; }
+    Thrown    { int RangeFeet; }
+    TwoHand   { EDieSize Die; }
 }
 
 class TWeapon {
@@ -17,5 +24,5 @@ class TWeapon {
     EDamageType DamageType;
     EWeaponCategory Category;
     int Reach = 1;
-    set<EWeaponTrait> Traits;
+    set<TWeaponTrait> Traits;
 }

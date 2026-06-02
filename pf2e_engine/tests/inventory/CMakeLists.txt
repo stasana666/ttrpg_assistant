@@ -1,6 +1,7 @@
 add_executable(test_inventory
     test_armor.cpp
     test_armor_material_ref.cpp
+    test_weapon_traits.cpp
 )
 
 target_link_libraries(test_inventory
