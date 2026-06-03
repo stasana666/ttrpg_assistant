@@ -10,5 +10,5 @@ public:
     FFilter(TBlockInput&& input, TGameObjectId output);
     void operator()(std::shared_ptr<TActionContext> ctx) const;
 private:
-    std::shared_ptr<IDslExpression> predicate_;
+    std::shared_ptr<TDslExpression> predicate_;
 };

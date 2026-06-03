@@ -18,9 +18,9 @@ FFoldL::FFoldL(TBlockInput&& input, TGameObjectId output)
     : FBaseFunction(std::move(input), output)
 {
     EnsureDslBuiltinsRegistered();
-    expr_ = std::shared_ptr<IDslExpression>(ParseDsl(input_.GetString(kExpressionId)));
+    expr_ = std::shared_ptr<TDslExpression>(ParseDsl(input_.GetString(kExpressionId)));
     if (input_.Has(kInitId)) {
-        init_ = std::shared_ptr<IDslExpression>(ParseDsl(input_.GetString(kInitId)));
+        init_ = std::shared_ptr<TDslExpression>(ParseDsl(input_.GetString(kInitId)));
     }
 }
 

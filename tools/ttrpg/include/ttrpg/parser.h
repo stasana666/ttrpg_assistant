@@ -4,6 +4,8 @@
 
 #include <ttrpg/schema_ast.h>
 
+#include <expr/parser.h>
+
 #include <parse/scanner.h>
 #include <parse/token_stream.h>
 
@@ -23,6 +25,7 @@ enum class ETok {
     Semi,
     Comma,
     Equals,
+    InitExpr,    // raw initializer text captured after '=' up to ';'
     End,
 };
 
@@ -148,21 +151,16 @@ private:
             if (f.Container != EContainer::None) {
                 ts_.Throw("container fields cannot have a default value");
             }
-            ts_.Advance();
-            f.DefaultExpr = ParseDefault();
+            ts_.Advance();  // '='
+            // The lexer raw-captured the initializer text after '='; the shared
+            // expression front-end parses it (arithmetic, member access, ...).
+            if (ts_.Peek().kind != ETok::InitExpr) {
+                ts_.Throw("expected initializer expression after '='");
+            }
+            f.Init = expr::Parse(ts_.Consume().text);
         }
         ts_.Expect(ETok::Semi, "';'");
         return f;
-    }
-
-    std::string ParseDefault() {
-        const TToken& t = ts_.Peek();
-        if (t.kind == ETok::IntLiteral || t.kind == ETok::Ident) {
-            std::string s = t.text;
-            ts_.Advance();
-            return s;
-        }
-        ts_.Throw("expected default value");
     }
 
     void ExpectIdentText(const std::string& text) {

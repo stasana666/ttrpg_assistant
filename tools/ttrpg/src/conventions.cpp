@@ -29,9 +29,14 @@ bool IsBuiltinPrimitive(const std::string& t) {
     return IsBuiltinInt(t) || IsBuiltinBool(t) || IsBuiltinString(t);
 }
 
+bool IsBuiltinBoundedQuantity(const std::string& t) { return t == "BoundedQuantity"; }
+
 std::string CppTypeFor(const std::string& schemaType) {
     if (schemaType == "string") {
         return "std::string";
+    }
+    if (schemaType == "BoundedQuantity") {
+        return "TBoundedQuantity";
     }
     return schemaType;
 }
@@ -41,6 +46,9 @@ EFieldKind FieldKindOf(const TFieldDecl& f,
 {
     if (IsBuiltinPrimitive(f.TypeName)) {
         return EFieldKind::Primitive;
+    }
+    if (IsBuiltinBoundedQuantity(f.TypeName)) {
+        return EFieldKind::BoundedQuantity;
     }
     auto it = symbols.find(f.TypeName);
     if (it == symbols.end()) {
@@ -108,6 +116,8 @@ std::string ScalarParseExpr(const TFieldDecl& f,
                    ".get<std::string>()))";
         case EFieldKind::Variant:
             return f.TypeName + "::FromJson(" + valExpr + ", factory)";
+        case EFieldKind::BoundedQuantity:
+            return "TBoundedQuantity::FromJson(" + valExpr + ", factory)";
     }
     throw std::runtime_error("unreachable: unknown EFieldKind");
 }
@@ -116,10 +126,12 @@ std::string LoadFieldCall(const TFieldDecl& f,
                           EFieldKind kind,
                           const std::string& jsonKey)
 {
-    if (kind == EFieldKind::Primitive && f.DefaultExpr) {
-        // JSON key may be absent; fall back to the schema default.
+    if (kind == EFieldKind::Primitive && f.Init) {
+        // JSON key may be absent; fall back to the schema default. (Computed
+        // initializers are handled by the emitter, not here, so a primitive
+        // field reaching this point with an Init has a constant default.)
         return "j.value(\"" + jsonKey + "\", " +
-               CppPrimitiveType(f) + "{" + DefaultExprToCpp(*f.DefaultExpr, f.TypeName) +
+               CppPrimitiveType(f) + "{" + DefaultExprToCpp(f.Init->Text, f.TypeName) +
                "})";
     }
     return ScalarParseExpr(f, kind, "j.at(\"" + jsonKey + "\")");

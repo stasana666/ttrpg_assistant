@@ -9,6 +9,8 @@
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/inventory/creature_data.h>
+#include <pf2e_engine/inventory/creature_parts.h>
 #include <pf2e_engine/player.h>
 
 #include <algorithm>
@@ -27,6 +29,10 @@ void RegisterAll() {
     // Properties on generated classes (armor.ttrpg, weapon.ttrpg, ...)
     TArmor::RegisterDslProperties();
     TWeapon::RegisterDslProperties();
+    TRace::RegisterDslProperties();
+    TClass::RegisterDslProperties();
+    TAbilityScores::RegisterDslProperties();
+    TCreatureData::RegisterDslProperties();
 
     // Properties on TPlayer
     auto& player_props = TPropertyRegistry<TPlayer>::Instance();

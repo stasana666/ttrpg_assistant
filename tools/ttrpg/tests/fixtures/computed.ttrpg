@@ -1,0 +1,13 @@
+class TPart {
+    int Bonus;
+}
+
+class TStats {
+    BoundedQuantity Health = Base + Level * PerLevel;
+    int Base;
+    int Level = 1;
+    int PerLevel;
+    int Total = Base + PerLevel;
+    TPart Part;
+    int Boosted = Part.Bonus + Base;
+}

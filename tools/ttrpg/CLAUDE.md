@@ -24,9 +24,10 @@ A compiler-shaped pipeline: **frontend** (text → schema AST) → **semantic la
 | File | Role |
 |---|---|
 | [include/ttrpg/schema_ast.h](include/ttrpg/schema_ast.h) | The parsed module: `TEnumDecl` / `TVariantDecl` / `TVariantAlt` / `TFieldDecl` / `TClassDecl` / `TSchemaModule`, `EContainer`. |
-| [include/ttrpg/parser.h](include/ttrpg/parser.h) + [src/parser.cpp](src/parser.cpp) | `ETok`, `Tokenize` (wraps `parse::TScanner`), recursive-descent `TParser` → `TSchemaModule`. |
+| [include/ttrpg/parser.h](include/ttrpg/parser.h) + [src/parser.cpp](src/parser.cpp) | `ETok`, `Tokenize` (wraps `parse::TScanner`; raw-captures `= ... ;` initializers into an `InitExpr` token), recursive-descent `TParser` → `TSchemaModule`. Field initializers are parsed by the shared `expr::Parse` ([tools/common/expr/](../common/expr/)), not here. |
 | [include/ttrpg/module.h](include/ttrpg/module.h) + [src/module.cpp](src/module.cpp) | `ParseFile`, `LoadAll` (transitive imports, cycle-detected), the cross-file symbol table (`ETypeKind`, `TTypeInfo`, `TLoadedSchemas`). |
 | [include/ttrpg/conventions.h](include/ttrpg/conventions.h) + [src/conventions.cpp](src/conventions.cpp) | The semantic layer: `PascalToSnake`, `FieldKindOf`/`EFieldKind`, `CppMemberType`, `VariantKindEnum`, `ScalarParseExpr`/`LoadFieldCall`, `DefaultExprToCpp`, `DeriveSiblingInclude`, … |
+| [include/ttrpg/analyze.h](include/ttrpg/analyze.h) + [src/analyze.cpp](src/analyze.cpp) | Field-initializer analysis: `InitIsComputed` (constant vs computed default), `FieldInitOrder` (topological evaluation order + cycle / bad-reference detection), `InitExprToCpp` (lower an expression to C++). |
 | [include/ttrpg/cpp_writer.h](include/ttrpg/cpp_writer.h) + [src/cpp_writer.cpp](src/cpp_writer.cpp) | `TCppWriter` — owns indentation/braces (see below). |
 | [include/ttrpg/emit.h](include/ttrpg/emit.h) + [src/emit.cpp](src/emit.cpp) | `EmitHeader` / `EmitImpl` and the per-construct emitters, driving the writer. |
 | [cli/main.cpp](cli/main.cpp) | Arg parsing + orchestration only (~90 lines). |
@@ -75,14 +76,48 @@ class TBaz {                   // -> data class (FromJson / GetAst / RegisterDsl
 
 - **Type names are verbatim C++** (`TArmor`, `EArmorCategory`) — the generator
   never silently adds a `T`/`E` prefix.
-- **Field types**: `int`, `bool`, `string`, or any schema-declared enum / class
-  / variant. Dispatch is by the symbol table (`EFieldKind`) — no `ref`/`owned`
-  keyword. `EFieldKind`: `Primitive | Enum | Class | Variant`.
+- **Field types**: `int`, `bool`, `string`, the built-in value type
+  `BoundedQuantity`, or any schema-declared enum / class / variant. Dispatch is
+  by the symbol table (`EFieldKind`) — no `ref`/`owned` keyword. `EFieldKind`:
+  `Primitive | Enum | Class | Variant | BoundedQuantity`.
+- **`BoundedQuantity`** is a built-in scalar value type (a `{current_value,
+  max_value}` pair). Like `int`/`string` it is recognized at the conventions
+  layer (`IsBuiltinBoundedQuantity`), needs no lexer/parser change, and lowers to
+  the hand-written `TBoundedQuantity` runtime type
+  ([pf2e_engine/common/bounded_quantity.h](../../pf2e_engine/include/pf2e_engine/common/bounded_quantity.h))
+  — the same "keyword → hand-written runtime type" arrangement as
+  `set<Variant>` → `TVariantMap` (below). It loads via
+  `TBoundedQuantity::FromJson` and is owned (recursive) in the AST. Scalar only —
+  `set<BoundedQuantity>` is rejected.
 - **`set<T>`**: `T` must be a schema-declared **enum** (lowers to `std::set`) or
   **variant** (lowers to `TVariantMap`). Primitive/class set elements are an
   error. Set fields cannot have a default (absent JSON key ⇒ empty).
 - **Defaults**: int literals, `true`/`false`, an enum value identifier, or
   `max_int` / `min_int`. Class/variant fields have no defaults.
+- **Computed defaults**: a field's `= <expr>` may be an arithmetic expression
+  (`+ - * /`, parens, int literals) over **sibling fields** referenced by their
+  PascalCase names, including **member access** into class-ref fields, e.g.
+  `BoundedQuantity Hitpoints = Race.Hitpoints + Level * (Class.Hitpoints +
+  Characteristic.Constitution);` (`Race.Hitpoints` lowers to the getter call
+  `r.Race_.Hitpoints()`). Like all defaults it is **JSON-overridable**: if the
+  JSON key is present the JSON value wins, otherwise the expression is
+  evaluated. Only `int` and `BoundedQuantity` fields may be computed (a
+  `BoundedQuantity` takes the int result as a full `{value, value}`); referenced
+  fields (and member targets) must be `int`. The classification — constant
+  default vs computed — is: a binary/member node, or a lone identifier naming a
+  sibling field, is *computed*; a literal or a lone non-field identifier (enum
+  value / `max_int`) is a *constant default* (unchanged `j.value` behavior,
+  existing schemas untouched). Computed fields are a **class** feature only —
+  variant alternative payloads reject non-constant initializers.
+- **Expression front-end is shared.** Initializer expressions are not parsed by
+  the schema parser: the schema lexer raw-captures everything after `=` up to
+  `;` into an `InitExpr` token, and `expr::Parse` (the shared
+  [tools/common/expr/](../common/expr/) library, also used by the engine's
+  runtime DSL) turns it into an `expr::TExprNode`. The codegen lowers the
+  supported subset (int literals, sibling-field vars, member access, arithmetic)
+  to C++ and rejects the rest (calls, comparison/logical, `$`-vars) with a clear
+  codegen error; the DSL evaluates the full grammar. This is why there is no
+  arithmetic/member-access parser in `ttrpg` itself.
 
 ## Naming conventions (automatic, no per-field attributes)
 

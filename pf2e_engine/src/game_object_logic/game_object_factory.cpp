@@ -32,6 +32,10 @@ TGameObjectFactory::kReaderMapping = {
     {"pf2e_armor", &TGameObjectFactory::ReadArmor},
     {"pf2e_material", &TGameObjectFactory::ReadMaterial},
     {"pf2e_weapon", &TGameObjectFactory::ReadWeapon},
+    {"pf2e_race", &TGameObjectFactory::ReadRace},
+    {"pf2e_class", &TGameObjectFactory::ReadClass},
+    {"pf2e_ability_scores", &TGameObjectFactory::ReadAbilityScores},
+    {"pf2e_creature_data", &TGameObjectFactory::ReadCreatureData},
     {"pf2e_creature", &TGameObjectFactory::ReadCreature},
     {"pf2e_action", &TGameObjectFactory::ReadAction},
     {"pf2e_battle_map", &TGameObjectFactory::ReadBattleMap},
@@ -129,6 +133,37 @@ void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjec
 {
     TWeapon result = TWeapon::FromJson(json_game_object, *this);
     weapons_.insert({id, [result]() { return result; }});
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TGameObjectFactory::ReadRace(nlohmann::json& json_game_object, TGameObjectId id)
+{
+    TRace result = TRace::FromJson(json_game_object, *this);
+    races_.insert({id, [result]() { return result; }});
+}
+
+void TGameObjectFactory::ReadClass(nlohmann::json& json_game_object, TGameObjectId id)
+{
+    TClass result = TClass::FromJson(json_game_object, *this);
+    classes_.insert({id, [result]() { return result; }});
+}
+
+void TGameObjectFactory::ReadAbilityScores(nlohmann::json& json_game_object, TGameObjectId id)
+{
+    TAbilityScores result = TAbilityScores::FromJson(json_game_object, *this);
+    ability_scores_.insert({id, [result]() { return result; }});
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TGameObjectFactory::ReadCreatureData(nlohmann::json& json_game_object, TGameObjectId id)
+{
+    // TCreatureData has TArmor/TWeapon class fields, so resolve lazily (like ReadArmor)
+    // to stay independent of load order.
+    creature_data_.insert({id, [this, json_game_object]() {
+        return TCreatureData::FromJson(json_game_object, *this);
+    }});
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

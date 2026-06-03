@@ -35,11 +35,11 @@ EColor EColorFromString(const std::string& s) {
 }
 
 TThing TThing::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
-    (void)factory;
     TThing r;
     r.Name_ = j.at("name").get<std::string>();
     r.Count_ = j.value("count", int{3});
     r.Color_ = EColorFromString(j.at("color").get<std::string>());
+    r.Charges_ = TBoundedQuantity::FromJson(j.at("charges"), factory);
     if (j.contains("tags")) {
         for (const auto& item : j.at("tags")) {
             r.Tags_.insert(EColorFromString(item.get<std::string>()));
@@ -53,6 +53,7 @@ TAstNode TThing::GetAst([[maybe_unused]] TAstContext& ctx) const {
     AddValueField(node, "name", Name_);
     AddValueField(node, "count", Count_);
     AddValueField(node, "color", Color_);
+    AddOwnedObject(node, "charges", Charges_, ctx);
     {
         TAstNode set_node = TAstNode::MakeObject("container");
         for (auto v : Tags_) {
@@ -70,6 +71,7 @@ void TThing::RegisterDslProperties() {
         return TDslValue(obj->Count());
     });
     // dsl: 'color' skipped -- enum field 'EColor'
+    // dsl: 'charges' skipped -- bounded-quantity field 'BoundedQuantity'
     // dsl: 'tags' skipped -- set field 'EColor'
 }
 

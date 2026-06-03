@@ -10,6 +10,6 @@ public:
     FFoldL(TBlockInput&& input, TGameObjectId output);
     void operator()(std::shared_ptr<TActionContext> ctx) const;
 private:
-    std::shared_ptr<IDslExpression> expr_;
-    std::shared_ptr<IDslExpression> init_;  // null if seed comes from list head
+    std::shared_ptr<TDslExpression> expr_;
+    std::shared_ptr<TDslExpression> init_;  // null if seed comes from list head
 };

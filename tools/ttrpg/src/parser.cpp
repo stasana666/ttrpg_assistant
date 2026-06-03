@@ -35,7 +35,25 @@ std::vector<TToken> Tokenize(std::string src) {
             case '>': s.Advance(); out.push_back({ETok::RAngle, ">", loc}); continue;
             case ';': s.Advance(); out.push_back({ETok::Semi,   ";", loc}); continue;
             case ',': s.Advance(); out.push_back({ETok::Comma,  ",", loc}); continue;
-            case '=': s.Advance(); out.push_back({ETok::Equals, "=", loc}); continue;
+            case '=': {
+                s.Advance();
+                out.push_back({ETok::Equals, "=", loc});
+                // Everything from here to the terminating ';' is a field
+                // initializer expression; capture it raw and let the shared
+                // expression front-end (expr::Parse) handle the grammar.
+                s.SkipWhitespace();
+                parse::TSourceLocation exprLoc = s.Loc();
+                std::string text;
+                while (!s.Eof() && s.Peek() != ';') {
+                    text += s.Peek();
+                    s.Advance();
+                }
+                while (!text.empty() && parse::IsSpace(text.back())) {
+                    text.pop_back();
+                }
+                out.push_back({ETok::InitExpr, text, exprLoc});
+                continue;
+            }
             default:
                 s.Throw(std::string("unexpected character '") + c + "'");
         }

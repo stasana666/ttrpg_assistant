@@ -1,0 +1,12 @@
+{
+    "name": "warrior_abilities",
+    "type": "pf2e_ability_scores",
+    "pf2e_ability_scores": {
+        "strength": 4,
+        "dexterity": 1,
+        "constitution": 3,
+        "intelligence": 0,
+        "wisdom": 1,
+        "charisma": 0
+    }
+}

@@ -18,14 +18,20 @@ bool IsBuiltinBool(const std::string& t);
 bool IsBuiltinString(const std::string& t);
 bool IsBuiltinPrimitive(const std::string& t);
 
+// A built-in value type (not a primitive, not a schema-declared type): the
+// language keyword `BoundedQuantity`, which lowers to the hand-written
+// TBoundedQuantity runtime type.
+bool IsBuiltinBoundedQuantity(const std::string& t);
+
 std::string CppTypeFor(const std::string& schemaType);
 
 // Per-field kind, derived from the (cross-file) symbol table.
 enum class EFieldKind {
-    Primitive,  // int / bool / string
-    Enum,       // schema-declared enum
-    Class,      // schema-declared class -> loads via factory, owned in AST
-    Variant,    // schema-declared variant -> loads via FromJson, owned in AST
+    Primitive,        // int / bool / string
+    Enum,             // schema-declared enum
+    Class,            // schema-declared class -> loads via factory, owned in AST
+    Variant,          // schema-declared variant -> loads via FromJson, owned in AST
+    BoundedQuantity,  // built-in -> hand-written TBoundedQuantity, owned in AST
 };
 
 EFieldKind FieldKindOf(const TFieldDecl& f,

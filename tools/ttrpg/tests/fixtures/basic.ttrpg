@@ -8,5 +8,6 @@ class TThing {
     string Name;
     int Count = 3;
     EColor Color;
+    BoundedQuantity Charges;
     set<EColor> Tags;
 }

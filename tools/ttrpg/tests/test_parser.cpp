@@ -4,6 +4,8 @@
 #include <ttrpg/parser.h>
 #include <ttrpg/schema_ast.h>
 
+#include <expr/ast.h>
+
 #include <string>
 #include <unordered_map>
 
@@ -21,6 +23,34 @@ const std::string kFixtures = TTRPG_FIXTURES_DIR;
 
 }  // namespace
 
+TEST(ParserTest, InitExprPrecedence) {
+    TSchemaModule m = ParseSrc(
+        "class TC { int A; int B; int C; int X = A + B * C; }\n");
+    const TClassDecl& c = m.Classes.at(0);
+    const expr::TExprNode& x = c.Fields.at(3).Init.value();
+    // '+' is the root; '*' binds tighter and sits on the right.
+    ASSERT_EQ(x.Kind, expr::ENodeKind::Binary);
+    EXPECT_EQ(x.BinOp, expr::EBinaryOp::Add);
+    EXPECT_EQ(x.Lhs->Kind, expr::ENodeKind::Var);
+    EXPECT_EQ(x.Lhs->Text, "A");
+    ASSERT_EQ(x.Rhs->Kind, expr::ENodeKind::Binary);
+    EXPECT_EQ(x.Rhs->BinOp, expr::EBinaryOp::Mul);
+    EXPECT_EQ(x.Rhs->Lhs->Text, "B");
+    EXPECT_EQ(x.Rhs->Rhs->Text, "C");
+}
+
+TEST(ParserTest, ConstantInitsAreSingleTokens) {
+    TSchemaModule m = ParseSrc(
+        "class TC { int A = 0; int B = max_int; int C = -2; }\n");
+    const TClassDecl& c = m.Classes.at(0);
+    EXPECT_EQ(c.Fields.at(0).Init->Kind, expr::ENodeKind::IntLiteral);
+    EXPECT_EQ(c.Fields.at(0).Init->Text, "0");
+    EXPECT_EQ(c.Fields.at(1).Init->Kind, expr::ENodeKind::Var);
+    EXPECT_EQ(c.Fields.at(1).Init->Text, "max_int");
+    EXPECT_EQ(c.Fields.at(2).Init->Kind, expr::ENodeKind::IntLiteral);
+    EXPECT_EQ(c.Fields.at(2).Init->Text, "-2");
+}
+
 TEST(ParserTest, EnumAndClass) {
     TSchemaModule m = ParseSrc(
         "enum EColor { Red, Green, }\n"
@@ -34,8 +64,8 @@ TEST(ParserTest, EnumAndClass) {
     const TClassDecl& c = m.Classes[0];
     ASSERT_EQ(c.Fields.size(), 3u);
     EXPECT_EQ(c.Fields[0].TypeName, "string");
-    EXPECT_FALSE(c.Fields[0].DefaultExpr.has_value());
-    EXPECT_EQ(c.Fields[1].DefaultExpr.value(), "3");
+    EXPECT_FALSE(c.Fields[0].Init.has_value());
+    EXPECT_EQ(c.Fields[1].Init->Text, "3");
     EXPECT_EQ(c.Fields[2].Container, EContainer::Set);
     EXPECT_EQ(c.Fields[2].TypeName, "EColor");
 }
@@ -62,7 +92,7 @@ TEST(ParserTest, VariantThreeAlternativeForms) {
 
     EXPECT_EQ(v.Alternatives[2].Name, "Zone");
     ASSERT_EQ(v.Alternatives[2].Fields.size(), 2u);                // multi-field + default
-    EXPECT_EQ(v.Alternatives[2].Fields[0].DefaultExpr.value(), "1");
+    EXPECT_EQ(v.Alternatives[2].Fields[0].Init->Text, "1");
 }
 
 TEST(ParserTest, ImportsRecorded) {

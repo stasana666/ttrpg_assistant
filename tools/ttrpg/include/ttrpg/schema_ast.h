@@ -3,6 +3,8 @@
 // The schema AST: the parsed, in-memory representation of one `.ttrpg` module,
 // before any C++ is emitted. Produced by the parser, consumed by the emitters.
 
+#include <expr/ast.h>
+
 #include <optional>
 #include <string>
 #include <vector>
@@ -18,10 +20,14 @@ enum class EContainer {
 };
 
 struct TFieldDecl {
-    std::string TypeName;          // element type when Container != None
+    std::string TypeName;              // element type when Container != None
     EContainer Container = EContainer::None;
     std::string Name;
-    std::optional<std::string> DefaultExpr;
+    // The `= ...` initializer, if any, parsed by the shared expression
+    // front-end. A bare literal / non-field identifier is a constant default;
+    // an expression referencing sibling fields (or any member/binary node) is a
+    // computed default -- see analyze.h.
+    std::optional<expr::TExprNode> Init;
 };
 
 struct TClassDecl {

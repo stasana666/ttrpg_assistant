@@ -1,0 +1,19 @@
+// Building blocks of a creature, referenced by name from creature data and
+// composed (via member access) in computed fields like hit points.
+
+class TRace {
+    int Hitpoints;
+}
+
+class TClass {
+    int Hitpoints;
+}
+
+class TAbilityScores {
+    int Strength = 10;
+    int Dexterity = 10;
+    int Constitution = 10;
+    int Intelligence = 10;
+    int Wisdom = 10;
+    int Charisma = 10;
+}

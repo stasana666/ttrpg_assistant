@@ -3,6 +3,8 @@ set(MATERIAL_SCHEMA  ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/material.ttrpg
 set(WEAPON_SCHEMA    ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/weapon.ttrpg)
 set(DAMAGE_SCHEMA    ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/damage.ttrpg)
 set(DICE_SCHEMA      ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/dice.ttrpg)
+set(CREATURE_DATA_SCHEMA ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/creature_data.ttrpg)
+set(CREATURE_PARTS_SCHEMA ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/creature_parts.ttrpg)
 
 set(ARMOR_GEN_H      ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/armor.h)
 set(ARMOR_GEN_CPP    ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/armor.cpp)
@@ -14,6 +16,10 @@ set(DAMAGE_GEN_H     ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engi
 set(DAMAGE_GEN_CPP   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/damage.cpp)
 set(DICE_GEN_H       ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/dice.h)
 set(DICE_GEN_CPP     ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/dice.cpp)
+set(CREATURE_DATA_GEN_H   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/creature_data.h)
+set(CREATURE_DATA_GEN_CPP ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/creature_data.cpp)
+set(CREATURE_PARTS_GEN_H   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/creature_parts.h)
+set(CREATURE_PARTS_GEN_CPP ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/creature_parts.cpp)
 
 add_custom_command(
     OUTPUT  ${MATERIAL_GEN_H} ${MATERIAL_GEN_CPP}
@@ -67,12 +73,38 @@ add_custom_command(
     VERBATIM
 )
 
+add_custom_command(
+    OUTPUT  ${CREATURE_PARTS_GEN_H} ${CREATURE_PARTS_GEN_CPP}
+    COMMAND $<TARGET_FILE:ttrpg_codegen>
+            --schema  ${CREATURE_PARTS_SCHEMA}
+            --out-h   ${CREATURE_PARTS_GEN_H}
+            --out-cpp ${CREATURE_PARTS_GEN_CPP}
+    DEPENDS ttrpg_codegen ${CREATURE_PARTS_SCHEMA}
+    VERBATIM
+)
+
+# creature_data.ttrpg imports armor.ttrpg, weapon.ttrpg and creature_parts.ttrpg
+# (transitively material, damage, dice), so editing any of them must rebuild it.
+add_custom_command(
+    OUTPUT  ${CREATURE_DATA_GEN_H} ${CREATURE_DATA_GEN_CPP}
+    COMMAND $<TARGET_FILE:ttrpg_codegen>
+            --schema  ${CREATURE_DATA_SCHEMA}
+            --out-h   ${CREATURE_DATA_GEN_H}
+            --out-cpp ${CREATURE_DATA_GEN_CPP}
+    DEPENDS ttrpg_codegen ${CREATURE_DATA_SCHEMA}
+            ${ARMOR_SCHEMA} ${WEAPON_SCHEMA} ${MATERIAL_SCHEMA} ${DAMAGE_SCHEMA} ${DICE_SCHEMA}
+            ${CREATURE_PARTS_SCHEMA}
+    VERBATIM
+)
+
 set_source_files_properties(
     ${ARMOR_GEN_CPP} ${MATERIAL_GEN_CPP} ${WEAPON_GEN_CPP} ${DAMAGE_GEN_CPP} ${DICE_GEN_CPP}
+    ${CREATURE_DATA_GEN_CPP} ${CREATURE_PARTS_GEN_CPP}
     PROPERTIES GENERATED ON SKIP_LINTING ON
 )
 set_source_files_properties(
     ${ARMOR_GEN_H} ${MATERIAL_GEN_H} ${WEAPON_GEN_H} ${DAMAGE_GEN_H} ${DICE_GEN_H}
+    ${CREATURE_DATA_GEN_H} ${CREATURE_PARTS_GEN_H}
     PROPERTIES GENERATED ON
 )
 
@@ -82,6 +114,8 @@ add_custom_target(pf2e_engine_generated_headers
             ${WEAPON_GEN_H} ${WEAPON_GEN_CPP}
             ${DAMAGE_GEN_H} ${DAMAGE_GEN_CPP}
             ${DICE_GEN_H} ${DICE_GEN_CPP}
+            ${CREATURE_DATA_GEN_H} ${CREATURE_DATA_GEN_CPP}
+            ${CREATURE_PARTS_GEN_H} ${CREATURE_PARTS_GEN_CPP}
 )
 add_dependencies(pf2e_engine pf2e_engine_generated_headers)
 
@@ -93,6 +127,8 @@ target_sources(pf2e_engine
         ${WEAPON_GEN_CPP}
         ${DAMAGE_GEN_CPP}
         ${DICE_GEN_CPP}
+        ${CREATURE_DATA_GEN_CPP}
+        ${CREATURE_PARTS_GEN_CPP}
 )
 
 target_include_directories(pf2e_engine

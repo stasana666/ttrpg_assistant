@@ -6,6 +6,7 @@ add_library(ttrpg STATIC
     src/parser.cpp
     src/module.cpp
     src/conventions.cpp
+    src/analyze.cpp
     src/cpp_writer.cpp
     src/emit.cpp
 )
@@ -14,7 +15,7 @@ target_include_directories(ttrpg PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_link_libraries(ttrpg PUBLIC ttrpg_parse)
+target_link_libraries(ttrpg PUBLIC ttrpg_parse expr)
 
 # clang-tidy is disabled on the language tooling (camelCase locals, generated
 # string templates) -- same policy the old ttrpg_codegen target used.

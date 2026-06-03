@@ -2,6 +2,7 @@ add_executable(test_ttrpg
     test_writer.cpp
     test_conventions.cpp
     test_parser.cpp
+    test_analyze.cpp
     test_golden.cpp
 )
 

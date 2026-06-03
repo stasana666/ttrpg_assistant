@@ -124,7 +124,7 @@ Some data-oriented game-object classes are generated from `.ttrpg` schemas inste
 
 **Generated output**: emitted into `${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/...` and `.../src/...`. The build dir is on `pf2e_engine`'s public include path, so consumers `#include <pf2e_engine/inventory/armor.h>` exactly as before.
 
-**Currently migrated**: `TArmor` + `EArmorCategory` ([armor.ttrpg](pf2e_engine/data/schemas/armor.ttrpg)), `TMaterial` ([material.ttrpg](pf2e_engine/data/schemas/material.ttrpg)), `EDamageType` ([damage.ttrpg](pf2e_engine/data/schemas/damage.ttrpg)), `EDieSize` ([dice.ttrpg](pf2e_engine/data/schemas/dice.ttrpg)), and `TWeapon` + `EWeaponCategory` + the `TWeaponTrait` **variant** ([weapon.ttrpg](pf2e_engine/data/schemas/weapon.ttrpg)). `TCreature` and the remaining mechanical enums are still handwritten.
+**Currently migrated**: `TArmor` + `EArmorCategory` ([armor.ttrpg](pf2e_engine/data/schemas/armor.ttrpg)), `TMaterial` ([material.ttrpg](pf2e_engine/data/schemas/material.ttrpg)), `EDamageType` ([damage.ttrpg](pf2e_engine/data/schemas/damage.ttrpg)), `EDieSize` ([dice.ttrpg](pf2e_engine/data/schemas/dice.ttrpg)), and `TWeapon` + `EWeaponCategory` + the `TWeaponTrait` **variant** ([weapon.ttrpg](pf2e_engine/data/schemas/weapon.ttrpg)), plus `TRace` / `TClass` / `TAbilityScores` ([creature_parts.ttrpg](pf2e_engine/data/schemas/creature_parts.ttrpg)) and `TCreatureData` — a generated aggregate of a level, those parts (by-name class refs), a `TArmor`/`TWeapon`, and a computed `BoundedQuantity Hitpoints` derived via member access (`Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution)`) ([creature_data.ttrpg](pf2e_engine/data/schemas/creature_data.ttrpg)) — the growing slice of an incremental `TCreature` migration. `TCreature` itself and the remaining mechanical enums are still handwritten.
 
 **Three top-level constructs**: `enum` (→ plain `enum class` + `ToString`/`FromString`), `class` (data type → `FromJson`/`GetAst`/`RegisterDslProperties`), and `variant` (a **closed sum type** with named, possibly-parameterized payloads). Schema syntax:
 ```
@@ -150,10 +150,11 @@ class TArmor {
 }
 ```
 - Type names appear verbatim as in C++ (`TArmor`, `EArmorCategory`); the generator does not silently add `T`/`E`.
-- Field types: `int`, `bool`, `string`, or a schema-declared enum / class / variant. The generator dispatches on the symbol table — no `ref`/`owned` keyword needed.
+- Field types: `int`, `bool`, `string`, the built-in `BoundedQuantity` (a `{current_value, max_value}` pair lowering to the hand-written `TBoundedQuantity`, parallel to how `set<Variant>` lowers to `TVariantMap`), or a schema-declared enum / class / variant. The generator dispatches on the symbol table — no `ref`/`owned` keyword needed.
 - `set<T>`: `T` must be a schema-declared **enum** (→ `std::set`) or **variant** (→ `TVariantMap`). Set fields take no default (absent JSON key ⇒ empty).
 - `import "other.ttrpg";` makes another file's types visible. Paths are relative; imports resolve recursively with cycle detection.
 - Default values: integer literals, `true`/`false`, an enum value identifier, or `max_int` / `min_int`. Class/variant fields have no defaults.
+- Computed defaults: a field's `= <expr>` may be an arithmetic expression (`+ - * /`, parens) over sibling fields (referenced by PascalCase name), including **member access** into class-ref fields, e.g. `BoundedQuantity Hitpoints = Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution);` (`Race.Hitpoints` → getter `r.Race_.Hitpoints()`). Still JSON-overridable (JSON value wins if present, else the expression is evaluated); only `int`/`BoundedQuantity` fields may be computed and referenced fields/members must be `int`; cycles are a codegen-time error. The initializer grammar is parsed by the shared expression front-end [tools/common/expr/](tools/common/expr/) (see below). See [tools/ttrpg/CLAUDE.md](tools/ttrpg/CLAUDE.md).
 - Comments: `//` to end of line.
 
 **Naming conventions are automatic — no per-field attributes.** A PascalCase field `FooBar` produces member `FooBar_` (class) / `FooBar` (variant payload struct), getter `FooBar()`, JSON key `foo_bar`, DSL property `$obj.foo_bar`, AST key `foo_bar`. Enum/variant JSON tokens are the identifier **verbatim** (PascalCase: `"Finesse"`, `"D8"`).
@@ -207,7 +208,7 @@ Actions consume resources (actions, reactions, movement) and execute their pipel
 ### DSL Expression Layer
 The action pipeline embeds a small expression DSL ([pf2e_engine/{include,src}/pf2e_engine/dsl/](pf2e_engine/include/pf2e_engine/dsl/)) so that filtering, predicates, and computed values can be written inline in JSON instead of as bespoke C++ blocks. The classic example is the new [attack.json](pf2e_engine/data/actions/attack.json) pipeline: it gets all creatures, filters by line of effect, computes the minimum distance, filters weapons by reach, chooses a weapon, filters targets by that weapon's reach, and chooses a target — all expressed declaratively.
 
-**Grammar** ([pf2e_engine/src/dsl/parser.cpp](pf2e_engine/src/dsl/parser.cpp)): variables `$name`, property access `$x.prop`, function calls `f(a, b)`, comparison `>= <= > < == !=`, logical `&& || !`, integer literals, parentheses. Arithmetic (`+ - * /`) is intentionally deferred.
+**Grammar**: variables `$name`, property access `$x.prop`, function calls `f(a, b)`, arithmetic `+ - * /`, comparison `>= <= > < == !=`, logical `&& || !`, integer literals, parentheses. Lexing + parsing are **not** in `pf2e_engine` — they come from the shared expression front-end [tools/common/expr/](tools/common/expr/) (the same library the `.ttrpg` codegen uses for computed-default expressions). `pf2e_engine/src/dsl/` owns only the *evaluator* ([evaluator.cpp](pf2e_engine/src/dsl/evaluator.cpp)): `ParseDsl(src)` wraps `expr::Parse` into a `TDslExpression`, whose `Evaluate(TEvalContext&)` walks the shared `expr::TExprNode` against the registries below.
 
 **Generic blocks** (registered in [action_reader.cpp:51](pf2e_engine/src/actions/action_reader.cpp#L51)):
 - `let`: evaluate a DSL `expression` and bind the result to the block's output.
@@ -328,6 +329,7 @@ The path to `libvosk.so` is configured in [extern/CMakeLists.txt](extern/CMakeLi
 - JSON schemas: [pf2e_engine/schemas/](pf2e_engine/schemas/)
 - Code-gen schemas (`.ttrpg`): [pf2e_engine/data/schemas/](pf2e_engine/data/schemas/) — see Schema-Driven Code Generation
 - Code generator: [tools/ttrpg/](tools/ttrpg/) — the `ttrpg` language library + `ttrpg_codegen` executable (has its own CLAUDE.md)
+- Shared expression front-end: [tools/common/expr/](tools/common/expr/) — lexer + parser + backend-agnostic AST (`expr::TExprNode`), used by both the `ttrpg` codegen (lowers to C++) and the runtime DSL (evaluates). Sits below both (like [tools/common/parse/](tools/common/parse/), which it builds on).
 - Generated headers/sources: `${CMAKE_BINARY_DIR}/generated/` (build dir, not committed)
 - Assistant app (GUI/CLI/voice): [assistant/src/](assistant/src/), [assistant/include/assistant/](assistant/include/assistant/)
 - Assistant entry point: [assistant/main/main.cpp](assistant/main/main.cpp)
@@ -399,5 +401,5 @@ Steps to add a new block:
 ## Known Limitations
 - Inline armor/weapon definitions in creature JSON not yet supported
 - Interaction system uses spinlock polling (TODO: condition_variable)
-- DSL has no arithmetic operators (`+ - * /`) yet — comparison and logical only
+- The runtime DSL and the `.ttrpg` codegen share one expression front-end ([tools/common/expr/](tools/common/expr/)): one lexer + parser + AST, two backends (the DSL evaluates; the codegen lowers to C++). The grammar includes arithmetic, comparison, logical, member access, calls, and `$`-vars; each backend supports its own subset (e.g. the codegen rejects calls/`$`-vars/comparison in computed defaults).
 - Burst/cone/line AoE patterns still go through `get_targets_in_area` because the DSL has no `TPosition` value type or position-picking function — would be a small extension if needed
