@@ -30,7 +30,7 @@ int TCombatCalculator::ArmorClass(const TCreature& target, const TCreature& atta
 
 bool TCombatCalculator::IsOffGuardFor(const TCreature& target, [[maybe_unused]] const TCreature& attacker) const
 {
-    return target.Get(ECondition::Prone) > 0;
+    return target.Get(EConditionKind::Prone) > 0;
 }
 
 
@@ -62,10 +62,10 @@ template <class T>
 int TCombatCalculator::Penalty(const TCreature& creature, T) const
 {
     if constexpr (std::is_same_v<T, TWeaponAttackTag>) {
-        return creature.Get(ECondition::Frightened)
-            + (creature.Get(ECondition::Prone) ? 2 : 0);
+        return creature.Get(EConditionKind::Frightened)
+            + (creature.Get(EConditionKind::Prone) ? 2 : 0);
     }
-    return creature.Get(ECondition::Frightened);
+    return creature.Get(EConditionKind::Frightened);
 }
 
 template int TCombatCalculator::Penalty<ESkill>(const TCreature&, ESkill) const;

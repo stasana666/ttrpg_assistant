@@ -8,6 +8,7 @@ template <class TKind, class TVariant>
 class TVariantMap {
 public:
     void Set(TVariant v) { Items_[v.Kind()] = std::move(v); }
+    void Erase(TKind k) { Items_.erase(k); }
     bool Has(TKind k) const { return Items_.count(k) != 0; }
 
     template <class T>

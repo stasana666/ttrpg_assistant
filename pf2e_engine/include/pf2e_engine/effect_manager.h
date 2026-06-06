@@ -13,7 +13,7 @@ class TTransformator;
 
 struct TPlayerConditionSet {
     TPlayer* player;
-    ECondition condition;
+    EConditionKind condition;
     int value;
 };
 
@@ -32,19 +32,19 @@ class TEffectManager {
 public:
     TEffectCanceler AddEffect(TEffect effect, TTransformator& transformator);
 
-    void ClearCondition(TPlayer* player, ECondition condition, TTransformator& transformator);
+    void ClearCondition(TPlayer* player, EConditionKind condition, TTransformator& transformator);
 
-    void InsertValue(TPlayer* player, ECondition condition, int value);
-    void EraseValue(TPlayer* player, ECondition condition, int value);
+    void InsertValue(TPlayer* player, EConditionKind condition, int value);
+    void EraseValue(TPlayer* player, EConditionKind condition, int value);
 
-    int GetHighestValue(TPlayer* player, ECondition condition) const;
+    int GetHighestValue(TPlayer* player, EConditionKind condition) const;
 
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:
-    void Update(TPlayer* player, ECondition condition, TTransformator& transformator);
+    void Update(TPlayer* player, EConditionKind condition, TTransformator& transformator);
 
-    using ConditionKey = std::pair<TPlayer*, ECondition>;
+    using ConditionKey = std::pair<TPlayer*, EConditionKind>;
 
     class FConditionKeyHasher {
     public:

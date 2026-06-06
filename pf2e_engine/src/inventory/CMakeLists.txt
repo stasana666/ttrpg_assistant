@@ -5,6 +5,7 @@ set(DAMAGE_SCHEMA    ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/damage.ttrpg)
 set(DICE_SCHEMA      ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/dice.ttrpg)
 set(CREATURE_DATA_SCHEMA ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/creature_data.ttrpg)
 set(CREATURE_PARTS_SCHEMA ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/creature_parts.ttrpg)
+set(CONDITION_SCHEMA ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/condition.ttrpg)
 
 set(ARMOR_GEN_H      ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/armor.h)
 set(ARMOR_GEN_CPP    ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/armor.cpp)
@@ -20,6 +21,8 @@ set(CREATURE_DATA_GEN_H   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e
 set(CREATURE_DATA_GEN_CPP ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/creature_data.cpp)
 set(CREATURE_PARTS_GEN_H   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/creature_parts.h)
 set(CREATURE_PARTS_GEN_CPP ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/creature_parts.cpp)
+set(CONDITION_GEN_H   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/condition.h)
+set(CONDITION_GEN_CPP ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/condition.cpp)
 
 add_custom_command(
     OUTPUT  ${MATERIAL_GEN_H} ${MATERIAL_GEN_CPP}
@@ -49,6 +52,16 @@ add_custom_command(
             --out-h   ${DAMAGE_GEN_H}
             --out-cpp ${DAMAGE_GEN_CPP}
     DEPENDS ttrpg_codegen ${DAMAGE_SCHEMA}
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT  ${CONDITION_GEN_H} ${CONDITION_GEN_CPP}
+    COMMAND $<TARGET_FILE:ttrpg_codegen>
+            --schema  ${CONDITION_SCHEMA}
+            --out-h   ${CONDITION_GEN_H}
+            --out-cpp ${CONDITION_GEN_CPP}
+    DEPENDS ttrpg_codegen ${CONDITION_SCHEMA}
     VERBATIM
 )
 
@@ -99,12 +112,12 @@ add_custom_command(
 
 set_source_files_properties(
     ${ARMOR_GEN_CPP} ${MATERIAL_GEN_CPP} ${WEAPON_GEN_CPP} ${DAMAGE_GEN_CPP} ${DICE_GEN_CPP}
-    ${CREATURE_DATA_GEN_CPP} ${CREATURE_PARTS_GEN_CPP}
+    ${CREATURE_DATA_GEN_CPP} ${CREATURE_PARTS_GEN_CPP} ${CONDITION_GEN_CPP}
     PROPERTIES GENERATED ON SKIP_LINTING ON
 )
 set_source_files_properties(
     ${ARMOR_GEN_H} ${MATERIAL_GEN_H} ${WEAPON_GEN_H} ${DAMAGE_GEN_H} ${DICE_GEN_H}
-    ${CREATURE_DATA_GEN_H} ${CREATURE_PARTS_GEN_H}
+    ${CREATURE_DATA_GEN_H} ${CREATURE_PARTS_GEN_H} ${CONDITION_GEN_H}
     PROPERTIES GENERATED ON
 )
 
@@ -116,6 +129,7 @@ add_custom_target(pf2e_engine_generated_headers
             ${DICE_GEN_H} ${DICE_GEN_CPP}
             ${CREATURE_DATA_GEN_H} ${CREATURE_DATA_GEN_CPP}
             ${CREATURE_PARTS_GEN_H} ${CREATURE_PARTS_GEN_CPP}
+            ${CONDITION_GEN_H} ${CONDITION_GEN_CPP}
 )
 add_dependencies(pf2e_engine pf2e_engine_generated_headers)
 
@@ -129,6 +143,7 @@ target_sources(pf2e_engine
         ${DICE_GEN_CPP}
         ${CREATURE_DATA_GEN_CPP}
         ${CREATURE_PARTS_GEN_CPP}
+        ${CONDITION_GEN_CPP}
 )
 
 target_include_directories(pf2e_engine

@@ -32,7 +32,7 @@ void TTransformator::Heal(TPlayer* player, int value)
     io_system_.GameLog() << "current hp: " << creature->Hitpoints()->GetCurrentHp() << std::endl;
 }
 
-void TTransformator::ChangeCondition(TCreature* creature, ECondition condition, int new_value)
+void TTransformator::ChangeCondition(TCreature* creature, EConditionKind condition, int new_value)
 {
     transformations_.emplace_back(TChangeCondition(creature, condition, new_value));
 }
@@ -47,12 +47,12 @@ void TTransformator::ReduceResource(TGuarded<TResourcePool> pool, TResourceId id
     transformations_.emplace_back(TChangeResource(&pool.Mutable(), id, -count));
 }
 
-void TTransformator::AddEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value)
+void TTransformator::AddEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value)
 {
     transformations_.emplace_back(TAddEffect(manager, player, condition, value));
 }
 
-void TTransformator::RemoveEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value)
+void TTransformator::RemoveEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value)
 {
     transformations_.emplace_back(TRemoveEffect(manager, player, condition, value));
 }

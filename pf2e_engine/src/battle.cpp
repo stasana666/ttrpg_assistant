@@ -18,7 +18,7 @@
 #include <stdexcept>
 #include "reaction.h"
 #include "save_point.h"
-#include <condition.h>
+#include <pf2e_engine/condition.h>
 
 const TResourceId kActionId = TResourceIdManager::Instance().Register("action");
 

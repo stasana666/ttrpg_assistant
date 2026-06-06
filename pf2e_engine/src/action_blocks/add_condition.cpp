@@ -19,24 +19,23 @@ static const TGameObjectId kValueId = TGameObjectIdManager::Instance().Register(
 
 void FAddCondition::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
-    ECondition condition = ConditionFromString(input_.GetString(kConditionId));
+    EConditionKind condition = EConditionKindFromString(input_.GetString(kConditionId));
     switch (condition) {
-        case ECondition::MultipleAttackPenalty:
+        case EConditionKind::MultipleAttackPenalty:
             return MultipleAttackPenaltyHandle(ctx);
-        case ECondition::Frightened:
+        case EConditionKind::Frightened:
             return FrightenedHandle(ctx);
-        case ECondition::Prone:
+        case EConditionKind::Prone:
             return ProneHandle(ctx);
-        case ECondition::COUNT:
-            throw std::runtime_error("COUNT is not valid value of ECondition: FAddCondition");
     }
+    throw std::runtime_error("invalid EConditionKind value: FAddCondition");
 }
 
 void FAddCondition::MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
 
-    int current = attacker.GetCreature()->Get(ECondition::MultipleAttackPenalty);
+    int current = attacker.GetCreature()->Get(EConditionKind::MultipleAttackPenalty);
 
     int increase = 5;
     if (input_.Has(kWeaponId)) {
@@ -48,7 +47,7 @@ void FAddCondition::MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> 
 
     auto canceler = ctx->effect_manager->AddEffect(TPlayerConditionSet{
         .player = &attacker,
-        .condition = ECondition::MultipleAttackPenalty,
+        .condition = EConditionKind::MultipleAttackPenalty,
         .value = std::min(10, current + increase),
     }, *ctx->transformator);
 
@@ -70,7 +69,7 @@ void FAddCondition::FrightenedHandle(std::shared_ptr<TActionContext> ctx) const
 
     TPlayerConditionSet condition_set{
         .player = &target,
-        .condition = ECondition::Frightened,
+        .condition = EConditionKind::Frightened,
         .value = value,
     };
 
@@ -90,5 +89,5 @@ void FAddCondition::FrightenedHandle(std::shared_ptr<TActionContext> ctx) const
 void FAddCondition::ProneHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
-    ctx->transformator->ChangeCondition(target.GetCreature(), ECondition::Prone, 1);
+    ctx->transformator->ChangeCondition(target.GetCreature(), EConditionKind::Prone, 1);
 }

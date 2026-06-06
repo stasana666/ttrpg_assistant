@@ -2,6 +2,7 @@
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/common/guarded.h>
+#include <pf2e_engine/common/variant_map.h>
 #include <pf2e_engine/weapon_slot.h>
 
 #include <pf2e_engine/actions/action.h>
@@ -50,7 +51,7 @@ public:
     void AddFeat(std::shared_ptr<TCreatureFeat> feat);
     const std::vector<std::shared_ptr<TCreatureFeat>>& Feats() const;
 
-    int Get(ECondition condition) const;
+    int Get(EConditionKind condition) const;
 
     ECreatureSize Size() const;
     void SetSize(ECreatureSize size);
@@ -61,13 +62,13 @@ public:
 
 private:
     friend class TChangeCondition;
-    void Set(ECondition condition, int value);
+    void Set(EConditionKind condition, int value);
 
     friend class TGameObjectFactory;
     TResourcePool& ResourcesForInit() { return resources_; }
 
     TProficiency proficiency_;
-    TConditions conditions_;
+    TVariantMap<EConditionKind, TCondition> conditions_;
 
     THitPoints hitpoints_;
     TDamageResolver resolver_;
