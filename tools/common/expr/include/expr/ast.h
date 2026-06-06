@@ -1,9 +1,5 @@
 #pragma once
 
-// Backend-agnostic expression AST shared by the `.ttrpg` code generator (which
-// lowers it to C++) and the runtime DSL (which evaluates it). It references no
-// engine or codegen types -- each backend interprets the nodes it supports and
-// rejects the rest.
 
 #include <memory>
 #include <string>
@@ -12,9 +8,9 @@
 namespace expr {
 
 enum class EBinaryOp {
-    Add, Sub, Mul, Div,        // arithmetic
-    Or, And,                   // logical
-    Eq, Ne, Lt, Le, Gt, Ge,    // comparison / equality
+    Add, Sub, Mul, Div,
+    Or, And,
+    Eq, Ne, Lt, Le, Gt, Ge,
 };
 
 enum class EUnaryOp {
@@ -22,12 +18,12 @@ enum class EUnaryOp {
 };
 
 enum class ENodeKind {
-    IntLiteral,   // Text holds the literal (may have a leading '-')
-    Var,          // Text = identifier; HasDollar = was it written `$name`
-    Member,       // Lhs = receiver, Text = member name
-    Call,         // Text = function name, Args = arguments
-    Unary,        // UnOp, Lhs = operand
-    Binary,       // BinOp, Lhs, Rhs
+    IntLiteral,
+    Var,
+    Member,
+    Call,
+    Unary,
+    Binary,
 };
 
 struct TExprNode {
@@ -41,4 +37,4 @@ struct TExprNode {
     std::vector<TExprNode> Args;
 };
 
-}  // namespace expr
+}

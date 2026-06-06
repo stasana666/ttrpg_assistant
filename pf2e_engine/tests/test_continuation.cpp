@@ -12,13 +12,8 @@
 #include <utility>
 #include <vector>
 
-// Unit tests for the continuation utility. They drive the helpers directly
-// (no battle) and use TSavepointStackUnwind as the suspension signal, mirroring
-// how TBattle::MakeTurn catches, then Resume()s, a savepoint.
 class ContinuationTest : public ::testing::Test {
 protected:
-    // A savepoint carries a TState snapshot; TState can only be minted by a
-    // TTransformator, which in turn needs an IInteractionSystem.
     TSavepointStackUnwind MakeSavepoint() {
         return TSavepointStackUnwind(transformator_.CurrentState(), []() {});
     }
@@ -65,7 +60,6 @@ TEST_F(ContinuationTest, ForEachResumesAfterSuspension) {
         savepoint.Resume();
     }
 
-    // Element 3 was visited before it suspended; 4 and 5 ran on resume.
     EXPECT_EQ(visited, (std::vector<int>{1, 2, 3, 4, 5}));
 }
 
@@ -81,7 +75,6 @@ TEST_F(ContinuationTest, ForEachResumesAcrossTwoSeparateSuspensions) {
         }
     };
 
-    // Drive loop modelled on TBattle::MakeTurn: keep resuming while suspended.
     std::optional<TSavepointStackUnwind> pending;
     int suspensions = 0;
     bool finished = false;
@@ -106,9 +99,6 @@ TEST_F(ContinuationTest, ForEachResumesAcrossTwoSeparateSuspensions) {
 }
 
 TEST_F(ContinuationTest, ThenReprotectsTailWhenStepSuspendsRepeatedly) {
-    // The step is itself a continuation-aware While that suspends on every
-    // iteration. Then must keep `tail` scheduled across each re-suspension --
-    // a non-recursive Then would drop it after the first resume.
     std::vector<std::string> log;
     auto counter = std::make_shared<int>(3);
 
@@ -159,8 +149,6 @@ TEST_F(ContinuationTest, ForEachOwnedKeepsElementsAliveAcrossSuspension) {
     };
 
     try {
-        // The container is a temporary: ForEachOwned must keep its elements
-        // alive across the stack unwinding that the throw below triggers.
         continuation::ForEachOwned(std::vector<int>{10, 20, 30, 40}, func);
         FAIL() << "expected the step to suspend";
     } catch (TSavepointStackUnwind& savepoint) {

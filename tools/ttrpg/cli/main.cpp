@@ -1,11 +1,3 @@
-// ttrpg_codegen: generates C++ headers/sources from .ttrpg schema files.
-//
-// Usage: ttrpg_codegen --schema <path> --out-h <path> --out-cpp <path>
-//
-// This is a thin CLI over the `ttrpg` library: parse args, load the schema
-// module (with its imports), emit the header and source. The schema language,
-// conventions, and emission live in the library (see tools/ttrpg/CLAUDE.md).
-
 #include <ttrpg/emit.h>
 #include <ttrpg/module.h>
 
@@ -50,8 +42,6 @@ TArgs ParseArgs(int argc, char** argv) {
     return a;
 }
 
-// Compute the #include path for the primary header.
-// Out-h is .../include/<rest>; return <rest>.
 std::string DerivePrimaryHeaderInclude(const std::string& outH) {
     const std::string marker = "/include/";
     auto pos = outH.rfind(marker);

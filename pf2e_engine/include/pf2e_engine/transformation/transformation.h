@@ -51,7 +51,7 @@ public:
 private:
     TResourcePool* pool_;
     TResourceId id_;
-    int delta_;  // positive = added, negative = reduced
+    int delta_;
 };
 
 class TAddEffect {

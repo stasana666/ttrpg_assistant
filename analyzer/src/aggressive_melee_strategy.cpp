@@ -13,7 +13,7 @@ size_t ChooseAction(const TAlternatives& alternatives)
             return i;
         }
     }
-    return 0;  // "End of turn"
+    return 0;
 }
 
 size_t ChooseTarget(int player_id, const TAlternatives& alternatives)
@@ -26,7 +26,7 @@ size_t ChooseTarget(int player_id, const TAlternatives& alternatives)
     return 0;
 }
 
-}  // namespace
+}
 
 size_t TAggressiveMeleeStrategy::Decide(int player_id, const TAlternatives& alternatives) const
 {

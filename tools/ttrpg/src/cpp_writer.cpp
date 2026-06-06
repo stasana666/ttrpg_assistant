@@ -69,7 +69,6 @@ void TCppWriter::Case(std::string_view label, const std::function<void()>& body)
 }
 
 void TCppWriter::Section(std::string_view label, const std::function<void()>& body) {
-    // The access label sits one level out from the members it introduces.
     --indent_;
     WriteIndentedLine(label);
     ++indent_;

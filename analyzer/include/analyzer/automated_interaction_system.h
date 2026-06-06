@@ -7,8 +7,6 @@
 #include <ostream>
 #include <streambuf>
 
-// Headless IInteractionSystem for simulations: choices are made by a strategy
-// and all log output is discarded.
 class TAutomatedInteractionSystem : public IInteractionSystem {
 public:
     explicit TAutomatedInteractionSystem(const IDecisionStrategy& strategy)
@@ -20,7 +18,6 @@ public:
     std::ostream& GameLog() override { return null_stream_; }
     std::ostream& DevLog() override { return null_stream_; }
 
-    // Simulations resolve reactions immediately and never suspend.
     void HandleReactionTrigger(const TTriggerContext&, const TState&) override {}
 
 protected:

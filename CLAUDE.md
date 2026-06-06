@@ -2,6 +2,35 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Comments & Documentation Policy
+
+**Do not add comments to source code.** This applies to every source file in the
+repository — hand-written `.cpp`/`.h`/`.hpp`, generated C++, and `.ttrpg` schemas.
+The only permitted exceptions are:
+
+- `TODO` comments (kept as actionable markers).
+- The generated-file banner emitted by the codegen
+  (`// AUTO-GENERATED FROM ... -- DO NOT EDIT.` and its `// Source of truth: ...` line).
+
+**Project knowledge belongs in `CLAUDE.md` files, not in code.** Repository-wide
+information lives in this root `CLAUDE.md`; subsystem-specific information lives in
+a `CLAUDE.md` placed as close as possible to that subsystem (e.g.
+[pf2e_engine/src/dsl/CLAUDE.md](pf2e_engine/src/dsl/CLAUDE.md),
+[pf2e_engine/include/pf2e_engine/common/CLAUDE.md](pf2e_engine/include/pf2e_engine/common/CLAUDE.md),
+[tools/common/expr/CLAUDE.md](tools/common/expr/CLAUDE.md),
+[tools/ttrpg/CLAUDE.md](tools/ttrpg/CLAUDE.md),
+[pf2e_engine/include/pf2e_engine/common/ast/CLAUDE.md](pf2e_engine/include/pf2e_engine/common/ast/CLAUDE.md)).
+When you would otherwise write an explanatory comment, put that knowledge in the
+nearest `CLAUDE.md` instead.
+
+**Rationale.** Comments tend to become stale as the code evolves. Agents frequently
+modify implementation without updating the surrounding comments, so the comments
+diverge from actual behavior. Agents also tend to trust comments more than the
+code, which leads to incorrect assumptions and lower-quality changes. Comments
+additionally contribute significant code volume without providing executable
+functionality. For these reasons, project knowledge is maintained in `CLAUDE.md`
+files instead of source-code comments.
+
 ## Project Overview
 
 This is a tabletop RPG (TTRPG) assistant for D&D/Pathfinder (PF2e), written in C++23. It provides a game engine for managing combat encounters with support for multiple interfaces: GUI (SFML), CLI, and optional voice input (Vosk + llama.cpp).

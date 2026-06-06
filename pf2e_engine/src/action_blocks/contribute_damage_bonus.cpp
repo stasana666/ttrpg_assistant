@@ -20,8 +20,6 @@ FContributeDamageBonus::FContributeDamageBonus(TBlockInput&& input, TGameObjectI
 
 void FContributeDamageBonus::operator()(std::shared_ptr<TActionContext> ctx) const
 {
-    // The hooked block (e.g. weapon_damage_roll) folds in $damage_bonus if it
-    // exists. Lazy-create here so feats need no pre-setup from the host block.
     if (!ctx->game_object_registry->Contains(kDamageBonusId)) {
         ctx->game_object_registry->Add(kDamageBonusId, std::make_shared<TDamage>());
     }

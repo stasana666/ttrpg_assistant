@@ -58,7 +58,6 @@ TAstNode TStats::GetAst([[maybe_unused]] TAstContext& ctx) const {
 
 void TStats::RegisterDslProperties() {
     auto& r = TPropertyRegistry<TStats>::Instance();
-    // dsl: 'health' skipped -- bounded-quantity field 'BoundedQuantity'
     r.Register("base", [](const TStats* obj, TEvalContext&) {
         return TDslValue(obj->Base());
     });
@@ -71,7 +70,6 @@ void TStats::RegisterDslProperties() {
     r.Register("total", [](const TStats* obj, TEvalContext&) {
         return TDslValue(obj->Total());
     });
-    // dsl: 'part' skipped -- class field 'TPart'
     r.Register("boosted", [](const TStats* obj, TEvalContext&) {
         return TDslValue(obj->Boosted());
     });

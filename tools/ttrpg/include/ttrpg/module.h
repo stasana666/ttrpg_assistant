@@ -1,8 +1,5 @@
 #pragma once
 
-// Module loading + cross-file symbol table. Loads a primary `.ttrpg` plus all
-// transitive imports (cycle-detected) and records every declared type's kind
-// and owning file.
 
 #include <ttrpg/schema_ast.h>
 
@@ -19,16 +16,14 @@ enum class ETypeKind {
 };
 
 struct TTypeInfo {
-    std::string OwnerStem;   // filename stem of the .ttrpg that declares this type
+    std::string OwnerStem;
     ETypeKind Kind = ETypeKind::Class;
 };
 
 struct TLoadedSchemas {
     TSchemaModule Primary;
     std::string PrimaryStem;
-    // Stem -> module, for all transitively-loaded files (including primary).
     std::unordered_map<std::string, TSchemaModule> ByStem;
-    // Type name -> (owner_stem, kind). Built across all loaded modules.
     std::unordered_map<std::string, TTypeInfo> SymbolTable;
 };
 

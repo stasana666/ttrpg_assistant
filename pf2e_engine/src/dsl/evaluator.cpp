@@ -16,8 +16,6 @@
 
 namespace {
 
-// Lift a registry game-object pointer into a DSL value (same mapping the old
-// TVariableExpr used).
 TDslValue FromGameObject(const TGameObjectPtr& obj)
 {
     return std::visit(VisitorHelper{
@@ -96,7 +94,6 @@ TDslValue Eval(const expr::TExprNode& node, TEvalContext& ctx);
 
 TDslValue EvalVar(const expr::TExprNode& node, TEvalContext& ctx)
 {
-    // Scoped bindings (from filter/map/foldl) shadow the registry.
     auto scoped = ctx.scope.find(node.Text);
     if (scoped != ctx.scope.end()) {
         return scoped->second;
@@ -111,7 +108,6 @@ TDslValue EvalVar(const expr::TExprNode& node, TEvalContext& ctx)
 TDslValue EvalBinary(const expr::TExprNode& node, TEvalContext& ctx)
 {
     using O = expr::EBinaryOp;
-    // Short-circuit logical operators.
     if (node.BinOp == O::And) {
         if (!RequireBool(Eval(*node.Lhs, ctx), "&&")) {
             return TDslValue(false);
@@ -140,7 +136,7 @@ TDslValue EvalBinary(const expr::TExprNode& node, TEvalContext& ctx)
         case O::Ge:  return TDslValue(RequireInt(lhs, ">=") >= RequireInt(rhs, ">="));
         case O::And:
         case O::Or:
-            break;  // handled above
+            break;
     }
     throw std::logic_error("dsl: unreachable binary op");
 }
@@ -171,7 +167,7 @@ TDslValue Eval(const expr::TExprNode& node, TEvalContext& ctx)
     throw std::logic_error("dsl: unreachable node kind");
 }
 
-}  // namespace
+}
 
 TDslValue TDslExpression::Evaluate(TEvalContext& ctx) const
 {

@@ -30,6 +30,6 @@ TEST(RandomTest, ChiSquared) {
         chi_squared += (observed - expected) * (observed - expected) / expected;
     }
 
-    double critical_value = 30.1; // для p_value 0.05 и 20 гранного кубика
+    double critical_value = 30.1;
     EXPECT_LT(chi_squared, critical_value);
 }

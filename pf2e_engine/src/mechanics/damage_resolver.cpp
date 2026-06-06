@@ -73,7 +73,7 @@ TAstNode SerializeTypeMap(
     return node;
 }
 
-}  // namespace
+}
 
 TAstNode TDamageResolver::GetAst([[maybe_unused]] TAstContext& ctx) const
 {

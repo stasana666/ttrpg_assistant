@@ -4,7 +4,6 @@ std::vector<TToken> Tokenize(std::string src) {
     parse::TScanner s(std::move(src));
     std::vector<TToken> out;
     while (true) {
-        // Skip whitespace + `//` line comments until a real token or EOF.
         for (;;) {
             s.SkipWhitespace();
             if (!s.SkipLineComment("//")) {
@@ -38,9 +37,6 @@ std::vector<TToken> Tokenize(std::string src) {
             case '=': {
                 s.Advance();
                 out.push_back({ETok::Equals, "=", loc});
-                // Everything from here to the terminating ';' is a field
-                // initializer expression; capture it raw and let the shared
-                // expression front-end (expr::Parse) handle the grammar.
                 s.SkipWhitespace();
                 parse::TSourceLocation exprLoc = s.Loc();
                 std::string text;

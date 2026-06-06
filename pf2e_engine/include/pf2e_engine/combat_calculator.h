@@ -10,8 +10,6 @@ public:
     int InitiativeBonus(const TCreature& creature) const;
     int ArmorClass(const TCreature& target, const TCreature& attacker) const;
 
-    // Off-Guard is a per-pair combat state, not a stored condition: a creature
-    // can be Off-Guard against one attacker and not another (flanking, etc.).
     bool IsOffGuardFor(const TCreature& target, const TCreature& attacker) const;
 
     template <class T>

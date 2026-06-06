@@ -2,7 +2,7 @@
 
 #include <pf2e_engine/inventory/weapon.h>
 
-std::vector<int> Grips(const TWeapon& /*weapon*/) {
+std::vector<int> Grips(const TWeapon& ) {
     return {1};
 }
 

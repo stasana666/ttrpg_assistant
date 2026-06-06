@@ -5,9 +5,6 @@
 
 #include <string>
 
-// Adds a fixed dice expression (literal "NdM") of a given damage type into the
-// $damage_bonus accumulator that the damage-roll block exposes. Used by feat
-// pipelines to contribute conditional bonus damage.
 class FContributeDamageBonus : public FBaseFunction {
 public:
     FContributeDamageBonus(TBlockInput&& input, TGameObjectId output);

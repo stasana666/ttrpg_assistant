@@ -40,17 +40,9 @@ TEffectCanceler TEffectManager::AddEffect(TEffect effect, TTransformator& transf
     TEffectCanceler canceler;
     std::visit(VisitorHelper{
         [&](TPlayerConditionSet effect_pcs) {
-            // Record the effect addition via transformation
             transformator.AddEffect(this, effect_pcs.player, effect_pcs.condition, effect_pcs.value);
-            // Update the creature's condition via transformation
             Update(effect_pcs.player, effect_pcs.condition, transformator);
 
-            // Shared state: any copy of `canceler` (e.g. one captured into a
-            // scheduled task via [canceler]) sees the same `state->value`.
-            // Without this, ClearCondition could neutralize the original
-            // canceler while a copy in a task still holds value=2 and would
-            // resurrect the condition on the next OnTurnStart by re-adding
-            // a decremented value.
             auto state = std::make_shared<TPlayerConditionSet>(effect_pcs);
 
             canceler = [state, this, &transformator](EEffectCancelPolicy ecp) {
@@ -87,12 +79,9 @@ void TEffectManager::ClearCondition(TPlayer* player, ECondition condition, TTran
     auto key = std::make_pair(player, condition);
     auto it = active_cancelers_.find(key);
     if (it == active_cancelers_.end()) {
-        // No effect_manager-tracked source — condition was set directly via
-        // ChangeCondition (e.g. Prone). Just zero it out.
         transformator.ChangeCondition(player->GetCreature(), condition, 0);
         return;
     }
-    // Move cancelers out before invoking so re-entry via task callbacks is safe.
     auto cancelers = std::move(it->second);
     active_cancelers_.erase(it);
     for (auto& canceler : cancelers) {

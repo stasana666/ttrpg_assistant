@@ -38,8 +38,6 @@ void FAddCondition::MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> 
 
     int current = attacker.GetCreature()->Get(ECondition::MultipleAttackPenalty);
 
-    // Weapon is optional: Strike provides one (Agile -> 4, non-Agile -> 5);
-    // weaponless attack-trait actions (e.g. Trip) default to 5.
     int increase = 5;
     if (input_.Has(kWeaponId)) {
         TWeapon& weapon = *std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
@@ -91,7 +89,6 @@ void FAddCondition::FrightenedHandle(std::shared_ptr<TActionContext> ctx) const
 
 void FAddCondition::ProneHandle(std::shared_ptr<TActionContext> ctx) const
 {
-    // Prone is a binary flag with no auto-expiration; Stand removes it.
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
     ctx->transformator->ChangeCondition(target.GetCreature(), ECondition::Prone, 1);
 }

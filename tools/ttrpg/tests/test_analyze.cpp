@@ -22,8 +22,6 @@ TClassDecl ParseClass(const std::string& src) {
     return ParseModule(src).Classes.at(0);
 }
 
-// A class-name -> decl table over a module, for member-access validation.
-// The TClassDecl pointers stay valid as long as the module does.
 std::unordered_map<std::string, const TClassDecl*> ClassMap(const TSchemaModule& m) {
     std::unordered_map<std::string, const TClassDecl*> classes;
     for (const auto& c : m.Classes) {
@@ -32,22 +30,20 @@ std::unordered_map<std::string, const TClassDecl*> ClassMap(const TSchemaModule&
     return classes;
 }
 
-// Position of field index `field` within an evaluation order.
 size_t PosOf(const std::vector<size_t>& order, size_t field) {
     return static_cast<size_t>(
         std::find(order.begin(), order.end(), field) - order.begin());
 }
 
-}  // namespace
+}
 
-// Computed field declared after its references: it must be evaluated last.
 TEST(AnalyzeTest, OrdersRefsBeforeDependent) {
     TClassDecl c = ParseClass(
         "class TC {\n"
-        "    int RaceHp;\n"          // 0
-        "    int Level;\n"           // 1
-        "    int ClassHp;\n"         // 2
-        "    BoundedQuantity Hp = RaceHp + Level * ClassHp;\n"  // 3 (computed)
+        "    int RaceHp;\n"
+        "    int Level;\n"
+        "    int ClassHp;\n"
+        "    BoundedQuantity Hp = RaceHp + Level * ClassHp;\n"
         "}\n");
     std::vector<size_t> order = FieldInitOrder(c, {});
     ASSERT_EQ(order.size(), 4u);
@@ -56,15 +52,13 @@ TEST(AnalyzeTest, OrdersRefsBeforeDependent) {
     EXPECT_LT(PosOf(order, 2), PosOf(order, 3));
 }
 
-// Same dependency graph, but the computed field is declared *first*. Order is
-// driven by dependencies, not declaration order.
 TEST(AnalyzeTest, OrdersForwardReference) {
     TClassDecl c = ParseClass(
         "class TC {\n"
-        "    BoundedQuantity Hp = RaceHp + Level * ClassHp;\n"  // 0 (computed)
-        "    int RaceHp;\n"          // 1
-        "    int Level;\n"           // 2
-        "    int ClassHp;\n"         // 3
+        "    BoundedQuantity Hp = RaceHp + Level * ClassHp;\n"
+        "    int RaceHp;\n"
+        "    int Level;\n"
+        "    int ClassHp;\n"
         "}\n");
     std::vector<size_t> order = FieldInitOrder(c, {});
     ASSERT_EQ(order.size(), 4u);
@@ -73,7 +67,6 @@ TEST(AnalyzeTest, OrdersForwardReference) {
     EXPECT_LT(PosOf(order, 3), PosOf(order, 0));
 }
 
-// Constant defaults create no dependency edges; declaration order is preserved.
 TEST(AnalyzeTest, ConstantDefaultsAreNotComputed) {
     TClassDecl c = ParseClass(
         "class TC {\n"
@@ -90,7 +83,6 @@ TEST(AnalyzeTest, CycleThrows) {
 }
 
 TEST(AnalyzeTest, UnknownFieldInComputedExprThrows) {
-    // `y` is a field, `z` is not -> a computed expression referencing an unknown.
     TClassDecl c = ParseClass("class A { int y; int x = y + z; }\n");
     EXPECT_THROW(FieldInitOrder(c, {}), std::runtime_error);
 }
@@ -118,21 +110,19 @@ TEST(AnalyzeTest, InitExprToCppMapsRefsAndMembers) {
     EXPECT_EQ(InitExprToCpp(e), "(r.A_ + (r.B_ * 2))");
 }
 
-// Member access: `Part.Bonus` lowers to a getter call and creates a dependency
-// on the `Part` field.
 TEST(AnalyzeTest, MemberAccessValidatesAndLowers) {
     TSchemaModule m = ParseModule(
         "class TPart { int Bonus; }\n"
         "class TC {\n"
-        "    int Base;\n"            // 0
-        "    TPart Part;\n"          // 1
-        "    int X = Part.Bonus + Base;\n"  // 2 (computed, member access)
+        "    int Base;\n"
+        "    TPart Part;\n"
+        "    int X = Part.Bonus + Base;\n"
         "}\n");
     const TClassDecl& c = m.Classes.at(1);
     std::vector<size_t> order = FieldInitOrder(c, ClassMap(m));
     ASSERT_EQ(order.size(), 3u);
-    EXPECT_LT(PosOf(order, 0), PosOf(order, 2));  // Base before X
-    EXPECT_LT(PosOf(order, 1), PosOf(order, 2));  // Part before X
+    EXPECT_LT(PosOf(order, 0), PosOf(order, 2));
+    EXPECT_LT(PosOf(order, 1), PosOf(order, 2));
     EXPECT_EQ(InitExprToCpp(c.Fields.at(2).Init.value()), "(r.Part_.Bonus() + r.Base_)");
 }
 

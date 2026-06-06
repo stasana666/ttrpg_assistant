@@ -33,8 +33,6 @@ std::string BinOpToCpp(expr::EBinaryOp op) {
     }
 }
 
-// Recursively validate a computed initializer of class `c`, appending the
-// sibling-field indices it depends on into `deps`.
 void ValidateComputed(const expr::TExprNode& e,
                       const TClassDecl& c,
                       const std::unordered_map<std::string, const TClassDecl*>& classes,
@@ -98,7 +96,7 @@ void ValidateComputed(const expr::TExprNode& e,
     }
 }
 
-}  // namespace
+}
 
 bool InitIsComputed(const expr::TExprNode& e, const std::unordered_set<std::string>& fieldNames) {
     using K = expr::ENodeKind;
@@ -149,7 +147,7 @@ std::vector<std::size_t> FieldInitOrder(
     for (std::size_t i = 0; i < c.Fields.size(); ++i) {
         const TFieldDecl& f = c.Fields[i];
         if (!f.Init || !InitIsComputed(*f.Init, field_names)) {
-            continue;  // no initializer, or a constant default
+            continue;
         }
         if (!IsBuiltinInt(f.TypeName) && !IsBuiltinBoundedQuantity(f.TypeName)) {
             throw std::runtime_error(
@@ -159,8 +157,6 @@ std::vector<std::size_t> FieldInitOrder(
         ValidateComputed(*f.Init, c, classes, index, deps[i]);
     }
 
-    // DFS postorder topological sort in declaration order; a gray node reached
-    // again is a cycle.
     enum class EMark { White, Gray, Black };
     std::vector<EMark> mark(c.Fields.size(), EMark::White);
     std::vector<std::size_t> order;

@@ -53,7 +53,6 @@ TConfig ParseArgs(int argc, char** argv)
 void InitGameObjects(TGameObjectFactory& factory, [[maybe_unused]] TInteractionSystem& interaction_system)
 {
     for (const FsDirEntry& dir_entry : FsRecursiveIterator(kPathToData)) {
-        // interaction_system.DevLog() << dir_entry.path() << std::endl;
         if (dir_entry.is_regular_file() && dir_entry.path().extension() == ".json") {
             factory.AddSource(dir_entry.path());
         }
@@ -121,7 +120,7 @@ int main(int argc, char** argv)
             &player_1,
             TPlayerTeam{2},
             TPlayerId{1},
-            "Oown", // other obvios warrior name
+            "Oown",
             "warrior2.png"
         ),
         TPosition{

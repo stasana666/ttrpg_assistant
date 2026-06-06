@@ -10,10 +10,6 @@ class TWeapon;
 class TCreature;
 class TPlayer;
 
-// Polymorphic value type used inside DSL expressions. Kept separate from
-// TGameObjectPtr so that adding DSL-only alternatives (bool, generic lists)
-// does not ripple into the dozens of std::visit sites on the registry-side
-// variant. Lists are reference-counted to keep TDslValue cheap to copy.
 class TDslValue {
 public:
     using TList = std::vector<TDslValue>;
@@ -34,9 +30,6 @@ public:
 
     TDslValue() = default;
     explicit TDslValue(V v) : data(std::move(v)) {}
-    // Constrained so that pointers do NOT silently coerce to bool via
-    // implicit pointer-to-bool conversion (which would otherwise outrank the
-    // pointer overloads when only `const T*` is available at the call site).
     template <class B>
         requires std::same_as<B, bool>
     explicit TDslValue(B b) : data(b) {}

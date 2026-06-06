@@ -49,7 +49,6 @@ TEST(ExpressionTest, MultiplyExpression) {
 
 TEST(ExpressionTest, MultiDiceExpression) {
     TMockRng rng;
-    // 6d6: expect 6 calls to d6
     rng.ExpectCall(6, 1);
     rng.ExpectCall(6, 2);
     rng.ExpectCall(6, 3);
@@ -58,7 +57,7 @@ TEST(ExpressionTest, MultiDiceExpression) {
     rng.ExpectCall(6, 6);
 
     std::unique_ptr<IExpression> expr = std::make_unique<TMultiDiceExpression>(6, 6);
-    EXPECT_EQ(expr->Value(rng), 21);  // 1+2+3+4+5+6 = 21
+    EXPECT_EQ(expr->Value(rng), 21);
     rng.Verify();
 }
 
@@ -79,7 +78,7 @@ TEST(DiceExpressionParserTest, Parse6d6) {
         rng.ExpectCall(6, 3);
     }
 
-    EXPECT_EQ(expr->Value(rng), 18);  // 6 * 3 = 18
+    EXPECT_EQ(expr->Value(rng), 18);
     rng.Verify();
 }
 
@@ -90,7 +89,7 @@ TEST(DiceExpressionParserTest, Parse2d8) {
     rng.ExpectCall(8, 4);
     rng.ExpectCall(8, 7);
 
-    EXPECT_EQ(expr->Value(rng), 11);  // 4 + 7 = 11
+    EXPECT_EQ(expr->Value(rng), 11);
     rng.Verify();
 }
 
@@ -116,23 +115,8 @@ TEST(DiceExpressionParserTest, InvalidExpressionEmptySize) {
     EXPECT_THROW(ParseDiceExpression("6d"), std::invalid_argument);
 }
 
-/*
-TEST(ExpressionTest, CreatureExpression) {
-    TGameContext ctx;
 
-    TGameObjectIdManager game_object_manager;
-    TGameObjectId target_id = game_object_manager.Register("warrior");
 
-    TCharacteristicSet target_stats({10, 16, 10, 10, 10, 10});
-    TArmor target_armor(3, 2);
-    TCreature target(target_stats, target_armor, THitPoints{10});
 
-    TGameObjectStorage game_object_storage;
-    ctx.gameObjectStorage = &game_object_storage;
-    game_object_storage.Add(target_id, &target);
 
-    std::unique_ptr<IExpression> expr = std::make_unique<TArmorClassExpression>(target_id);
 
-    EXPECT_EQ(expr->Value(ctx), 15);
-}
-*/

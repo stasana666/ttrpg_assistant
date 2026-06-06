@@ -48,7 +48,6 @@ TGameObjectPtr TBlockInput::Get(TGameObjectId key, std::shared_ptr<TActionContex
             result = x;
         },
         [&](const TDamageTable&) {
-            // TDamageTable should be accessed via GetDamageTable(), not Get()
             throw std::logic_error("TDamageTable cannot be converted to TGameObjectPtr, use GetDamageTable()");
         }
     }, value);

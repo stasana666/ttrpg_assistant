@@ -22,9 +22,6 @@ void AddValueField(TAstNode& parent, std::string_view label, const V& v)
     parent.AddChild(label, TAstNode::MakeValue(AstSerialize(v)));
 }
 
-// SFINAE on non-pointer prevents the value-ref overload from matching when
-// the caller passes a raw pointer (which would otherwise deduce T as Foo*
-// and then fail trying to call obj.GetAst(ctx) on the pointer).
 template <class T,
           std::enable_if_t<!std::is_pointer_v<T>, int> = 0>
 void AddOwnedObject(TAstNode& parent, std::string_view label,
@@ -87,7 +84,7 @@ TAstNode RecurseElement(const std::unique_ptr<T>& elem, TAstContext& ctx)
     return RecurseElement(*elem, ctx);
 }
 
-}  // namespace ast_detail
+}
 
 template <class Container, class KeyFn>
 void AddOwnedContainer(TAstNode& parent, std::string_view label,

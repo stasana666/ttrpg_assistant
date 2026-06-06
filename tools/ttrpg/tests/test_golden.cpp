@@ -23,9 +23,6 @@ std::string ReadFile(const std::string& path) {
     return buf.str();
 }
 
-// Mirror the CLI: header sees an out-h under .../include/<name>.h (only matters
-// for cross-file sibling includes, which these self-contained fixtures lack);
-// the impl includes "<name>.h".
 std::string GenHeader(const std::string& name) {
     TLoadedSchemas loaded = LoadAll(kFixtures + "/" + name + ".ttrpg");
     std::ostringstream os;
@@ -47,21 +44,16 @@ void CheckGolden(const std::string& name) {
         << name << " impl drifted from golden";
 }
 
-}  // namespace
+}
 
-// `basic`: enum + class with primitive/default/enum/set<enum> fields.
 TEST(GoldenTest, Basic) {
     CheckGolden("basic");
 }
 
-// `variant`: enum + variant (flag / single-field int / single-field enum /
-// multi-field with default) + class with set<variant> -> TVariantMap.
 TEST(GoldenTest, Variant) {
     CheckGolden("variant");
 }
 
-// `computed`: a class with computed (field-referencing) defaults -- an int and a
-// BoundedQuantity, with a forward reference and a constant default mixed in.
 TEST(GoldenTest, Computed) {
     CheckGolden("computed");
 }

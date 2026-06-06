@@ -151,8 +151,5 @@ size_t TInteractionSystem::ChooseAlternativeIndex(int player_id, const TAlternat
 
 void TInteractionSystem::HandleReactionTrigger(const TTriggerContext&, const TState& state)
 {
-    // The voice assistant must not block the game flow while a reaction is
-    // pending. Defer it: throw a savepoint so the engine unwinds and TBattle
-    // resumes the rest of the turn. The reaction can later be applied from here.
     throw TSavepointStackUnwind(state, []() {});
 }

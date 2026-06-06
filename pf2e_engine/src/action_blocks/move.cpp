@@ -22,9 +22,6 @@ void FMove::operator() (std::shared_ptr<TActionContext> ctx) const
     TPlayer* target = std::get<TPlayer*>(input_.Get(kTargetId, ctx));
     int movement = std::get<int>(input_.Get(kMovementId, ctx));
 
-    // `budget` lives on the heap so it survives a suspension and is shared by the
-    // condition and body across continuation copies. Step decrements it, or
-    // zeroes it when the player chooses to stop early.
     auto budget = std::make_shared<int>(movement);
     continuation::While(
         [budget]() { return *budget > 0; },
@@ -68,9 +65,6 @@ void FMove::Step(TPlayer& target, int& budget, std::shared_ptr<TActionContext> c
     target.SetPosition(choice);
     --budget;
 
-    // A move just happened: report the reaction opportunity. The interaction
-    // system decides whether to resolve it now or to suspend us via a savepoint
-    // (e.g. for a voice assistant); the engine just continues the loop afterwards.
     TTriggerContext trigger{
         .type = ETrigger::OnMove,
         .triggered_player = &target,

@@ -44,8 +44,6 @@ void RegisterModuleSymbols(const std::string& stem,
     }
 }
 
-// Recursively load primary + all transitive imports.
-// Detects cycles via the "loading" set.
 TLoadedSchemas LoadAll(const fs::path& primaryPath) {
     TLoadedSchemas loaded;
     loaded.PrimaryStem = primaryPath.stem().string();
@@ -61,7 +59,7 @@ TLoadedSchemas LoadAll(const fs::path& primaryPath) {
             throw std::runtime_error("circular import detected: " + canonStr);
         }
         if (loaded.ByStem.count(stem)) {
-            return;  // already loaded
+            return;
         }
         loading.insert(canonStr);
 

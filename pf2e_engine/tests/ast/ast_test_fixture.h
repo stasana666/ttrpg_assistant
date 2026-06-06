@@ -13,11 +13,6 @@
 #include <filesystem>
 #include <vector>
 
-// Helper that lifts ActionCombatTest::SetUp into a reusable form. The factory
-// is loaded with every .json under pf2e_engine/data. Directory entries are
-// sorted before being fed to the factory so that two runs (or two instances)
-// see the same registration order — important for determinism of any
-// allocator-order-dependent state.
 inline void LoadFactory(TGameObjectFactory& factory)
 {
     const std::filesystem::path path{kRootDirPath + "/pf2e_engine/data"};
@@ -36,9 +31,6 @@ inline void LoadFactory(TGameObjectFactory& factory)
     }
 }
 
-// Two-warrior battle. Returns a battle, two creatures, and two players ready
-// to be inspected. The caller owns `creatures` (TPlayer holds non-owning
-// TCreature*); the deque ensures stable addresses across pushes.
 struct TTestBattle {
     TGameObjectFactory factory;
     TMockRng rng;
@@ -65,7 +57,6 @@ inline std::unique_ptr<TTestBattle> MakeTwoWarriorBattle()
     fixture->battle = std::make_unique<TBattle>(
         std::move(map), &fixture->rng, fixture->io);
 
-    // Initiative rolls happen on AddPlayer; pre-seed deterministic results.
     fixture->rng.ExpectCall(20, 10);
     fixture->battle->AddPlayer(std::move(p1), TPosition{0, 0});
     fixture->rng.ExpectCall(20, 5);

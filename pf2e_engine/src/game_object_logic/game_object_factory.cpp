@@ -112,7 +112,6 @@ TGameObjectId TGameObjectFactory::ReadGameObjectName(nlohmann::json& json_game_o
     return TGameObjectIdManager::Instance().Register(name);
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object, TGameObjectId id)
 {
@@ -127,7 +126,6 @@ void TGameObjectFactory::ReadMaterial(nlohmann::json& json_game_object, TGameObj
     materials_.insert({id, [result]() { return result; }});
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjectId id)
 {
@@ -135,7 +133,6 @@ void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjec
     weapons_.insert({id, [result]() { return result; }});
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TGameObjectFactory::ReadRace(nlohmann::json& json_game_object, TGameObjectId id)
 {
@@ -155,18 +152,14 @@ void TGameObjectFactory::ReadAbilityScores(nlohmann::json& json_game_object, TGa
     ability_scores_.insert({id, [result]() { return result; }});
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TGameObjectFactory::ReadCreatureData(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    // TCreatureData has TArmor/TWeapon class fields, so resolve lazily (like ReadArmor)
-    // to stay independent of load order.
     creature_data_.insert({id, [this, json_game_object]() {
         return TCreatureData::FromJson(json_game_object, *this);
     }});
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 TResourcePool TGameObjectFactory::ReadCreatureResources(nlohmann::json& json_game_object)
 {
@@ -267,10 +260,6 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
     TProficiency proficiency = ReadProficiency(json_game_object);
 
-    // Parse natural weapons (jaws, claws, etc.) — embedded weapon definitions
-    // that live on the creature itself, not in inventory. Shared across all
-    // instances of this creature; an FChooseNaturalWeapon block in an attack
-    // action looks one up by name at runtime.
     std::vector<TWeapon> natural_weapons;
     if (json_game_object.contains("natural_weapons")) {
         for (auto& weapon_json : json_game_object["natural_weapons"]) {
@@ -279,9 +268,6 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
     }
 
-    // Parse persistent feats (each carries its own block pipeline). Pipelines
-    // are parsed once here and shared across all instances of this creature,
-    // exactly like actions.
     std::vector<std::shared_ptr<TCreatureFeat>> feats;
     if (json_game_object.contains("feats")) {
         for (auto& feat_json : json_game_object["feats"]) {
@@ -339,7 +325,6 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
     }});
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TGameObjectFactory::ReadAction(nlohmann::json& json, TGameObjectId id)
 {
@@ -349,7 +334,6 @@ void TGameObjectFactory::ReadAction(nlohmann::json& json, TGameObjectId id)
     }});
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 void TGameObjectFactory::ReadBattleMap(nlohmann::json& json, TGameObjectId id)
 {

@@ -52,9 +52,6 @@ EFieldKind FieldKindOf(const TFieldDecl& f,
     }
     auto it = symbols.find(f.TypeName);
     if (it == symbols.end()) {
-        // Caller (EmitHeader) will have already thrown on unknown class types;
-        // primitives are filtered above, so reaching here means a typo that
-        // somehow escaped.
         throw std::runtime_error("unknown type '" + f.TypeName + "'");
     }
     switch (it->second.Kind) {
@@ -66,9 +63,6 @@ EFieldKind FieldKindOf(const TFieldDecl& f,
 }
 
 bool IsDslSupported(const TFieldDecl& f) {
-    // Only scalar primitives that fit into TDslValue. Enums, class refs, and
-    // containers are never DSL-exposed by the generator (would require
-    // widening TDslValue).
     if (f.Container != EContainer::None) {
         return false;
     }
@@ -127,9 +121,6 @@ std::string LoadFieldCall(const TFieldDecl& f,
                           const std::string& jsonKey)
 {
     if (kind == EFieldKind::Primitive && f.Init) {
-        // JSON key may be absent; fall back to the schema default. (Computed
-        // initializers are handled by the emitter, not here, so a primitive
-        // field reaching this point with an Init has a constant default.)
         return "j.value(\"" + jsonKey + "\", " +
                CppPrimitiveType(f) + "{" + DefaultExprToCpp(f.Init->Text, f.TypeName) +
                "})";
@@ -146,7 +137,6 @@ std::string DeriveSiblingInclude(const std::string& primaryOutH, const std::stri
     } else {
         base = fs::path(primaryOutH).filename().string();
     }
-    // Replace the basename in `base` with `<stem>.h`.
     fs::path basePath(base);
     return (basePath.parent_path() / (stem + ".h")).generic_string();
 }
@@ -177,7 +167,6 @@ std::string CppMemberType(const TFieldDecl& f,
         case EContainer::None:
             return CppTypeFor(f.TypeName);
         case EContainer::Set:
-            // set<Variant> lowers to a kind-keyed map; set<Enum> to std::set.
             if (IsVariantType(f.TypeName, symbols)) {
                 return "TVariantMap<" + VariantKindEnum(f.TypeName) + ", " + f.TypeName + ">";
             }

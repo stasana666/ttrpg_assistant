@@ -146,8 +146,6 @@ TAstNode TSpell::GetAst([[maybe_unused]] TAstContext& ctx) const {
 
 void TSpell::RegisterDslProperties() {
     auto& r = TPropertyRegistry<TSpell>::Instance();
-    // dsl: 'name' skipped -- unsupported primitive 'string'
-    // dsl: 'effects' skipped -- set field 'TEffect'
     (void)r;
 }
 

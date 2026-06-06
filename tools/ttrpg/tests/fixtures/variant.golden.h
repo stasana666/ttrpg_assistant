@@ -72,7 +72,6 @@ public:
     }
     const TPayload& Payload() const { return Payload_; }
 
-    // Typed query: nullptr if this is not a T.
     template <class T> const T* TryGet() const { return std::get_if<T>(&Payload_); }
 
     static TEffect FromJson(const nlohmann::json& j, const TGameObjectFactory& factory);

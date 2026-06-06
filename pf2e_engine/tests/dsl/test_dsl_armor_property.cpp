@@ -24,8 +24,6 @@ protected:
         EnsureDslBuiltinsRegistered();
         ctx_.scope.clear();
 
-        // The test factory holds a single "steel" material so generated
-        // FromJson can resolve the ref TMaterial Material field.
         factory_.AddSource(kRootDirPath + "/pf2e_engine/data/inventory/material/steel.json");
     }
 
@@ -34,7 +32,6 @@ protected:
         return expr->Evaluate(ctx_);
     }
 
-    // Build a fully-populated armor JSON suitable for the generated FromJson.
     static nlohmann::json MakeArmorJson(const std::string& category, int ac, int dex) {
         return {
             {"category", category},
@@ -48,7 +45,7 @@ protected:
     TGameObjectFactory factory_;
 };
 
-}  // namespace
+}
 
 TEST_F(DslArmorPropertyTest, GeneratedAcBonusProperty) {
     TArmor armor = TArmor::FromJson(MakeArmorJson("Medium", 4, 2), factory_);

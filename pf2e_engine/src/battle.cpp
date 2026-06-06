@@ -267,7 +267,3 @@ TAstNode TBattle::GetAst(TAstContext& ctx) const
     return node;
 }
 
-// Mutable accessor for THitPoints (used by TChangeHitPoints) — needed only
-// after the AST-related includes pulled in non-const requirements; kept here
-// as a tiny non-mutating addition. (This stub does nothing — actual mutations
-// happen via TTransformator.)

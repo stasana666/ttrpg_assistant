@@ -19,7 +19,6 @@ TUserIntentRecognizer::TUserIntentRecognizer(const std::filesystem::path& model_
     vocab_ = llama_model_get_vocab(model_);
 
     llama_context_params ctx_params = llama_context_default_params();
-    //ctx_params.seed = 1234;
     ctx_params.n_ctx = 2048;
 
     ctx_ = llama_init_from_model(model_, ctx_params);

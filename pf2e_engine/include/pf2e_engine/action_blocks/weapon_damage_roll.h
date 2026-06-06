@@ -11,7 +11,6 @@ public:
     void operator() (std::shared_ptr<TActionContext> ctx) const;
 
 protected:
-    // TCombatCalculator calculator_;
 };
 
 class FCritWeaponDamageRoll : public FWeaponDamageRoll {
@@ -22,5 +21,4 @@ public:
     void operator() (std::shared_ptr<TActionContext> ctx) const;
 
 private:
-    // TCombatCalculator calculator_;
 };

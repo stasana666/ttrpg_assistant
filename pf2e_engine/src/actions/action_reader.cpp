@@ -190,11 +190,6 @@ void TPipelineReader::FunctionCallFillFunction(nlohmann::json& json, TFunctionCa
 
 namespace {
 
-// True iff `s` is a pure C identifier (letters, digits, underscores; first
-// char letter or underscore). Used to distinguish a bare variable reference
-// ("$weapon") from a DSL expression starting with a variable reference
-// ("$item.reach >= $min_distance"). Only the former is rewritten to a
-// TGameObjectId; the latter stays as a raw string for the DSL parser.
 bool IsBareIdentifier(std::string_view s)
 {
     if (s.empty()) {
@@ -217,7 +212,7 @@ bool IsBareIdentifier(std::string_view s)
     return true;
 }
 
-}  // namespace
+}
 
 TBlockInput TPipelineReader::ReadInput(nlohmann::json& json)
 {
@@ -236,7 +231,6 @@ TBlockInput TPipelineReader::ReadInput(nlohmann::json& json)
         } else if (value.is_number()) {
             input.Add(key_id, value.get<int>());
         } else if (value.is_object()) {
-            // Parse as damage table: map of resource name to dice expression
             TDamageTable table;
             for (auto& [slot_name, dice_expr] : value.items()) {
                 table[slot_name] = ParseDiceExpression(dice_expr.get<std::string>());
@@ -275,11 +269,9 @@ void TPipelineReader::FillForEach(nlohmann::json& json, IActionBlock* block)
     foreach_block->input_ = ReadInput(json["input"]);
     foreach_block->element_id_ = TGameObjectIdManager::Instance().Register(json["element"]);
 
-    // Parse body using a new TPipelineReader instance
     TPipelineReader body_reader;
     foreach_block->body_ = body_reader.ReadPipeline(json["body"]);
 
-    // Fill next for foreach block
     if (json.contains("next")) {
         auto next_id = id_register_.Register(json["next"]);
         foreach_block->next_ = block_mapping_.at(next_id);

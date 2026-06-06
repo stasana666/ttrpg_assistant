@@ -12,10 +12,6 @@
 #include <variant>
 #include <vector>
 
-// Stringify value-typed fields for the AST. Type tag is prefixed so two
-// different types with the same numeric content do not collide. Extend
-// with overloads as needed; project-specific types put theirs next to the
-// type definition.
 
 inline std::string AstSerialize(bool v)
 {
@@ -96,7 +92,6 @@ std::string AstSerialize(const std::variant<Ts...>& v)
         [](const auto& x) -> std::string { return AstSerialize(x); }, v);
 }
 
-// Caller must ensure deterministic element order for unordered containers.
 template <class T>
 std::string AstSerialize(const std::vector<T>& v)
 {

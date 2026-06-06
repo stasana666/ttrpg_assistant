@@ -177,11 +177,11 @@ private:
     parse::TTokenStream<ETok> ts_;
 };
 
-}  // namespace
+}
 
 TExprNode Parse(const std::string& src) {
     TParser parser(Tokenize(src));
     return parser.Parse();
 }
 
-}  // namespace expr
+}

@@ -26,7 +26,6 @@ TPlayer* RequirePlayer(const TDslValue& v, const char* fn) {
 }
 
 void RegisterAll() {
-    // Properties on generated classes (armor.ttrpg, weapon.ttrpg, ...)
     TArmor::RegisterDslProperties();
     TWeapon::RegisterDslProperties();
     TRace::RegisterDslProperties();
@@ -34,7 +33,6 @@ void RegisterAll() {
     TAbilityScores::RegisterDslProperties();
     TCreatureData::RegisterDslProperties();
 
-    // Properties on TPlayer
     auto& player_props = TPropertyRegistry<TPlayer>::Instance();
     player_props.Register("creature", [](TPlayer* p, TEvalContext&) {
         return TDslValue(p->GetCreature());
@@ -52,7 +50,6 @@ void RegisterAll() {
         return TDslValue::MakeList(std::move(items));
     });
 
-    // Functions
     auto& fns = TDslFunctionRegistry::Instance();
 
     fns.Register("creatures", [](const std::vector<TDslValue>& args, TEvalContext& ctx) {
@@ -81,8 +78,6 @@ void RegisterAll() {
         TPlayer* b = RequirePlayer(args[1], "distance");
         TPosition pa = a->GetPosition();
         TPosition pb = b->GetPosition();
-        // Chebyshev distance — matches TBattleMap::HasLine/InRadius semantics.
-        // (BattleMap doesn't expose a Distance() helper; replicate here.)
         int dx = pa.x - pb.x;
         if (dx < 0) {
             dx = -dx;
@@ -128,7 +123,7 @@ void RegisterAll() {
     });
 }
 
-}  // namespace
+}
 
 void EnsureDslBuiltinsRegistered()
 {

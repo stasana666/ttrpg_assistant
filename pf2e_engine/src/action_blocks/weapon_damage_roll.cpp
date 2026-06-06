@@ -16,8 +16,6 @@ namespace {
 
 const TGameObjectId kDamageBonusId = TGameObjectIdManager::Instance().Register("damage_bonus");
 
-// Borrows an IExpression owned elsewhere (the $damage_bonus TDamage, which
-// lives in the action registry and outlives the $damage object).
 class TBorrowedExpression : public IExpression {
 public:
     explicit TBorrowedExpression(const IExpression* expr)
@@ -40,9 +38,6 @@ std::unique_ptr<IExpression> MaybeDouble(std::unique_ptr<IExpression> expr, bool
         std::move(expr), std::make_unique<TNumberExpression>(2));
 }
 
-// Builds weapon damage (base dice + Strength) and folds in $damage_bonus if
-// any feat hooked into this block created one. On a critical hit every term --
-// weapon dice and bonus dice alike -- is doubled.
 void ApplyWeaponDamage(std::shared_ptr<TActionContext> ctx, const TBlockInput& input,
                        TGameObjectId output, bool crit)
 {
@@ -68,14 +63,14 @@ void ApplyWeaponDamage(std::shared_ptr<TActionContext> ctx, const TBlockInput& i
     ctx->game_object_registry->Add(output, damage);
 }
 
-}  // namespace
+}
 
 void FWeaponDamageRoll::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
-    ApplyWeaponDamage(ctx, input_, output_, /*crit=*/false);
+    ApplyWeaponDamage(ctx, input_, output_, false);
 }
 
 void FCritWeaponDamageRoll::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
-    ApplyWeaponDamage(ctx, input_, output_, /*crit=*/true);
+    ApplyWeaponDamage(ctx, input_, output_, true);
 }
