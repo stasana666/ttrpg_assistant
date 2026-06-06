@@ -1,9 +1,8 @@
 target_sources(pf2e_engine
     PRIVATE
-        ast_nodes.cpp
         builtins.cpp
+        evaluator.cpp
         function_registry.cpp
-        lexer.cpp
         parser.cpp
         property_access.cpp
         scope_guard.cpp

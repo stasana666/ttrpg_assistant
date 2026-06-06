@@ -59,3 +59,9 @@ TEST(GoldenTest, Basic) {
 TEST(GoldenTest, Variant) {
     CheckGolden("variant");
 }
+
+// `computed`: a class with computed (field-referencing) defaults -- an int and a
+// BoundedQuantity, with a forward reference and a constant default mixed in.
+TEST(GoldenTest, Computed) {
+    CheckGolden("computed");
+}

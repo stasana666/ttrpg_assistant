@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <pf2e_engine/dsl/lexer.h>
 #include <pf2e_engine/dsl/parser.h>
 #include <pf2e_engine/dsl/builtins.h>
 #include <pf2e_engine/dsl/expression.h>
@@ -25,33 +24,8 @@ TDslValue Eval(const std::string& src) {
 
 }  // namespace
 
-TEST(DslLexerTest, BasicTokens) {
-    auto tokens = Tokenize("$item.reach >= 5");
-    ASSERT_EQ(tokens.size(), 7u);  // $ item . reach >= 5 End
-    EXPECT_EQ(tokens[0].kind, ETokenType::Dollar);
-    EXPECT_EQ(tokens[1].kind, ETokenType::Identifier);
-    EXPECT_EQ(tokens[1].text, "item");
-    EXPECT_EQ(tokens[2].kind, ETokenType::Dot);
-    EXPECT_EQ(tokens[3].kind, ETokenType::Identifier);
-    EXPECT_EQ(tokens[3].text, "reach");
-    EXPECT_EQ(tokens[4].kind, ETokenType::Ge);
-    EXPECT_EQ(tokens[5].kind, ETokenType::Number);
-    EXPECT_EQ(std::stoi(tokens[5].text), 5);
-}
-
-TEST(DslLexerTest, LogicalAndComparison) {
-    auto tokens = Tokenize("!a && (b || c) == d");
-    // ! a && ( b || c ) == d End
-    ASSERT_GE(tokens.size(), 10u);
-    EXPECT_EQ(tokens[0].kind, ETokenType::Not);
-    EXPECT_EQ(tokens[2].kind, ETokenType::And);
-    EXPECT_EQ(tokens[5].kind, ETokenType::Or);
-    EXPECT_EQ(tokens[8].kind, ETokenType::Eq);
-}
-
-TEST(DslLexerTest, RejectsUnknownChar) {
-    EXPECT_THROW(Tokenize("@"), std::runtime_error);
-}
+// Lexing/tokenization now lives in the shared expression front-end and is
+// covered by test_expr; these tests exercise DSL parsing + evaluation.
 
 TEST(DslParserTest, IntegerLiteral) {
     TDslValue v = Eval("42");
@@ -86,6 +60,15 @@ TEST(DslParserTest, Parentheses) {
     EXPECT_TRUE(Eval("(1 == 2) || (1 == 1) && (1 == 1)").AsBool());
     // With parens to force the other grouping:
     EXPECT_FALSE(Eval("((1 == 2) || (1 == 1)) && (1 == 2)").AsBool());
+}
+
+TEST(DslParserTest, Arithmetic) {
+    // Arithmetic is now available (shared with the codegen grammar); '*' binds
+    // tighter than '+'.
+    EXPECT_EQ(Eval("2 + 3 * 4").AsInt(), 14);
+    EXPECT_EQ(Eval("(2 + 3) * 4").AsInt(), 20);
+    EXPECT_EQ(Eval("10 - 4 - 3").AsInt(), 3);
+    EXPECT_TRUE(Eval("2 + 2 == 4").AsBool());
 }
 
 TEST(DslParserTest, MinMaxBuiltins) {

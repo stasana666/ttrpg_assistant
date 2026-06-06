@@ -2,6 +2,8 @@
 
 #include <pf2e_engine/dsl/value.h>
 
+#include <expr/ast.h>
+
 #include <memory>
 #include <optional>
 #include <string>
@@ -35,8 +37,14 @@ private:
     bool had_prior_;
 };
 
-class IDslExpression {
+// A parsed DSL expression: a thin wrapper around the shared expression AST
+// (expr::TExprNode) plus the runtime evaluator. Replaces the former
+// IDslExpression node hierarchy now that parsing lives in the shared `expr`
+// front-end and only evaluation is engine-specific.
+class TDslExpression {
 public:
-    virtual ~IDslExpression() = default;
-    virtual TDslValue Evaluate(TEvalContext& ctx) const = 0;
+    explicit TDslExpression(expr::TExprNode root) : root_(std::move(root)) {}
+    TDslValue Evaluate(TEvalContext& ctx) const;
+private:
+    expr::TExprNode root_;
 };

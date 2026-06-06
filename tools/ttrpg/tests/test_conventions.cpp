@@ -60,6 +60,15 @@ TEST(ConventionsTest, CppMemberTypeForSets) {
     EXPECT_EQ(CppMemberType(Field("string", "Name"), sym), "std::string");
 }
 
+TEST(ConventionsTest, BoundedQuantityIsBuiltinValueType) {
+    auto sym = Symbols();
+    // Recognized without a symbol-table entry (it's a built-in keyword).
+    EXPECT_TRUE(IsBuiltinBoundedQuantity("BoundedQuantity"));
+    EXPECT_FALSE(IsBuiltinBoundedQuantity("int"));
+    EXPECT_EQ(FieldKindOf(Field("BoundedQuantity", "Hp"), sym), EFieldKind::BoundedQuantity);
+    EXPECT_EQ(CppMemberType(Field("BoundedQuantity", "Hp"), sym), "TBoundedQuantity");
+}
+
 TEST(ConventionsTest, DefaultExprToCpp) {
     EXPECT_EQ(DefaultExprToCpp("max_int", "int"), "std::numeric_limits<int>::max()");
     EXPECT_EQ(DefaultExprToCpp("min_int", "int"), "std::numeric_limits<int>::min()");

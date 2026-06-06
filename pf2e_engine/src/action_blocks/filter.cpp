@@ -17,7 +17,7 @@ FFilter::FFilter(TBlockInput&& input, TGameObjectId output)
     : FBaseFunction(std::move(input), output)
 {
     EnsureDslBuiltinsRegistered();
-    predicate_ = std::shared_ptr<IDslExpression>(ParseDsl(input_.GetString(kPredicateId)));
+    predicate_ = std::shared_ptr<TDslExpression>(ParseDsl(input_.GetString(kPredicateId)));
 }
 
 void FFilter::operator()(std::shared_ptr<TActionContext> ctx) const

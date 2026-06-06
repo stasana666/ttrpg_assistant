@@ -8,6 +8,8 @@
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/material.h>
 #include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/inventory/creature_data.h>
+#include <pf2e_engine/inventory/creature_parts.h>
 
 #include <nlohmann/json_fwd.hpp>
 
@@ -46,6 +48,10 @@ private:
     void ReadArmor(nlohmann::json&, TGameObjectId);
     void ReadMaterial(nlohmann::json&, TGameObjectId);
     void ReadWeapon(nlohmann::json&, TGameObjectId);
+    void ReadRace(nlohmann::json&, TGameObjectId);
+    void ReadClass(nlohmann::json&, TGameObjectId);
+    void ReadAbilityScores(nlohmann::json&, TGameObjectId);
+    void ReadCreatureData(nlohmann::json&, TGameObjectId);
     void ReadCreature(nlohmann::json&, TGameObjectId);
     void ReadAction(nlohmann::json&, TGameObjectId);
     void ReadBattleMap(nlohmann::json&, TGameObjectId);
@@ -60,6 +66,10 @@ private:
     TFactoryStorage<TArmor> armors_;
     TFactoryStorage<TMaterial> materials_;
     TFactoryStorage<TWeapon> weapons_;
+    TFactoryStorage<TRace> races_;
+    TFactoryStorage<TClass> classes_;
+    TFactoryStorage<TAbilityScores> ability_scores_;
+    TFactoryStorage<TCreatureData> creature_data_;
     TFactoryStorage<TCreature> creatures_;
     TFactoryStorage<std::shared_ptr<TAction>> actions_;
     TFactoryStorage<TBattleMap> battle_maps_;
@@ -78,6 +88,18 @@ auto TGameObjectFactory::GetFactoryStorage() const -> const TFactoryStorage<T>&
     } else
     if constexpr (std::is_same_v<T, TWeapon>) {
         return weapons_;
+    } else
+    if constexpr (std::is_same_v<T, TRace>) {
+        return races_;
+    } else
+    if constexpr (std::is_same_v<T, TClass>) {
+        return classes_;
+    } else
+    if constexpr (std::is_same_v<T, TAbilityScores>) {
+        return ability_scores_;
+    } else
+    if constexpr (std::is_same_v<T, TCreatureData>) {
+        return creature_data_;
     } else
     if constexpr (std::is_same_v<T, TCreature>) {
         return creatures_;

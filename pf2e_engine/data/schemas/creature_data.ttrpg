@@ -1,0 +1,14 @@
+import "armor.ttrpg";
+import "weapon.ttrpg";
+import "creature_parts.ttrpg";
+
+class TCreatureData {
+    int Level;
+    TRace Race;
+    TClass Class;
+    TAbilityScores Characteristic;
+    int Movement = 0;
+    BoundedQuantity Hitpoints = Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution);
+    TArmor Armor;
+    TWeapon Weapon;
+}

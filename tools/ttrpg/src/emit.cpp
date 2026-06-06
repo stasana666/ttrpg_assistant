@@ -1,5 +1,6 @@
 #include <ttrpg/emit.h>
 
+#include <ttrpg/analyze.h>
 #include <ttrpg/conventions.h>
 #include <ttrpg/cpp_writer.h>
 
@@ -44,15 +45,21 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
             w.Line("static void RegisterDslProperties();");
         });
         w.EmptyLine();
+        std::unordered_set<std::string> fieldNames;
+        for (const auto& f : c.Fields) {
+            fieldNames.insert(f.Name);
+        }
         w.PrivateSection([&] {
             for (const auto& f : c.Fields) {
                 std::string mt = CppMemberType(f, symbols);
                 std::string init;
                 if (f.Container != EContainer::None) {
                     init = "{}";  // empty container
-                } else if (f.DefaultExpr) {
-                    init = "{" + DefaultExprToCpp(*f.DefaultExpr, f.TypeName) + "}";
+                } else if (f.Init && !InitIsComputed(*f.Init, fieldNames)) {
+                    // Constant default: bake it into the member initializer.
+                    init = "{" + DefaultExprToCpp(f.Init->Text, f.TypeName) + "}";
                 } else {
+                    // No default, or a computed default (always set in FromJson).
                     init = "{}";
                 }
                 w.Line(mt + " " + f.Name + "_" + init + ";");
@@ -89,9 +96,18 @@ void EmitVariantDecl(TCppWriter& w, const TVariantDecl& v,
             w.Line("static constexpr auto Kind = " + kindEnum + "::" + alt.Name + ";");
             for (const auto& f : alt.Fields) {
                 std::string mt = CppMemberType(f, symbols);
-                std::string init = f.DefaultExpr
-                    ? "{" + DefaultExprToCpp(*f.DefaultExpr, f.TypeName) + "}"
-                    : "{}";
+                std::string init = "{}";
+                if (f.Init) {
+                    // Variant payloads take only constant defaults (a literal or
+                    // an enum-value identifier), never computed expressions.
+                    if (f.Init->Kind != expr::ENodeKind::IntLiteral &&
+                        f.Init->Kind != expr::ENodeKind::Var) {
+                        throw std::runtime_error(
+                            "computed initializers are not supported in variant alternative '" +
+                            alt.Name + "' (field '" + f.Name + "')");
+                    }
+                    init = "{" + DefaultExprToCpp(f.Init->Text, f.TypeName) + "}";
+                }
                 w.Line(mt + " " + f.Name + init + ";");
             }
         });
@@ -167,9 +183,10 @@ void EmitHeader(std::ostream& os,
 
     // Scan all field types (class fields + variant alternative fields) to
     // decide which standard headers and cross-file generated headers to pull.
-    bool anyEnumSet = false;     // set<Enum> -> std::set
-    bool anyVariantSet = false;  // set<Variant> -> TVariantMap
+    bool anyEnumSet = false;          // set<Enum> -> std::set
+    bool anyVariantSet = false;       // set<Variant> -> TVariantMap
     bool anyVariant = !mod.Variants.empty();
+    bool anyBoundedQuantity = false;  // BoundedQuantity -> TBoundedQuantity
 
     // Cross-file includes: any external type used as a field type (incl.
     // set element types and variant-payload field types) pulls in the
@@ -178,6 +195,16 @@ void EmitHeader(std::ostream& os,
 
     auto inspectField = [&](const TFieldDecl& f, const std::string& ownerDesc) {
         if (IsBuiltinPrimitive(f.TypeName)) {
+            return;
+        }
+        if (IsBuiltinBoundedQuantity(f.TypeName)) {
+            // Built-in value type; pulls in its hand-written runtime header,
+            // not a generated sibling. It is scalar-only.
+            if (f.Container != EContainer::None) {
+                throw std::runtime_error(
+                    "BoundedQuantity cannot be used inside set<> (in " + ownerDesc + ")");
+            }
+            anyBoundedQuantity = true;
             return;
         }
         auto it = loaded.SymbolTable.find(f.TypeName);
@@ -226,6 +253,9 @@ void EmitHeader(std::ostream& os,
     if (anyVariantSet) {
         w.Include("pf2e_engine/common/variant_map.h");
     }
+    if (anyBoundedQuantity) {
+        w.Include("pf2e_engine/common/bounded_quantity.h");
+    }
     w.EmptyLine();
 
     if (!externalStems.empty()) {
@@ -273,7 +303,8 @@ void EmitEnumImpl(TCppWriter& w, const TEnumDecl& e) {
 
 void EmitClassImpl(TCppWriter& w,
                    const TClassDecl& c,
-                   const std::unordered_map<std::string, TTypeInfo>& symbols)
+                   const std::unordered_map<std::string, TTypeInfo>& symbols,
+                   const std::unordered_map<std::string, const TClassDecl*>& classes)
 {
     // Pre-classify each scalar field once. Set fields are handled separately
     // by inspecting f.Container.
@@ -292,10 +323,20 @@ void EmitClassImpl(TCppWriter& w,
         }
         EFieldKind k = FieldKindOf(f, symbols);
         kinds.push_back(k);
-        if (k == EFieldKind::Class || k == EFieldKind::Variant) {
+        if (k == EFieldKind::Class || k == EFieldKind::Variant ||
+            k == EFieldKind::BoundedQuantity) {
             usesFactory = true;
         }
     }
+
+    // Field names for computed-vs-constant classification, and the evaluation
+    // order so a computed field is assigned after the fields it references
+    // (throws on cycles / bad references -- the codegen-time gate).
+    std::unordered_set<std::string> fieldNames;
+    for (const auto& f : c.Fields) {
+        fieldNames.insert(f.Name);
+    }
+    std::vector<size_t> initOrder = FieldInitOrder(c, classes);
 
     // ---- FromJson ----
     w.Function(c.Name + " " + c.Name +
@@ -304,9 +345,10 @@ void EmitClassImpl(TCppWriter& w,
             w.Line("(void)factory;");
         }
         w.Line(c.Name + " r;");
-        for (size_t i = 0; i < c.Fields.size(); ++i) {
-            const auto& f = c.Fields[i];
+        for (size_t idx : initOrder) {
+            const auto& f = c.Fields[idx];
             std::string key = PascalToSnake(f.Name);
+            bool computed = f.Init && InitIsComputed(*f.Init, fieldNames);
             if (f.Container == EContainer::Set) {
                 // Absent key is treated as an empty set.
                 w.Block("if (j.contains(\"" + key + "\")) {", "}", [&] {
@@ -319,8 +361,18 @@ void EmitClassImpl(TCppWriter& w,
                         }
                     });
                 });
+            } else if (computed) {
+                // JSON-overridable: use the JSON value when present, else
+                // evaluate the initializer expression over already-assigned
+                // sibling fields.
+                std::string present = ScalarParseExpr(f, kinds[idx], "j.at(\"" + key + "\")");
+                std::string fallback = (kinds[idx] == EFieldKind::BoundedQuantity)
+                    ? "TBoundedQuantity(" + InitExprToCpp(*f.Init) + ")"
+                    : InitExprToCpp(*f.Init);
+                w.Line("r." + f.Name + "_ = j.contains(\"" + key + "\") ? " +
+                       present + " : " + fallback + ";");
             } else {
-                w.Line("r." + f.Name + "_ = " + LoadFieldCall(f, kinds[i], key) + ";");
+                w.Line("r." + f.Name + "_ = " + LoadFieldCall(f, kinds[idx], key) + ";");
             }
         }
         w.Line("return r;");
@@ -355,10 +407,11 @@ void EmitClassImpl(TCppWriter& w,
                     });
                     w.Line("node.AddChild(\"" + key + "\", std::move(set_node));");
                 });
-            } else if (kinds[i] == EFieldKind::Class || kinds[i] == EFieldKind::Variant) {
-                // Generated class/variant types are TIsAstRecursive::true_type,
-                // so use AddOwnedObject which recurses; AddValueField would
-                // static_assert.
+            } else if (kinds[i] == EFieldKind::Class || kinds[i] == EFieldKind::Variant ||
+                       kinds[i] == EFieldKind::BoundedQuantity) {
+                // Generated class/variant types and TBoundedQuantity are
+                // TIsAstRecursive::true_type, so use AddOwnedObject which
+                // recurses; AddValueField would static_assert.
                 w.Line("AddOwnedObject(node, \"" + key + "\", " + f.Name + "_, ctx);");
             } else {
                 w.Line("AddValueField(node, \"" + key + "\", " + f.Name + "_);");
@@ -388,6 +441,7 @@ void EmitClassImpl(TCppWriter& w,
                         case EFieldKind::Class: reasonPrefix = "class field"; break;
                         case EFieldKind::Enum:  reasonPrefix = "enum field"; break;
                         case EFieldKind::Variant: reasonPrefix = "variant field"; break;
+                        case EFieldKind::BoundedQuantity: reasonPrefix = "bounded-quantity field"; break;
                         case EFieldKind::Primitive: reasonPrefix = "unsupported primitive"; break;
                     }
                 }
@@ -443,7 +497,8 @@ void EmitVariantImpl(TCppWriter& w, const TVariantDecl& v,
     for (const auto& alt : v.Alternatives) {
         for (const auto& f : alt.Fields) {
             EFieldKind k = FieldKindOf(f, symbols);
-            if (k == EFieldKind::Class || k == EFieldKind::Variant) {
+            if (k == EFieldKind::Class || k == EFieldKind::Variant ||
+                k == EFieldKind::BoundedQuantity) {
                 usesFactory = true;
             }
         }
@@ -494,10 +549,11 @@ void EmitVariantImpl(TCppWriter& w, const TVariantDecl& v,
                             // Multi-field: value is an object of named fields.
                             for (const auto& [f, kind] : infos) {
                                 std::string fkey = PascalToSnake(f->Name);
-                                if (kind == EFieldKind::Primitive && f->DefaultExpr) {
+                                if (kind == EFieldKind::Primitive && f->Init) {
+                                    // Bin initializers are rejected at decl emission.
                                     w.Line("a." + f->Name + " = val.value(\"" + fkey + "\", " +
                                            CppPrimitiveType(*f) + "{" +
-                                           DefaultExprToCpp(*f->DefaultExpr, f->TypeName) + "});");
+                                           DefaultExprToCpp(f->Init->Text, f->TypeName) + "});");
                                 } else {
                                     w.Line("a." + f->Name + " = " +
                                            ScalarParseExpr(*f, kind, "val.at(\"" + fkey + "\")") + ";");
@@ -531,7 +587,8 @@ void EmitVariantImpl(TCppWriter& w, const TVariantDecl& v,
                         for (const auto& info : ClassifyAltFields(alt, symbols)) {
                             const TFieldDecl& f = *info.Field;
                             std::string fkey = PascalToSnake(f.Name);
-                            if (info.Kind == EFieldKind::Class || info.Kind == EFieldKind::Variant) {
+                            if (info.Kind == EFieldKind::Class || info.Kind == EFieldKind::Variant ||
+                                info.Kind == EFieldKind::BoundedQuantity) {
                                 w.Line("AddOwnedObject(node, \"" + fkey + "\", a." + f.Name + ", ctx);");
                             } else {
                                 w.Line("AddValueField(node, \"" + fkey + "\", a." + f.Name + ");");
@@ -569,6 +626,15 @@ void EmitImpl(std::ostream& os,
     w.Include("string");
     w.EmptyLine();
 
+    // Class type name -> declaration, across all loaded modules. Used to
+    // validate member access (`Race.Hitpoints`) in computed initializers.
+    std::unordered_map<std::string, const TClassDecl*> classes;
+    for (const auto& [stem, module] : loaded.ByStem) {
+        for (const auto& c : module.Classes) {
+            classes[c.Name] = &c;
+        }
+    }
+
     for (const auto& e : mod.Enums) {
         EmitEnumImpl(w, e);
     }
@@ -576,6 +642,6 @@ void EmitImpl(std::ostream& os,
         EmitVariantImpl(w, v, loaded.SymbolTable);
     }
     for (const auto& c : mod.Classes) {
-        EmitClassImpl(w, c, loaded.SymbolTable);
+        EmitClassImpl(w, c, loaded.SymbolTable, classes);
     }
 }

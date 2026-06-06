@@ -119,6 +119,116 @@
             ]
         },
 
+        "pf2e_race_core": {
+            "type": "object",
+            "properties": { "hitpoints": { "type": "integer" } },
+            "required": ["hitpoints"],
+            "additionalProperties": false
+        },
+
+        "pf2e_race": {
+            "allOf": [
+                { "$ref": "#/$defs/pf2e_base" },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": { "const": "pf2e_race" },
+                        "pf2e_race": { "$ref": "#/$defs/pf2e_race_core" }
+                    },
+                    "required": ["pf2e_race"]
+                }
+            ]
+        },
+
+        "pf2e_class_core": {
+            "type": "object",
+            "properties": { "hitpoints": { "type": "integer" } },
+            "required": ["hitpoints"],
+            "additionalProperties": false
+        },
+
+        "pf2e_class": {
+            "allOf": [
+                { "$ref": "#/$defs/pf2e_base" },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": { "const": "pf2e_class" },
+                        "pf2e_class": { "$ref": "#/$defs/pf2e_class_core" }
+                    },
+                    "required": ["pf2e_class"]
+                }
+            ]
+        },
+
+        "pf2e_ability_scores_core": {
+            "type": "object",
+            "properties": {
+                "strength": { "type": "integer" },
+                "dexterity": { "type": "integer" },
+                "constitution": { "type": "integer" },
+                "intelligence": { "type": "integer" },
+                "wisdom": { "type": "integer" },
+                "charisma": { "type": "integer" }
+            },
+            "additionalProperties": false
+        },
+
+        "pf2e_ability_scores": {
+            "allOf": [
+                { "$ref": "#/$defs/pf2e_base" },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": { "const": "pf2e_ability_scores" },
+                        "pf2e_ability_scores": { "$ref": "#/$defs/pf2e_ability_scores_core" }
+                    },
+                    "required": ["pf2e_ability_scores"]
+                }
+            ]
+        },
+
+        "pf2e_creature_data_core": {
+            "type": "object",
+            "properties": {
+                "level": { "type": "integer" },
+                "race": { "type": "string" },
+                "class": { "type": "string" },
+                "characteristic": { "type": "string" },
+                "movement": {
+                    "type": "integer",
+                    "default": 0
+                },
+                "hitpoints": {
+                    "type": "object",
+                    "properties": {
+                        "current_value": { "type": "integer" },
+                        "max_value": { "type": "integer" }
+                    },
+                    "required": ["current_value", "max_value"],
+                    "additionalProperties": false
+                },
+                "armor": { "type": "string" },
+                "weapon": { "type": "string" }
+            },
+            "required": ["level", "race", "class", "characteristic", "armor", "weapon"],
+            "additionalProperties": false
+        },
+
+        "pf2e_creature_data": {
+            "allOf": [
+                { "$ref": "#/$defs/pf2e_base" },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": { "const": "pf2e_creature_data" },
+                        "pf2e_creature_data": { "$ref": "#/$defs/pf2e_creature_data_core" }
+                    },
+                    "required": ["pf2e_creature_data"]
+                }
+            ]
+        },
+
         "pf2e_creature_characteristics": {
             "type": "object",
             "properties": {

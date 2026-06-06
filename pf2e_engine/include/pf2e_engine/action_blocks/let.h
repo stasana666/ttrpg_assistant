@@ -10,5 +10,5 @@ public:
     FLet(TBlockInput&& input, TGameObjectId output);
     void operator()(std::shared_ptr<TActionContext> ctx) const;
 private:
-    std::shared_ptr<IDslExpression> expr_;
+    std::shared_ptr<TDslExpression> expr_;
 };

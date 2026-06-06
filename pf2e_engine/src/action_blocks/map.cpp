@@ -15,7 +15,7 @@ FMap::FMap(TBlockInput&& input, TGameObjectId output)
     : FBaseFunction(std::move(input), output)
 {
     EnsureDslBuiltinsRegistered();
-    expr_ = std::shared_ptr<IDslExpression>(ParseDsl(input_.GetString(kExpressionId)));
+    expr_ = std::shared_ptr<TDslExpression>(ParseDsl(input_.GetString(kExpressionId)));
 }
 
 void FMap::operator()(std::shared_ptr<TActionContext> ctx) const

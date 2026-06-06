@@ -9,6 +9,7 @@
 #include <limits>
 #include <string>
 #include <set>
+#include <pf2e_engine/common/bounded_quantity.h>
 
 class TGameObjectFactory;
 
@@ -26,6 +27,7 @@ public:
     std::string Name() const { return Name_; }
     int Count() const { return Count_; }
     EColor Color() const { return Color_; }
+    TBoundedQuantity Charges() const { return Charges_; }
     const std::set<EColor>& Tags() const { return Tags_; }
 
     static TThing FromJson(const nlohmann::json& j, const TGameObjectFactory& factory);
@@ -36,6 +38,7 @@ private:
     std::string Name_{};
     int Count_{3};
     EColor Color_{};
+    TBoundedQuantity Charges_{};
     std::set<EColor> Tags_{};
     [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
