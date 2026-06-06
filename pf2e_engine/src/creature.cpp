@@ -9,17 +9,25 @@
 
 #include <algorithm>
 
-TCreature::TCreature(TCharacteristicSet stats, TProficiency proficiency, TArmor armor, THitPoints hitpoints)
-    : stats_(stats)
+TCreature::TCreature(TCreatureData data, TProficiency proficiency, THitPoints hitpoints)
+    : TCreatureData(std::move(data))
     , proficiency_(proficiency)
     , hitpoints_(hitpoints)
-    , armor_(armor)
 {
 }
 
-const TCharacteristic& TCreature::GetCharacteristic(ECharacteristic name) const
+TAbilityScore TCreature::GetCharacteristic(ECharacteristic name) const
 {
-    return stats_[name];
+    const TAbilityScores& scores = Characteristic();
+    switch (name) {
+        case ECharacteristic::Strength:     return scores.Strength();
+        case ECharacteristic::Dexterity:    return scores.Dexterity();
+        case ECharacteristic::Constitution: return scores.Constitution();
+        case ECharacteristic::Intelligence: return scores.Intelligence();
+        case ECharacteristic::Wisdom:       return scores.Wisdom();
+        case ECharacteristic::Charisma:     return scores.Charisma();
+    }
+    throw std::logic_error("unreachable");
 }
 
 int TCreature::GetLevel() const
@@ -27,14 +35,9 @@ int TCreature::GetLevel() const
     return proficiency_.GetLevel();
 }
 
-TCharacteristicSet& TCreature::Characteristics()
+TGuarded<THitPoints> TCreature::Hitpoints()
 {
-    return stats_;
-}
-
-THitPoints& TCreature::Hitpoints()
-{
-    return hitpoints_;
+    return TGuarded<THitPoints>(hitpoints_);
 }
 
 const THitPoints& TCreature::Hitpoints() const
@@ -47,14 +50,9 @@ const TResourcePool& TCreature::Resources() const
     return resources_;
 }
 
-TResourcePool& TCreature::Resources()
+TGuarded<TResourcePool> TCreature::Resources()
 {
-    return resources_;
-}
-
-const TArmor& TCreature::Armor() const
-{
-    return armor_;
+    return TGuarded<TResourcePool>(resources_);
 }
 
 TWeaponSlots& TCreature::Weapons()
@@ -141,11 +139,6 @@ void TCreature::Set(ECondition condition, int value)
     conditions_[condition] = value;
 }
 
-int& TCreature::Movement()
-{
-    return movement_;
-}
-
 ECreatureSize TCreature::Size() const
 {
     return size_;
@@ -204,15 +197,13 @@ TAstNode TCreature::GetAst(TAstContext& ctx) const
     }
 
     TAstNode node = TAstNode::MakeObject("TCreature");
-    AddOwnedObject(node, "stats", stats_, ctx);
+    node.AddChild("creature_data", TCreatureData::GetAst(ctx));
     AddOwnedObject(node, "proficiency", proficiency_, ctx);
     node.AddChild("conditions", GetConditionsAst(conditions_));
     AddOwnedObject(node, "hitpoints", hitpoints_, ctx);
     AddOwnedObject(node, "resolver", resolver_, ctx);
     AddOwnedObject(node, "resources", resources_, ctx);
-    AddValueField(node, "movement", movement_);
     AddValueField(node, "size", size_);
-    AddOwnedObject(node, "armor", armor_, ctx);
     AddOwnedObject(node, "weapons", weapons_, ctx);
 
     TAstNode natural = TAstNode::MakeObject("natural_weapons");

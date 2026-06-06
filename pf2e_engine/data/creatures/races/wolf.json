@@ -1,0 +1,7 @@
+{
+    "name": "wolf",
+    "type": "pf2e_race",
+    "pf2e_race": {
+        "hitpoints": 14
+    }
+}

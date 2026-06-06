@@ -183,9 +183,9 @@ TResourcePool TGameObjectFactory::ReadCreatureResources(nlohmann::json& json_gam
     return resource_pool;
 }
 
-TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_object)
+TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_object, int level)
 {
-    TProficiency proficiency(json_game_object["level"]);
+    TProficiency proficiency(level);
     auto& json_proficiency = json_game_object["proficiency"];
 
     auto get_value = [](nlohmann::basic_json<> json_value) {
@@ -221,30 +221,12 @@ TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_objec
 
 void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    TCharacteristicSet stats([&]() {
-        std::array<int, TCharacteristicSet::kCharacteristicCount> num_stats;
-        const nlohmann::json& json_stats = json_game_object["characteristics"];
-        for (size_t i = 0; i < TCharacteristicSet::kCharacteristicCount; ++i) {
-            num_stats[i] = json_stats[ToString(static_cast<ECharacteristic>(i))];
-        }
-        return num_stats;
-    }());
-
     TResourcePool resource_pool = ReadCreatureResources(json_game_object["resources"]);
 
-    std::optional<TGameObjectId> armor_id;
     std::vector<std::pair<TGameObjectId, int>> weapon_ids;
-
     if (json_game_object.find("equipped") != json_game_object.end())
     {
         auto& equipped = json_game_object["equipped"];
-        if (equipped.find("armor") != equipped.end()) {
-            if (equipped["armor"].is_object()) {
-                throw std::runtime_error("definition new armor in creature is not supported yet");
-            }
-            armor_id = TGameObjectIdManager::Instance().Register(equipped["armor"]);
-        }
-
         for (const auto& weapon_json : equipped["weapons"]) {
             weapon_ids.emplace_back([&]() -> std::pair<TGameObjectId, int> {
                 if (weapon_json["weapon"].is_object()) {
@@ -260,12 +242,10 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         actions.emplace_back(TGameObjectIdManager::Instance().Register(action));
     }
 
-    int race_hp = json_game_object["race_hitpoints"];
-    int hp_per_level = json_game_object["hitpoint_per_level"];
-    int movement = json_game_object["movement"];
+    int level = json_game_object["creature_data"]["level"];
     ECreatureSize size = CreatureSizeFromString(json_game_object["size"]);
 
-    TProficiency proficiency = ReadProficiency(json_game_object);
+    TProficiency proficiency = ReadProficiency(json_game_object, level);
 
     std::vector<TWeapon> natural_weapons;
     if (json_game_object.contains("natural_weapons")) {
@@ -294,12 +274,12 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
     }
 
-    creatures_.insert({id, [this, armor_id, weapon_ids, resource_pool, stats, actions, race_hp, hp_per_level, proficiency, movement, size, feats, natural_weapons]() {
-        TArmor armor = armor_id ? this->Create<TArmor>(*armor_id) : TArmor{};
-        THitPoints hp(race_hp + (hp_per_level + stats[ECharacteristic::Constitution].GetMod()) * proficiency.GetLevel());
-        TCreature creature(stats, proficiency, armor, hp);
+    creatures_.insert({id, [this, json_game_object, weapon_ids, resource_pool, actions, proficiency, size, feats, natural_weapons]() {
+        TCreatureData data = TCreatureData::FromJson(json_game_object.at("creature_data"), *this);
+        THitPoints hp(data.Hitpoints().MaxValue());
+        TCreature creature(std::move(data), proficiency, hp);
         creature.SetSize(size);
-        creature.Resources() = resource_pool;
+        creature.ResourcesForInit() = resource_pool;
 
         auto hand_id = TResourceIdManager::Instance().Register("hand");
 
@@ -308,10 +288,10 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
             assert(ValidGrip(weapon, hand_count));
             creature.Weapons().Equip({weapon, hand_count});
 
-            if (!creature.Resources().HasResource(hand_id, hand_count)) {
+            if (!creature.ResourcesForInit().HasResource(hand_id, hand_count)) {
                 throw std::runtime_error("too many weapon, not enough hands");
             }
-            creature.Resources().Reduce(hand_id, hand_count);
+            creature.ResourcesForInit().Reduce(hand_id, hand_count);
         }
 
         for (auto action_id : actions) {
@@ -325,8 +305,6 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         for (const auto& weapon : natural_weapons) {
             creature.NaturalWeapons().push_back(weapon);
         }
-
-        creature.Movement() = movement;
 
         return creature;
     }});

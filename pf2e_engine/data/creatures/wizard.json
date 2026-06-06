@@ -2,9 +2,22 @@
     "name": "wizard",
     "type": "pf2e_creature",
     "pf2e_creature": {
-        "level": 5,
-        "race_hitpoints": 6,
-        "hitpoint_per_level": 6,
+        "creature_data": {
+            "level": 5,
+            "race": "elf",
+            "class": "wizard",
+            "characteristic": {
+                "strength": { "value": 10 },
+                "dexterity": { "value": 14 },
+                "constitution": { "value": 12 },
+                "intelligence": { "value": 18 },
+                "wisdom": { "value": 12 },
+                "charisma": { "value": 10 }
+            },
+            "movement": 5,
+            "armor": "unarmored",
+            "weapon": "dagger"
+        },
         "size": "Medium",
         "proficiency": {
             "armor_category": {
@@ -24,14 +37,6 @@
             },
             "Perception": "trained"
         },
-        "characteristics": {
-            "Strength": 10,
-            "Dexterity": 14,
-            "Constitution": 12,
-            "Intelligence": 18,
-            "Wisdom": 12,
-            "Charisma": 10
-        },
         "resources": {
             "hand": 2,
             "spellslot_1": 4,
@@ -42,7 +47,6 @@
             "fireball",
             "move",
             "remove_fear"
-        ],
-        "movement": 5
+        ]
     }
 }

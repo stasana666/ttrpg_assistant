@@ -46,7 +46,7 @@ void ApplyWeaponDamage(std::shared_ptr<TActionContext> ctx, const TBlockInput& i
 
     auto damage = std::make_shared<TDamage>();
 
-    int str = player->GetCreature()->GetCharacteristic(ECharacteristic::Strength).GetMod();
+    int str = player->GetCreature()->GetCharacteristic(ECharacteristic::Strength).Modifier();
     auto weapon_expr = std::make_unique<TSumExpression>(
         std::make_unique<TDiceExpression>(weapon->BaseDiceSize()),
         std::make_unique<TNumberExpression>(str));

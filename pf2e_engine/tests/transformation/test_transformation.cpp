@@ -46,7 +46,7 @@ TEST_F(TransformationTest, ChangeConditionAppliesValue) {
 }
 
 TEST_F(TransformationTest, ChangeConditionUndoRestoresPreviousValue) {
-    creature_->Set(ECondition::Frightened, 2);
+    TChangeCondition setup(creature_.get(), ECondition::Frightened, 2);
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 2);
 
     TChangeCondition change(creature_.get(), ECondition::Frightened, 5);
@@ -168,34 +168,34 @@ TEST_F(TransformatorTest, ChangeConditionUndoViaTransformator) {
 TEST_F(TransformatorTest, AddResourceViaTransformator) {
     TResourceId test_id = TResourceIdManager::Instance().Register("transformator_add_test");
 
-    EXPECT_EQ(creature_->Resources().Count(test_id), 0);
+    EXPECT_EQ(creature_->Resources()->Count(test_id), 0);
 
-    transformator_->AddResource(&creature_->Resources(), test_id, 5);
-    EXPECT_EQ(creature_->Resources().Count(test_id), 5);
+    transformator_->AddResource(creature_->Resources(), test_id, 5);
+    EXPECT_EQ(creature_->Resources()->Count(test_id), 5);
 }
 
 TEST_F(TransformatorTest, ReduceResourceViaTransformator) {
     TResourceId test_id = TResourceIdManager::Instance().Register("transformator_reduce_test");
-    creature_->Resources().Add(test_id, 10);
+    transformator_->AddResource(creature_->Resources(), test_id, 10);
 
-    transformator_->ReduceResource(&creature_->Resources(), test_id, 3);
-    EXPECT_EQ(creature_->Resources().Count(test_id), 7);
+    transformator_->ReduceResource(creature_->Resources(), test_id, 3);
+    EXPECT_EQ(creature_->Resources()->Count(test_id), 7);
 }
 
 TEST_F(TransformatorTest, ResourceUndoViaTransformator) {
     TResourceId test_id = TResourceIdManager::Instance().Register("transformator_undo_test");
-    creature_->Resources().Add(test_id, 10);
+    transformator_->AddResource(creature_->Resources(), test_id, 10);
 
     TState initial_state = transformator_->CurrentState();
 
-    transformator_->ReduceResource(&creature_->Resources(), test_id, 3);
-    EXPECT_EQ(creature_->Resources().Count(test_id), 7);
+    transformator_->ReduceResource(creature_->Resources(), test_id, 3);
+    EXPECT_EQ(creature_->Resources()->Count(test_id), 7);
 
-    transformator_->AddResource(&creature_->Resources(), test_id, 2);
-    EXPECT_EQ(creature_->Resources().Count(test_id), 9);
+    transformator_->AddResource(creature_->Resources(), test_id, 2);
+    EXPECT_EQ(creature_->Resources()->Count(test_id), 9);
 
     transformator_->Undo(initial_state);
-    EXPECT_EQ(creature_->Resources().Count(test_id), 10);
+    EXPECT_EQ(creature_->Resources()->Count(test_id), 10);
 }
 
 TEST_F(TransformatorTest, MixedTransformationsUndo) {
@@ -204,17 +204,17 @@ TEST_F(TransformatorTest, MixedTransformationsUndo) {
     TState initial_state = transformator_->CurrentState();
 
     transformator_->ChangeCondition(creature_.get(), ECondition::Frightened, 2);
-    transformator_->AddResource(&creature_->Resources(), test_id, 5);
+    transformator_->AddResource(creature_->Resources(), test_id, 5);
     transformator_->ChangeCondition(creature_.get(), ECondition::MultipleAttackPenalty, 5);
 
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 2);
-    EXPECT_EQ(creature_->Resources().Count(test_id), 5);
+    EXPECT_EQ(creature_->Resources()->Count(test_id), 5);
     EXPECT_EQ(creature_->Get(ECondition::MultipleAttackPenalty), 5);
 
     transformator_->Undo(initial_state);
 
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
-    EXPECT_EQ(creature_->Resources().Count(test_id), 0);
+    EXPECT_EQ(creature_->Resources()->Count(test_id), 0);
     EXPECT_EQ(creature_->Get(ECondition::MultipleAttackPenalty), 0);
 }
 

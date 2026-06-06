@@ -169,14 +169,14 @@ bool TBattle::IsRoundEnd() const
 
 void TBattle::GiveStartResource(TPlayer& player)
 {
-    assert(!player.GetCreature()->Resources().Count(kActionId));
-    transformator_.AddResource(&player.GetCreature()->Resources(), kActionId, 3);
+    assert(!player.GetCreature()->Resources()->Count(kActionId));
+    transformator_.AddResource(player.GetCreature()->Resources(), kActionId, 3);
 
     transformator_.AddTask(&scheduler_, TTask{
         .events_before_call = {TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{&player}}},
         .callback = [&player, this]() {
-            int resource_count = static_cast<int>(player.GetCreature()->Resources().Count(kActionId));
-            transformator_.ReduceResource(&player.GetCreature()->Resources(), kActionId, resource_count);
+            int resource_count = static_cast<int>(player.GetCreature()->Resources()->Count(kActionId));
+            transformator_.ReduceResource(player.GetCreature()->Resources(), kActionId, resource_count);
             return false;
         },
     });

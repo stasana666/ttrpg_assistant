@@ -116,10 +116,10 @@ class TBaz {                   // -> data class (FromJson / GetAst / RegisterDsl
 - **Derived fields (`derive`)**: a class field prefixed with `derive` is a **pure
   computed getter with no storage** — distinct from a computed default, which IS
   stored (its own slot, JSON-overridable, mutable in play). Syntax: `derive int
-  Modifier = (Value - 10) / 2;`. A `derive` field **must** have an initializer
+  Modifier = Value / 2 - 5;`. A `derive` field **must** have an initializer
   (parse error otherwise), its declared type must equal the initializer's inferred
   type (today the supported expression subset is int-only, so `derive` is effectively
-  `int`), and it is emitted as `int Modifier() const { return ((Value_ - 10) / 2); }`
+  `int`), and it is emitted as `int Modifier() const { return ((Value_ / 2) - 5); }`
   — no member, skipped in `FromJson` and `GetAst` (it has no independent state),
   auto-exposed to the DSL like any `int` getter. Its expression may reference stored
   sibling fields and member-access chains; a **bare** reference to another `derive`

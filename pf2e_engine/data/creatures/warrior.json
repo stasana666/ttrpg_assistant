@@ -2,9 +2,22 @@
     "name": "warrior",
     "type": "pf2e_creature",
     "pf2e_creature": {
-        "level": 1,
-        "race_hitpoints": 8,
-        "hitpoint_per_level": 10,
+        "creature_data": {
+            "level": 1,
+            "race": "human",
+            "class": "fighter",
+            "characteristic": {
+                "strength": { "value": 18 },
+                "dexterity": { "value": 12 },
+                "constitution": { "value": 16 },
+                "intelligence": { "value": 12 },
+                "wisdom": { "value": 13 },
+                "charisma": { "value": 13 }
+            },
+            "movement": 5,
+            "armor": "unarmored",
+            "weapon": "longsword"
+        },
         "size": "Medium",
         "proficiency": {
             "armor_category": {
@@ -32,14 +45,6 @@
             },
             "Perception": "expert"
         },
-        "characteristics": {
-            "Strength": 18,
-            "Dexterity": 12,
-            "Constitution": 16,
-            "Intelligence": 12,
-            "Wisdom": 13,
-            "Charisma": 13
-        },
         "equipped": {
             "weapons": [
                 {
@@ -54,7 +59,6 @@
             "move",
             "trip",
             "stand"
-        ],
-        "movement": 5
+        ]
     }
 }

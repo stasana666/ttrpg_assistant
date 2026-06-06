@@ -47,7 +47,7 @@ protected:
         auto players = battle.GetIfPlayers(
             [player_id](const TPlayer* p) { return p->GetId() == player_id; });
         EXPECT_FALSE(players.empty());
-        return players[0]->GetCreature()->Hitpoints().GetCurrentHp();
+        return players[0]->GetCreature()->Hitpoints()->GetCurrentHp();
     }
 
     TGameObjectFactory factory_;

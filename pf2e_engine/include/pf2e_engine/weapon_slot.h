@@ -1,7 +1,6 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
-#include <pf2e_engine/common/observable.h>
 #include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/resources.h>
 

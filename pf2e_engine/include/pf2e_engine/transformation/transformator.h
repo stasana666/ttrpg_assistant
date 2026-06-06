@@ -14,8 +14,8 @@ public:
     void Heal(TPlayer* player, int value);
 
     void ChangeCondition(TCreature* creature, ECondition condition, int new_value);
-    void AddResource(TResourcePool* pool, TResourceId id, int count);
-    void ReduceResource(TResourcePool* pool, TResourceId id, int count);
+    void AddResource(TGuarded<TResourcePool> pool, TResourceId id, int count);
+    void ReduceResource(TGuarded<TResourcePool> pool, TResourceId id, int count);
 
     void AddEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value);
     void RemoveEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value);

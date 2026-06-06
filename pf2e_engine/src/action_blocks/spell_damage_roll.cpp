@@ -6,6 +6,7 @@
 #include <pf2e_engine/mechanics/damage.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/resources.h>
+#include <pf2e_engine/transformation/transformator.h>
 
 #include <stdexcept>
 
@@ -37,7 +38,7 @@ void FSpellDamageRoll::operator()(std::shared_ptr<TActionContext> ctx) const
 
     for (const auto& [slot_name, expression] : damage_table) {
         TResourceId slot_id = TResourceIdManager::Instance().Register(slot_name);
-        if (caster->GetCreature()->Resources().HasResource(slot_id, 1)) {
+        if (caster->GetCreature()->Resources()->HasResource(slot_id, 1)) {
             alternatives.AddAlternative(slot_name, slot_name);
         }
     }
@@ -49,7 +50,7 @@ void FSpellDamageRoll::operator()(std::shared_ptr<TActionContext> ctx) const
     std::string chosen_slot = ctx->io_system->ChooseAlternative<std::string>(
         caster->GetId(), alternatives);
     TResourceId chosen_slot_id = TResourceIdManager::Instance().Register(chosen_slot);
-    caster->GetCreature()->Resources().Reduce(chosen_slot_id, 1);
+    ctx->transformator->ReduceResource(caster->GetCreature()->Resources(), chosen_slot_id, 1);
 
     auto damage = std::make_shared<TDamage>();
     const auto& expr = damage_table.at(chosen_slot);

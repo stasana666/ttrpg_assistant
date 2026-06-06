@@ -204,7 +204,12 @@
                 "level": { "type": "integer" },
                 "race": { "type": "string" },
                 "class": { "type": "string" },
-                "characteristic": { "type": "string" },
+                "characteristic": {
+                    "oneOf": [
+                        { "type": "string" },
+                        { "$ref": "#/$defs/pf2e_ability_scores_core" }
+                    ]
+                },
                 "movement": {
                     "type": "integer",
                     "default": 0
@@ -384,19 +389,7 @@
         "pf2e_creature_core": {
             "type": "object",
             "properties": {
-                "characteristics": { "$ref": "#/$defs/pf2e_creature_characteristics" },
-                "level": {
-                    "type": "integer"
-                },
-                "race_hitpoints": {
-                    "type": "integer"
-                },
-                "hitpoint_per_level": {
-                    "type": "integer"
-                },
-                "movement": {
-                    "type": "integer"
-                },
+                "creature_data": { "$ref": "#/$defs/pf2e_creature_data_core" },
                 "size": {
                     "type": "string",
                     "enum": ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
@@ -422,9 +415,7 @@
                 }
             },
             "required": [
-                "characteristics",
-                "level",
-                "race_hitpoints",
+                "creature_data",
                 "size"
             ],
             "additionalProperties": false
