@@ -96,19 +96,35 @@ class TBaz {                   // -> data class (FromJson / GetAst / RegisterDsl
   `max_int` / `min_int`. Class/variant fields have no defaults.
 - **Computed defaults**: a field's `= <expr>` may be an arithmetic expression
   (`+ - * /`, parens, int literals) over **sibling fields** referenced by their
-  PascalCase names, including **member access** into class-ref fields, e.g.
-  `BoundedQuantity Hitpoints = Race.Hitpoints + Level * (Class.Hitpoints +
-  Characteristic.Constitution);` (`Race.Hitpoints` lowers to the getter call
-  `r.Race_.Hitpoints()`). Like all defaults it is **JSON-overridable**: if the
-  JSON key is present the JSON value wins, otherwise the expression is
-  evaluated. Only `int` and `BoundedQuantity` fields may be computed (a
-  `BoundedQuantity` takes the int result as a full `{value, value}`); referenced
-  fields (and member targets) must be `int`. The classification — constant
-  default vs computed — is: a binary/member node, or a lone identifier naming a
-  sibling field, is *computed*; a literal or a lone non-field identifier (enum
-  value / `max_int`) is a *constant default* (unchanged `j.value` behavior,
-  existing schemas untouched). Computed fields are a **class** feature only —
-  variant alternative payloads reject non-constant initializers.
+  PascalCase names, including **member-access chains** of any depth into class-ref
+  fields, e.g. `BoundedQuantity Hitpoints = Race.Hitpoints + Level * (Class.Hitpoints +
+  Characteristic.Constitution.Modifier);` (`Race.Hitpoints` lowers to the getter
+  call `r.Race_.Hitpoints()`; `Characteristic.Constitution.Modifier` to
+  `r.Characteristic_.Constitution().Modifier()`). Each chain hop after the root must
+  be a field of the previous hop's (schema-declared) class type; the terminal field
+  must be `int` (it may itself be a `derive` field — member access into a derived
+  getter is fine). Like all defaults it is **JSON-overridable**: if the JSON key is
+  present the JSON value wins, otherwise the expression is evaluated. Only `int` and
+  `BoundedQuantity` fields may be computed (a `BoundedQuantity` takes the int result
+  as a full `{value, value}`); the whole expression and every arithmetic operand must
+  be `int`. The classification — constant default vs computed — is: a binary/member
+  node, or a lone identifier naming a sibling field, is *computed*; a literal or a
+  lone non-field identifier (enum value / `max_int`) is a *constant default*
+  (unchanged `j.value` behavior, existing schemas untouched). Computed fields are a
+  **class** feature only — variant alternative payloads reject non-constant
+  initializers.
+- **Derived fields (`derive`)**: a class field prefixed with `derive` is a **pure
+  computed getter with no storage** — distinct from a computed default, which IS
+  stored (its own slot, JSON-overridable, mutable in play). Syntax: `derive int
+  Modifier = (Value - 10) / 2;`. A `derive` field **must** have an initializer
+  (parse error otherwise), its declared type must equal the initializer's inferred
+  type (today the supported expression subset is int-only, so `derive` is effectively
+  `int`), and it is emitted as `int Modifier() const { return ((Value_ - 10) / 2); }`
+  — no member, skipped in `FromJson` and `GetAst` (it has no independent state),
+  auto-exposed to the DSL like any `int` getter. Its expression may reference stored
+  sibling fields and member-access chains; a **bare** reference to another `derive`
+  sibling is rejected (no storage to read). `derive` is a class-only feature (rejected
+  in `set<>` and in variant alternatives).
 - **Expression front-end is shared.** Initializer expressions are not parsed by
   the schema parser: the schema lexer raw-captures everything after `=` up to
   `;` into an `InitExpr` token, and `expr::Parse` (the shared
@@ -143,14 +159,18 @@ casing is uniform.)
 **Per enum**: `enum class EFoo`, `std::string ToString(EFoo)`,
 `EFoo EFooFromString(const std::string&)`.
 
-**Per class**: getters; `static T FromJson(const json&, const TGameObjectFactory&)`
-(primitives `j.at(key).get<T>()` or `j.value(key, default)`; enums via
-`FromString`; class fields via `factory.Create<T>(...Register(...))`; set
-fields loop-insert); `TAstNode GetAst(TAstContext&)` (`AddOwnedObject` for
-class/variant fields, `AddValueField` otherwise, container nodes for sets) plus
-a `TIsAstRecursive<T>` specialization; `static void RegisterDslProperties()`
-(only `int`/`bool` scalar fields; everything else emitted as a
-`// dsl: '...' skipped` comment). Generated classes carry an unused
+**Per class**: getters (a `derive` field's getter inlines its lowered
+expression; everything else returns the backing member); `static T FromJson(const
+json&, const TGameObjectFactory&)` (primitives `j.at(key).get<T>()` or
+`j.value(key, default)`; enums via `FromString`; **class fields dispatch on the
+JSON value's shape** — a string is a by-name `factory.Create<T>(...Register(...))`,
+an object is loaded inline via `T::FromJson(...)`; set fields loop-insert; `derive`
+fields are skipped — no storage to assign); `TAstNode GetAst(TAstContext&)`
+(`AddOwnedObject` for class/variant fields, `AddValueField` otherwise, container
+nodes for sets; `derive` fields skipped — no independent state) plus a
+`TIsAstRecursive<T>` specialization; `static void RegisterDslProperties()` (every
+`int`/`bool` scalar getter, **including `derive` getters**; everything else emitted
+as a `// dsl: '...' skipped` comment). Generated classes carry an unused
 `ast_layout_sentinel_` but **no** `AST_ASSERT_LAYOUT` — the schema is the source
 of truth, so the "edited fields without updating GetAst" failure mode is
 structurally impossible.
@@ -213,14 +233,19 @@ tests (below) lock the output, so any writer change shows up as a golden diff.
 
 ## Factory plumbing for class fields
 
-When a class type is loaded by name from JSON (e.g. `TArmor` has
-`TMaterial Material;` and armor JSON has `"material": "steel"`), the referenced
-class must be registered with `TGameObjectFactory`: its own
+A class field accepts **either** a by-name string ref **or** an inline object
+(the generated `FromJson` dispatches on `is_string()`). For the by-name form
+(e.g. `TArmor` has `TMaterial Material;` and armor JSON has `"material": "steel"`),
+the referenced class must be registered with `TGameObjectFactory`: its own
 `TFactoryStorage<T>`, a `Read<T>`, a branch in `GetFactoryStorage<T>`, and a
-`kReaderMapping` entry. Read methods for classes that themselves have class
-fields store **lazy** lambdas so refs resolve at `Create` time regardless of
-load order (the long-standing `ReadCreature` pattern). Variants load eagerly
-through their own `FromJson` and need no factory storage.
+`kReaderMapping` entry. **A class used only inline still needs the factory branch
+(`TFactoryStorage<T>` + `GetFactoryStorage<T>`) so the dead by-name branch in the
+generated ternary compiles** — e.g. `TAbilityScore` is always nested inside
+`TAbilityScores` yet has full factory plumbing (`pf2e_ability_score`). Read methods
+for classes that themselves have class fields store **lazy** lambdas so refs resolve
+at `Create` time regardless of load order (the long-standing `ReadCreature`
+pattern). Variants load eagerly through their own `FromJson` and need no factory
+storage.
 
 ## Build integration
 

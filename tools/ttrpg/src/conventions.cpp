@@ -105,9 +105,10 @@ std::string ScalarParseExpr(const TFieldDecl& f,
         case EFieldKind::Enum:
             return f.TypeName + "FromString(" + valExpr + ".get<std::string>())";
         case EFieldKind::Class:
-            return "factory.Create<" + f.TypeName +
-                   ">(TGameObjectIdManager::Instance().Register(" + valExpr +
-                   ".get<std::string>()))";
+            return "(" + valExpr + ").is_string() ? factory.Create<" + f.TypeName +
+                   ">(TGameObjectIdManager::Instance().Register((" + valExpr +
+                   ").get<std::string>())) : " + f.TypeName + "::FromJson(" + valExpr +
+                   ", factory)";
         case EFieldKind::Variant:
             return f.TypeName + "::FromJson(" + valExpr + ", factory)";
         case EFieldKind::BoundedQuantity:

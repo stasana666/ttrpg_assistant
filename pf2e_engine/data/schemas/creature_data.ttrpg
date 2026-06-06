@@ -8,7 +8,7 @@ class TCreatureData {
     TClass Class;
     TAbilityScores Characteristic;
     int Movement = 0;
-    BoundedQuantity Hitpoints = Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution);
+    BoundedQuantity Hitpoints = Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution.Modifier);
     TArmor Armor;
     TWeapon Weapon;
 }

@@ -135,7 +135,14 @@ private:
     TFieldDecl ParseField() {
         TFieldDecl f;
         std::string head = ExpectIdent("field type");
+        if (head == "derive") {
+            f.Derived = true;
+            head = ExpectIdent("field type after 'derive'");
+        }
         if (head == "set") {
+            if (f.Derived) {
+                ts_.Throw("'derive' cannot be applied to a 'set' field");
+            }
             f.Container = EContainer::Set;
             ts_.Expect(ETok::LAngle, "'<' after 'set'");
             f.TypeName = ExpectIdent("set element type");
@@ -153,6 +160,9 @@ private:
                 ts_.Throw("expected initializer expression after '='");
             }
             f.Init = expr::Parse(ts_.Consume().text);
+        }
+        if (f.Derived && !f.Init) {
+            ts_.Throw("derived field '" + f.Name + "' requires an initializer expression");
         }
         ts_.Expect(ETok::Semi, "';'");
         return f;

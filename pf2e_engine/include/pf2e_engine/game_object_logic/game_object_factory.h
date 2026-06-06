@@ -50,6 +50,7 @@ private:
     void ReadWeapon(nlohmann::json&, TGameObjectId);
     void ReadRace(nlohmann::json&, TGameObjectId);
     void ReadClass(nlohmann::json&, TGameObjectId);
+    void ReadAbilityScore(nlohmann::json&, TGameObjectId);
     void ReadAbilityScores(nlohmann::json&, TGameObjectId);
     void ReadCreatureData(nlohmann::json&, TGameObjectId);
     void ReadCreature(nlohmann::json&, TGameObjectId);
@@ -68,6 +69,7 @@ private:
     TFactoryStorage<TWeapon> weapons_;
     TFactoryStorage<TRace> races_;
     TFactoryStorage<TClass> classes_;
+    TFactoryStorage<TAbilityScore> ability_score_;
     TFactoryStorage<TAbilityScores> ability_scores_;
     TFactoryStorage<TCreatureData> creature_data_;
     TFactoryStorage<TCreature> creatures_;
@@ -93,6 +95,9 @@ auto TGameObjectFactory::GetFactoryStorage() const -> const TFactoryStorage<T>&
     } else
     if constexpr (std::is_same_v<T, TClass>) {
         return classes_;
+    } else
+    if constexpr (std::is_same_v<T, TAbilityScore>) {
+        return ability_score_;
     } else
     if constexpr (std::is_same_v<T, TAbilityScores>) {
         return ability_scores_;
