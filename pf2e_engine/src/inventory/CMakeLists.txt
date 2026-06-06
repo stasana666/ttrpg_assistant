@@ -135,7 +135,6 @@ add_dependencies(pf2e_engine pf2e_engine_generated_headers)
 
 target_sources(pf2e_engine
     PRIVATE
-        weapon_grips.cpp
         ${ARMOR_GEN_CPP}
         ${MATERIAL_GEN_CPP}
         ${WEAPON_GEN_CPP}

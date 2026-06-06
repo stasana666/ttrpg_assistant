@@ -19,7 +19,6 @@
 #include "proficiency.h"
 #include "resources.h"
 #include <pf2e_engine/inventory/weapon.h>
-#include <pf2e_engine/inventory/weapon_grips.h>
 
 #include <pf2e_engine/actions/action_reader.h>
 #include <pf2e_engine/creature_size.h>
@@ -223,20 +222,6 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 {
     TResourcePool resource_pool = ReadCreatureResources(json_game_object["resources"]);
 
-    std::vector<std::pair<TGameObjectId, int>> weapon_ids;
-    if (json_game_object.find("equipped") != json_game_object.end())
-    {
-        auto& equipped = json_game_object["equipped"];
-        for (const auto& weapon_json : equipped["weapons"]) {
-            weapon_ids.emplace_back([&]() -> std::pair<TGameObjectId, int> {
-                if (weapon_json["weapon"].is_object()) {
-                    throw std::runtime_error("definition new weapon in creature is not supported yet");
-                }
-                return { TGameObjectIdManager::Instance().Register(weapon_json["weapon"]), weapon_json["grip"] };
-            }());
-        }
-    }
-
     std::vector<TGameObjectId> actions;
     for (const auto& action : json_game_object["actions"]) {
         actions.emplace_back(TGameObjectIdManager::Instance().Register(action));
@@ -246,14 +231,6 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
     ECreatureSize size = CreatureSizeFromString(json_game_object["size"]);
 
     TProficiency proficiency = ReadProficiency(json_game_object, level);
-
-    std::vector<TWeapon> natural_weapons;
-    if (json_game_object.contains("natural_weapons")) {
-        for (auto& weapon_json : json_game_object["natural_weapons"]) {
-            natural_weapons.push_back(
-                TWeapon::FromJson(weapon_json["pf2e_weapon"], *this));
-        }
-    }
 
     std::vector<std::shared_ptr<TCreatureFeat>> feats;
     if (json_game_object.contains("feats")) {
@@ -274,25 +251,12 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
     }
 
-    creatures_.insert({id, [this, json_game_object, weapon_ids, resource_pool, actions, proficiency, size, feats, natural_weapons]() {
+    creatures_.insert({id, [this, json_game_object, resource_pool, actions, proficiency, size, feats]() {
         TCreatureData data = TCreatureData::FromJson(json_game_object.at("creature_data"), *this);
         THitPoints hp(data.Hitpoints().MaxValue());
         TCreature creature(std::move(data), proficiency, hp);
         creature.SetSize(size);
         creature.ResourcesForInit() = resource_pool;
-
-        auto hand_id = TResourceIdManager::Instance().Register("hand");
-
-        for (auto [weapon_id, hand_count] : weapon_ids) {
-            TWeapon weapon = this->Create<TWeapon>(weapon_id);
-            assert(ValidGrip(weapon, hand_count));
-            creature.Weapons().Equip({weapon, hand_count});
-
-            if (!creature.ResourcesForInit().HasResource(hand_id, hand_count)) {
-                throw std::runtime_error("too many weapon, not enough hands");
-            }
-            creature.ResourcesForInit().Reduce(hand_id, hand_count);
-        }
 
         for (auto action_id : actions) {
             creature.AddAction(Create<TAction>(action_id));
@@ -300,10 +264,6 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
         for (const auto& feat : feats) {
             creature.AddFeat(feat);
-        }
-
-        for (const auto& weapon : natural_weapons) {
-            creature.NaturalWeapons().push_back(weapon);
         }
 
         return creature;

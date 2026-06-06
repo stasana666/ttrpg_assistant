@@ -16,7 +16,7 @@
             },
             "movement": 7,
             "armor": "unarmored",
-            "weapon": "jaws"
+            "natural_weapons": ["jaws"]
         },
         "size": "Medium",
         "proficiency": {
@@ -46,18 +46,6 @@
         "actions": [
             "attack_with_weapon",
             "move"
-        ],
-        "natural_weapons": [
-            {
-                "type": "pf2e_weapon",
-                "name": "jaws",
-                "pf2e_weapon": {
-                    "name": "jaws",
-                    "base_dice_size": 6,
-                    "damage_type": "Piercing",
-                    "category": "Unarmed"
-                }
-            }
         ],
         "feats": [
             {

@@ -14,7 +14,6 @@ target_sources(pf2e_engine
         resources.cpp
         success_level.cpp
         scheduler.cpp
-        weapon_slot.cpp
 )
 
 target_include_directories(pf2e_engine

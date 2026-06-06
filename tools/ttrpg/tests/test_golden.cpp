@@ -57,3 +57,7 @@ TEST(GoldenTest, Variant) {
 TEST(GoldenTest, Computed) {
     CheckGolden("computed");
 }
+
+TEST(GoldenTest, Collection) {
+    CheckGolden("collection");
+}

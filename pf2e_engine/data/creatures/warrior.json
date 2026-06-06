@@ -16,7 +16,7 @@
             },
             "movement": 5,
             "armor": "unarmored",
-            "weapon": "longsword"
+            "weapons": ["longsword"]
         },
         "size": "Medium",
         "proficiency": {
@@ -44,14 +44,6 @@
                 "Intimidation": "trained"
             },
             "Perception": "expert"
-        },
-        "equipped": {
-            "weapons": [
-                {
-                    "weapon": "longsword",
-                    "grip": 1
-                }
-            ]
         },
         "actions": [
             "attack_with_weapon",

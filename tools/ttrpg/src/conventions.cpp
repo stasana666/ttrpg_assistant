@@ -172,6 +172,8 @@ std::string CppMemberType(const TFieldDecl& f,
                 return "TVariantMap<" + VariantKindEnum(f.TypeName) + ", " + f.TypeName + ">";
             }
             return "std::set<" + f.TypeName + ">";
+        case EContainer::Collection:
+            return "TIdCollection<" + f.TypeName + ">";
     }
     return CppTypeFor(f.TypeName);
 }

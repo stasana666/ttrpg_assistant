@@ -15,6 +15,7 @@ struct TEnumDecl {
 enum class EContainer {
     None,
     Set,
+    Collection,
 };
 
 struct TFieldDecl {

@@ -53,8 +53,12 @@ TEST(CreatureDataTest, WarriorDataLoads) {
 
     EXPECT_EQ(data.Armor().Category(), EArmorCategory::Heavy);
     EXPECT_EQ(data.Armor().ArmorClassBonus(), 6);
-    EXPECT_EQ(data.Weapon().Category(), EWeaponCategory::Martial);
-    EXPECT_EQ(data.Weapon().BaseDiceSize(), 6);
+
+    ASSERT_EQ(data.Weapons().Size(), 1u);
+    const TWeapon& weapon = *(*data.Weapons().begin());
+    EXPECT_EQ(weapon.Category(), EWeaponCategory::Martial);
+    EXPECT_EQ(weapon.BaseDiceSize(), 6);
+    EXPECT_EQ(data.NaturalWeapons().Size(), 0u);
 }
 
 namespace {
@@ -66,7 +70,7 @@ nlohmann::json WarriorJson() {
         {"class", "fighter"},
         {"characteristic", "warrior_abilities"},
         {"armor", "fullplate"},
-        {"weapon", "longsword"},
+        {"weapons", {"longsword"}},
     };
 }
 

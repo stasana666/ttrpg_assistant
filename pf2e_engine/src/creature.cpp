@@ -55,32 +55,14 @@ TGuarded<TResourcePool> TCreature::Resources()
     return TGuarded<TResourcePool>(resources_);
 }
 
-TWeaponSlots& TCreature::Weapons()
-{
-    return weapons_;
-}
-
-std::vector<TWeapon>& TCreature::NaturalWeapons()
-{
-    return natural_weapons_;
-}
-
-const std::vector<TWeapon>& TCreature::NaturalWeapons() const
-{
-    return natural_weapons_;
-}
-
 int TCreature::MaxWeaponReach() const
 {
     int reach = 0;
-    auto consider = [&](const TWeapon& w) {
-        reach = std::max(reach, w.Reach());
-    };
-    for (size_t i = 0; i < weapons_.Size(); ++i) {
-        consider(weapons_.WeaponAt(i));
+    for (auto weapon : Weapons()) {
+        reach = std::max(reach, weapon->Reach());
     }
-    for (const TWeapon& weapon : natural_weapons_) {
-        consider(weapon);
+    for (auto weapon : NaturalWeapons()) {
+        reach = std::max(reach, weapon->Reach());
     }
     return reach;
 }
@@ -209,7 +191,7 @@ TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& react
 
 TAstNode TCreature::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 888;
+    static constexpr size_t kExpectedSize = 840;
     AST_ASSERT_LAYOUT(TCreature, kExpectedSize);
 
     const std::string my_id = ctx.IdentityOf(this);
@@ -230,13 +212,6 @@ TAstNode TCreature::GetAst(TAstContext& ctx) const
     AddOwnedObject(node, "resolver", resolver_, ctx);
     AddOwnedObject(node, "resources", resources_, ctx);
     AddValueField(node, "size", size_);
-    AddOwnedObject(node, "weapons", weapons_, ctx);
-
-    TAstNode natural = TAstNode::MakeObject("natural_weapons");
-    for (size_t i = 0; i < natural_weapons_.size(); ++i) {
-        AddOwnedObject(natural, std::to_string(i), natural_weapons_[i], ctx);
-    }
-    node.AddChild("natural_weapons", std::move(natural));
 
     node.AddChild("actions", GetActionListAst(actions_));
     node.AddChild("reactions", GetReactionListAst(reactions_));
