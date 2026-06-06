@@ -26,7 +26,10 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
         w.PublicSection([&] {
             for (const auto& f : c.Fields) {
                 std::string mt = CppMemberType(f, symbols);
-                if (f.Container != EContainer::None) {
+                if (f.Derived) {
+                    w.Line(mt + " " + f.Name + "() const { return " +
+                           InitExprToCpp(*f.Init, "") + "; }");
+                } else if (f.Container != EContainer::None) {
                     w.Line("const " + mt + "& " + f.Name + "() const { return " + f.Name + "_; }");
                 } else {
                     w.Line(mt + " " + f.Name + "() const { return " + f.Name + "_; }");
@@ -45,6 +48,9 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
         }
         w.PrivateSection([&] {
             for (const auto& f : c.Fields) {
+                if (f.Derived) {
+                    continue;
+                }
                 std::string mt = CppMemberType(f, symbols);
                 std::string init;
                 if (f.Container != EContainer::None) {
@@ -80,6 +86,11 @@ void EmitVariantDecl(TCppWriter& w, const TVariantDecl& v,
         w.Struct(PayloadStructName(v.Name, alt.Name), [&] {
             w.Line("static constexpr auto Kind = " + kindEnum + "::" + alt.Name + ";");
             for (const auto& f : alt.Fields) {
+                if (f.Derived) {
+                    throw std::runtime_error(
+                        "'derive' is not supported in variant alternative '" + alt.Name +
+                        "' (field '" + f.Name + "')");
+                }
                 std::string mt = CppMemberType(f, symbols);
                 std::string init = "{}";
                 if (f.Init) {
@@ -341,6 +352,9 @@ void EmitClassImpl(TCppWriter& w,
         w.Line("TAstNode node = TAstNode::MakeObject(\"" + c.Name + "\");");
         for (size_t i = 0; i < c.Fields.size(); ++i) {
             const auto& f = c.Fields[i];
+            if (f.Derived) {
+                continue;
+            }
             std::string key = PascalToSnake(f.Name);
             if (f.Container == EContainer::Set && IsVariantType(f.TypeName, symbols)) {
                 w.Block("{", "}", [&] {

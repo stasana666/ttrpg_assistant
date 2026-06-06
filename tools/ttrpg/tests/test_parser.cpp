@@ -94,6 +94,29 @@ TEST(ParserTest, VariantThreeAlternativeForms) {
     EXPECT_EQ(v.Alternatives[2].Fields[0].Init->Text, "1");
 }
 
+TEST(ParserTest, DeriveFieldParsed) {
+    TSchemaModule m = ParseSrc(
+        "class TC { int Value; derive int Modifier = (Value - 10) / 2; }\n");
+    const TClassDecl& c = m.Classes.at(0);
+    ASSERT_EQ(c.Fields.size(), 2u);
+    EXPECT_FALSE(c.Fields[0].Derived);
+    EXPECT_TRUE(c.Fields[1].Derived);
+    EXPECT_EQ(c.Fields[1].TypeName, "int");
+    EXPECT_EQ(c.Fields[1].Name, "Modifier");
+    ASSERT_TRUE(c.Fields[1].Init.has_value());
+    EXPECT_EQ(c.Fields[1].Init->Kind, expr::ENodeKind::Binary);
+}
+
+TEST(ParserTest, DeriveWithoutInitThrows) {
+    EXPECT_THROW(ParseSrc("class TC { int Value; derive int Modifier; }\n"),
+                 std::runtime_error);
+}
+
+TEST(ParserTest, DeriveSetThrows) {
+    EXPECT_THROW(ParseSrc("enum E { A, }\nclass TC { derive set<E> Tags = 1; }\n"),
+                 std::runtime_error);
+}
+
 TEST(ParserTest, ImportsRecorded) {
     TSchemaModule m = ParseSrc("import \"dice.ttrpg\";\nenum E { A, }\n");
     ASSERT_EQ(m.Imports.size(), 1u);

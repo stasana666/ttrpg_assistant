@@ -16,4 +16,4 @@ std::vector<std::size_t> FieldInitOrder(
     const TClassDecl& c,
     const std::unordered_map<std::string, const TClassDecl*>& classes);
 
-std::string InitExprToCpp(const expr::TExprNode& e);
+std::string InitExprToCpp(const expr::TExprNode& e, const std::string& selfPrefix = "r.");

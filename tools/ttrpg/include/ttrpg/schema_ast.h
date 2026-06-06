@@ -22,6 +22,7 @@ struct TFieldDecl {
     EContainer Container = EContainer::None;
     std::string Name;
     std::optional<expr::TExprNode> Init;
+    bool Derived = false;
 };
 
 struct TClassDecl {

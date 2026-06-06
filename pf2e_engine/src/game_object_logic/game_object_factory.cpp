@@ -34,6 +34,7 @@ TGameObjectFactory::kReaderMapping = {
     {"pf2e_weapon", &TGameObjectFactory::ReadWeapon},
     {"pf2e_race", &TGameObjectFactory::ReadRace},
     {"pf2e_class", &TGameObjectFactory::ReadClass},
+    {"pf2e_ability_score", &TGameObjectFactory::ReadAbilityScore},
     {"pf2e_ability_scores", &TGameObjectFactory::ReadAbilityScores},
     {"pf2e_creature_data", &TGameObjectFactory::ReadCreatureData},
     {"pf2e_creature", &TGameObjectFactory::ReadCreature},
@@ -144,6 +145,12 @@ void TGameObjectFactory::ReadClass(nlohmann::json& json_game_object, TGameObject
 {
     TClass result = TClass::FromJson(json_game_object, *this);
     classes_.insert({id, [result]() { return result; }});
+}
+
+void TGameObjectFactory::ReadAbilityScore(nlohmann::json& json_game_object, TGameObjectId id)
+{
+    TAbilityScore result = TAbilityScore::FromJson(json_game_object, *this);
+    ability_score_.insert({id, [result]() { return result; }});
 }
 
 void TGameObjectFactory::ReadAbilityScores(nlohmann::json& json_game_object, TGameObjectId id)

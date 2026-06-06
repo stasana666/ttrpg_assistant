@@ -161,16 +161,26 @@
             ]
         },
 
+        "pf2e_ability_score_core": {
+            "type": "object",
+            "properties": {
+                "value": { "type": "integer" }
+            },
+            "required": ["value"],
+            "additionalProperties": false
+        },
+
         "pf2e_ability_scores_core": {
             "type": "object",
             "properties": {
-                "strength": { "type": "integer" },
-                "dexterity": { "type": "integer" },
-                "constitution": { "type": "integer" },
-                "intelligence": { "type": "integer" },
-                "wisdom": { "type": "integer" },
-                "charisma": { "type": "integer" }
+                "strength": { "$ref": "#/$defs/pf2e_ability_score_core" },
+                "dexterity": { "$ref": "#/$defs/pf2e_ability_score_core" },
+                "constitution": { "$ref": "#/$defs/pf2e_ability_score_core" },
+                "intelligence": { "$ref": "#/$defs/pf2e_ability_score_core" },
+                "wisdom": { "$ref": "#/$defs/pf2e_ability_score_core" },
+                "charisma": { "$ref": "#/$defs/pf2e_ability_score_core" }
             },
+            "required": ["strength", "dexterity", "constitution", "intelligence", "wisdom", "charisma"],
             "additionalProperties": false
         },
 

@@ -137,3 +137,50 @@ TEST(AnalyzeTest, MemberAccessUnknownMemberThrows) {
         "class TC { TPart Part; int X = Part.Missing; }\n");
     EXPECT_THROW(FieldInitOrder(m.Classes.at(1), ClassMap(m)), std::runtime_error);
 }
+
+TEST(AnalyzeTest, DeriveExcludedFromInitOrder) {
+    TClassDecl c = ParseClass(
+        "class TC { int Value; derive int Modifier = (Value - 10) / 2; }\n");
+    std::vector<size_t> order = FieldInitOrder(c, {});
+    EXPECT_EQ(order, (std::vector<size_t>{0}));
+}
+
+TEST(AnalyzeTest, DeriveGetterLowersWithSelfPrefix) {
+    TClassDecl c = ParseClass(
+        "class TC { int Value; derive int Modifier = (Value - 10) / 2; }\n");
+    EXPECT_EQ(InitExprToCpp(c.Fields.at(1).Init.value(), ""), "((Value_ - 10) / 2)");
+}
+
+TEST(AnalyzeTest, DeriveTypeMismatchThrows) {
+    TClassDecl c = ParseClass("class TC { int Value; derive bool Flag = Value - 1; }\n");
+    EXPECT_THROW(FieldInitOrder(c, {}), std::runtime_error);
+}
+
+TEST(AnalyzeTest, BareReferenceToDeriveFieldThrows) {
+    TClassDecl c = ParseClass(
+        "class TC { int Value; derive int A = Value; derive int B = A; }\n");
+    EXPECT_THROW(FieldInitOrder(c, {}), std::runtime_error);
+}
+
+TEST(AnalyzeTest, MemberAccessIntoDeriveFieldLowers) {
+    TSchemaModule m = ParseModule(
+        "class TInner { int X; derive int Y = X * 2; }\n"
+        "class TC { int Base; TInner Inner; int Z = Inner.Y + Base; }\n");
+    const TClassDecl& c = m.Classes.at(1);
+    std::vector<size_t> order = FieldInitOrder(c, ClassMap(m));
+    ASSERT_EQ(order.size(), 3u);
+    EXPECT_LT(PosOf(order, 1), PosOf(order, 2));
+    EXPECT_EQ(InitExprToCpp(c.Fields.at(2).Init.value()), "(r.Inner_.Y() + r.Base_)");
+}
+
+TEST(AnalyzeTest, TwoLevelMemberChainValidatesAndLowers) {
+    TSchemaModule m = ParseModule(
+        "class TLeaf { int X; }\n"
+        "class TMid { TLeaf Leaf; }\n"
+        "class TC { TMid Mid; int Z = Mid.Leaf.X; }\n");
+    const TClassDecl& c = m.Classes.at(2);
+    std::vector<size_t> order = FieldInitOrder(c, ClassMap(m));
+    ASSERT_EQ(order.size(), 2u);
+    EXPECT_LT(PosOf(order, 0), PosOf(order, 1));
+    EXPECT_EQ(InitExprToCpp(c.Fields.at(1).Init.value()), "r.Mid_.Leaf().X()");
+}

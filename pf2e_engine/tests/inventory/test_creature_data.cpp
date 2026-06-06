@@ -43,7 +43,10 @@ TEST(CreatureDataTest, WarriorDataLoads) {
 
     EXPECT_EQ(data.Race().Hitpoints(), 8);
     EXPECT_EQ(data.Class().Hitpoints(), 10);
-    EXPECT_EQ(data.Characteristic().Constitution(), 3);
+    EXPECT_EQ(data.Characteristic().Constitution().Value(), 16);
+    EXPECT_EQ(data.Characteristic().Constitution().Modifier(), 3);
+    EXPECT_EQ(data.Characteristic().Strength().Value(), 18);
+    EXPECT_EQ(data.Characteristic().Strength().Modifier(), 4);
 
     EXPECT_EQ(data.Hitpoints().CurrentValue(), 21);
     EXPECT_EQ(data.Hitpoints().MaxValue(), 21);

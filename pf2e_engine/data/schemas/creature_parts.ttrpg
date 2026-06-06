@@ -6,11 +6,16 @@ class TClass {
     int Hitpoints;
 }
 
+class TAbilityScore {
+    int Value;
+    derive int Modifier = (Value - 10) / 2;
+}
+
 class TAbilityScores {
-    int Strength = 10;
-    int Dexterity = 10;
-    int Constitution = 10;
-    int Intelligence = 10;
-    int Wisdom = 10;
-    int Charisma = 10;
+    TAbilityScore Strength;
+    TAbilityScore Dexterity;
+    TAbilityScore Constitution;
+    TAbilityScore Intelligence;
+    TAbilityScore Wisdom;
+    TAbilityScore Charisma;
 }

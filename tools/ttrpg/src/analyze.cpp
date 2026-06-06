@@ -33,16 +33,16 @@ std::string BinOpToCpp(expr::EBinaryOp op) {
     }
 }
 
-void ValidateComputed(const expr::TExprNode& e,
-                      const TClassDecl& c,
-                      const std::unordered_map<std::string, const TClassDecl*>& classes,
-                      const std::unordered_map<std::string, std::size_t>& index,
-                      std::vector<std::size_t>& deps) {
+std::string InferAndValidate(const expr::TExprNode& e,
+                             const TClassDecl& c,
+                             const std::unordered_map<std::string, const TClassDecl*>& classes,
+                             const std::unordered_map<std::string, std::size_t>& index,
+                             std::vector<std::size_t>& deps) {
     using K = expr::ENodeKind;
     const std::string where = " (in class '" + c.Name + "')";
     switch (e.Kind) {
         case K::IntLiteral:
-            return;
+            return "int";
         case K::Var: {
             if (e.HasDollar) {
                 throw std::runtime_error("'$' variables are not supported in computed defaults" + where);
@@ -51,49 +51,44 @@ void ValidateComputed(const expr::TExprNode& e,
             if (it == index.end()) {
                 throw std::runtime_error("unknown field '" + e.Text + "' referenced in initializer" + where);
             }
-            if (!IsBuiltinInt(c.Fields[it->second].TypeName)) {
-                throw std::runtime_error("field '" + e.Text + "' referenced in initializer must be int" + where);
+            const TFieldDecl& field = c.Fields[it->second];
+            if (field.Derived) {
+                throw std::runtime_error("cannot reference derived field '" + e.Text +
+                                         "' by bare name in an initializer (it has no storage)" + where);
             }
             deps.push_back(it->second);
-            return;
+            return field.TypeName;
         }
         case K::Member: {
-            if (e.Lhs->Kind != K::Var || e.Lhs->HasDollar) {
-                throw std::runtime_error("member access base must be a sibling field" + where);
-            }
-            const std::string& base = e.Lhs->Text;
-            auto it = index.find(base);
-            if (it == index.end()) {
-                throw std::runtime_error("unknown field '" + base + "' in member access" + where);
-            }
-            const TFieldDecl& base_field = c.Fields[it->second];
-            auto cls = classes.find(base_field.TypeName);
+            std::string baseType = InferAndValidate(*e.Lhs, c, classes, index, deps);
+            auto cls = classes.find(baseType);
             if (cls == classes.end()) {
-                throw std::runtime_error("field '" + base + "' is not a class; cannot access member '" +
+                throw std::runtime_error("'" + baseType + "' is not a class; cannot access member '" +
                                          e.Text + "'" + where);
             }
             const TFieldDecl* member = FindField(*cls->second, e.Text);
             if (member == nullptr) {
-                throw std::runtime_error("class '" + base_field.TypeName + "' has no field '" + e.Text + "'" + where);
+                throw std::runtime_error("class '" + baseType + "' has no field '" + e.Text + "'" + where);
             }
-            if (!IsBuiltinInt(member->TypeName)) {
-                throw std::runtime_error("member '" + base_field.TypeName + "." + e.Text + "' must be int" + where);
-            }
-            deps.push_back(it->second);
-            return;
+            return member->TypeName;
         }
-        case K::Binary:
+        case K::Binary: {
             if (!IsArithmetic(e.BinOp)) {
                 throw std::runtime_error("comparison/logical operators are not supported in computed defaults" + where);
             }
-            ValidateComputed(*e.Lhs, c, classes, index, deps);
-            ValidateComputed(*e.Rhs, c, classes, index, deps);
-            return;
+            std::string lt = InferAndValidate(*e.Lhs, c, classes, index, deps);
+            std::string rt = InferAndValidate(*e.Rhs, c, classes, index, deps);
+            if (!IsBuiltinInt(lt) || !IsBuiltinInt(rt)) {
+                throw std::runtime_error("arithmetic operands must be int" + where);
+            }
+            return "int";
+        }
         case K::Call:
             throw std::runtime_error("function calls are not supported in computed defaults" + where);
         case K::Unary:
             throw std::runtime_error("unary operators are not supported in computed defaults" + where);
     }
+    throw std::runtime_error("unsupported node in computed initializer" + where);
 }
 
 }
@@ -114,18 +109,18 @@ bool InitIsComputed(const expr::TExprNode& e, const std::unordered_set<std::stri
     return false;
 }
 
-std::string InitExprToCpp(const expr::TExprNode& e) {
+std::string InitExprToCpp(const expr::TExprNode& e, const std::string& selfPrefix) {
     using K = expr::ENodeKind;
     switch (e.Kind) {
         case K::IntLiteral:
             return e.Text;
         case K::Var:
-            return "r." + e.Text + "_";
+            return selfPrefix + e.Text + "_";
         case K::Member:
-            return InitExprToCpp(*e.Lhs) + "." + e.Text + "()";
+            return InitExprToCpp(*e.Lhs, selfPrefix) + "." + e.Text + "()";
         case K::Binary:
-            return "(" + InitExprToCpp(*e.Lhs) + " " + BinOpToCpp(e.BinOp) + " " +
-                   InitExprToCpp(*e.Rhs) + ")";
+            return "(" + InitExprToCpp(*e.Lhs, selfPrefix) + " " + BinOpToCpp(e.BinOp) + " " +
+                   InitExprToCpp(*e.Rhs, selfPrefix) + ")";
         case K::Call:
         case K::Unary:
             break;
@@ -144,8 +139,20 @@ std::vector<std::size_t> FieldInitOrder(
     }
 
     std::vector<std::vector<std::size_t>> deps(c.Fields.size());
+    std::vector<bool> derived(c.Fields.size(), false);
     for (std::size_t i = 0; i < c.Fields.size(); ++i) {
         const TFieldDecl& f = c.Fields[i];
+        if (f.Derived) {
+            derived[i] = true;
+            std::vector<std::size_t> ignored;
+            std::string t = InferAndValidate(*f.Init, c, classes, index, ignored);
+            if (t != f.TypeName) {
+                throw std::runtime_error(
+                    "derived field '" + f.Name + "' in class '" + c.Name + "' is declared '" +
+                    f.TypeName + "' but its initializer expression has type '" + t + "'");
+            }
+            continue;
+        }
         if (!f.Init || !InitIsComputed(*f.Init, field_names)) {
             continue;
         }
@@ -154,11 +161,21 @@ std::vector<std::size_t> FieldInitOrder(
                 "computed field '" + f.Name + "' in class '" + c.Name +
                 "' must be int or BoundedQuantity");
         }
-        ValidateComputed(*f.Init, c, classes, index, deps[i]);
+        std::string t = InferAndValidate(*f.Init, c, classes, index, deps[i]);
+        if (!IsBuiltinInt(t)) {
+            throw std::runtime_error(
+                "computed field '" + f.Name + "' in class '" + c.Name +
+                "' initializer must evaluate to int");
+        }
     }
 
     enum class EMark { White, Gray, Black };
     std::vector<EMark> mark(c.Fields.size(), EMark::White);
+    for (std::size_t i = 0; i < c.Fields.size(); ++i) {
+        if (derived[i]) {
+            mark[i] = EMark::Black;
+        }
+    }
     std::vector<std::size_t> order;
     order.reserve(c.Fields.size());
 

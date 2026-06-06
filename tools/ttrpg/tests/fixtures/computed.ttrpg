@@ -2,6 +2,11 @@ class TPart {
     int Bonus;
 }
 
+class TAbility {
+    int Value;
+    derive int Modifier = (Value - 10) / 2;
+}
+
 class TStats {
     BoundedQuantity Health = Base + Level * PerLevel;
     int Base;
@@ -10,4 +15,6 @@ class TStats {
     int Total = Base + PerLevel;
     TPart Part;
     int Boosted = Part.Bonus + Base;
+    TAbility Ability;
+    int ModBoost = Ability.Modifier + Base;
 }

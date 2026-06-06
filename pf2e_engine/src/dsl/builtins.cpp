@@ -30,6 +30,7 @@ void RegisterAll() {
     TWeapon::RegisterDslProperties();
     TRace::RegisterDslProperties();
     TClass::RegisterDslProperties();
+    TAbilityScore::RegisterDslProperties();
     TAbilityScores::RegisterDslProperties();
     TCreatureData::RegisterDslProperties();
 
