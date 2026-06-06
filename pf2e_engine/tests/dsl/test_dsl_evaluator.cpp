@@ -19,7 +19,6 @@
 
 namespace {
 
-// Construct a TWeapon for testing using the generated FromJson path.
 TWeapon MakeWeapon(const std::string& name, int dice, const std::string& damage,
                    const std::string& category, int reach) {
     nlohmann::json j = {
@@ -33,7 +32,7 @@ TWeapon MakeWeapon(const std::string& name, int dice, const std::string& damage,
     return TWeapon::FromJson(j, factory);
 }
 
-}  // namespace
+}
 
 namespace {
 
@@ -56,7 +55,7 @@ protected:
     TEvalContext ctx_;
 };
 
-}  // namespace
+}
 
 TEST_F(DslEvaluatorTest, RegistryVariableLookup) {
     Bind("x", 42);

@@ -15,7 +15,7 @@ void PrintCombatant(const TCombatantStats& stats, size_t iterations)
               << "death " << death_rate * 100.0 << "%\n";
 }
 
-}  // namespace
+}
 
 int main(int argc, char** argv)
 {

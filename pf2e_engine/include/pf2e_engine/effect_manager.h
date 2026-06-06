@@ -32,20 +32,11 @@ class TEffectManager {
 public:
     TEffectCanceler AddEffect(TEffect effect, TTransformator& transformator);
 
-    // Fully clears every effect contributing to (player, condition) and the
-    // resulting condition value on the creature. Crucially, the cancellation
-    // propagates to any scheduled task that captured a copy of the canceler
-    // (e.g. Frightened's per-turn ReduceUntilZero task) — so the condition
-    // cannot resurrect itself on the next turn. For conditions that were set
-    // directly via TTransformator::ChangeCondition (no effect_manager state,
-    // e.g. Prone), falls back to ChangeCondition(0).
     void ClearCondition(TPlayer* player, ECondition condition, TTransformator& transformator);
 
-    // Methods for transformation undo access
     void InsertValue(TPlayer* player, ECondition condition, int value);
     void EraseValue(TPlayer* player, ECondition condition, int value);
 
-    // Get the current highest value for a player/condition pair (0 if none)
     int GetHighestValue(TPlayer* player, ECondition condition) const;
 
     TAstNode GetAst(TAstContext& ctx) const;

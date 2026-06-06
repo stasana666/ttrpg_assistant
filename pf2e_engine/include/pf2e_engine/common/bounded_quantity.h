@@ -1,10 +1,5 @@
 #pragma once
 
-// A bounded quantity: a current value paired with its maximum. The `.ttrpg`
-// language's built-in `BoundedQuantity` field type lowers to this hand-written
-// runtime type -- the same arrangement by which `set<Variant>` lowers to the
-// hand-written TVariantMap. The generator never emits this type; it only
-// references it (FromJson / GetAst), so there is exactly one definition.
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
 
@@ -16,7 +11,6 @@ class TBoundedQuantity {
 public:
     TBoundedQuantity() = default;
     TBoundedQuantity(int current, int max);
-    // Full: current == max == value. Used by computed `= <expr>` initializers.
     explicit TBoundedQuantity(int value);
 
     int CurrentValue() const { return current_value_; }

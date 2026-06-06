@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/expressions/base_expression.h>
-#include <pf2e_engine/inventory/damage.h>  // generated; defines EDamageType
+#include <pf2e_engine/inventory/damage.h>
 
 #include <memory>
 #include <unordered_map>

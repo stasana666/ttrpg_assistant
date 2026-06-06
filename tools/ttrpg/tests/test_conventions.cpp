@@ -26,7 +26,7 @@ std::unordered_map<std::string, TTypeInfo> Symbols() {
     };
 }
 
-}  // namespace
+}
 
 TEST(ConventionsTest, PascalToSnake) {
     EXPECT_EQ(PascalToSnake("FooBar"), "foo_bar");
@@ -38,7 +38,7 @@ TEST(ConventionsTest, PascalToSnake) {
 TEST(ConventionsTest, VariantNaming) {
     EXPECT_EQ(VariantKindEnum("TWeaponTrait"), "EWeaponTraitKind");
     EXPECT_EQ(VariantKindEnum("TEffect"), "EEffectKind");
-    EXPECT_EQ(VariantKindEnum("Foo"), "EFooKind");  // no leading T
+    EXPECT_EQ(VariantKindEnum("Foo"), "EFooKind");
     EXPECT_EQ(PayloadStructName("TWeaponTrait", "Fatal"), "TWeaponTraitFatal");
 }
 
@@ -62,7 +62,6 @@ TEST(ConventionsTest, CppMemberTypeForSets) {
 
 TEST(ConventionsTest, BoundedQuantityIsBuiltinValueType) {
     auto sym = Symbols();
-    // Recognized without a symbol-table entry (it's a built-in keyword).
     EXPECT_TRUE(IsBuiltinBoundedQuantity("BoundedQuantity"));
     EXPECT_FALSE(IsBuiltinBoundedQuantity("int"));
     EXPECT_EQ(FieldKindOf(Field("BoundedQuantity", "Hp"), sym), EFieldKind::BoundedQuantity);

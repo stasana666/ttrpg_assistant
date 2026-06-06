@@ -87,7 +87,6 @@ TAstNode TCharacteristicSet::GetAst(TAstContext& ctx) const
     return node;
 }
 
-////////////////////////////////////////////////////////////////////
 
 ECharacteristic CharacteristicFromString(std::string_view sv)
 {

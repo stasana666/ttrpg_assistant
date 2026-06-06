@@ -66,8 +66,6 @@ EBlockType BlockTypeFromString(const std::string& type)
 
 void TFunctionCallBlock::Apply(std::shared_ptr<TActionContext> ctx)
 {
-    // Run the wrapped function, then advance to the next block. continuation::Then
-    // keeps the "advance" scheduled even if the function suspends partway.
     continuation::Then(
         [this, ctx]() { apply_(ctx); },
         [this, ctx]() { ctx->next_block = next_; });
@@ -104,10 +102,6 @@ void TForEachBlock::Apply(std::shared_ptr<TActionContext> ctx)
         }
     }, input_.Get(kListId, ctx));
 
-    // ForEachOwned owns its copy of `targets`, so the elements survive a
-    // suspension; body_ is a stable member, so the iterator-based ForEach is
-    // safe for it. The outer Then defers ctx->next_block until the whole loop
-    // -- however many times it suspends -- has finished.
     continuation::Then(
         [this, ctx, targets]() {
             continuation::ForEachOwned(targets, [this, ctx](TPlayer* target) {

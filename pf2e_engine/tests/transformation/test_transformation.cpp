@@ -293,7 +293,6 @@ TEST_F(EffectTransformationTest, EffectManagerAddEffectWithTransformator) {
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 3);
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 3);
 
-    // Undo should restore both effect manager state and creature condition
     transformator_->Undo(initial_state);
 
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 0);
@@ -303,7 +302,6 @@ TEST_F(EffectTransformationTest, EffectManagerAddEffectWithTransformator) {
 TEST_F(EffectTransformationTest, MultipleEffectsWithUndo) {
     TState initial_state = transformator_->CurrentState();
 
-    // Add first effect with value 2
     effect_manager_->AddEffect(TPlayerConditionSet{
         .player = player_.get(),
         .condition = ECondition::Frightened,
@@ -313,7 +311,6 @@ TEST_F(EffectTransformationTest, MultipleEffectsWithUndo) {
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 2);
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 2);
 
-    // Add second effect with value 5 (higher)
     effect_manager_->AddEffect(TPlayerConditionSet{
         .player = player_.get(),
         .condition = ECondition::Frightened,
@@ -323,14 +320,12 @@ TEST_F(EffectTransformationTest, MultipleEffectsWithUndo) {
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 5);
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 5);
 
-    // Undo all - should restore to initial state
     transformator_->Undo(initial_state);
 
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 0);
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
 }
 
-// Task transformation tests
 
 class TaskTransformationTest : public ::testing::Test {
 protected:
@@ -356,14 +351,11 @@ TEST_F(TaskTransformationTest, AddTaskUndoRemovesTask) {
 
     TAddTask add_task(scheduler_.get(), std::move(task));
 
-    // Trigger the event - callback should be called
     scheduler_->TriggerEvent({EEvent::OnTurnEnd, TEventContext{nullptr}}, *transformator_);
     EXPECT_EQ(callback_count, 1);
 
-    // Undo should remove the task
     add_task.Undo();
 
-    // Trigger again - callback should not be called since task was removed
     scheduler_->TriggerEvent({EEvent::OnTurnEnd, TEventContext{nullptr}}, *transformator_);
     EXPECT_EQ(callback_count, 1);
 }
@@ -380,7 +372,6 @@ TEST_F(TaskTransformationTest, RemoveTaskUndoRestoresTask) {
 
     TTaskId task_id = scheduler_->AddTaskWithId(std::move(task));
 
-    // Create a copy for removal
     TTask task_copy{
         .events_before_call = {{EEvent::OnTurnEnd, TEventContext{nullptr}}},
         .callback = [&callback_count]() {
@@ -391,14 +382,11 @@ TEST_F(TaskTransformationTest, RemoveTaskUndoRestoresTask) {
 
     TRemoveTask remove_task(scheduler_.get(), task_id, std::move(task_copy), 0);
 
-    // Trigger the event - callback should not be called since task was removed
     scheduler_->TriggerEvent({EEvent::OnTurnEnd, TEventContext{nullptr}}, *transformator_);
     EXPECT_EQ(callback_count, 0);
 
-    // Undo should restore the task
     remove_task.Undo();
 
-    // Trigger again - callback should be called
     scheduler_->TriggerEvent({EEvent::OnTurnEnd, TEventContext{nullptr}}, *transformator_);
     EXPECT_EQ(callback_count, 1);
 }
@@ -417,14 +405,11 @@ TEST_F(TaskTransformationTest, TaskTransformationViaTransformator) {
 
     transformator_->AddTask(scheduler_.get(), std::move(task));
 
-    // Trigger - callback should be called
     scheduler_->TriggerEvent({EEvent::OnTurnEnd, TEventContext{nullptr}}, *transformator_);
     EXPECT_EQ(callback_count, 1);
 
-    // Undo via transformator
     transformator_->Undo(initial_state);
 
-    // Trigger again - task should be removed, callback not called
     scheduler_->TriggerEvent({EEvent::OnTurnEnd, TEventContext{nullptr}}, *transformator_);
     EXPECT_EQ(callback_count, 1);
 }
@@ -444,11 +429,9 @@ TEST_F(TaskTransformationTest, RemoveTaskWithProgressRestoresCorrectly) {
 
     TTaskId task_id = scheduler_->AddTaskWithId(std::move(task));
 
-    // Advance progress by triggering first event
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{nullptr}}, *transformator_);
-    EXPECT_EQ(callback_count, 0);  // Not yet called, waiting for second event
+    EXPECT_EQ(callback_count, 0);
 
-    // Create a copy with current progress (index 1)
     TTask task_copy{
         .events_before_call = {
             {EEvent::OnTurnStart, TEventContext{nullptr}},
@@ -462,23 +445,18 @@ TEST_F(TaskTransformationTest, RemoveTaskWithProgressRestoresCorrectly) {
 
     TRemoveTask remove_task(scheduler_.get(), task_id, std::move(task_copy), 1);
 
-    // Trigger second event - task was removed, callback not called
     scheduler_->TriggerEvent({EEvent::OnTurnEnd, TEventContext{nullptr}}, *transformator_);
     EXPECT_EQ(callback_count, 0);
 
-    // Undo - task should be restored with progress at index 1
     remove_task.Undo();
 
-    // Trigger first event again - should not advance since we're at index 1
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{nullptr}}, *transformator_);
     EXPECT_EQ(callback_count, 0);
 
-    // Trigger second event - should now call callback
     scheduler_->TriggerEvent({EEvent::OnTurnEnd, TEventContext{nullptr}}, *transformator_);
     EXPECT_EQ(callback_count, 1);
 }
 
-// Integration test: Full rollback scenario simulating a condition effect with scheduled decay
 class IntegrationRollbackTest : public ::testing::Test {
 protected:
     using FsPath = std::filesystem::path;
@@ -510,42 +488,34 @@ protected:
 };
 
 TEST_F(IntegrationRollbackTest, FullConditionEffectWithScheduledDecay) {
-    // Initial state: no frightened condition
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 0);
 
     TState initial_state = transformator_->CurrentState();
 
-    // Add a Frightened 3 effect (simulating a spell or ability)
     auto canceler = effect_manager_->AddEffect(TPlayerConditionSet{
         .player = player_.get(),
         .condition = ECondition::Frightened,
         .value = 3,
     }, *transformator_);
 
-    // Verify effect is applied
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 3);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 3);
 
-    // Schedule a task to decay the effect at turn start (like the real game logic)
     transformator_->AddTask(scheduler_.get(), TTask{
         .events_before_call = {{EEvent::OnTurnStart, TEventContext{player_.get()}}},
         .callback = [canceler]() { return canceler(EEffectCancelPolicy::ReduceUntilZero); },
     });
 
-    // Simulate one turn passing - frightened should reduce to 2
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 2);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 2);
 
-    // Now rollback everything - should restore to initial state
     transformator_->Undo(initial_state);
 
-    // Verify complete rollback: no effect, no condition, task removed
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 0);
 
-    // Trigger event again - nothing should happen since task was rolled back
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
 }
@@ -553,7 +523,6 @@ TEST_F(IntegrationRollbackTest, FullConditionEffectWithScheduledDecay) {
 TEST_F(IntegrationRollbackTest, MultipleEffectsAndTasksRollback) {
     TState initial_state = transformator_->CurrentState();
 
-    // Add first effect: Frightened 2
     auto canceler1 = effect_manager_->AddEffect(TPlayerConditionSet{
         .player = player_.get(),
         .condition = ECondition::Frightened,
@@ -565,7 +534,6 @@ TEST_F(IntegrationRollbackTest, MultipleEffectsAndTasksRollback) {
         .callback = [canceler1]() { return canceler1(EEffectCancelPolicy::ReduceUntilZero); },
     });
 
-    // Add second effect: MultipleAttackPenalty 5
     auto canceler2 = effect_manager_->AddEffect(TPlayerConditionSet{
         .player = player_.get(),
         .condition = ECondition::MultipleAttackPenalty,
@@ -577,27 +545,18 @@ TEST_F(IntegrationRollbackTest, MultipleEffectsAndTasksRollback) {
         .callback = [canceler2]() { return canceler2(EEffectCancelPolicy::Cancel); },
     });
 
-    // Verify both effects are active
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 2);
     EXPECT_EQ(creature_->Get(ECondition::MultipleAttackPenalty), 5);
 
-    // Rollback everything
     transformator_->Undo(initial_state);
 
-    // Verify all state is restored
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
     EXPECT_EQ(creature_->Get(ECondition::MultipleAttackPenalty), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::MultipleAttackPenalty), 0);
 }
 
-// Regression: clearing a condition that was added via AddEffect MUST also
-// neutralize the per-turn ReduceUntilZero task that captured a copy of the
-// canceler. Without shared state between the canceler and the task's copy,
-// the task would re-add a decremented value on the next OnTurnStart and the
-// condition would silently come back.
 TEST_F(IntegrationRollbackTest, ClearConditionStopsScheduledRevival) {
-    // Apply Frightened 2 the same way FAddCondition::FrightenedHandle does.
     auto canceler = effect_manager_->AddEffect(TPlayerConditionSet{
         .player = player_.get(),
         .condition = ECondition::Frightened,
@@ -610,25 +569,19 @@ TEST_F(IntegrationRollbackTest, ClearConditionStopsScheduledRevival) {
 
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 2);
 
-    // Cast RemoveFear-equivalent: drain the effect now.
     effect_manager_->ClearCondition(player_.get(), ECondition::Frightened, *transformator_);
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 0);
 
-    // Next turn fires. With the old bug, the task's independent canceler copy
-    // would re-add Frightened 1 here. With shared state, state->value is 0 in
-    // every copy, so the task is a no-op and removes itself.
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), ECondition::Frightened), 0);
 
-    // Even after several more ticks the condition stays dead.
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
 }
 
-// Natural decay must still work after the shared-state refactor.
 TEST_F(IntegrationRollbackTest, FrightenedNaturalDecayUnaffected) {
     auto canceler = effect_manager_->AddEffect(TPlayerConditionSet{
         .player = player_.get(),
@@ -647,8 +600,6 @@ TEST_F(IntegrationRollbackTest, FrightenedNaturalDecayUnaffected) {
     EXPECT_EQ(creature_->Get(ECondition::Frightened), 0);
 }
 
-// ClearCondition on a directly-set condition (Prone) must fall back to
-// ChangeCondition(0) since there's no active_canceler entry.
 TEST_F(IntegrationRollbackTest, ClearConditionFallbackForDirectSet) {
     transformator_->ChangeCondition(creature_.get(), ECondition::Prone, 1);
     EXPECT_EQ(creature_->Get(ECondition::Prone), 1);

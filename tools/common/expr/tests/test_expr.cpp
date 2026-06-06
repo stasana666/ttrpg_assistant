@@ -10,7 +10,6 @@ using namespace expr;
 
 TEST(ExprLexer, TokenizesOperatorsAndVars) {
     std::vector<TToken> toks = Tokenize("$a.b + f(1, -2) >= 3 && !x");
-    // Spot-check a few kinds in order.
     EXPECT_EQ(toks.at(0).kind, ETok::Dollar);
     EXPECT_EQ(toks.at(1).kind, ETok::Ident);
     EXPECT_EQ(toks.at(2).kind, ETok::Dot);
@@ -18,7 +17,6 @@ TEST(ExprLexer, TokenizesOperatorsAndVars) {
 }
 
 TEST(ExprParser, ArithmeticPrecedence) {
-    // '*' binds tighter than '+': a + (b * c).
     TExprNode e = Parse("a + b * c");
     ASSERT_EQ(e.Kind, ENodeKind::Binary);
     EXPECT_EQ(e.BinOp, EBinaryOp::Add);
@@ -29,7 +27,6 @@ TEST(ExprParser, ArithmeticPrecedence) {
 }
 
 TEST(ExprParser, MemberChain) {
-    // a.b.c -> Member(Member(Var a, "b"), "c")
     TExprNode e = Parse("a.b.c");
     ASSERT_EQ(e.Kind, ENodeKind::Member);
     EXPECT_EQ(e.Text, "c");
@@ -40,13 +37,12 @@ TEST(ExprParser, MemberChain) {
 }
 
 TEST(ExprParser, MemberAccessInArithmetic) {
-    // Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution)
     TExprNode e = Parse(
         "Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution)");
     ASSERT_EQ(e.Kind, ENodeKind::Binary);
     EXPECT_EQ(e.BinOp, EBinaryOp::Add);
-    EXPECT_EQ(e.Lhs->Kind, ENodeKind::Member);   // Race.Hitpoints
-    EXPECT_EQ(e.Rhs->Kind, ENodeKind::Binary);   // Level * (...)
+    EXPECT_EQ(e.Lhs->Kind, ENodeKind::Member);
+    EXPECT_EQ(e.Rhs->Kind, ENodeKind::Binary);
     EXPECT_EQ(e.Rhs->BinOp, EBinaryOp::Mul);
 }
 
@@ -55,10 +51,10 @@ TEST(ExprParser, DollarVarAndCall) {
     ASSERT_EQ(e.Kind, ENodeKind::Call);
     EXPECT_EQ(e.Text, "min");
     ASSERT_EQ(e.Args.size(), 2u);
-    EXPECT_EQ(e.Args.at(0).Kind, ENodeKind::Member);   // $a.reach
+    EXPECT_EQ(e.Args.at(0).Kind, ENodeKind::Member);
     EXPECT_EQ(e.Args.at(0).Lhs->Kind, ENodeKind::Var);
     EXPECT_TRUE(e.Args.at(0).Lhs->HasDollar);
-    EXPECT_EQ(e.Args.at(1).Kind, ENodeKind::Call);     // distance(...)
+    EXPECT_EQ(e.Args.at(1).Kind, ENodeKind::Call);
 }
 
 TEST(ExprParser, ComparisonAndLogical) {

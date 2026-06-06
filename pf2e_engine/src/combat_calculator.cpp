@@ -33,7 +33,6 @@ bool TCombatCalculator::IsOffGuardFor(const TCreature& target, [[maybe_unused]] 
     return target.Get(ECondition::Prone) > 0;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 int TCombatCalculator::RollBonus(const TCreature& creature, T type) const
@@ -47,7 +46,6 @@ template int TCombatCalculator::RollBonus<ESkill>(const TCreature&, ESkill) cons
 template int TCombatCalculator::RollBonus<ESavethrow>(const TCreature&, ESavethrow) const;
 template int TCombatCalculator::RollBonus<TPerceptionTag>(const TCreature&, TPerceptionTag) const;
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 int TCombatCalculator::DifficultyClass(const TCreature& creature, T type) const
@@ -59,7 +57,6 @@ template int TCombatCalculator::DifficultyClass<ESkill>(const TCreature&, ESkill
 template int TCombatCalculator::DifficultyClass<ESavethrow>(const TCreature&, ESavethrow) const;
 template int TCombatCalculator::DifficultyClass<TPerceptionTag>(const TCreature&, TPerceptionTag) const;
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 int TCombatCalculator::Penalty(const TCreature& creature, T) const
@@ -77,14 +74,12 @@ template int TCombatCalculator::Penalty<TPerceptionTag>(const TCreature&, TPerce
 template int TCombatCalculator::Penalty<TArmorClassTag>(const TCreature&, TArmorClassTag) const;
 template int TCombatCalculator::Penalty<TWeaponAttackTag>(const TCreature&, TWeaponAttackTag) const;
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon& weapon) const
 {
     int str = creature.GetCharacteristic(ECharacteristic::Strength).GetMod();
     int ability_mod = str;
 
-    // Finesse weapons use the higher of Strength or Dexterity
     if (weapon.Traits().Has(EWeaponTraitKind::Finesse)) {
         int dex = creature.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
         ability_mod = std::max(str, dex);
@@ -106,7 +101,7 @@ ESuccessLevel TCombatCalculator::RollD20(IRandomGenerator* roller, int bonus, in
         if (diff >= 0) {
             return ESuccessLevel::Success;
         }
-        if (diff > -10) { // странная антисимметрия в правилах pf2e
+        if (diff > -10) {
             return ESuccessLevel::Failure;
         }
         return ESuccessLevel::CriticalFailure;

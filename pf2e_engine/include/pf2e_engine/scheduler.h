@@ -38,10 +38,8 @@ class TTaskScheduler {
 public:
     void TriggerEvent(TEvent event, TTransformator& transformator);
 
-    // Returns task ID for transformation tracking
     TTaskId AddTaskWithId(TTask&& task);
 
-    // For transformation undo access
     void RemoveTaskById(TTaskId id);
     void RestoreTask(TTaskId id, TTask task, size_t progress_index);
     void SetTaskProgress(TTaskId id, size_t progress_index);

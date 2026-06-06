@@ -8,11 +8,6 @@
 #include <unordered_set>
 #include <vector>
 
-// All emitters take a TCppWriter& and describe *structure* (Class / Function /
-// Switch / sections) and *lines*; the writer owns indentation and braces.
-// EmitHeader / EmitImpl (the public entry points) wrap the caller's ostream in
-// a writer.
-
 void EmitEnumDecl(TCppWriter& w, const TEnumDecl& e) {
     w.Block("enum class " + e.Name + " {", "};", [&] {
         for (const auto& v : e.Values) {
@@ -32,7 +27,6 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
             for (const auto& f : c.Fields) {
                 std::string mt = CppMemberType(f, symbols);
                 if (f.Container != EContainer::None) {
-                    // Return by const-ref to avoid copying the container.
                     w.Line("const " + mt + "& " + f.Name + "() const { return " + f.Name + "_; }");
                 } else {
                     w.Line(mt + " " + f.Name + "() const { return " + f.Name + "_; }");
@@ -54,12 +48,10 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
                 std::string mt = CppMemberType(f, symbols);
                 std::string init;
                 if (f.Container != EContainer::None) {
-                    init = "{}";  // empty container
+                    init = "{}";
                 } else if (f.Init && !InitIsComputed(*f.Init, fieldNames)) {
-                    // Constant default: bake it into the member initializer.
                     init = "{" + DefaultExprToCpp(f.Init->Text, f.TypeName) + "}";
                 } else {
-                    // No default, or a computed default (always set in FromJson).
                     init = "{}";
                 }
                 w.Line(mt + " " + f.Name + "_" + init + ";");
@@ -73,16 +65,10 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
     w.EmptyLine();
 }
 
-// Emit the header declarations for a `variant`:
-//   - the kind/discriminant enum (+ ToString / FromString), via the normal
-//     enum emitter so the JSON token casing matches `enum` exactly;
-//   - one payload struct per alternative (each carries `static constexpr Kind`);
-//   - the wrapper class holding a std::variant of all payload structs.
 void EmitVariantDecl(TCppWriter& w, const TVariantDecl& v,
                      const std::unordered_map<std::string, TTypeInfo>& symbols) {
     const std::string kindEnum = VariantKindEnum(v.Name);
 
-    // Kind enum reuses the enum emitter -> identical FromString/ToString casing.
     TEnumDecl kindDecl;
     kindDecl.Name = kindEnum;
     for (const auto& alt : v.Alternatives) {
@@ -90,7 +76,6 @@ void EmitVariantDecl(TCppWriter& w, const TVariantDecl& v,
     }
     EmitEnumDecl(w, kindDecl);
 
-    // One payload struct per alternative.
     for (const auto& alt : v.Alternatives) {
         w.Struct(PayloadStructName(v.Name, alt.Name), [&] {
             w.Line("static constexpr auto Kind = " + kindEnum + "::" + alt.Name + ";");
@@ -98,8 +83,6 @@ void EmitVariantDecl(TCppWriter& w, const TVariantDecl& v,
                 std::string mt = CppMemberType(f, symbols);
                 std::string init = "{}";
                 if (f.Init) {
-                    // Variant payloads take only constant defaults (a literal or
-                    // an enum-value identifier), never computed expressions.
                     if (f.Init->Kind != expr::ENodeKind::IntLiteral &&
                         f.Init->Kind != expr::ENodeKind::Var) {
                         throw std::runtime_error(
@@ -114,7 +97,6 @@ void EmitVariantDecl(TCppWriter& w, const TVariantDecl& v,
         w.EmptyLine();
     }
 
-    // Wrapper class.
     w.Class(v.Name, [&] {
         w.PublicSection([&] {
             w.Line("using TPayload = std::variant<");
@@ -127,9 +109,6 @@ void EmitVariantDecl(TCppWriter& w, const TVariantDecl& v,
             });
             w.EmptyLine();
             w.Line(v.Name + "() = default;");
-            // Converting constructor from any alternative payload. Constrained
-            // so it never hijacks the copy/move constructors (which keeps the
-            // wrapper copyable -- required for storing it by value in TVariantMap).
             w.Line("template <class T>");
             w.Indented([&] {
                 w.Line("requires (!std::is_same_v<std::decay_t<T>, " + v.Name + ">)");
@@ -144,7 +123,6 @@ void EmitVariantDecl(TCppWriter& w, const TVariantDecl& v,
             });
             w.Line("const TPayload& Payload() const { return Payload_; }");
             w.EmptyLine();
-            w.Comment("Typed query: nullptr if this is not a T.");
             w.Line("template <class T> const T* TryGet() const { return std::get_if<T>(&Payload_); }");
             w.EmptyLine();
             w.Line("static " + v.Name +
@@ -181,16 +159,11 @@ void EmitHeader(std::ostream& os,
     w.Include("limits");
     w.Include("string");
 
-    // Scan all field types (class fields + variant alternative fields) to
-    // decide which standard headers and cross-file generated headers to pull.
-    bool anyEnumSet = false;          // set<Enum> -> std::set
-    bool anyVariantSet = false;       // set<Variant> -> TVariantMap
+    bool anyEnumSet = false;
+    bool anyVariantSet = false;
     bool anyVariant = !mod.Variants.empty();
-    bool anyBoundedQuantity = false;  // BoundedQuantity -> TBoundedQuantity
+    bool anyBoundedQuantity = false;
 
-    // Cross-file includes: any external type used as a field type (incl.
-    // set element types and variant-payload field types) pulls in the
-    // generated header that declares it.
     std::unordered_set<std::string> externalStems;
 
     auto inspectField = [&](const TFieldDecl& f, const std::string& ownerDesc) {
@@ -198,8 +171,6 @@ void EmitHeader(std::ostream& os,
             return;
         }
         if (IsBuiltinBoundedQuantity(f.TypeName)) {
-            // Built-in value type; pulls in its hand-written runtime header,
-            // not a generated sibling. It is scalar-only.
             if (f.Container != EContainer::None) {
                 throw std::runtime_error(
                     "BoundedQuantity cannot be used inside set<> (in " + ownerDesc + ")");
@@ -265,7 +236,6 @@ void EmitHeader(std::ostream& os,
         w.EmptyLine();
     }
 
-    // Forward decl needed by FromJson signature
     w.Line("class TGameObjectFactory;");
     w.EmptyLine();
 
@@ -306,15 +276,11 @@ void EmitClassImpl(TCppWriter& w,
                    const std::unordered_map<std::string, TTypeInfo>& symbols,
                    const std::unordered_map<std::string, const TClassDecl*>& classes)
 {
-    // Pre-classify each scalar field once. Set fields are handled separately
-    // by inspecting f.Container.
     std::vector<EFieldKind> kinds;
     kinds.reserve(c.Fields.size());
     bool usesFactory = false;
     for (const auto& f : c.Fields) {
         if (f.Container != EContainer::None) {
-            // Sentinel; not used. A set<Variant> loads each element through
-            // the variant's FromJson, which takes the factory.
             kinds.push_back(EFieldKind::Primitive);
             if (f.Container == EContainer::Set && IsVariantType(f.TypeName, symbols)) {
                 usesFactory = true;
@@ -329,16 +295,12 @@ void EmitClassImpl(TCppWriter& w,
         }
     }
 
-    // Field names for computed-vs-constant classification, and the evaluation
-    // order so a computed field is assigned after the fields it references
-    // (throws on cycles / bad references -- the codegen-time gate).
     std::unordered_set<std::string> fieldNames;
     for (const auto& f : c.Fields) {
         fieldNames.insert(f.Name);
     }
     std::vector<size_t> initOrder = FieldInitOrder(c, classes);
 
-    // ---- FromJson ----
     w.Function(c.Name + " " + c.Name +
                "::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory)", [&] {
         if (!usesFactory) {
@@ -350,7 +312,6 @@ void EmitClassImpl(TCppWriter& w,
             std::string key = PascalToSnake(f.Name);
             bool computed = f.Init && InitIsComputed(*f.Init, fieldNames);
             if (f.Container == EContainer::Set) {
-                // Absent key is treated as an empty set.
                 w.Block("if (j.contains(\"" + key + "\")) {", "}", [&] {
                     w.Block("for (const auto& item : j.at(\"" + key + "\")) {", "}", [&] {
                         if (IsVariantType(f.TypeName, symbols)) {
@@ -362,9 +323,6 @@ void EmitClassImpl(TCppWriter& w,
                     });
                 });
             } else if (computed) {
-                // JSON-overridable: use the JSON value when present, else
-                // evaluate the initializer expression over already-assigned
-                // sibling fields.
                 std::string present = ScalarParseExpr(f, kinds[idx], "j.at(\"" + key + "\")");
                 std::string fallback = (kinds[idx] == EFieldKind::BoundedQuantity)
                     ? "TBoundedQuantity(" + InitExprToCpp(*f.Init) + ")"
@@ -379,16 +337,12 @@ void EmitClassImpl(TCppWriter& w,
     });
     w.EmptyLine();
 
-    // ---- GetAst ----
     w.Function("TAstNode " + c.Name + "::GetAst([[maybe_unused]] TAstContext& ctx) const", [&] {
         w.Line("TAstNode node = TAstNode::MakeObject(\"" + c.Name + "\");");
         for (size_t i = 0; i < c.Fields.size(); ++i) {
             const auto& f = c.Fields[i];
             std::string key = PascalToSnake(f.Name);
             if (f.Container == EContainer::Set && IsVariantType(f.TypeName, symbols)) {
-                // TVariantMap iterates sorted by kind enum (std::map), so the
-                // output is deterministic. Each value is an owned (recursive)
-                // node keyed by its kind string.
                 w.Block("{", "}", [&] {
                     w.Line("TAstNode set_node = TAstNode::MakeObject(\"container\");");
                     w.Block("for (const auto& [kind, value] : " + f.Name + "_) {", "}", [&] {
@@ -397,9 +351,6 @@ void EmitClassImpl(TCppWriter& w,
                     w.Line("node.AddChild(\"" + key + "\", std::move(set_node));");
                 });
             } else if (f.Container == EContainer::Set) {
-                // std::set<E> iterates in sorted order by enum value, which is
-                // deterministic per declaration order. Emit each as its own
-                // value child under a container node keyed by ToString.
                 w.Block("{", "}", [&] {
                     w.Line("TAstNode set_node = TAstNode::MakeObject(\"container\");");
                     w.Block("for (auto v : " + f.Name + "_) {", "}", [&] {
@@ -409,9 +360,6 @@ void EmitClassImpl(TCppWriter& w,
                 });
             } else if (kinds[i] == EFieldKind::Class || kinds[i] == EFieldKind::Variant ||
                        kinds[i] == EFieldKind::BoundedQuantity) {
-                // Generated class/variant types and TBoundedQuantity are
-                // TIsAstRecursive::true_type, so use AddOwnedObject which
-                // recurses; AddValueField would static_assert.
                 w.Line("AddOwnedObject(node, \"" + key + "\", " + f.Name + "_, ctx);");
             } else {
                 w.Line("AddValueField(node, \"" + key + "\", " + f.Name + "_);");
@@ -421,7 +369,6 @@ void EmitClassImpl(TCppWriter& w,
     });
     w.EmptyLine();
 
-    // ---- RegisterDslProperties ----
     w.Function("void " + c.Name + "::RegisterDslProperties()", [&] {
         w.Line("auto& r = TPropertyRegistry<" + c.Name + ">::Instance();");
         for (size_t i = 0; i < c.Fields.size(); ++i) {
@@ -432,24 +379,8 @@ void EmitClassImpl(TCppWriter& w,
                         "* obj, TEvalContext&) {", "});", [&] {
                     w.Line("return TDslValue(obj->" + f.Name + "());");
                 });
-            } else {
-                std::string reasonPrefix = "unsupported type";
-                if (f.Container == EContainer::Set) {
-                    reasonPrefix = "set field";
-                } else {
-                    switch (kinds[i]) {
-                        case EFieldKind::Class: reasonPrefix = "class field"; break;
-                        case EFieldKind::Enum:  reasonPrefix = "enum field"; break;
-                        case EFieldKind::Variant: reasonPrefix = "variant field"; break;
-                        case EFieldKind::BoundedQuantity: reasonPrefix = "bounded-quantity field"; break;
-                        case EFieldKind::Primitive: reasonPrefix = "unsupported primitive"; break;
-                    }
-                }
-                w.Comment("dsl: '" + key + "' skipped -- " + reasonPrefix +
-                          " '" + f.TypeName + "'");
             }
         }
-        // r might be unused if the class has no DSL-eligible fields.
         bool anyDsl = false;
         for (const auto& f : c.Fields) {
             if (IsDslSupported(f)) { anyDsl = true; break; }
@@ -461,8 +392,6 @@ void EmitClassImpl(TCppWriter& w,
     w.EmptyLine();
 }
 
-// Per-alternative field classification, shared by the FromJson and GetAst
-// emitters for a variant.
 struct TAltFieldInfo {
     const TFieldDecl* Field;
     EFieldKind Kind;
@@ -485,7 +414,6 @@ void EmitVariantImpl(TCppWriter& w, const TVariantDecl& v,
 {
     const std::string kindEnum = VariantKindEnum(v.Name);
 
-    // Kind enum ToString / FromString via the normal enum emitter.
     TEnumDecl kindDecl;
     kindDecl.Name = kindEnum;
     for (const auto& alt : v.Alternatives) {
@@ -504,13 +432,11 @@ void EmitVariantImpl(TCppWriter& w, const TVariantDecl& v,
         }
     }
 
-    // ---- FromJson ----
     w.Function(v.Name + " " + v.Name +
                "::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory)", [&] {
         if (!usesFactory) {
             w.Line("(void)factory;");
         }
-        // Flag form: a bare string equal to the kind token.
         w.Block("if (j.is_string()) {", "}", [&] {
             w.Switch(kindEnum + "FromString(j.get<std::string>())", [&] {
                 for (const auto& alt : v.Alternatives) {
@@ -527,7 +453,6 @@ void EmitVariantImpl(TCppWriter& w, const TVariantDecl& v,
                 });
             });
         });
-        // Object form: single-key {kind: payload}.
         w.Block("if (j.is_object() && j.size() == 1) {", "}", [&] {
             w.Line("auto it = j.begin();");
             w.Line("const std::string& key = it.key();");
@@ -542,15 +467,12 @@ void EmitVariantImpl(TCppWriter& w, const TVariantDecl& v,
                     w.Case(kindEnum + "::" + alt.Name, [&] {
                         w.Line(structName + " a;");
                         if (infos.size() == 1) {
-                            // Single-field: value parsed directly as the field type.
                             const auto& [f, kind] = infos.front();
                             w.Line("a." + f->Name + " = " + ScalarParseExpr(*f, kind, "val") + ";");
                         } else {
-                            // Multi-field: value is an object of named fields.
                             for (const auto& [f, kind] : infos) {
                                 std::string fkey = PascalToSnake(f->Name);
                                 if (kind == EFieldKind::Primitive && f->Init) {
-                                    // Bin initializers are rejected at decl emission.
                                     w.Line("a." + f->Name + " = val.value(\"" + fkey + "\", " +
                                            CppPrimitiveType(*f) + "{" +
                                            DefaultExprToCpp(f->Init->Text, f->TypeName) + "});");
@@ -574,7 +496,6 @@ void EmitVariantImpl(TCppWriter& w, const TVariantDecl& v,
     });
     w.EmptyLine();
 
-    // ---- GetAst ----
     w.Function("TAstNode " + v.Name + "::GetAst([[maybe_unused]] TAstContext& ctx) const", [&] {
         w.Line("TAstNode node = TAstNode::MakeObject(\"" + v.Name + "\");");
         w.Line("AddValueField(node, \"kind\", Kind());");
@@ -626,8 +547,6 @@ void EmitImpl(std::ostream& os,
     w.Include("string");
     w.EmptyLine();
 
-    // Class type name -> declaration, across all loaded modules. Used to
-    // validate member access (`Race.Hitpoints`) in computed initializers.
     std::unordered_map<std::string, const TClassDecl*> classes;
     for (const auto& [stem, module] : loaded.ByStem) {
         for (const auto& c : module.Classes) {

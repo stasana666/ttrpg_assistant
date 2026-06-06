@@ -163,7 +163,7 @@ TAstNode SerializeProfMap(const std::map<K, TProficiency::Value>& m,
     return node;
 }
 
-}  // namespace
+}
 
 TAstNode TProficiency::GetAst([[maybe_unused]] TAstContext& ctx) const
 {

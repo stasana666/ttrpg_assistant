@@ -13,7 +13,6 @@ static const TGameObjectId kCasterId = TGameObjectIdManager::Instance().Register
 static const TGameObjectId kDamageTableId = TGameObjectIdManager::Instance().Register("damage_table");
 static const TGameObjectId kDamageTypeId = TGameObjectIdManager::Instance().Register("damage_type");
 
-// Wrapper to adapt shared_ptr<IExpression> to unique_ptr<IExpression>
 class TSharedExpressionWrapper : public IExpression {
 public:
     explicit TSharedExpressionWrapper(std::shared_ptr<IExpression> expr)

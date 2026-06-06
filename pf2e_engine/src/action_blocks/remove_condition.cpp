@@ -12,8 +12,5 @@ void FRemoveCondition::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
     ECondition condition = ConditionFromString(input_.GetString(kConditionId));
-    // Use ClearCondition so effect-manager-tracked conditions (Frightened, MAP)
-    // also cancel any scheduled per-turn tasks; otherwise the task would
-    // resurrect a decremented value on the next OnTurnStart.
     ctx->effect_manager->ClearCondition(&target, condition, *ctx->transformator);
 }

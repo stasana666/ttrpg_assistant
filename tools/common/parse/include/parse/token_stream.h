@@ -1,7 +1,5 @@
 #pragma once
 
-// Grammar-agnostic token-stream cursor. Templated on the user's token-kind
-// enum so each consumer keeps its own kind set.
 
 #include <parse/scanner.h>
 
@@ -63,4 +61,4 @@ private:
     size_t pos_ = 0;
 };
 
-}  // namespace parse
+}

@@ -21,14 +21,13 @@ TSchemaModule ParseSrc(const std::string& src) {
 
 const std::string kFixtures = TTRPG_FIXTURES_DIR;
 
-}  // namespace
+}
 
 TEST(ParserTest, InitExprPrecedence) {
     TSchemaModule m = ParseSrc(
         "class TC { int A; int B; int C; int X = A + B * C; }\n");
     const TClassDecl& c = m.Classes.at(0);
     const expr::TExprNode& x = c.Fields.at(3).Init.value();
-    // '+' is the root; '*' binds tighter and sits on the right.
     ASSERT_EQ(x.Kind, expr::ENodeKind::Binary);
     EXPECT_EQ(x.BinOp, expr::EBinaryOp::Add);
     EXPECT_EQ(x.Lhs->Kind, expr::ENodeKind::Var);
@@ -84,14 +83,14 @@ TEST(ParserTest, VariantThreeAlternativeForms) {
     ASSERT_EQ(v.Alternatives.size(), 3u);
 
     EXPECT_EQ(v.Alternatives[0].Name, "Stun");
-    EXPECT_TRUE(v.Alternatives[0].Fields.empty());                 // flag
+    EXPECT_TRUE(v.Alternatives[0].Fields.empty());
 
     EXPECT_EQ(v.Alternatives[1].Name, "Burn");
-    ASSERT_EQ(v.Alternatives[1].Fields.size(), 1u);                // single-field
+    ASSERT_EQ(v.Alternatives[1].Fields.size(), 1u);
     EXPECT_EQ(v.Alternatives[1].Fields[0].TypeName, "int");
 
     EXPECT_EQ(v.Alternatives[2].Name, "Zone");
-    ASSERT_EQ(v.Alternatives[2].Fields.size(), 2u);                // multi-field + default
+    ASSERT_EQ(v.Alternatives[2].Fields.size(), 2u);
     EXPECT_EQ(v.Alternatives[2].Fields[0].Init->Text, "1");
 }
 

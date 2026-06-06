@@ -57,7 +57,7 @@ public:
             throw std::runtime_error("channel size must be power of two");
         }
         for (size_t i = 0; i < max_size_; ++i) {
-            data_[i].index = i; // memory order
+            data_[i].index = i;
         }
     }
 

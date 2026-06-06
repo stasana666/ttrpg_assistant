@@ -19,13 +19,10 @@ struct TAnalysisResult {
     TCombatantStats side_b;
 };
 
-// Runs Monte-Carlo combat simulations on top of the headless engine.
 class TCombatAnalyzer {
 public:
     TCombatAnalyzer();
 
-    // Simulates `iterations` fights between two identical warriors and
-    // aggregates win / death frequencies.
     TAnalysisResult RunTwoWarriors(size_t iterations);
 
 private:

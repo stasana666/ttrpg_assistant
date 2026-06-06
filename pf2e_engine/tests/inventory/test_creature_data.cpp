@@ -19,7 +19,6 @@ TGameObjectId NameId(const std::string& name) {
     return TGameObjectIdManager::Instance().Register(name);
 }
 
-// A factory loaded with all the named objects TCreatureData references.
 TGameObjectFactory MakeFactoryWithRefs() {
     TGameObjectFactory factory;
     factory.AddSource(kRootDirPath + "/pf2e_engine/data/inventory/material/steel.json");
@@ -31,11 +30,8 @@ TGameObjectFactory MakeFactoryWithRefs() {
     return factory;
 }
 
-}  // namespace
+}
 
-// Loads the generated TCreatureData end-to-end through the production factory.
-// Race/Class/Characteristic/Armor/Weapon resolve as class-ref fields; Hitpoints
-// is a computed default built via member access over those parts.
 TEST(CreatureDataTest, WarriorDataLoads) {
     TGameObjectFactory factory = MakeFactoryWithRefs();
     factory.AddSource(kRootDirPath + "/pf2e_engine/data/creatures/warrior_data.json");
@@ -45,14 +41,10 @@ TEST(CreatureDataTest, WarriorDataLoads) {
     EXPECT_EQ(data.Level(), 1);
     EXPECT_EQ(data.Movement(), 5);
 
-    // Class-ref parts.
     EXPECT_EQ(data.Race().Hitpoints(), 8);
     EXPECT_EQ(data.Class().Hitpoints(), 10);
     EXPECT_EQ(data.Characteristic().Constitution(), 3);
 
-    // Computed default via member access (no "hitpoints" key in the JSON):
-    // Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution)
-    //   = 8 + 1 * (10 + 3) = 21, full.
     EXPECT_EQ(data.Hitpoints().CurrentValue(), 21);
     EXPECT_EQ(data.Hitpoints().MaxValue(), 21);
 
@@ -64,8 +56,6 @@ TEST(CreatureDataTest, WarriorDataLoads) {
 
 namespace {
 
-// Base JSON referencing the named parts; level 3 -> computed HP
-// = 8 + 3 * (10 + 3) = 47.
 nlohmann::json WarriorJson() {
     return {
         {"level", 3},
@@ -77,10 +67,8 @@ nlohmann::json WarriorJson() {
     };
 }
 
-}  // namespace
+}
 
-// Movement has a constant default of 0; omitting it falls back. Hitpoints is
-// computed via member access over the referenced parts.
 TEST(CreatureDataTest, ComputedHitpointsFallback) {
     TGameObjectFactory factory = MakeFactoryWithRefs();
     TCreatureData data = TCreatureData::FromJson(WarriorJson(), factory);
@@ -91,8 +79,6 @@ TEST(CreatureDataTest, ComputedHitpointsFallback) {
     EXPECT_EQ(data.Hitpoints().MaxValue(), 47);
 }
 
-// A computed default is JSON-overridable: when "hitpoints" is present, the JSON
-// value wins over the expression.
 TEST(CreatureDataTest, ComputedHitpointsJsonOverride) {
     TGameObjectFactory factory = MakeFactoryWithRefs();
     nlohmann::json j = WarriorJson();

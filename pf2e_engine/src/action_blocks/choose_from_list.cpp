@@ -53,7 +53,7 @@ void PromptAndStore(std::shared_ptr<TActionContext> ctx, TPlayer* self,
     ctx->game_object_registry->Add(output_id, chosen);
 }
 
-}  // namespace
+}
 
 void FChooseFromList::operator()(std::shared_ptr<TActionContext> ctx) const
 {

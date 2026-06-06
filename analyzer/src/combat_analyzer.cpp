@@ -18,7 +18,7 @@ namespace {
 
 const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
 
-}  // namespace
+}
 
 TCombatAnalyzer::TCombatAnalyzer()
 {

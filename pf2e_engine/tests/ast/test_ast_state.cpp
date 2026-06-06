@@ -9,16 +9,14 @@
 #include <stdexcept>
 #include <string>
 
-// Convenience: return the AST of a freshly-prepared battle.
 namespace {
 TAstNode Snapshot(const TBattle& battle)
 {
     TAstContext ctx;
     return battle.GetAst(ctx);
 }
-}  // namespace
+}
 
-// 1. Equality — two identical battles produce identical ASTs.
 TEST(AstState, EqualityBetweenIdenticalBattles)
 {
     auto a = MakeTwoWarriorBattle();
@@ -32,8 +30,6 @@ TEST(AstState, EqualityBetweenIdenticalBattles)
     EXPECT_EQ(ast_a, ast_b) << msg;
 }
 
-// 2. Mutation — any state change must change the AST. Run one per kind of
-// mutation that goes through TTransformator.
 TEST(AstState, MutationVisibleInAst_DealDamage)
 {
     auto fixture = MakeTwoWarriorBattle();
@@ -86,7 +82,6 @@ TEST(AstState, MutationVisibleInAst_ResourcePool)
     EXPECT_NE(diff.find("resources"), std::string::npos) << msg;
 }
 
-// 3. Rollback — save → mutate via transformator → rollback → AST identical.
 TEST(AstState, RollbackRestoresIdenticalAst_DealDamage)
 {
     auto fixture = MakeTwoWarriorBattle();
@@ -139,9 +134,6 @@ TEST(AstState, RollbackRestoresIdenticalAst_MultipleTransformations)
     EXPECT_EQ(before, restored) << msg;
 }
 
-// 4. Direct-mutation bypass — TPlayer::SetPosition mutates state WITHOUT
-// going through TTransformator. The AST catches it; this test documents the
-// bypass. Follow-up work introduces TChangePosition.
 TEST(AstState, BypassDetected_SetPosition)
 {
     auto fixture = MakeTwoWarriorBattle();
@@ -158,23 +150,16 @@ TEST(AstState, BypassDetected_SetPosition)
         "TPlayer::SetPosition bypasses TTransformator but AST should still "
         "show the difference.";
     EXPECT_NE(before, after) << bypass_msg;
-    // SetPosition mutates two things: the player's position_ field AND the
-    // battle map's cells. DiffWith reports the first diverging path; either
-    // is acceptable evidence that the bypass was caught.
     const std::string diff = before.DiffWith(after);
     const std::string diff_msg =
         "Diff path should mention position or battle_map. Got: " + diff;
     EXPECT_TRUE(diff.find("position") != std::string::npos ||
                 diff.find("battle_map") != std::string::npos) << diff_msg;
 
-    // Restore so the destructor doesn't leave the map in a weird state.
     players[0]->SetPosition(original);
     // TODO(rollback): SetPosition bypasses TTransformator; follow-up will
-    // route position changes through a new TChangePosition transformation
-    // so that rollback restores them.
 }
 
-// 5. Container determinism.
 TEST(AstState, ContainerDeterminism_ResourceInsertionOrder)
 {
     auto a = MakeTwoWarriorBattle();
@@ -214,7 +199,6 @@ TEST(AstState, ContainerDeterminism_RepeatedAstOnSameBattle)
     EXPECT_EQ(ast1, ast2) << msg;
 }
 
-// 6. Null-pointer handling.
 TEST(AstState, NullPointerHandling)
 {
     auto fixture = MakeTwoWarriorBattle();
@@ -232,8 +216,6 @@ TEST(AstState, NullPointerHandling)
     EXPECT_NE(diff.find("battle_map"), std::string::npos) << msg;
 }
 
-// 7. Ownership cycle — a malicious GetAst that recurses into itself must
-// throw via TAstContext::Visit.
 TEST(AstState, OwnershipCycleDetected)
 {
     struct TCyclic {
@@ -241,7 +223,7 @@ TEST(AstState, OwnershipCycleDetected)
         {
             TAstNode node = TAstNode::MakeObject("TCyclic");
             ctx.Visit(this, "TCyclic");
-            ctx.Visit(this, "TCyclic");  // throws here
+            ctx.Visit(this, "TCyclic");
             return node;
         }
     };

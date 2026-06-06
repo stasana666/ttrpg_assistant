@@ -58,6 +58,5 @@ struct TVector2D {
     }
 
     static constexpr double kEpsilon = 0.001;
-    // cos(pi/4) = 1/sqrt(2) = sqrt(2)/2
     static constexpr double kConeHalfAngleCos = std::numbers::sqrt2 / 2.0;
 };

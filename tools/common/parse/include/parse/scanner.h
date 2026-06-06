@@ -1,7 +1,5 @@
 #pragma once
 
-// Grammar-agnostic character scanner with line/col tracking.
-// Used by both the .ttrpg code generator and the DSL lexer.
 
 #include <cctype>
 #include <stdexcept>
@@ -66,9 +64,6 @@ public:
         }
     }
 
-    // If the input at the current position starts with `prefix`, consume
-    // up to (but not including) the next newline. Returns whether a
-    // comment was consumed.
     bool SkipLineComment(std::string_view prefix) {
         if (!StartsWith(prefix)) {
             return false;
@@ -97,7 +92,6 @@ public:
         return true;
     }
 
-    // Caller must have already checked that Peek() is an identifier-start.
     std::string ScanIdent() {
         std::string out;
         while (!Eof() && IsIdentCont(src_[pos_])) {
@@ -107,8 +101,6 @@ public:
         return out;
     }
 
-    // Scans an optional leading '-' then digits. Caller must have checked
-    // that the head is a digit or '-' followed by a digit.
     std::string ScanInteger() {
         std::string out;
         if (Peek() == '-') {
@@ -122,9 +114,6 @@ public:
         return out;
     }
 
-    // Consumes the opening quote, scans until the matching closing quote,
-    // consumes that too. Throws on newline-in-string or EOF-in-string.
-    // No escape handling -- add when a use case appears.
     std::string ScanQuotedString(char quote = '"') {
         TSourceLocation start = Loc();
         if (Peek() != quote) {
@@ -142,7 +131,7 @@ public:
         if (Eof()) {
             ThrowAt(start, "unterminated string literal");
         }
-        Advance();  // closing quote
+        Advance();
         return out;
     }
 
@@ -175,4 +164,4 @@ private:
     int col_ = 1;
 };
 
-}  // namespace parse
+}

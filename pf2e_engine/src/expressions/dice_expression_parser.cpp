@@ -6,8 +6,6 @@
 
 std::unique_ptr<IExpression> ParseDiceExpression(const std::string& expr)
 {
-    // Parse "NdM" format where N is the count and M is the die size
-    // Examples: "6d6", "2d8", "1d12"
 
     size_t d_pos = expr.find('d');
     if (d_pos == std::string::npos) {

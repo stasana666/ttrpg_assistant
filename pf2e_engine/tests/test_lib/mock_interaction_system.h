@@ -22,8 +22,6 @@ struct TMockInteractionSystem final : public IInteractionSystem {
         return dev_log_;
     }
 
-    // Continuation tests construct savepoints directly; the mock resolves
-    // reaction opportunities immediately.
     void HandleReactionTrigger(const TTriggerContext&, const TState&) override {}
 
     struct ExpectedChoice {

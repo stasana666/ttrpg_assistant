@@ -22,14 +22,11 @@ std::vector<TToken> Tokenize(const std::string& src) {
             out.push_back({ETok::Ident, s.ScanIdent(), loc});
             continue;
         }
-        // A '-' directly in front of a digit is part of a negative literal;
-        // otherwise it is binary subtraction (handled below).
         if (parse::IsDigit(c) || (c == '-' && parse::IsDigit(s.PeekAt(1)))) {
             out.push_back({ETok::IntLiteral, s.ScanInteger(), loc});
             continue;
         }
 
-        // Two-char operators before their one-char prefixes.
         if (s.Try(">=")) { out.push_back({ETok::Ge,       ">=", loc}); continue; }
         if (s.Try("<=")) { out.push_back({ETok::Le,       "<=", loc}); continue; }
         if (s.Try("==")) { out.push_back({ETok::EqEq,     "==", loc}); continue; }
@@ -58,4 +55,4 @@ std::vector<TToken> Tokenize(const std::string& src) {
     return out;
 }
 
-}  // namespace expr
+}

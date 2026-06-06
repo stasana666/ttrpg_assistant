@@ -1,6 +1,3 @@
-// Building blocks of a creature, referenced by name from creature data and
-// composed (via member access) in computed fields like hit points.
-
 class TRace {
     int Hitpoints;
 }

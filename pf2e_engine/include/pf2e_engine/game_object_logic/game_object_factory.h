@@ -75,7 +75,6 @@ private:
     TFactoryStorage<TBattleMap> battle_maps_;
 };
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 auto TGameObjectFactory::GetFactoryStorage() const -> const TFactoryStorage<T>&
@@ -114,7 +113,6 @@ auto TGameObjectFactory::GetFactoryStorage() const -> const TFactoryStorage<T>&
     }
 }
 
-///////////////////////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 auto TGameObjectFactory::Create(TGameObjectId id) const

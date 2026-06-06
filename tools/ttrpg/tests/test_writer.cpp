@@ -14,7 +14,7 @@ std::string Render(const std::function<void(TCppWriter&)>& build) {
     return os.str();
 }
 
-}  // namespace
+}
 
 TEST(CppWriterTest, LineAndEmptyLine) {
     EXPECT_EQ(Render([](TCppWriter& w) {
@@ -94,7 +94,7 @@ TEST(CppWriterTest, NestedScopesRestoreIndent) {
                 });
             });
         });
-        w.Line("after();");  // back at column 0
+        w.Line("after();");
     }),
         "class TOuter {\n"
         "public:\n"

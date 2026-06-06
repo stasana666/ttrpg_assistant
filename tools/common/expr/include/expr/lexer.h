@@ -1,8 +1,5 @@
 #pragma once
 
-// Tokenizer for the shared expression grammar. Built on the grammar-agnostic
-// parse::TScanner. The token set is the union of what the DSL and the codegen
-// need: arithmetic, comparison, logical, member access (`.`), calls, `$`-vars.
 
 #include <parse/token_stream.h>
 
@@ -27,4 +24,4 @@ using TToken = parse::TToken<ETok>;
 
 std::vector<TToken> Tokenize(const std::string& src);
 
-}  // namespace expr
+}

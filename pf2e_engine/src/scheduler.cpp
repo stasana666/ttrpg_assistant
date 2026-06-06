@@ -6,7 +6,6 @@
 
 void TTaskScheduler::TriggerEvent(TEvent event, TTransformator& transformator)
 {
-    // Collect tasks to remove (can't modify list while iterating)
     std::vector<std::tuple<TTaskId, TTask, size_t>> tasks_to_remove;
 
     for (auto& [id, task, current] : tasks_) {
@@ -14,20 +13,16 @@ void TTaskScheduler::TriggerEvent(TEvent event, TTransformator& transformator)
         if (*current == event) {
             transformator.AdvanceTaskProgress(this, id, current_index + 1);
         }
-        // Re-read current after transformation may have changed it
         current_index = static_cast<size_t>(current - task.events_before_call.begin());
         if (current_index == task.events_before_call.size()) {
             if (task.callback()) {
-                // Callback wants to repeat - reset to beginning
                 transformator.AdvanceTaskProgress(this, id, 0);
             } else {
-                // Task completed - will be removed
                 tasks_to_remove.emplace_back(id, task, task.events_before_call.size());
             }
         }
     }
 
-    // Remove completed tasks via transformations
     for (auto& [id, task, progress] : tasks_to_remove) {
         transformator.RemoveTask(this, id, std::move(task), progress);
     }

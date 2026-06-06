@@ -66,12 +66,8 @@ TAstNode TThing::GetAst([[maybe_unused]] TAstContext& ctx) const {
 
 void TThing::RegisterDslProperties() {
     auto& r = TPropertyRegistry<TThing>::Instance();
-    // dsl: 'name' skipped -- unsupported primitive 'string'
     r.Register("count", [](const TThing* obj, TEvalContext&) {
         return TDslValue(obj->Count());
     });
-    // dsl: 'color' skipped -- enum field 'EColor'
-    // dsl: 'charges' skipped -- bounded-quantity field 'BoundedQuantity'
-    // dsl: 'tags' skipped -- set field 'EColor'
 }
 

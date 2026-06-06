@@ -1,6 +1,5 @@
 #pragma once
 
-// Tokenizer + recursive-descent parser: `.ttrpg` source text -> TSchemaModule.
 
 #include <ttrpg/schema_ast.h>
 
@@ -25,7 +24,7 @@ enum class ETok {
     Semi,
     Comma,
     Equals,
-    InitExpr,    // raw initializer text captured after '=' up to ';'
+    InitExpr,
     End,
 };
 
@@ -111,10 +110,8 @@ private:
                 ts_.Throw("duplicate alternative '" + alt.Name + "' in variant '" + v.Name + "'");
             }
             if (ts_.Peek().kind == ETok::Semi) {
-                // Flag alternative: no payload.
                 ts_.Advance();
             } else if (ts_.Peek().kind == ETok::LBrace) {
-                // Parameterized alternative: a brace block of class-style fields.
                 ts_.Advance();
                 std::unordered_set<std::string> fieldNames;
                 while (ts_.Peek().kind != ETok::RBrace) {
@@ -151,9 +148,7 @@ private:
             if (f.Container != EContainer::None) {
                 ts_.Throw("container fields cannot have a default value");
             }
-            ts_.Advance();  // '='
-            // The lexer raw-captured the initializer text after '='; the shared
-            // expression front-end parses it (arithmetic, member access, ...).
+            ts_.Advance();
             if (ts_.Peek().kind != ETok::InitExpr) {
                 ts_.Throw("expected initializer expression after '='");
             }

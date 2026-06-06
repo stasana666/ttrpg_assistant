@@ -19,8 +19,7 @@ public:
     size_t CurrentRound() const;
     void Next(TTransformator& transformator);
 
-    // For transformation undo access
-    void SetCurrentPosition(size_t position);  // SIZE_MAX means end()
+    void SetCurrentPosition(size_t position);
     size_t GetCurrentPosition() const;
     void SetRound(size_t round);
 

@@ -14,7 +14,6 @@
 
 namespace {
 
-// Build a weapon JSON with an arbitrary traits array. Other fields are fixed.
 nlohmann::json WeaponJson(nlohmann::json traits) {
     return {
         {"name", "test_weapon"},
@@ -30,10 +29,6 @@ TWeapon ParseWeapon(nlohmann::json traits) {
     return TWeapon::FromJson(WeaponJson(std::move(traits)), factory);
 }
 
-// Exhaustive consumption of every alternative via the `overloaded` idiom.
-// This is the compile-time exhaustiveness guarantee in action: adding a 9th
-// alternative to `variant TWeaponTrait` in weapon.ttrpg and regenerating makes
-// this std::visit fail to compile until a matching lambda is added here.
 std::string Describe(const TWeaponTrait& t) {
     return std::visit(overloaded{
         [](const TWeaponTraitAgile&)       { return std::string("agile"); },
@@ -47,9 +42,8 @@ std::string Describe(const TWeaponTrait& t) {
     }, t.Payload());
 }
 
-}  // namespace
+}
 
-// ---- Authoring forms ----
 
 TEST(WeaponTraitTest, FlagForm) {
     TWeapon w = ParseWeapon({"Agile", "Finesse"});
@@ -104,15 +98,12 @@ TEST(WeaponTraitTest, EmptyTraitsWhenAbsent) {
     EXPECT_TRUE(w.Traits().empty());
 }
 
-// ---- Malformed input rejection ----
 
 TEST(WeaponTraitTest, FlagGivenWithParametersThrows) {
-    // Agile is a flag; supplying it in object form is an error.
     EXPECT_THROW(ParseWeapon({{{"Agile", 5}}}), std::runtime_error);
 }
 
 TEST(WeaponTraitTest, ParameterizedGivenWithoutParametersThrows) {
-    // Fatal needs a die; supplying it as a bare flag is an error.
     EXPECT_THROW(ParseWeapon({"Fatal"}), std::runtime_error);
 }
 
@@ -126,7 +117,6 @@ TEST(WeaponTraitTest, UnknownTraitThrows) {
     EXPECT_THROW(ParseWeapon({"Whirling"}), std::runtime_error);
 }
 
-// ---- Last-wins (kind-keyed container) ----
 
 TEST(WeaponTraitTest, SameKindCollapsesToLastValue) {
     TWeapon w = ParseWeapon({{{"Thrown", 10}}, {{"Thrown", 30}}});
@@ -136,9 +126,7 @@ TEST(WeaponTraitTest, SameKindCollapsesToLastValue) {
     EXPECT_EQ(thrown->RangeFeet, 30);
 }
 
-// ---- Real production data ----
 
-// ---- Exhaustive visit ----
 
 TEST(WeaponTraitTest, DescribeVisitsEveryAlternative) {
     EXPECT_EQ(Describe(TWeaponTraitAgile{}), "agile");

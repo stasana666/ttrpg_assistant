@@ -15,9 +15,6 @@ namespace {
 const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
 }
 
-// Exercises the wolf: a natural attack (no inventory weapon -- the jaws live
-// on the creature's `natural_weapons` and are picked by `choose_weapon`) plus
-// the "Pack Attack" feat (+1d4 damage when an ally is adjacent to the target).
 class WolfCombatTest : public ::testing::Test {
 protected:
     using FsDirEntry = std::filesystem::directory_entry;
@@ -58,9 +55,6 @@ protected:
     TMockInteractionSystem mock_interaction_;
 };
 
-// A lone wolf bites the warrior. The natural-attack weapon comes from the
-// action's `variables` section; Pack Attack finds no adjacent ally, so it
-// contributes nothing -- only the jaws d6 is rolled.
 TEST_F(WolfCombatTest, NaturalAttackHitsWithoutPack) {
     TCreature wolf = MakeWolf();
     TCreature warrior = MakeWarrior();
@@ -71,17 +65,16 @@ TEST_F(WolfCombatTest, NaturalAttackHitsWithoutPack) {
     TBattleMap battle_map = MakeMap();
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
 
-    mock_rng_.ExpectCall(20, 0);   // wolf wins initiative
+    mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(wolf_player), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Warrior");
-    mock_rng_.ExpectCall(20, 15);  // attack roll -> hit
-    mock_rng_.ExpectCall(6, 5);    // jaws damage d6 (no Pack Attack d4)
+    mock_rng_.ExpectCall(20, 15);
+    mock_rng_.ExpectCall(6, 5);
 
-    // Warrior HP 21, damage 5 + 2 (wolf Str mod) = 7 -> 14.
     mock_interaction_.AddCheckCallback([&]() {
         EXPECT_EQ(WarriorHp(battle, 1), 14);
     });
@@ -93,8 +86,6 @@ TEST_F(WolfCombatTest, NaturalAttackHitsWithoutPack) {
     EXPECT_EQ(WarriorHp(battle, 1), 14);
 }
 
-// Three wolves surround the warrior. Wolf A bites; Pack Attack sees both
-// allies (Wolf B and Wolf C) within reach of the target and contributes +1d4.
 TEST_F(WolfCombatTest, PackAttackAddsBonusDamage) {
     TCreature wolf_a = MakeWolf();
     TCreature wolf_b = MakeWolf();
@@ -109,7 +100,7 @@ TEST_F(WolfCombatTest, PackAttackAddsBonusDamage) {
     TBattleMap battle_map = MakeMap();
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
 
-    mock_rng_.ExpectCall(20, 0);   // Wolf A acts first
+    mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 10);
     battle.AddPlayer(std::move(wolf_b_player), TPosition{2, 0});
@@ -120,11 +111,10 @@ TEST_F(WolfCombatTest, PackAttackAddsBonusDamage) {
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Warrior");
-    mock_rng_.ExpectCall(20, 15);  // attack roll -> hit
-    mock_rng_.ExpectCall(6, 5);    // jaws damage d6
-    mock_rng_.ExpectCall(4, 3);    // Pack Attack bonus d4
+    mock_rng_.ExpectCall(20, 15);
+    mock_rng_.ExpectCall(6, 5);
+    mock_rng_.ExpectCall(4, 3);
 
-    // Warrior HP 21, damage (5 + 2) + 3 = 10 -> 11.
     mock_interaction_.AddCheckCallback([&]() {
         EXPECT_EQ(WarriorHp(battle, 3), 11);
     });
@@ -136,8 +126,6 @@ TEST_F(WolfCombatTest, PackAttackAddsBonusDamage) {
     EXPECT_EQ(WarriorHp(battle, 3), 11);
 }
 
-// Only Wolf B is in reach of the target -- Wolf C is far. One adjacent ally
-// is below Pack Attack's threshold of two, so no d4 is rolled.
 TEST_F(WolfCombatTest, PackAttackGatedByAllyCount) {
     TCreature wolf_a = MakeWolf();
     TCreature wolf_b = MakeWolf();
@@ -155,18 +143,17 @@ TEST_F(WolfCombatTest, PackAttackGatedByAllyCount) {
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 10);
-    battle.AddPlayer(std::move(wolf_b_player), TPosition{2, 0});      // in reach
+    battle.AddPlayer(std::move(wolf_b_player), TPosition{2, 0});
     mock_rng_.ExpectCall(20, 15);
-    battle.AddPlayer(std::move(wolf_c_player), TPosition{5, 5});      // far away
+    battle.AddPlayer(std::move(wolf_c_player), TPosition{5, 5});
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Warrior");
-    mock_rng_.ExpectCall(20, 15);  // attack roll -> hit
-    mock_rng_.ExpectCall(6, 5);    // jaws damage d6 only -- no d4
+    mock_rng_.ExpectCall(20, 15);
+    mock_rng_.ExpectCall(6, 5);
 
-    // Warrior HP 21, damage 5 + 2 = 7 -> 14.
     mock_interaction_.AddCheckCallback([&]() {
         EXPECT_EQ(WarriorHp(battle, 3), 14);
     });
@@ -178,7 +165,6 @@ TEST_F(WolfCombatTest, PackAttackGatedByAllyCount) {
     EXPECT_EQ(WarriorHp(battle, 3), 14);
 }
 
-// On a critical hit the Pack Attack d4 doubles along with the weapon damage.
 TEST_F(WolfCombatTest, PackAttackCriticalDoublesBonus) {
     TCreature wolf_a = MakeWolf();
     TCreature wolf_b = MakeWolf();
@@ -204,11 +190,10 @@ TEST_F(WolfCombatTest, PackAttackCriticalDoublesBonus) {
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Warrior");
-    mock_rng_.ExpectCall(20, 20);  // natural 20 -> critical hit
-    mock_rng_.ExpectCall(6, 5);    // jaws damage d6
-    mock_rng_.ExpectCall(4, 3);    // Pack Attack bonus d4
+    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(6, 5);
+    mock_rng_.ExpectCall(4, 3);
 
-    // Warrior HP 21, crit damage ((5 + 2) + 3) * 2 = 20 -> 1.
     mock_interaction_.AddCheckCallback([&]() {
         EXPECT_EQ(WarriorHp(battle, 3), 1);
     });
