@@ -125,18 +125,40 @@ const std::vector<std::shared_ptr<TCreatureFeat>>& TCreature::Feats() const
     return feats_;
 }
 
-int TCreature::Get(ECondition condition) const
+int TCreature::Get(EConditionKind condition) const
 {
-    auto it = conditions_.find(condition);
-    if (it == conditions_.end()) {
+    if (!conditions_.Has(condition)) {
         return 0;
     }
-    return it->second;
+    switch (condition) {
+        case EConditionKind::Prone:
+            return 1;
+        case EConditionKind::Frightened:
+            return conditions_.Get<TConditionFrightened>()->Value;
+        case EConditionKind::MultipleAttackPenalty:
+            return conditions_.Get<TConditionMultipleAttackPenalty>()->Value;
+    }
+    throw std::logic_error("unreachable");
 }
 
-void TCreature::Set(ECondition condition, int value)
+void TCreature::Set(EConditionKind condition, int value)
 {
-    conditions_[condition] = value;
+    if (value <= 0) {
+        conditions_.Erase(condition);
+        return;
+    }
+    switch (condition) {
+        case EConditionKind::Prone:
+            conditions_.Set(TConditionProne{});
+            return;
+        case EConditionKind::Frightened:
+            conditions_.Set(TConditionFrightened{.Value = value});
+            return;
+        case EConditionKind::MultipleAttackPenalty:
+            conditions_.Set(TConditionMultipleAttackPenalty{.Value = value});
+            return;
+    }
+    throw std::logic_error("unreachable");
 }
 
 ECreatureSize TCreature::Size() const
@@ -187,7 +209,7 @@ TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& react
 
 TAstNode TCreature::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 896;
+    static constexpr size_t kExpectedSize = 888;
     AST_ASSERT_LAYOUT(TCreature, kExpectedSize);
 
     const std::string my_id = ctx.IdentityOf(this);
@@ -199,7 +221,11 @@ TAstNode TCreature::GetAst(TAstContext& ctx) const
     TAstNode node = TAstNode::MakeObject("TCreature");
     node.AddChild("creature_data", TCreatureData::GetAst(ctx));
     AddOwnedObject(node, "proficiency", proficiency_, ctx);
-    node.AddChild("conditions", GetConditionsAst(conditions_));
+    TAstNode conditions_node = TAstNode::MakeObject("TConditions");
+    for (const auto& [kind, condition] : conditions_) {
+        AddOwnedObject(conditions_node, ToString(kind), condition, ctx);
+    }
+    node.AddChild("conditions", std::move(conditions_node));
     AddOwnedObject(node, "hitpoints", hitpoints_, ctx);
     AddOwnedObject(node, "resolver", resolver_, ctx);
     AddOwnedObject(node, "resources", resources_, ctx);

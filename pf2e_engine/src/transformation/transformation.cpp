@@ -21,7 +21,7 @@ void TChangeHitPoints::Undo()
     *hitpoints_ = prev_;
 }
 
-TChangeCondition::TChangeCondition(TCreature* creature, ECondition condition, int new_value)
+TChangeCondition::TChangeCondition(TCreature* creature, EConditionKind condition, int new_value)
     : creature_(creature)
     , condition_(condition)
     , prev_value_(creature->Get(condition))
@@ -55,7 +55,7 @@ void TChangeResource::Undo()
     }
 }
 
-TAddEffect::TAddEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value)
+TAddEffect::TAddEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value)
     : manager_(manager)
     , player_(player)
     , condition_(condition)
@@ -69,7 +69,7 @@ void TAddEffect::Undo()
     manager_->EraseValue(player_, condition_, value_);
 }
 
-TRemoveEffect::TRemoveEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value)
+TRemoveEffect::TRemoveEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value)
     : manager_(manager)
     , player_(player)
     , condition_(condition)

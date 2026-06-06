@@ -57,7 +57,7 @@ TEST(AstState, MutationVisibleInAst_AddCondition)
         [](const TPlayer* p) { return p->GetId() == 0; });
     ASSERT_FALSE(players.empty());
     TTransformator transformator(fixture->io);
-    transformator.ChangeCondition(players[0]->GetCreature(), ECondition::Frightened, 2);
+    transformator.ChangeCondition(players[0]->GetCreature(), EConditionKind::Frightened, 2);
 
     auto after = Snapshot(*fixture->battle);
     EXPECT_NE(before, after);
@@ -123,7 +123,7 @@ TEST(AstState, RollbackRestoresIdenticalAst_MultipleTransformations)
 
     transformator.DealDamage(players[0], 3);
     transformator.DealDamage(players[1], 7);
-    transformator.ChangeCondition(players[0]->GetCreature(), ECondition::Prone, 1);
+    transformator.ChangeCondition(players[0]->GetCreature(), EConditionKind::Prone, 1);
     transformator.AddResource(players[0]->GetCreature()->Resources(), rid, 2);
 
     auto mid = Snapshot(*fixture->battle);

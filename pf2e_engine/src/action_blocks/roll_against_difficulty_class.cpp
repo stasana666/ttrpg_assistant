@@ -85,5 +85,5 @@ int FRollAgainstDifficultyClass::MultipleAttackPenaltyFor(const TPlayer& attacke
     if (input_.GetNumber(kAppliesMultipleAttackPenaltyId) == 0) {
         return 0;
     }
-    return attacker.GetCreature()->Get(ECondition::MultipleAttackPenalty);
+    return attacker.GetCreature()->Get(EConditionKind::MultipleAttackPenalty);
 }

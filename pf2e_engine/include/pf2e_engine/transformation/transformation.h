@@ -28,7 +28,7 @@ private:
 
 class TChangeCondition {
 public:
-    TChangeCondition(TCreature* creature, ECondition condition, int new_value);
+    TChangeCondition(TCreature* creature, EConditionKind condition, int new_value);
 
     void Undo();
 
@@ -36,7 +36,7 @@ public:
 
 private:
     TCreature* creature_;
-    ECondition condition_;
+    EConditionKind condition_;
     int prev_value_;
 };
 
@@ -56,7 +56,7 @@ private:
 
 class TAddEffect {
 public:
-    TAddEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value);
+    TAddEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value);
 
     void Undo();
 
@@ -65,13 +65,13 @@ public:
 private:
     TEffectManager* manager_;
     TPlayer* player_;
-    ECondition condition_;
+    EConditionKind condition_;
     int value_;
 };
 
 class TRemoveEffect {
 public:
-    TRemoveEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value);
+    TRemoveEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value);
 
     void Undo();
 
@@ -80,7 +80,7 @@ public:
 private:
     TEffectManager* manager_;
     TPlayer* player_;
-    ECondition condition_;
+    EConditionKind condition_;
     int value_;
 };
 

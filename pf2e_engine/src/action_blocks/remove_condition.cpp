@@ -11,6 +11,6 @@ static const TGameObjectId kTargetId = TGameObjectIdManager::Instance().Register
 void FRemoveCondition::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
-    ECondition condition = ConditionFromString(input_.GetString(kConditionId));
+    EConditionKind condition = EConditionKindFromString(input_.GetString(kConditionId));
     ctx->effect_manager->ClearCondition(&target, condition, *ctx->transformator);
 }

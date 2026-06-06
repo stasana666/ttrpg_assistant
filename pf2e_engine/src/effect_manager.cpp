@@ -10,12 +10,12 @@
 #include <algorithm>
 #include <vector>
 
-void TEffectManager::InsertValue(TPlayer* player, ECondition condition, int value)
+void TEffectManager::InsertValue(TPlayer* player, EConditionKind condition, int value)
 {
     condition_values_[std::make_pair(player, condition)].insert(value);
 }
 
-void TEffectManager::EraseValue(TPlayer* player, ECondition condition, int value)
+void TEffectManager::EraseValue(TPlayer* player, EConditionKind condition, int value)
 {
     auto it = condition_values_.find(std::make_pair(player, condition));
     if (it != condition_values_.end()) {
@@ -26,7 +26,7 @@ void TEffectManager::EraseValue(TPlayer* player, ECondition condition, int value
     }
 }
 
-int TEffectManager::GetHighestValue(TPlayer* player, ECondition condition) const
+int TEffectManager::GetHighestValue(TPlayer* player, EConditionKind condition) const
 {
     auto it = condition_values_.find(std::make_pair(player, condition));
     if (it == condition_values_.end() || it->second.empty()) {
@@ -74,7 +74,7 @@ TEffectCanceler TEffectManager::AddEffect(TEffect effect, TTransformator& transf
     return canceler;
 }
 
-void TEffectManager::ClearCondition(TPlayer* player, ECondition condition, TTransformator& transformator)
+void TEffectManager::ClearCondition(TPlayer* player, EConditionKind condition, TTransformator& transformator)
 {
     auto key = std::make_pair(player, condition);
     auto it = active_cancelers_.find(key);
@@ -89,7 +89,7 @@ void TEffectManager::ClearCondition(TPlayer* player, ECondition condition, TTran
     }
 }
 
-void TEffectManager::Update(TPlayer* player, ECondition condition, TTransformator& transformator)
+void TEffectManager::Update(TPlayer* player, EConditionKind condition, TTransformator& transformator)
 {
     int new_value = GetHighestValue(player, condition);
     transformator.ChangeCondition(player->GetCreature(), condition, new_value);
