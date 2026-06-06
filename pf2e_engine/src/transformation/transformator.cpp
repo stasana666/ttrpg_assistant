@@ -19,17 +19,17 @@ TTransformator::TTransformator(IInteractionSystem& io_system)
 void TTransformator::DealDamage(TPlayer* player, int damage)
 {
     TCreature* creature = player->GetCreature();
-    transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints(), -damage));
+    transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints().Mutable(), -damage));
     io_system_.GameLog() << player->GetName() << " takes " << damage << " amount of damage" << std::endl;
-    io_system_.GameLog() << "current hp: " << creature->Hitpoints().GetCurrentHp() << std::endl;
+    io_system_.GameLog() << "current hp: " << creature->Hitpoints()->GetCurrentHp() << std::endl;
 }
 
 void TTransformator::Heal(TPlayer* player, int value)
 {
     TCreature* creature = player->GetCreature();
-    transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints(), value));
+    transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints().Mutable(), value));
     io_system_.GameLog() << player->GetName() << " takes " << value << " amount of heal" << std::endl;
-    io_system_.GameLog() << "current hp: " << creature->Hitpoints().GetCurrentHp() << std::endl;
+    io_system_.GameLog() << "current hp: " << creature->Hitpoints()->GetCurrentHp() << std::endl;
 }
 
 void TTransformator::ChangeCondition(TCreature* creature, ECondition condition, int new_value)
@@ -37,14 +37,14 @@ void TTransformator::ChangeCondition(TCreature* creature, ECondition condition, 
     transformations_.emplace_back(TChangeCondition(creature, condition, new_value));
 }
 
-void TTransformator::AddResource(TResourcePool* pool, TResourceId id, int count)
+void TTransformator::AddResource(TGuarded<TResourcePool> pool, TResourceId id, int count)
 {
-    transformations_.emplace_back(TChangeResource(pool, id, count));
+    transformations_.emplace_back(TChangeResource(&pool.Mutable(), id, count));
 }
 
-void TTransformator::ReduceResource(TResourcePool* pool, TResourceId id, int count)
+void TTransformator::ReduceResource(TGuarded<TResourcePool> pool, TResourceId id, int count)
 {
-    transformations_.emplace_back(TChangeResource(pool, id, -count));
+    transformations_.emplace_back(TChangeResource(&pool.Mutable(), id, -count));
 }
 
 void TTransformator::AddEffect(TEffectManager* manager, TPlayer* player, ECondition condition, int value)

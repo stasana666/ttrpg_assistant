@@ -1,0 +1,10 @@
+{
+    "name": "jaws",
+    "type": "pf2e_weapon",
+    "pf2e_weapon": {
+        "name": "jaws",
+        "base_dice_size": 6,
+        "damage_type": "Piercing",
+        "category": "Unarmed"
+    }
+}

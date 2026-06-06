@@ -6,6 +6,7 @@
 #include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/player.h>
+#include <pf2e_engine/transformation/transformator.h>
 
 const TGameObjectId kSelf = TGameObjectIdManager::Instance().Register("self");
 
@@ -28,7 +29,7 @@ void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player)
         ctx->game_object_registry->Add(variable.id, TGameObjectPtr{variable.weapon.get()});
     }
 
-    Consume(player);
+    Consume(ctx, player);
 
     ctx->io_system->GameLog() << player.GetName() << ": " << name_ << std::endl;
 
@@ -37,10 +38,11 @@ void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player)
         [ctx]() { ctx->next_block->Run(ctx); });
 }
 
-void TAction::Consume(TPlayer& player)
+void TAction::Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player)
 {
     for (auto& resource : consume_) {
-        player.GetCreature()->Resources().Reduce(resource.resource_id, resource.count);
+        ctx->transformator->ReduceResource(
+            player.GetCreature()->Resources(), resource.resource_id, resource.count);
     }
 }
 

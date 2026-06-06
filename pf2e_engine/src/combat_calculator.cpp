@@ -11,13 +11,13 @@ struct TArmorClassTag {};
 
 int TCombatCalculator::InitiativeBonus(const TCreature& creature) const
 {
-    return creature.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
+    return creature.GetCharacteristic(ECharacteristic::Dexterity).Modifier();
 }
 
 int TCombatCalculator::ArmorClass(const TCreature& target, const TCreature& attacker) const
 {
     const TArmor& armor = target.Armor();
-    int dex = target.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
+    int dex = target.GetCharacteristic(ECharacteristic::Dexterity).Modifier();
     int ac = 10 + armor.ArmorClassBonus()
         + std::min(armor.DexterityCap(), dex)
         + target.Proficiency().GetProficiency(armor)
@@ -38,7 +38,7 @@ template <class T>
 int TCombatCalculator::RollBonus(const TCreature& creature, T type) const
 {
     int proficiency    = creature.Proficiency().GetProficiency(type);
-    int characteristic = creature.GetCharacteristic(BindedCharacteristic(type)).GetMod();
+    int characteristic = creature.GetCharacteristic(BindedCharacteristic(type)).Modifier();
     return proficiency + characteristic - Penalty(creature, type);
 }
 
@@ -77,11 +77,11 @@ template int TCombatCalculator::Penalty<TWeaponAttackTag>(const TCreature&, TWea
 
 int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon& weapon) const
 {
-    int str = creature.GetCharacteristic(ECharacteristic::Strength).GetMod();
+    int str = creature.GetCharacteristic(ECharacteristic::Strength).Modifier();
     int ability_mod = str;
 
     if (weapon.Traits().Has(EWeaponTraitKind::Finesse)) {
-        int dex = creature.GetCharacteristic(ECharacteristic::Dexterity).GetMod();
+        int dex = creature.GetCharacteristic(ECharacteristic::Dexterity).Modifier();
         ability_mod = std::max(str, dex);
     }
 

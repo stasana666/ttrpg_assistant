@@ -38,7 +38,8 @@ TEST(AstState, MutationVisibleInAst_DealDamage)
     auto players = fixture->battle->GetIfPlayers(
         [](const TPlayer* p) { return p->GetId() == 1; });
     ASSERT_FALSE(players.empty());
-    players[0]->GetCreature()->Hitpoints().ReduceHp(1);
+    TTransformator transformator(fixture->io);
+    transformator.DealDamage(players[0], 1);
 
     auto after = Snapshot(*fixture->battle);
     EXPECT_NE(before, after);
@@ -55,7 +56,8 @@ TEST(AstState, MutationVisibleInAst_AddCondition)
     auto players = fixture->battle->GetIfPlayers(
         [](const TPlayer* p) { return p->GetId() == 0; });
     ASSERT_FALSE(players.empty());
-    players[0]->GetCreature()->Set(ECondition::Frightened, 2);
+    TTransformator transformator(fixture->io);
+    transformator.ChangeCondition(players[0]->GetCreature(), ECondition::Frightened, 2);
 
     auto after = Snapshot(*fixture->battle);
     EXPECT_NE(before, after);
@@ -73,7 +75,8 @@ TEST(AstState, MutationVisibleInAst_ResourcePool)
     auto players = fixture->battle->GetIfPlayers(
         [](const TPlayer* p) { return p->GetId() == 0; });
     ASSERT_FALSE(players.empty());
-    players[0]->GetCreature()->Resources().Add(rid, 1);
+    TTransformator transformator(fixture->io);
+    transformator.AddResource(players[0]->GetCreature()->Resources(), rid, 1);
 
     auto after = Snapshot(*fixture->battle);
     EXPECT_NE(before, after);
@@ -121,7 +124,7 @@ TEST(AstState, RollbackRestoresIdenticalAst_MultipleTransformations)
     transformator.DealDamage(players[0], 3);
     transformator.DealDamage(players[1], 7);
     transformator.ChangeCondition(players[0]->GetCreature(), ECondition::Prone, 1);
-    transformator.AddResource(&players[0]->GetCreature()->Resources(), rid, 2);
+    transformator.AddResource(players[0]->GetCreature()->Resources(), rid, 2);
 
     auto mid = Snapshot(*fixture->battle);
     EXPECT_NE(before, mid);
@@ -174,13 +177,15 @@ TEST(AstState, ContainerDeterminism_ResourceInsertionOrder)
     auto rid_y = TResourceIdManager::Instance().Register("rid_y");
     auto rid_z = TResourceIdManager::Instance().Register("rid_z");
 
-    pa[0]->GetCreature()->Resources().Add(rid_x, 1);
-    pa[0]->GetCreature()->Resources().Add(rid_y, 2);
-    pa[0]->GetCreature()->Resources().Add(rid_z, 3);
+    TTransformator ta(a->io);
+    ta.AddResource(pa[0]->GetCreature()->Resources(), rid_x, 1);
+    ta.AddResource(pa[0]->GetCreature()->Resources(), rid_y, 2);
+    ta.AddResource(pa[0]->GetCreature()->Resources(), rid_z, 3);
 
-    pb[0]->GetCreature()->Resources().Add(rid_z, 3);
-    pb[0]->GetCreature()->Resources().Add(rid_y, 2);
-    pb[0]->GetCreature()->Resources().Add(rid_x, 1);
+    TTransformator tb(b->io);
+    tb.AddResource(pb[0]->GetCreature()->Resources(), rid_z, 3);
+    tb.AddResource(pb[0]->GetCreature()->Resources(), rid_y, 2);
+    tb.AddResource(pb[0]->GetCreature()->Resources(), rid_x, 1);
 
     auto ast_a = Snapshot(*a->battle);
     auto ast_b = Snapshot(*b->battle);

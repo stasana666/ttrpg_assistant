@@ -1,0 +1,10 @@
+{
+    "type": "pf2e_armor",
+    "name": "unarmored",
+    "pf2e_armor": {
+        "armor_class_bonus": 0,
+        "dexterity_cap": 100,
+        "category": "Unarmored",
+        "material": "leather"
+    }
+}

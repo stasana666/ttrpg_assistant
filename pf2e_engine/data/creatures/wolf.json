@@ -2,10 +2,22 @@
     "name": "wolf",
     "type": "pf2e_creature",
     "pf2e_creature": {
-        "level": 1,
-        "race_hitpoints": 14,
-        "hitpoint_per_level": 8,
-        "movement": 7,
+        "creature_data": {
+            "level": 1,
+            "race": "wolf",
+            "class": "animal",
+            "characteristic": {
+                "strength": { "value": 14 },
+                "dexterity": { "value": 18 },
+                "constitution": { "value": 14 },
+                "intelligence": { "value": 4 },
+                "wisdom": { "value": 14 },
+                "charisma": { "value": 8 }
+            },
+            "movement": 7,
+            "armor": "unarmored",
+            "weapon": "jaws"
+        },
         "size": "Medium",
         "proficiency": {
             "armor_category": {
@@ -30,14 +42,6 @@
                 "Survival": "trained"
             },
             "Perception": "expert"
-        },
-        "characteristics": {
-            "Strength": 14,
-            "Dexterity": 18,
-            "Constitution": 14,
-            "Intelligence": 4,
-            "Wisdom": 14,
-            "Charisma": 8
         },
         "actions": [
             "attack_with_weapon",

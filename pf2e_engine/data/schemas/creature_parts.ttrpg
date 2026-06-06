@@ -8,7 +8,7 @@ class TClass {
 
 class TAbilityScore {
     int Value;
-    derive int Modifier = (Value - 10) / 2;
+    derive int Modifier = Value / 2 - 5;
 }
 
 class TAbilityScores {

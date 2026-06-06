@@ -23,7 +23,6 @@ int TCharacteristic::GetMod() const
 void TCharacteristic::Set(int value)
 {
     value_ = value;
-    NotifyAll(*this);
 }
 
 TCharacteristicSet::TCharacteristicSet(std::array<int, kCharacteristicCount> values)
@@ -66,7 +65,7 @@ const TCharacteristic& TCharacteristicSet::operator[](ECharacteristic name) cons
 
 TAstNode TCharacteristic::GetAst([[maybe_unused]] TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 32;
+    static constexpr size_t kExpectedSize = 8;
     AST_ASSERT_LAYOUT(TCharacteristic, kExpectedSize);
 
     TAstNode node = TAstNode::MakeObject("TCharacteristic");
@@ -76,7 +75,7 @@ TAstNode TCharacteristic::GetAst([[maybe_unused]] TAstContext& ctx) const
 
 TAstNode TCharacteristicSet::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 200;
+    static constexpr size_t kExpectedSize = 52;
     AST_ASSERT_LAYOUT(TCharacteristicSet, kExpectedSize);
 
     TAstNode node = TAstNode::MakeObject("TCharacteristicSet");

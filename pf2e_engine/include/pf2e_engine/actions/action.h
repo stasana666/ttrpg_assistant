@@ -29,7 +29,7 @@ public:
             TVariables&& variables = {});
 
     void Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player);
-    void Consume(TPlayer& player);
+    void Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player);
     bool Check(const TPlayer& self);
     std::string_view Name() const;
 

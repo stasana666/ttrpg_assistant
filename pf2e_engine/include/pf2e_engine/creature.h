@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/guarded.h>
 #include <pf2e_engine/weapon_slot.h>
 
 #include <pf2e_engine/actions/action.h>
@@ -9,27 +10,27 @@
 #include <pf2e_engine/creature_size.h>
 #include <pf2e_engine/feat.h>
 #include <pf2e_engine/inventory/armor.h>
+#include <pf2e_engine/inventory/creature_data.h>
+#include <pf2e_engine/inventory/creature_parts.h>
 #include <pf2e_engine/mechanics/characteristics.h>
 #include <pf2e_engine/mechanics/damage_resolver.h>
 #include <pf2e_engine/mechanics/hitpoints.h>
 #include <pf2e_engine/proficiency.h>
 
-class TCreature {
+class TCreature : public TCreatureData {
 public:
-    TCreature(TCharacteristicSet stats, TProficiency proficiency, TArmor armor, THitPoints hitpoints);
+    TCreature(TCreatureData data, TProficiency proficiency, THitPoints hitpoints);
 
-    const TCharacteristic& GetCharacteristic(ECharacteristic name) const;
+    TAbilityScore GetCharacteristic(ECharacteristic name) const;
 
-    TCharacteristicSet& Characteristics();
-    THitPoints& Hitpoints();
+    TGuarded<THitPoints> Hitpoints();
     const THitPoints& Hitpoints() const;
 
     const TResourcePool& Resources() const;
-    TResourcePool& Resources();
+    TGuarded<TResourcePool> Resources();
 
     const TDamageResolver& DamageResolver() const;
 
-    const TArmor& Armor() const;
     TWeaponSlots& Weapons();
 
     std::vector<TWeapon>& NaturalWeapons();
@@ -50,9 +51,6 @@ public:
     const std::vector<std::shared_ptr<TCreatureFeat>>& Feats() const;
 
     int Get(ECondition condition) const;
-    void Set(ECondition condition, int value);
-
-    int& Movement();
 
     ECreatureSize Size() const;
     void SetSize(ECreatureSize size);
@@ -62,7 +60,12 @@ public:
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:
-    TCharacteristicSet stats_;
+    friend class TChangeCondition;
+    void Set(ECondition condition, int value);
+
+    friend class TGameObjectFactory;
+    TResourcePool& ResourcesForInit() { return resources_; }
+
     TProficiency proficiency_;
     TConditions conditions_;
 
@@ -71,10 +74,8 @@ private:
 
     TResourcePool resources_;
 
-    int movement_;
     ECreatureSize size_ = ECreatureSize::Medium;
 
-    TArmor armor_;
     TWeaponSlots weapons_;
     std::vector<TWeapon> natural_weapons_;
     std::vector<std::shared_ptr<TAction>> actions_;
