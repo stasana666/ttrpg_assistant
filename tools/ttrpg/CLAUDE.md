@@ -92,6 +92,13 @@ class TBaz {                   // -> data class (FromJson / GetAst / RegisterDsl
 - **`set<T>`**: `T` must be a schema-declared **enum** (lowers to `std::set`) or
   **variant** (lowers to `TVariantMap`). Primitive/class set elements are an
   error. Set fields cannot have a default (absent JSON key ⇒ empty).
+- **`collection<T>`** (`EContainer::Collection`): `T` must be a schema-declared
+  **class**; lowers to the hand-written `TIdCollection<T>`
+  ([pf2e_engine/common/id_collection.h](../../pf2e_engine/include/pf2e_engine/common/id_collection.h)),
+  factory-backed (each element loaded by the class loader). No default; `derive`
+  is a parser error on a `collection` field. Golden-tested
+  ([tests/fixtures/collection.*](tests/fixtures/)) but not yet used by a live
+  engine schema.
 - **Defaults**: int literals, `true`/`false`, an enum value identifier, or
   `max_int` / `min_int`. Class/variant fields have no defaults.
 - **Computed defaults**: a field's `= <expr>` may be an arithmetic expression
@@ -295,7 +302,8 @@ sources must compile and all existing tests pass after any generator change.
 
 - DSL exposes only `int`/`bool` scalar fields (no `string`, enum, variant, or
   container) — widening needs new `TDslValue` alternatives.
-- No inheritance, methods, or `list`/`optional`/`map` field shapes yet.
+- No inheritance, methods, or `optional`/`map` field shapes yet (the container
+  shapes that exist are `set<Enum|Variant>` and `collection<Class>`).
 - Migrating `BaseDiceSize` (`int`) to `EDieSize` was left as-is (not done).
 - Variants are **closed** by design: adding an alternative and regenerating
   makes every `std::visit` site built with `overloaded` fail to compile until

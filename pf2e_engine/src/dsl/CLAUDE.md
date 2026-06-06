@@ -1,11 +1,18 @@
-# DSL evaluator
+# DSL runtime (parser wrapper + evaluator)
 
-The runtime evaluator for the action-pipeline expression DSL. Parsing is **not**
-here — it comes from the shared expression front-end ([tools/common/expr/](../../../../tools/common/expr/)).
-This directory owns only the evaluator ([evaluator.cpp](evaluator.cpp)): `ParseDsl(src)`
-wraps `expr::Parse` into a `TDslExpression`, whose `Evaluate(TEvalContext&)` walks
-the shared `expr::TExprNode` against the property/function registries. See the
-root [CLAUDE.md](../../../../CLAUDE.md) "DSL Expression Layer" section for the
+The runtime side of the action-pipeline expression DSL. The lexer/parser/grammar
+are **not** here — they come from the shared expression front-end
+([tools/common/expr/](../../../../tools/common/expr/)). This directory owns the
+thin wrapper plus everything needed to evaluate the result:
+- [parser.cpp](parser.cpp) — `ParseDsl(src)` wraps `expr::Parse` into a `TDslExpression`.
+- [evaluator.cpp](evaluator.cpp) — `TDslExpression::Evaluate(TEvalContext&)` walks
+  the shared `expr::TExprNode` against the property/function registries.
+- [property_access.cpp](property_access.cpp), [function_registry.cpp](function_registry.cpp),
+  [builtins.cpp](builtins.cpp) — registries and the initial property/function bindings.
+- [value_convert.cpp](value_convert.cpp), [scope_guard.cpp](scope_guard.cpp) — `TDslValue`
+  conversion and scoped `$item`/`$acc` binding.
+
+See the root [CLAUDE.md](../../../../CLAUDE.md) "DSL Expression Layer" section for the
 grammar, registries, and the list of built-in properties/functions.
 
 Implementation details that are easy to get wrong:

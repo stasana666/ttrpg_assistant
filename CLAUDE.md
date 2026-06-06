@@ -37,7 +37,7 @@ This is a tabletop RPG (TTRPG) assistant for D&D/Pathfinder (PF2e), written in C
 
 The repository is split into three top-level components:
 
-- **`pf2e_engine/`** — the core, headless game-mechanics engine. Built as the `pf2e_engine` library; links only `nlohmann_json` + `json-schema-validator`. No GUI/voice dependencies.
+- **`pf2e_engine/`** — the core, headless game-mechanics engine. Built as the `pf2e_engine` library; links `nlohmann_json`, `json-schema-validator`, and the shared parsing libs `ttrpg_parse` + `expr` (the latter feeds the runtime DSL). No GUI/voice dependencies.
 - **`assistant/`** — the player-facing application (GUI/CLI/voice). Built as the `assistant_lib` library plus the `assistant` executable; links SFML, llama.cpp, Vosk, argparse on top of `pf2e_engine`.
 - **`analyzer/`** — a headless Monte-Carlo combat simulator that runs many automated battles and reports win/death probabilities. Built as `analyzer_lib` plus the `analyzer` executable; links only `pf2e_engine`.
 
@@ -81,6 +81,7 @@ ctest
 ./pf2e_engine/tests/mechanics/test_mechanics
 ./pf2e_engine/tests/transformation/test_transformation
 ```
+Note: `test_actions` is built but is **not** registered with CTest (only `test_wolf_combat` is `gtest_discover_tests`'d in [pf2e_engine/tests/actions/CMakeLists.txt](pf2e_engine/tests/actions/CMakeLists.txt)), so `ctest` does not run it — run the binary directly as shown above.
 
 ### Running the Application
 ```bash
@@ -153,7 +154,7 @@ Some data-oriented game-object classes are generated from `.ttrpg` schemas inste
 
 **Generated output**: emitted into `${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/...` and `.../src/...`. The build dir is on `pf2e_engine`'s public include path, so consumers `#include <pf2e_engine/inventory/armor.h>` exactly as before.
 
-**Currently migrated**: `TArmor` + `EArmorCategory` ([armor.ttrpg](pf2e_engine/data/schemas/armor.ttrpg)), `TMaterial` ([material.ttrpg](pf2e_engine/data/schemas/material.ttrpg)), `EDamageType` ([damage.ttrpg](pf2e_engine/data/schemas/damage.ttrpg)), `EDieSize` ([dice.ttrpg](pf2e_engine/data/schemas/dice.ttrpg)), and `TWeapon` + `EWeaponCategory` + the `TWeaponTrait` **variant** ([weapon.ttrpg](pf2e_engine/data/schemas/weapon.ttrpg)), plus `TRace` / `TClass` / `TAbilityScore` / `TAbilityScores` ([creature_parts.ttrpg](pf2e_engine/data/schemas/creature_parts.ttrpg)) — where `TAbilityScore` is `{ int Value; derive int Modifier = Value / 2 - 5; }` (a stored value plus a storage-less derived modifier) and `TAbilityScores` holds six of them as inline nested objects — and `TCreatureData` — a generated aggregate of a level, those parts (by-name class refs), a `TArmor`/`TWeapon`, and a computed `BoundedQuantity Hitpoints` derived via a member-access chain (`Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution.Modifier)`) ([creature_data.ttrpg](pf2e_engine/data/schemas/creature_data.ttrpg)) — the growing slice of an incremental `TCreature` migration. `TCreature` itself and the remaining mechanical enums are still handwritten.
+**Currently migrated**: `TArmor` + `EArmorCategory` ([armor.ttrpg](pf2e_engine/data/schemas/armor.ttrpg)), `TMaterial` ([material.ttrpg](pf2e_engine/data/schemas/material.ttrpg)), `EDamageType` ([damage.ttrpg](pf2e_engine/data/schemas/damage.ttrpg)), `EDieSize` ([dice.ttrpg](pf2e_engine/data/schemas/dice.ttrpg)), and `TWeapon` + `EWeaponCategory` + the `TWeaponTrait` **variant** ([weapon.ttrpg](pf2e_engine/data/schemas/weapon.ttrpg)), plus `TRace` / `TClass` / `TAbilityScore` / `TAbilityScores` ([creature_parts.ttrpg](pf2e_engine/data/schemas/creature_parts.ttrpg)) — where `TAbilityScore` is `{ int Value; derive int Modifier = Value / 2 - 5; }` (a stored value plus a storage-less derived modifier) and `TAbilityScores` holds six of them as inline nested objects — and `TCreatureData` — a generated aggregate of a level, those parts (by-name class refs), a `TArmor`/`TWeapon`, and a computed `BoundedQuantity Hitpoints` derived via a member-access chain (`Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution.Modifier)`) ([creature_data.ttrpg](pf2e_engine/data/schemas/creature_data.ttrpg)), plus the `TCondition` **variant** (`Prone` flag plus `Frightened` / `MultipleAttackPenalty` int-payload alternatives, [condition.ttrpg](pf2e_engine/data/schemas/condition.ttrpg)) — the growing slice of an incremental `TCreature` migration. `TCreature` itself and the remaining mechanical enums are still handwritten.
 
 **Three top-level constructs**: `enum` (→ plain `enum class` + `ToString`/`FromString`), `class` (data type → `FromJson`/`GetAst`/`RegisterDslProperties`), and `variant` (a **closed sum type** with named, possibly-parameterized payloads). Schema syntax:
 ```
@@ -181,6 +182,7 @@ class TArmor {
 - Type names appear verbatim as in C++ (`TArmor`, `EArmorCategory`); the generator does not silently add `T`/`E`.
 - Field types: `int`, `bool`, `string`, the built-in `BoundedQuantity` (a `{current_value, max_value}` pair lowering to the hand-written `TBoundedQuantity`, parallel to how `set<Variant>` lowers to `TVariantMap`), or a schema-declared enum / class / variant. The generator dispatches on the symbol table — no `ref`/`owned` keyword needed. A **class** field loads from JSON as **either** a by-name string ref (`"armor": "fullplate"` → `factory.Create<TArmor>`) **or** an inline nested object (`"constitution": {"value": 16}` → `TAbilityScore::FromJson`); the generated `FromJson` dispatches on `is_string()` at runtime, so both forms work everywhere with no schema annotation.
 - `set<T>`: `T` must be a schema-declared **enum** (→ `std::set`) or **variant** (→ `TVariantMap`). Set fields take no default (absent JSON key ⇒ empty).
+- `collection<T>`: `T` must be a schema-declared **class**; lowers to the hand-written `TIdCollection<T>` ([id_collection.h](pf2e_engine/include/pf2e_engine/common/id_collection.h)), factory-backed like other class fields. Supported and golden-tested by the generator, but not yet used by a live engine schema. No default (absent JSON key ⇒ empty).
 - `import "other.ttrpg";` makes another file's types visible. Paths are relative; imports resolve recursively with cycle detection.
 - Default values: integer literals, `true`/`false`, an enum value identifier, or `max_int` / `min_int`. Class/variant fields have no defaults.
 - Computed defaults: a field's `= <expr>` may be an arithmetic expression (`+ - * /`, parens) over sibling fields (referenced by PascalCase name), including **member-access chains** of any depth into class-ref fields, e.g. `BoundedQuantity Hitpoints = Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution.Modifier);` (`Characteristic.Constitution.Modifier` → `r.Characteristic_.Constitution().Modifier()`). Still JSON-overridable (JSON value wins if present, else the expression is evaluated); only `int`/`BoundedQuantity` fields may be computed and the expression (and every arithmetic operand) must be `int`; cycles are a codegen-time error. The initializer grammar is parsed by the shared expression front-end [tools/common/expr/](tools/common/expr/) (see below). See [tools/ttrpg/CLAUDE.md](tools/ttrpg/CLAUDE.md).
@@ -201,7 +203,7 @@ class TArmor {
 
 **Limitations of the current generator** (more in [tools/ttrpg/CLAUDE.md](tools/ttrpg/CLAUDE.md)):
 - DSL exposes only `int`/`bool` scalar fields — no `string`, enum, variant, or container (needs new `TDslValue` alternatives).
-- No inheritance, methods, or `list`/`optional`/`map` field shapes yet.
+- No inheritance, methods, or `optional`/`map` field shapes yet. Container shapes that DO exist: `set<Enum|Variant>` and `collection<Class>` (→ `TIdCollection`).
 - Generated classes do NOT include `AST_ASSERT_LAYOUT` checks — the schema is the source of truth, so the "developer changed fields without updating GetAst" failure mode is structurally impossible. Handwritten AST-instrumented classes still need the layout assert (see AST design doc).
 
 ### Action Pipeline System
@@ -267,16 +269,13 @@ The engine asks the outside world to make choices through the `IInteractionSyste
 - `IInteractionSystem::ChooseAlternative<T>()` short-circuits when only one alternative exists
 - `IInteractionSystem::HandleReactionTrigger()` reports a reaction opportunity (e.g. `OnMove`); the implementation alone decides whether to resolve it immediately (return) or defer it by throwing `TSavepointStackUnwind` — the engine never makes this decision
 
-Concrete implementations:
-- **`TInteractionSystem`** ([assistant/src/interaction_system.cpp](assistant/src/interaction_system.cpp)) — the player-facing implementation. Supports multiple simultaneous input sources (GUI, CLI, voice), uses channel-based communication (`TChannel<TClickEvent>`), runs the GUI in the main thread and game logic in a separate thread. Voice input (`TAudioInputSystem`) uses Vosk for speech-to-text and llama.cpp for intent recognition. **Asking Strategies**: `EAskingStrategy::Console` for CLI/voice, `EAskingStrategy::Gui` for click-based input.
-- **`TAutomatedInteractionSystem`** ([analyzer/include/analyzer/automated_interaction_system.h](analyzer/include/analyzer/automated_interaction_system.h)) — the headless simulation implementation. Delegates every choice to an `IDecisionStrategy` and discards all log output.
+Concrete implementations (each lives with its component; details in that component's CLAUDE.md):
+- **`TInteractionSystem`** (`assistant`) — player-facing GUI/CLI/voice; defers reaction triggers. See [assistant/CLAUDE.md](assistant/CLAUDE.md).
+- **`TAutomatedInteractionSystem`** (`analyzer`) — headless, delegates to an `IDecisionStrategy`, resolves reactions immediately. See [analyzer/CLAUDE.md](analyzer/CLAUDE.md).
 - **`TMockInteractionSystem`** ([pf2e_engine/tests/test_lib/mock_interaction_system.h](pf2e_engine/tests/test_lib/mock_interaction_system.h)) — the scripted test implementation.
 
 ### Analyzer
-The combat analyzer ([analyzer/](analyzer/)) runs Monte-Carlo simulations on top of the headless engine:
-- **`IDecisionStrategy`** ([analyzer/include/analyzer/decision_strategy.h](analyzer/include/analyzer/decision_strategy.h)) — pluggable policy that picks a choice index from `TAlternatives` by inspecting its `Kind()`. New strategies (defensive, random, etc.) are added by implementing this interface.
-- **`TAggressiveMeleeStrategy`** ([analyzer/src/aggressive_melee_strategy.cpp](analyzer/src/aggressive_melee_strategy.cpp)) — the first concrete strategy: always picks the weapon-attack action and an enemy target.
-- **`TCombatAnalyzer`** ([analyzer/src/combat_analyzer.cpp](analyzer/src/combat_analyzer.cpp)) — builds the `TGameObjectFactory` once, then loops fresh `TBattle` + seeded `TRandomGenerator` per run, aggregating per-team win rate and per-creature death probability into `TAnalysisResult`.
+The combat analyzer ([analyzer/](analyzer/)) runs Monte-Carlo simulations on top of the headless engine via `IDecisionStrategy` policies. See [analyzer/CLAUDE.md](analyzer/CLAUDE.md) for `IDecisionStrategy`, `TAggressiveMeleeStrategy`, and `TCombatAnalyzer`.
 
 ### Expression System
 Mathematical expressions (damage rolls, stat calculations) use a compositional expression tree, all implementing `IExpression`:
@@ -349,7 +348,7 @@ When mocks run out of expected calls, `TTooManyCallsError` is thrown. See [test_
 - **argparse**: Command-line argument parsing
 
 ### Vosk Configuration
-The path to `libvosk.so` is configured in [extern/CMakeLists.txt](extern/CMakeLists.txt):8. Default location assumes Python venv installation. Update `VOSK_LIB` variable if Vosk is installed elsewhere.
+Voice/Vosk setup (the `VOSK_LIB` path in [extern/CMakeLists.txt](extern/CMakeLists.txt), model sources, run flags) is assistant-specific — see [assistant/CLAUDE.md](assistant/CLAUDE.md).
 
 ### Important File Locations
 - Engine source: [pf2e_engine/src/](pf2e_engine/src/) and [pf2e_engine/include/pf2e_engine/](pf2e_engine/include/pf2e_engine/)
