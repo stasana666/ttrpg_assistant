@@ -4,6 +4,7 @@
     "pf2e_creature": {
         "creature_data": {
             "level": 1,
+            "size": "Medium",
             "race": "wolf",
             "class": "animal",
             "characteristic": {
@@ -18,7 +19,6 @@
             "armor": "unarmored",
             "natural_weapons": ["jaws"]
         },
-        "size": "Medium",
         "proficiency": {
             "armor_category": {
                 "Heavy": "untrained",

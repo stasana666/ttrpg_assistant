@@ -21,7 +21,6 @@
 #include <pf2e_engine/inventory/weapon.h>
 
 #include <pf2e_engine/actions/action_reader.h>
-#include <pf2e_engine/creature_size.h>
 #include <pf2e_engine/feat.h>
 
 const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.json";
@@ -228,8 +227,6 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
     }
 
     int level = json_game_object["creature_data"]["level"];
-    ECreatureSize size = CreatureSizeFromString(json_game_object["size"]);
-
     TProficiency proficiency = ReadProficiency(json_game_object, level);
 
     std::vector<std::shared_ptr<TCreatureFeat>> feats;
@@ -251,11 +248,10 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
     }
 
-    creatures_.insert({id, [this, json_game_object, resource_pool, actions, proficiency, size, feats]() {
+    creatures_.insert({id, [this, json_game_object, resource_pool, actions, proficiency, feats]() {
         TCreatureData data = TCreatureData::FromJson(json_game_object.at("creature_data"), *this);
         THitPoints hp(data.Hitpoints()->MaxValue());
         TCreature creature(std::move(data), proficiency, hp);
-        creature.SetSize(size);
         creature.ResourcesForInit() = resource_pool;
 
         for (auto action_id : actions) {
