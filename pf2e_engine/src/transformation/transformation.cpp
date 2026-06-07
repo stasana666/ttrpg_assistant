@@ -66,17 +66,10 @@ void TChangeHitPoints::Undo()
     *hitpoints_ = prev_;
 }
 
-TChangeCondition::TChangeCondition(TCreature* creature, EConditionKind condition, int new_value)
-    : TChangeCondition(creature, &creature->Conditions().Mutable(), condition, new_value)
-{
-}
-
-TChangeCondition::TChangeCondition(TCreature* creature,
-                                   TVariantMap<EConditionKind, TCondition>* conditions,
+TChangeCondition::TChangeCondition(TVariantMap<EConditionKind, TCondition>* conditions,
                                    EConditionKind condition,
                                    int new_value)
-    : creature_(creature)
-    , conditions_(conditions)
+    : conditions_(conditions)
     , condition_(condition)
     , prev_value_(GetConditionValue(*conditions_, condition))
 {
@@ -207,10 +200,9 @@ TAstNode TChangeHitPoints::GetAst(TAstContext& ctx) const
     return node;
 }
 
-TAstNode TChangeCondition::GetAst(TAstContext& ctx) const
+TAstNode TChangeCondition::GetAst(TAstContext&) const
 {
     TAstNode node = TAstNode::MakeObject("TChangeCondition");
-    AddReference(node, "creature_ref", creature_, ctx);
     AddValueField(node, "condition", condition_);
     AddValueField(node, "prev_value", prev_value_);
     return node;

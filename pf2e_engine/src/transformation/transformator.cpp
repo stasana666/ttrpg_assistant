@@ -36,7 +36,7 @@ void TTransformator::ChangeCondition(TCreature* creature, EConditionKind conditi
 {
     auto conditions = creature->Conditions();
     transformations_.emplace_back(
-        TChangeCondition(creature, &conditions.Mutable(), condition, new_value));
+        TChangeCondition(&conditions.Mutable(), condition, new_value));
 }
 
 void TTransformator::AddResource(TGuarded<TResourcePool> pool, TResourceId id, int count)

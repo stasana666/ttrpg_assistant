@@ -29,8 +29,7 @@ private:
 
 class TChangeCondition {
 public:
-    TChangeCondition(TCreature* creature, EConditionKind condition, int new_value);
-    TChangeCondition(TCreature* creature, TVariantMap<EConditionKind, TCondition>* conditions,
+    TChangeCondition(TVariantMap<EConditionKind, TCondition>* conditions,
                      EConditionKind condition, int new_value);
 
     void Undo();
@@ -38,7 +37,6 @@ public:
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:
-    TCreature* creature_;
     TVariantMap<EConditionKind, TCondition>* conditions_;
     EConditionKind condition_;
     int prev_value_;
