@@ -36,7 +36,7 @@ TEST(CreatureDataTest, WarriorDataLoads) {
     TGameObjectFactory factory = MakeFactoryWithRefs();
     factory.AddSource(kRootDirPath + "/pf2e_engine/data/creatures/warrior_data.json");
 
-    TCreatureData data = factory.Create<TCreatureData>(NameId("warrior_data"));
+    const TCreatureData data = factory.Create<TCreatureData>(NameId("warrior_data"));
 
     EXPECT_EQ(data.Level(), 1);
     EXPECT_EQ(data.Movement(), 5);
@@ -78,7 +78,7 @@ nlohmann::json WarriorJson() {
 
 TEST(CreatureDataTest, ComputedHitpointsFallback) {
     TGameObjectFactory factory = MakeFactoryWithRefs();
-    TCreatureData data = TCreatureData::FromJson(WarriorJson(), factory);
+    const TCreatureData data = TCreatureData::FromJson(WarriorJson(), factory);
 
     EXPECT_EQ(data.Level(), 3);
     EXPECT_EQ(data.Movement(), 0);
@@ -91,7 +91,7 @@ TEST(CreatureDataTest, ComputedHitpointsJsonOverride) {
     nlohmann::json j = WarriorJson();
     j["hitpoints"] = {{"current_value", 5}, {"max_value", 40}};
 
-    TCreatureData data = TCreatureData::FromJson(j, factory);
+    const TCreatureData data = TCreatureData::FromJson(j, factory);
 
     EXPECT_EQ(data.Hitpoints().CurrentValue(), 5);
     EXPECT_EQ(data.Hitpoints().MaxValue(), 40);

@@ -11,6 +11,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 TThing TThing::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     (void)factory;

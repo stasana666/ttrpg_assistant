@@ -18,6 +18,7 @@ using TWeaponList = std::vector<TWeapon*>;
 using TGameObjectPtr = std::variant<
     TArmor*,
     TWeapon*,
+    const TWeapon*,
     TCreature*,
     TPlayer*,
     TPlayerList,

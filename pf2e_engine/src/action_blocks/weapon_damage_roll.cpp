@@ -8,6 +8,7 @@
 #include <pf2e_engine/player.h>
 
 #include <memory>
+#include <stdexcept>
 
 static const TGameObjectId kAttackerId = TGameObjectIdManager::Instance().Register("attacker");
 static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register("weapon");
@@ -15,6 +16,17 @@ static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register
 namespace {
 
 const TGameObjectId kDamageBonusId = TGameObjectIdManager::Instance().Register("damage_bonus");
+
+const TWeapon* GetWeapon(const TGameObjectPtr& object)
+{
+    if (const auto* weapon = std::get_if<TWeapon*>(&object)) {
+        return *weapon;
+    }
+    if (const auto* weapon = std::get_if<const TWeapon*>(&object)) {
+        return *weapon;
+    }
+    throw std::logic_error("expected weapon");
+}
 
 class TBorrowedExpression : public IExpression {
 public:
@@ -42,7 +54,7 @@ void ApplyWeaponDamage(std::shared_ptr<TActionContext> ctx, const TBlockInput& i
                        TGameObjectId output, bool crit)
 {
     TPlayer* player = std::get<TPlayer*>(input.Get(kAttackerId, ctx));
-    TWeapon* weapon = std::get<TWeapon*>(input.Get(kWeaponId, ctx));
+    const TWeapon* weapon = GetWeapon(input.Get(kWeaponId, ctx));
 
     auto damage = std::make_shared<TDamage>();
 

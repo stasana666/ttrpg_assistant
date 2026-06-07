@@ -3,18 +3,21 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/guarded.h>
 
 #include <nlohmann/json_fwd.hpp>
 
 #include <limits>
 #include <string>
+#include <utility>
 #include <pf2e_engine/common/bounded_quantity.h>
 
 class TGameObjectFactory;
 
 class TPart {
 public:
-    int Bonus() const { return Bonus_; }
+    const int& Bonus() const { return Bonus_; }
+    TGuarded<int> Bonus() { return TGuarded<int>(Bonus_); }
 
     static TPart FromJson(const nlohmann::json& j, const TGameObjectFactory& factory);
     TAstNode GetAst(TAstContext& ctx) const;
@@ -30,7 +33,8 @@ struct TIsAstRecursive<TPart> : std::true_type {};
 
 class TAbility {
 public:
-    int Value() const { return Value_; }
+    const int& Value() const { return Value_; }
+    TGuarded<int> Value() { return TGuarded<int>(Value_); }
     int Modifier() const { return ((Value_ - 10) / 2); }
 
     static TAbility FromJson(const nlohmann::json& j, const TGameObjectFactory& factory);
@@ -47,15 +51,24 @@ struct TIsAstRecursive<TAbility> : std::true_type {};
 
 class TStats {
 public:
-    TBoundedQuantity Health() const { return Health_; }
-    int Base() const { return Base_; }
-    int Level() const { return Level_; }
-    int PerLevel() const { return PerLevel_; }
-    int Total() const { return Total_; }
-    TPart Part() const { return Part_; }
-    int Boosted() const { return Boosted_; }
-    TAbility Ability() const { return Ability_; }
-    int ModBoost() const { return ModBoost_; }
+    const TBoundedQuantity& Health() const { return Health_; }
+    TGuarded<TBoundedQuantity> Health() { return TGuarded<TBoundedQuantity>(Health_); }
+    const int& Base() const { return Base_; }
+    TGuarded<int> Base() { return TGuarded<int>(Base_); }
+    const int& Level() const { return Level_; }
+    TGuarded<int> Level() { return TGuarded<int>(Level_); }
+    const int& PerLevel() const { return PerLevel_; }
+    TGuarded<int> PerLevel() { return TGuarded<int>(PerLevel_); }
+    const int& Total() const { return Total_; }
+    TGuarded<int> Total() { return TGuarded<int>(Total_); }
+    const TPart& Part() const { return Part_; }
+    TGuarded<TPart> Part() { return TGuarded<TPart>(Part_); }
+    const int& Boosted() const { return Boosted_; }
+    TGuarded<int> Boosted() { return TGuarded<int>(Boosted_); }
+    const TAbility& Ability() const { return Ability_; }
+    TGuarded<TAbility> Ability() { return TGuarded<TAbility>(Ability_); }
+    const int& ModBoost() const { return ModBoost_; }
+    TGuarded<int> ModBoost() { return TGuarded<int>(ModBoost_); }
 
     static TStats FromJson(const nlohmann::json& j, const TGameObjectFactory& factory);
     TAstNode GetAst(TAstContext& ctx) const;

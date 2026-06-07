@@ -123,7 +123,8 @@ TEST(AnalyzeTest, MemberAccessValidatesAndLowers) {
     ASSERT_EQ(order.size(), 3u);
     EXPECT_LT(PosOf(order, 0), PosOf(order, 2));
     EXPECT_LT(PosOf(order, 1), PosOf(order, 2));
-    EXPECT_EQ(InitExprToCpp(c.Fields.at(2).Init.value()), "(r.Part_.Bonus() + r.Base_)");
+    EXPECT_EQ(InitExprToCpp(c.Fields.at(2).Init.value()),
+              "(std::as_const(r.Part_).Bonus() + r.Base_)");
 }
 
 TEST(AnalyzeTest, MemberAccessOnNonClassThrows) {
@@ -170,7 +171,8 @@ TEST(AnalyzeTest, MemberAccessIntoDeriveFieldLowers) {
     std::vector<size_t> order = FieldInitOrder(c, ClassMap(m));
     ASSERT_EQ(order.size(), 3u);
     EXPECT_LT(PosOf(order, 1), PosOf(order, 2));
-    EXPECT_EQ(InitExprToCpp(c.Fields.at(2).Init.value()), "(r.Inner_.Y() + r.Base_)");
+    EXPECT_EQ(InitExprToCpp(c.Fields.at(2).Init.value()),
+              "(std::as_const(r.Inner_).Y() + r.Base_)");
 }
 
 TEST(AnalyzeTest, TwoLevelMemberChainValidatesAndLowers) {
@@ -182,5 +184,6 @@ TEST(AnalyzeTest, TwoLevelMemberChainValidatesAndLowers) {
     std::vector<size_t> order = FieldInitOrder(c, ClassMap(m));
     ASSERT_EQ(order.size(), 2u);
     EXPECT_LT(PosOf(order, 0), PosOf(order, 1));
-    EXPECT_EQ(InitExprToCpp(c.Fields.at(1).Init.value()), "r.Mid_.Leaf().X()");
+    EXPECT_EQ(InitExprToCpp(c.Fields.at(1).Init.value()),
+              "std::as_const(std::as_const(r.Mid_).Leaf()).X()");
 }

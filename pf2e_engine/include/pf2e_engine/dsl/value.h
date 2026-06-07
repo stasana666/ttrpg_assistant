@@ -19,9 +19,9 @@ public:
         std::monostate,
         bool,
         int,
-        TArmor*,
-        TWeapon*,
-        TCreature*,
+        const TArmor*,
+        const TWeapon*,
+        const TCreature*,
         TPlayer*,
         TListPtr
     >;
@@ -34,9 +34,9 @@ public:
         requires std::same_as<B, bool>
     explicit TDslValue(B b) : data(b) {}
     explicit TDslValue(int i) : data(i) {}
-    explicit TDslValue(TArmor* p) : data(p) {}
-    explicit TDslValue(TWeapon* p) : data(p) {}
-    explicit TDslValue(TCreature* p) : data(p) {}
+    explicit TDslValue(const TArmor* p) : data(p) {}
+    explicit TDslValue(const TWeapon* p) : data(p) {}
+    explicit TDslValue(const TCreature* p) : data(p) {}
     explicit TDslValue(TPlayer* p) : data(p) {}
     explicit TDslValue(TListPtr l) : data(std::move(l)) {}
 

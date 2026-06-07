@@ -35,11 +35,11 @@ void RegisterAll() {
     TCreatureData::RegisterDslProperties();
 
     auto& player_props = TPropertyRegistry<TPlayer>::Instance();
-    player_props.Register("creature", [](TPlayer* p, TEvalContext&) {
+    player_props.Register("creature", [](const TPlayer* p, TEvalContext&) {
         return TDslValue(p->GetCreature());
     });
-    player_props.Register("weapons", [](TPlayer* p, TEvalContext&) {
-        TCreature* c = p->GetCreature();
+    player_props.Register("weapons", [](const TPlayer* p, TEvalContext&) {
+        const TCreature* c = p->GetCreature();
         TDslValue::TList items;
         for (auto weapon : c->Weapons()) {
             items.emplace_back(&*weapon);

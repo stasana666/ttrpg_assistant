@@ -11,7 +11,7 @@
 template <class T>
 class TPropertyRegistry {
 public:
-    using TGetter = std::function<TDslValue(T*, TEvalContext&)>;
+    using TGetter = std::function<TDslValue(const T*, TEvalContext&)>;
 
     static TPropertyRegistry& Instance() {
         static TPropertyRegistry inst;
@@ -22,7 +22,7 @@ public:
         getters_.insert({std::move(name), std::move(getter)});
     }
 
-    TDslValue Get(T* obj, const std::string& name, TEvalContext& ctx) const {
+    TDslValue Get(const T* obj, const std::string& name, TEvalContext& ctx) const {
         auto it = getters_.find(name);
         if (it == getters_.end()) {
             throw std::runtime_error("dsl: unknown property '" + name + "'");
@@ -40,7 +40,7 @@ private:
 
 template <class T, class R, R (T::*M)() const>
 auto Getter() {
-    return [](T* obj, TEvalContext&) -> TDslValue {
+    return [](const T* obj, TEvalContext&) -> TDslValue {
         return TDslValue((obj->*M)());
     };
 }

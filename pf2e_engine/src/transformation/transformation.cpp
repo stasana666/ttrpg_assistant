@@ -5,6 +5,51 @@
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 
+#include <stdexcept>
+
+namespace {
+
+int GetConditionValue(const TVariantMap<EConditionKind, TCondition>& conditions,
+                      EConditionKind condition)
+{
+    if (!conditions.Has(condition)) {
+        return 0;
+    }
+    switch (condition) {
+        case EConditionKind::Prone:
+            return 1;
+        case EConditionKind::Frightened:
+            return conditions.Get<TConditionFrightened>()->Value;
+        case EConditionKind::MultipleAttackPenalty:
+            return conditions.Get<TConditionMultipleAttackPenalty>()->Value;
+    }
+    throw std::logic_error("unreachable");
+}
+
+void SetConditionValue(TVariantMap<EConditionKind, TCondition>& conditions,
+                       EConditionKind condition,
+                       int value)
+{
+    if (value <= 0) {
+        conditions.Erase(condition);
+        return;
+    }
+    switch (condition) {
+        case EConditionKind::Prone:
+            conditions.Set(TConditionProne{});
+            return;
+        case EConditionKind::Frightened:
+            conditions.Set(TConditionFrightened{.Value = value});
+            return;
+        case EConditionKind::MultipleAttackPenalty:
+            conditions.Set(TConditionMultipleAttackPenalty{.Value = value});
+            return;
+    }
+    throw std::logic_error("unreachable");
+}
+
+}
+
 TChangeHitPoints::TChangeHitPoints(THitPoints* hitpoints, int value)
     : hitpoints_(hitpoints)
     , prev_(*hitpoints_)
@@ -22,16 +67,25 @@ void TChangeHitPoints::Undo()
 }
 
 TChangeCondition::TChangeCondition(TCreature* creature, EConditionKind condition, int new_value)
-    : creature_(creature)
-    , condition_(condition)
-    , prev_value_(creature->Get(condition))
+    : TChangeCondition(creature, &creature->Conditions().Mutable(), condition, new_value)
 {
-    creature_->Set(condition_, new_value);
+}
+
+TChangeCondition::TChangeCondition(TCreature* creature,
+                                   TVariantMap<EConditionKind, TCondition>* conditions,
+                                   EConditionKind condition,
+                                   int new_value)
+    : creature_(creature)
+    , conditions_(conditions)
+    , condition_(condition)
+    , prev_value_(GetConditionValue(*conditions_, condition))
+{
+    SetConditionValue(*conditions_, condition_, new_value);
 }
 
 void TChangeCondition::Undo()
 {
-    creature_->Set(condition_, prev_value_);
+    SetConditionValue(*conditions_, condition_, prev_value_);
 }
 
 TChangeResource::TChangeResource(TResourcePool* pool, TResourceId id, int delta)

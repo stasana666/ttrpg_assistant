@@ -21,6 +21,7 @@ TDslValue FromGameObject(const TGameObjectPtr& obj)
     return std::visit(VisitorHelper{
         [](TArmor* p) -> TDslValue { return TDslValue(p); },
         [](TWeapon* p) -> TDslValue { return TDslValue(p); },
+        [](const TWeapon* p) -> TDslValue { return TDslValue(p); },
         [](TCreature* p) -> TDslValue { return TDslValue(p); },
         [](TPlayer* p) -> TDslValue { return TDslValue(p); },
         [](const TPlayerList& list) -> TDslValue {
@@ -80,9 +81,9 @@ bool DslEquals(const TDslValue& a, const TDslValue& b)
         [&](std::monostate) { return true; },
         [&](bool x) { return x == b.AsBool(); },
         [&](int x) { return x == b.AsInt(); },
-        [&](TArmor* p) { return p == std::get<TArmor*>(b.data); },
-        [&](TWeapon* p) { return p == std::get<TWeapon*>(b.data); },
-        [&](TCreature* p) { return p == std::get<TCreature*>(b.data); },
+        [&](const TArmor* p) { return p == std::get<const TArmor*>(b.data); },
+        [&](const TWeapon* p) { return p == std::get<const TWeapon*>(b.data); },
+        [&](const TCreature* p) { return p == std::get<const TCreature*>(b.data); },
         [&](TPlayer* p) { return p == std::get<TPlayer*>(b.data); },
         [&](const TDslValue::TListPtr&) -> bool {
             throw std::runtime_error("dsl: list equality not supported");

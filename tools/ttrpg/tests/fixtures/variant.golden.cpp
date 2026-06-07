@@ -11,6 +11,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 std::string ToString(EColor v) {
     switch (v) {

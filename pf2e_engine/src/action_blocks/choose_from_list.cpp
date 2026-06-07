@@ -39,6 +39,15 @@ void AddTypedAlternatives<TWeapon>(TAlternatives& alternatives, const std::vecto
     }
 }
 
+template <>
+void AddTypedAlternatives<const TWeapon>(TAlternatives& alternatives,
+                                         const std::vector<const TWeapon*>& items)
+{
+    for (const TWeapon* w : items) {
+        alternatives.AddAlternative(std::string(w->Name()), w);
+    }
+}
+
 template <class T>
 void PromptAndStore(std::shared_ptr<TActionContext> ctx, TPlayer* self,
                     const std::vector<T*>& items, TGameObjectId output_id,
@@ -78,13 +87,13 @@ void FChooseFromList::operator()(std::shared_ptr<TActionContext> ctx) const
                     items.push_back(v.As<TPlayer*>());
                 }
                 PromptAndStore<TPlayer>(ctx, self, items, output_, "target");
-            } else if (first.Is<TWeapon*>()) {
-                std::vector<TWeapon*> items;
+            } else if (first.Is<const TWeapon*>()) {
+                std::vector<const TWeapon*> items;
                 items.reserve(list->size());
                 for (const auto& v : *list) {
-                    items.push_back(v.As<TWeapon*>());
+                    items.push_back(v.As<const TWeapon*>());
                 }
-                PromptAndStore<TWeapon>(ctx, self, items, output_, "weapon");
+                PromptAndStore<const TWeapon>(ctx, self, items, output_, "weapon");
             } else {
                 throw std::logic_error("dsl choose_from_list: unsupported element type");
             }

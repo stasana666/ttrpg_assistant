@@ -20,7 +20,7 @@ TEST(ArmorMaterialRefTest, FullplateRefersToSteel) {
     factory.AddSource(kRootDirPath + "/pf2e_engine/data/inventory/material/steel.json");
     factory.AddSource(kRootDirPath + "/pf2e_engine/data/inventory/armor/fullplate.json");
 
-    TArmor fullplate = factory.Create<TArmor>(NameId("fullplate"));
+    const TArmor fullplate = factory.Create<TArmor>(NameId("fullplate"));
 
     EXPECT_EQ(fullplate.Category(), EArmorCategory::Heavy);
     EXPECT_EQ(fullplate.ArmorClassBonus(), 6);
@@ -33,6 +33,6 @@ TEST(ArmorMaterialRefTest, OrderIndependentLoading) {
     factory.AddSource(kRootDirPath + "/pf2e_engine/data/inventory/armor/fullplate.json");
     factory.AddSource(kRootDirPath + "/pf2e_engine/data/inventory/material/steel.json");
 
-    TArmor fullplate = factory.Create<TArmor>(NameId("fullplate"));
+    const TArmor fullplate = factory.Create<TArmor>(NameId("fullplate"));
     EXPECT_EQ(fullplate.Material().Hardness(), 10);
 }
