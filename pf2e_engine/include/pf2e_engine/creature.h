@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/bounded_quantity.h>
 #include <pf2e_engine/common/guarded.h>
 
 #include <pf2e_engine/actions/action.h>
@@ -11,17 +12,16 @@
 #include <pf2e_engine/inventory/creature_data.h>
 #include <pf2e_engine/inventory/creature_parts.h>
 #include <pf2e_engine/mechanics/characteristics.h>
-#include <pf2e_engine/mechanics/hitpoints.h>
 #include <pf2e_engine/proficiency.h>
 
 class TCreature : public TCreatureData {
 public:
-    TCreature(TCreatureData data, TProficiency proficiency, THitPoints hitpoints);
+    TCreature(TCreatureData data, TProficiency proficiency);
 
     TAbilityScore GetCharacteristic(ECharacteristic name) const;
 
-    TGuarded<THitPoints> Hitpoints();
-    const THitPoints& Hitpoints() const;
+    TGuarded<TBoundedQuantity> Hitpoints();
+    const TBoundedQuantity& Hitpoints() const;
 
     const TResourcePool& Resources() const;
     TGuarded<TResourcePool> Resources();
@@ -51,8 +51,6 @@ private:
     TResourcePool& ResourcesForInit() { return resources_; }
 
     TProficiency proficiency_;
-
-    THitPoints hitpoints_;
 
     TResourcePool resources_;
 

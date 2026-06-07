@@ -65,7 +65,7 @@ TEST_F(ActionCombatTest, TwoWarriorsAttackEachOther) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->GetCurrentHp(), 12);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 12);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
@@ -75,7 +75,7 @@ TEST_F(ActionCombatTest, TwoWarriorsAttackEachOther) {
 
     auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
     ASSERT_FALSE(players.empty());
-    EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->GetCurrentHp(), 12);
+    EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 12);
 }
 
 TEST_F(ActionCombatTest, AttackMiss) {
@@ -108,7 +108,7 @@ TEST_F(ActionCombatTest, AttackMiss) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->GetCurrentHp(), 21);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 21);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
@@ -148,7 +148,7 @@ TEST_F(ActionCombatTest, AttackCriticalHit) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->GetCurrentHp(), 3);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 3);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
@@ -187,7 +187,7 @@ TEST_F(ActionCombatTest, WarriorKillsOtherBattleEnds) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->GetCurrentHp(), 11);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 11);
     });
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
@@ -198,7 +198,7 @@ TEST_F(ActionCombatTest, WarriorKillsOtherBattleEnds) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->GetCurrentHp(), 1);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 1);
     });
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
@@ -250,7 +250,7 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->GetCurrentHp(), 14);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 14);
     });
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
@@ -260,7 +260,7 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->GetCurrentHp(), 14);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 14);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
@@ -270,7 +270,7 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
 
     auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
     ASSERT_FALSE(players.empty());
-    EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->GetCurrentHp(), 14);
+    EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 14);
 }
 
 TEST_F(ActionCombatTest, WizardCastsFireball) {
@@ -310,7 +310,7 @@ TEST_F(ActionCombatTest, WizardCastsFireball) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->GetCurrentHp(), 0);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 0);
     });
 
     battle.StartBattle();

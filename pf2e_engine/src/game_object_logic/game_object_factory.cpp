@@ -15,7 +15,6 @@
 #include "battle_map.h"
 #include "characteristics.h"
 #include "game_object_id.h"
-#include "hitpoints.h"
 #include "proficiency.h"
 #include "resources.h"
 #include <pf2e_engine/inventory/weapon.h>
@@ -250,8 +249,7 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
     creatures_.insert({id, [this, json_game_object, resource_pool, actions, proficiency, feats]() {
         TCreatureData data = TCreatureData::FromJson(json_game_object.at("creature_data"), *this);
-        THitPoints hp(data.Hitpoints()->MaxValue());
-        TCreature creature(std::move(data), proficiency, hp);
+        TCreature creature(std::move(data), proficiency);
         creature.ResourcesForInit() = resource_pool;
 
         for (auto action_id : actions) {
