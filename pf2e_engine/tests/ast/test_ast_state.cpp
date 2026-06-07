@@ -66,23 +66,22 @@ TEST(AstState, MutationVisibleInAst_AddCondition)
     EXPECT_NE(diff.find("conditions"), std::string::npos) << msg;
 }
 
-TEST(AstState, MutationVisibleInAst_ResourcePool)
+TEST(AstState, MutationVisibleInAst_Resource)
 {
     auto fixture = MakeTwoWarriorBattle();
     auto before = Snapshot(*fixture->battle);
 
-    auto rid = TResourceIdManager::Instance().Register("test_resource");
     auto players = fixture->battle->GetIfPlayers(
         [](const TPlayer* p) { return p->GetId() == 0; });
     ASSERT_FALSE(players.empty());
     TTransformator transformator(fixture->io);
-    transformator.AddResource(players[0]->GetCreature()->Resources(), rid, 1);
+    transformator.AddResource(players[0]->GetCreature()->ResourceFor(EResourceKind::Action), 1);
 
     auto after = Snapshot(*fixture->battle);
     EXPECT_NE(before, after);
     const std::string diff = before.DiffWith(after);
     const std::string msg = "Diff: " + diff;
-    EXPECT_NE(diff.find("resources"), std::string::npos) << msg;
+    EXPECT_NE(diff.find("actions"), std::string::npos) << msg;
 }
 
 TEST(AstState, RollbackRestoresIdenticalAst_DealDamage)
@@ -116,7 +115,6 @@ TEST(AstState, RollbackRestoresIdenticalAst_MultipleTransformations)
     auto players = fixture->battle->GetIfPlayers(
         [](const TPlayer*) { return true; });
     ASSERT_EQ(players.size(), 2);
-    auto rid = TResourceIdManager::Instance().Register("test_resource_2");
 
     auto before = Snapshot(*fixture->battle);
     auto save_point = transformator.CurrentState();
@@ -124,7 +122,7 @@ TEST(AstState, RollbackRestoresIdenticalAst_MultipleTransformations)
     transformator.DealDamage(players[0], 3);
     transformator.DealDamage(players[1], 7);
     transformator.ChangeCondition(players[0]->GetCreature(), EConditionKind::Prone, 1);
-    transformator.AddResource(players[0]->GetCreature()->Resources(), rid, 2);
+    transformator.AddResource(players[0]->GetCreature()->ResourceFor(EResourceKind::Action), 2);
 
     auto mid = Snapshot(*fixture->battle);
     EXPECT_NE(before, mid);
@@ -163,7 +161,7 @@ TEST(AstState, BypassDetected_SetPosition)
     // TODO(rollback): SetPosition bypasses TTransformator; follow-up will
 }
 
-TEST(AstState, ContainerDeterminism_ResourceInsertionOrder)
+TEST(AstState, ContainerDeterminism_ResourceMutationOrder)
 {
     auto a = MakeTwoWarriorBattle();
     auto b = MakeTwoWarriorBattle();
@@ -173,25 +171,18 @@ TEST(AstState, ContainerDeterminism_ResourceInsertionOrder)
     ASSERT_EQ(pa.size(), 2);
     ASSERT_EQ(pb.size(), 2);
 
-    auto rid_x = TResourceIdManager::Instance().Register("rid_x");
-    auto rid_y = TResourceIdManager::Instance().Register("rid_y");
-    auto rid_z = TResourceIdManager::Instance().Register("rid_z");
-
     TTransformator ta(a->io);
-    ta.AddResource(pa[0]->GetCreature()->Resources(), rid_x, 1);
-    ta.AddResource(pa[0]->GetCreature()->Resources(), rid_y, 2);
-    ta.AddResource(pa[0]->GetCreature()->Resources(), rid_z, 3);
+    ta.AddResource(pa[0]->GetCreature()->ResourceFor(EResourceKind::Action), 1);
+    ta.AddResource(pa[0]->GetCreature()->ResourceFor(EResourceKind::Reaction), 2);
 
     TTransformator tb(b->io);
-    tb.AddResource(pb[0]->GetCreature()->Resources(), rid_z, 3);
-    tb.AddResource(pb[0]->GetCreature()->Resources(), rid_y, 2);
-    tb.AddResource(pb[0]->GetCreature()->Resources(), rid_x, 1);
+    tb.AddResource(pb[0]->GetCreature()->ResourceFor(EResourceKind::Reaction), 2);
+    tb.AddResource(pb[0]->GetCreature()->ResourceFor(EResourceKind::Action), 1);
 
     auto ast_a = Snapshot(*a->battle);
     auto ast_b = Snapshot(*b->battle);
     const std::string msg =
-        "Insertion order affected AST (unordered_map iteration leaked).\nDiff: " +
-        ast_a.DiffWith(ast_b);
+        "Mutation order affected AST.\nDiff: " + ast_a.DiffWith(ast_b);
     EXPECT_EQ(ast_a, ast_b) << msg;
 }
 

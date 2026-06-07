@@ -5,7 +5,6 @@
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/mechanics/damage.h>
 #include <pf2e_engine/player.h>
-#include <pf2e_engine/resources.h>
 #include <pf2e_engine/transformation/transformator.h>
 
 #include <stdexcept>
@@ -36,9 +35,11 @@ void FSpellDamageRoll::operator()(std::shared_ptr<TActionContext> ctx) const
 
     TAlternatives alternatives = TAlternatives::Create<std::string>("spell_slot");
 
+    const auto& slots = caster->GetCreature()->SpellSlots();
     for (const auto& [slot_name, expression] : damage_table) {
-        TResourceId slot_id = TResourceIdManager::Instance().Register(slot_name);
-        if (caster->GetCreature()->Resources()->HasResource(slot_id, 1)) {
+        ESpellSlotRank rank = ESpellSlotRankFromString(slot_name);
+        auto it = slots->find(rank);
+        if (it != slots->end() && it->second.Has(1)) {
             alternatives.AddAlternative(slot_name, slot_name);
         }
     }
@@ -49,8 +50,8 @@ void FSpellDamageRoll::operator()(std::shared_ptr<TActionContext> ctx) const
 
     std::string chosen_slot = ctx->io_system->ChooseAlternative<std::string>(
         caster->GetId(), alternatives);
-    TResourceId chosen_slot_id = TResourceIdManager::Instance().Register(chosen_slot);
-    ctx->transformator->ReduceResource(caster->GetCreature()->Resources(), chosen_slot_id, 1);
+    ESpellSlotRank chosen_rank = ESpellSlotRankFromString(chosen_slot);
+    ctx->transformator->ReduceSpellSlot(caster->GetCreature()->SpellSlots(), chosen_rank, 1);
 
     auto damage = std::make_shared<TDamage>();
     const auto& expr = damage_table.at(chosen_slot);

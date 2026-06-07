@@ -81,24 +81,23 @@ void TChangeCondition::Undo()
     SetConditionValue(*conditions_, condition_, prev_value_);
 }
 
-TChangeResource::TChangeResource(TResourcePool* pool, TResourceId id, int delta)
-    : pool_(pool)
-    , id_(id)
+TChangeResource::TChangeResource(TResource* resource, int delta)
+    : resource_(resource)
     , delta_(delta)
 {
     if (delta_ > 0) {
-        pool_->Add(id_, delta_);
+        resource_->Add(delta_);
     } else if (delta_ < 0) {
-        pool_->Reduce(id_, -delta_);
+        resource_->Reduce(-delta_);
     }
 }
 
 void TChangeResource::Undo()
 {
     if (delta_ > 0) {
-        pool_->Reduce(id_, delta_);
+        resource_->Reduce(delta_);
     } else if (delta_ < 0) {
-        pool_->Add(id_, -delta_);
+        resource_->Add(-delta_);
     }
 }
 
@@ -211,8 +210,7 @@ TAstNode TChangeCondition::GetAst(TAstContext&) const
 TAstNode TChangeResource::GetAst(TAstContext& ctx) const
 {
     TAstNode node = TAstNode::MakeObject("TChangeResource");
-    AddReference(node, "pool_ref", pool_, ctx);
-    AddValueField(node, "resource", id_);
+    AddReference(node, "resource_ref", resource_, ctx);
     AddValueField(node, "delta", delta_);
     return node;
 }

@@ -30,6 +30,7 @@ bool IsBuiltinPrimitive(const std::string& t) {
 }
 
 bool IsBuiltinBoundedQuantity(const std::string& t) { return t == "BoundedQuantity"; }
+bool IsBuiltinResource(const std::string& t) { return t == "Resource"; }
 
 std::string CppTypeFor(const std::string& schemaType) {
     if (schemaType == "string") {
@@ -37,6 +38,9 @@ std::string CppTypeFor(const std::string& schemaType) {
     }
     if (schemaType == "BoundedQuantity") {
         return "TBoundedQuantity";
+    }
+    if (schemaType == "Resource") {
+        return "TResource";
     }
     return schemaType;
 }
@@ -49,6 +53,9 @@ EFieldKind FieldKindOf(const TFieldDecl& f,
     }
     if (IsBuiltinBoundedQuantity(f.TypeName)) {
         return EFieldKind::BoundedQuantity;
+    }
+    if (IsBuiltinResource(f.TypeName)) {
+        return EFieldKind::Resource;
     }
     auto it = symbols.find(f.TypeName);
     if (it == symbols.end()) {
@@ -113,6 +120,8 @@ std::string ScalarParseExpr(const TFieldDecl& f,
             return f.TypeName + "::FromJson(" + valExpr + ", factory)";
         case EFieldKind::BoundedQuantity:
             return "TBoundedQuantity::FromJson(" + valExpr + ", factory)";
+        case EFieldKind::Resource:
+            return "TResource::FromJson(" + valExpr + ", factory)";
     }
     throw std::runtime_error("unreachable: unknown EFieldKind");
 }
@@ -125,6 +134,10 @@ std::string LoadFieldCall(const TFieldDecl& f,
         return "j.value(\"" + jsonKey + "\", " +
                CppPrimitiveType(f) + "{" + DefaultExprToCpp(f.Init->Text, f.TypeName) +
                "})";
+    }
+    if (kind == EFieldKind::Resource && f.Init) {
+        return "j.contains(\"" + jsonKey + "\") ? TResource::FromJson(j.at(\"" + jsonKey +
+               "\"), factory) : TResource(" + DefaultExprToCpp(f.Init->Text, f.TypeName) + ")";
     }
     return ScalarParseExpr(f, kind, "j.at(\"" + jsonKey + "\")");
 }

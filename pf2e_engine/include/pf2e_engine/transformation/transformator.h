@@ -14,8 +14,10 @@ public:
     void Heal(TPlayer* player, int value);
 
     void ChangeCondition(TCreature* creature, EConditionKind condition, int new_value);
-    void AddResource(TGuarded<TResourcePool> pool, TResourceId id, int count);
-    void ReduceResource(TGuarded<TResourcePool> pool, TResourceId id, int count);
+    void AddResource(TGuarded<TResource> resource, int count);
+    void ReduceResource(TGuarded<TResource> resource, int count);
+    void ReduceSpellSlot(TGuarded<std::map<ESpellSlotRank, TResource>> slots,
+                         ESpellSlotRank rank, int count);
 
     void AddEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value);
     void RemoveEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value);

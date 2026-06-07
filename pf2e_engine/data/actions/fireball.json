@@ -30,14 +30,14 @@
                     "caster": "$self",
                     "damage_type": "Fire",
                     "damage_table": {
-                        "spellslot_3": "6d6",
-                        "spellslot_4": "7d6",
-                        "spellslot_5": "8d6",
-                        "spellslot_6": "9d6",
-                        "spellslot_7": "10d6",
-                        "spellslot_8": "11d6",
-                        "spellslot_9": "12d6",
-                        "spellslot_10": "13d6"
+                        "Rank3": "6d6",
+                        "Rank4": "7d6",
+                        "Rank5": "8d6",
+                        "Rank6": "9d6",
+                        "Rank7": "10d6",
+                        "Rank8": "11d6",
+                        "Rank9": "12d6",
+                        "Rank10": "13d6"
                     }
                 },
                 "output": ["damage"]

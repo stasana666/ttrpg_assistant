@@ -44,14 +44,22 @@ const TBoundedQuantity& TCreature::Hitpoints() const
     return TCreatureData::Hitpoints();
 }
 
-const TResourcePool& TCreature::Resources() const
+const TResource& TCreature::ResourceFor(EResourceKind kind) const
 {
-    return resources_;
+    switch (kind) {
+        case EResourceKind::Action:   return TCreatureData::Actions();
+        case EResourceKind::Reaction: return TCreatureData::Reactions();
+    }
+    throw std::logic_error("unreachable");
 }
 
-TGuarded<TResourcePool> TCreature::Resources()
+TGuarded<TResource> TCreature::ResourceFor(EResourceKind kind)
 {
-    return TGuarded<TResourcePool>(resources_);
+    switch (kind) {
+        case EResourceKind::Action:   return TCreatureData::Actions();
+        case EResourceKind::Reaction: return TCreatureData::Reactions();
+    }
+    throw std::logic_error("unreachable");
 }
 
 int TCreature::MaxWeaponReach() const
@@ -86,7 +94,7 @@ void TCreature::AddAction(std::shared_ptr<TAction> action)
     actions_.emplace_back(action);
 }
 
-std::vector<std::shared_ptr<TAction>>& TCreature::Actions()
+std::vector<std::shared_ptr<TAction>>& TCreature::ActionList()
 {
     return actions_;
 }
@@ -155,19 +163,23 @@ TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& react
 
 TAstNode TCreature::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 792;
+    static constexpr size_t kExpectedSize = 800;
     AST_ASSERT_LAYOUT(TCreature, kExpectedSize);
 
     const std::string my_id = ctx.IdentityOf(this);
     if (!my_id.empty()) {
         ctx.RegisterIdentity(&Hitpoints(), my_id + ".hitpoints");
-        ctx.RegisterIdentity(&resources_, my_id + ".resources");
+        ctx.RegisterIdentity(&TCreatureData::Actions(), my_id + ".actions");
+        ctx.RegisterIdentity(&TCreatureData::Reactions(), my_id + ".reactions");
+        ctx.RegisterIdentity(&Hands(), my_id + ".hands");
+        for (const auto& [rank, slot] : SpellSlots()) {
+            ctx.RegisterIdentity(&slot, my_id + ".spell_slots." + ToString(rank));
+        }
     }
 
     TAstNode node = TAstNode::MakeObject("TCreature");
     node.AddChild("creature_data", TCreatureData::GetAst(ctx));
     AddOwnedObject(node, "proficiency", proficiency_, ctx);
-    AddOwnedObject(node, "resources", resources_, ctx);
 
     node.AddChild("actions", GetActionListAst(actions_));
     node.AddChild("reactions", GetReactionListAst(reactions_));

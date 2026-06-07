@@ -42,14 +42,14 @@ void TAction::Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player)
 {
     for (auto& resource : consume_) {
         ctx->transformator->ReduceResource(
-            player.GetCreature()->Resources(), resource.resource_id, resource.count);
+            player.GetCreature()->ResourceFor(resource.kind), resource.count);
     }
 }
 
 bool TAction::Check(const TPlayer& player)
 {
     for (auto& resource : consume_) {
-        if (!player.GetCreature()->Resources().HasResource(resource.resource_id, resource.count)) {
+        if (!player.GetCreature()->ResourceFor(resource.kind).Has(resource.count)) {
             return false;
         }
     }

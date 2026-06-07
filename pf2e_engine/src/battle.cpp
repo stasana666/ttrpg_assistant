@@ -6,7 +6,6 @@
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/player.h>
-#include <pf2e_engine/resources.h>
 #include <pf2e_engine/transformation/transformator.h>
 #include <pf2e_engine/scheduler.h>
 
@@ -20,7 +19,9 @@
 #include "save_point.h"
 #include <pf2e_engine/condition.h>
 
-const TResourceId kActionId = TResourceIdManager::Instance().Register("action");
+namespace {
+constexpr int kActionsPerTurn = 3;
+}
 
 TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, IInteractionSystem& io_system)
     : battle_map_(std::move(battle_map))
@@ -169,14 +170,17 @@ bool TBattle::IsRoundEnd() const
 
 void TBattle::GiveStartResource(TPlayer& player)
 {
-    assert(!player.GetCreature()->Resources()->Count(kActionId));
-    transformator_.AddResource(player.GetCreature()->Resources(), kActionId, 3);
+    assert(!player.GetCreature()->ResourceFor(EResourceKind::Action)->Count());
+    transformator_.AddResource(player.GetCreature()->ResourceFor(EResourceKind::Action),
+                               kActionsPerTurn);
 
     transformator_.AddTask(&scheduler_, TTask{
         .events_before_call = {TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{&player}}},
         .callback = [&player, this]() {
-            int resource_count = static_cast<int>(player.GetCreature()->Resources()->Count(kActionId));
-            transformator_.ReduceResource(player.GetCreature()->Resources(), kActionId, resource_count);
+            int resource_count =
+                player.GetCreature()->ResourceFor(EResourceKind::Action)->Count();
+            transformator_.ReduceResource(
+                player.GetCreature()->ResourceFor(EResourceKind::Action), resource_count);
             return false;
         },
     });
@@ -197,7 +201,7 @@ std::shared_ptr<TActionContext> TBattle::MakeActionContext()
 TAction* TBattle::ChooseAction(TPlayer& player) const
 {
     std::vector<TAction*> actions;
-    for (auto& action : player.GetCreature()->Actions()) {
+    for (auto& action : player.GetCreature()->ActionList()) {
         if (action->Check(player)) {
             actions.emplace_back(&*action);
         }

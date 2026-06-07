@@ -16,7 +16,6 @@
 #include "characteristics.h"
 #include "game_object_id.h"
 #include "proficiency.h"
-#include "resources.h"
 #include <pf2e_engine/inventory/weapon.h>
 
 #include <pf2e_engine/actions/action_reader.h>
@@ -165,21 +164,6 @@ void TGameObjectFactory::ReadCreatureData(nlohmann::json& json_game_object, TGam
 }
 
 
-TResourcePool TGameObjectFactory::ReadCreatureResources(nlohmann::json& json_game_object)
-{
-    TResourcePool resource_pool;
-    for (auto it = json_game_object.begin(); it != json_game_object.end(); ++it) {
-        if (!it->is_number()) {
-            std::stringstream ss;
-            ss << "wrong resource count: \"" << *it << "\"";
-            throw std::runtime_error(ss.str());
-        }
-        auto resource_id = TResourceIdManager::Instance().Register(it.key());
-        resource_pool.Add(resource_id, *it);
-    }
-    return resource_pool;
-}
-
 TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_object, int level)
 {
     TProficiency proficiency(level);
@@ -218,8 +202,6 @@ TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_objec
 
 void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    TResourcePool resource_pool = ReadCreatureResources(json_game_object["resources"]);
-
     std::vector<TGameObjectId> actions;
     for (const auto& action : json_game_object["actions"]) {
         actions.emplace_back(TGameObjectIdManager::Instance().Register(action));
@@ -247,10 +229,9 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
     }
 
-    creatures_.insert({id, [this, json_game_object, resource_pool, actions, proficiency, feats]() {
+    creatures_.insert({id, [this, json_game_object, actions, proficiency, feats]() {
         TCreatureData data = TCreatureData::FromJson(json_game_object.at("creature_data"), *this);
         TCreature creature(std::move(data), proficiency);
-        creature.ResourcesForInit() = resource_pool;
 
         for (auto action_id : actions) {
             creature.AddAction(Create<TAction>(action_id));

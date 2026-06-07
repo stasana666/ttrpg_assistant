@@ -89,6 +89,14 @@ TEST(ConventionsTest, BoundedQuantityIsBuiltinValueType) {
     EXPECT_EQ(CppMemberType(Field("BoundedQuantity", "Hp"), sym), "TBoundedQuantity");
 }
 
+TEST(ConventionsTest, ResourceIsBuiltinValueType) {
+    auto sym = Symbols();
+    EXPECT_TRUE(IsBuiltinResource("Resource"));
+    EXPECT_FALSE(IsBuiltinResource("int"));
+    EXPECT_EQ(FieldKindOf(Field("Resource", "Actions"), sym), EFieldKind::Resource);
+    EXPECT_EQ(CppMemberType(Field("Resource", "Actions"), sym), "TResource");
+}
+
 TEST(ConventionsTest, DefaultExprToCpp) {
     EXPECT_EQ(DefaultExprToCpp("max_int", "int"), "std::numeric_limits<int>::max()");
     EXPECT_EQ(DefaultExprToCpp("min_int", "int"), "std::numeric_limits<int>::min()");
