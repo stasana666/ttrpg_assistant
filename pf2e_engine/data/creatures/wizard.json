@@ -16,7 +16,7 @@
             },
             "movement": 5,
             "armor": "unarmored",
-            "weapon": "dagger"
+            "weapons": ["dagger"]
         },
         "size": "Medium",
         "proficiency": {

@@ -8,6 +8,6 @@
         "characteristic": "warrior_abilities",
         "movement": 5,
         "armor": "fullplate",
-        "weapon": "longsword"
+        "weapons": ["longsword"]
     }
 }

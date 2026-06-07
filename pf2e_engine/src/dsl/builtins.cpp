@@ -41,12 +41,11 @@ void RegisterAll() {
     player_props.Register("weapons", [](TPlayer* p, TEvalContext&) {
         TCreature* c = p->GetCreature();
         TDslValue::TList items;
-        auto& slots = c->Weapons();
-        for (size_t i = 0; i < slots.Size(); ++i) {
-            items.emplace_back(&slots[i].Weapon());
+        for (auto weapon : c->Weapons()) {
+            items.emplace_back(&*weapon);
         }
-        for (TWeapon& w : c->NaturalWeapons()) {
-            items.emplace_back(&w);
+        for (auto weapon : c->NaturalWeapons()) {
+            items.emplace_back(&*weapon);
         }
         return TDslValue::MakeList(std::move(items));
     });

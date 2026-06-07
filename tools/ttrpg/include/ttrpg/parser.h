@@ -147,6 +147,14 @@ private:
             ts_.Expect(ETok::LAngle, "'<' after 'set'");
             f.TypeName = ExpectIdent("set element type");
             ts_.Expect(ETok::RAngle, "'>'");
+        } else if (head == "collection") {
+            if (f.Derived) {
+                ts_.Throw("'derive' cannot be applied to a 'collection' field");
+            }
+            f.Container = EContainer::Collection;
+            ts_.Expect(ETok::LAngle, "'<' after 'collection'");
+            f.TypeName = ExpectIdent("collection element type");
+            ts_.Expect(ETok::RAngle, "'>'");
         } else {
             f.TypeName = head;
         }

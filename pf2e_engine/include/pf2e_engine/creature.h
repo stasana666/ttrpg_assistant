@@ -3,7 +3,6 @@
 #include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/common/guarded.h>
 #include <pf2e_engine/common/variant_map.h>
-#include <pf2e_engine/weapon_slot.h>
 
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/reaction.h>
@@ -31,11 +30,6 @@ public:
     TGuarded<TResourcePool> Resources();
 
     const TDamageResolver& DamageResolver() const;
-
-    TWeaponSlots& Weapons();
-
-    std::vector<TWeapon>& NaturalWeapons();
-    const std::vector<TWeapon>& NaturalWeapons() const;
 
     int MaxWeaponReach() const;
 
@@ -77,8 +71,6 @@ private:
 
     ECreatureSize size_ = ECreatureSize::Medium;
 
-    TWeaponSlots weapons_;
-    std::vector<TWeapon> natural_weapons_;
     std::vector<std::shared_ptr<TAction>> actions_;
     std::vector<std::shared_ptr<TReaction>> reactions_;
     std::vector<std::shared_ptr<TCreatureFeat>> feats_;

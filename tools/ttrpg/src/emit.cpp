@@ -29,6 +29,9 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
                 if (f.Derived) {
                     w.Line(mt + " " + f.Name + "() const { return " +
                            InitExprToCpp(*f.Init, "") + "; }");
+                } else if (f.Container == EContainer::Collection) {
+                    w.Line("const " + mt + "& " + f.Name + "() const { return " + f.Name + "_; }");
+                    w.Line(mt + "& " + f.Name + "() { return " + f.Name + "_; }");
                 } else if (f.Container != EContainer::None) {
                     w.Line("const " + mt + "& " + f.Name + "() const { return " + f.Name + "_; }");
                 } else {
@@ -174,6 +177,7 @@ void EmitHeader(std::ostream& os,
     bool anyVariantSet = false;
     bool anyVariant = !mod.Variants.empty();
     bool anyBoundedQuantity = false;
+    bool anyCollection = false;
 
     std::unordered_set<std::string> externalStems;
 
@@ -206,6 +210,14 @@ void EmitHeader(std::ostream& os,
                     "' must be a schema-declared enum or variant");
             }
         }
+        if (f.Container == EContainer::Collection) {
+            if (it->second.Kind != ETypeKind::Class) {
+                throw std::runtime_error(
+                    "collection<T> element type '" + f.TypeName +
+                    "' must be a schema-declared class");
+            }
+            anyCollection = true;
+        }
         if (it->second.OwnerStem != loaded.PrimaryStem) {
             externalStems.insert(it->second.OwnerStem);
         }
@@ -237,6 +249,9 @@ void EmitHeader(std::ostream& os,
     }
     if (anyBoundedQuantity) {
         w.Include("pf2e_engine/common/bounded_quantity.h");
+    }
+    if (anyCollection) {
+        w.Include("pf2e_engine/common/id_collection.h");
     }
     w.EmptyLine();
 
@@ -296,6 +311,9 @@ void EmitClassImpl(TCppWriter& w,
             if (f.Container == EContainer::Set && IsVariantType(f.TypeName, symbols)) {
                 usesFactory = true;
             }
+            if (f.Container == EContainer::Collection) {
+                usesFactory = true;
+            }
             continue;
         }
         EFieldKind k = FieldKindOf(f, symbols);
@@ -331,6 +349,13 @@ void EmitClassImpl(TCppWriter& w,
                             w.Line("r." + f.Name + "_.insert(" + f.TypeName +
                                    "FromString(item.get<std::string>()));");
                         }
+                    });
+                });
+            } else if (f.Container == EContainer::Collection) {
+                w.Block("if (j.contains(\"" + key + "\")) {", "}", [&] {
+                    w.Block("for (const auto& item : j.at(\"" + key + "\")) {", "}", [&] {
+                        w.Line("r." + f.Name + "_.Add(" +
+                               ScalarParseExpr(f, EFieldKind::Class, "item") + ");");
                     });
                 });
             } else if (computed) {
@@ -371,6 +396,15 @@ void EmitClassImpl(TCppWriter& w,
                         w.Line("AddValueField(set_node, ToString(v), v);");
                     });
                     w.Line("node.AddChild(\"" + key + "\", std::move(set_node));");
+                });
+            } else if (f.Container == EContainer::Collection) {
+                w.Block("{", "}", [&] {
+                    w.Line("TAstNode coll_node = TAstNode::MakeObject(\"container\");");
+                    w.Block("for (auto entry : " + f.Name + "_) {", "}", [&] {
+                        w.Line("AddOwnedObject(coll_node, std::to_string(entry.Id().Value), "
+                               "*entry, ctx);");
+                    });
+                    w.Line("node.AddChild(\"" + key + "\", std::move(coll_node));");
                 });
             } else if (kinds[i] == EFieldKind::Class || kinds[i] == EFieldKind::Variant ||
                        kinds[i] == EFieldKind::BoundedQuantity) {

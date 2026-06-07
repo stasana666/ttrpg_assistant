@@ -1,0 +1,8 @@
+class TThing {
+    int X;
+}
+
+class THolder {
+    int Count = 0;
+    collection<TThing> Things;
+}

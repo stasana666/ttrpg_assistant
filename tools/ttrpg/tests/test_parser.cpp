@@ -69,6 +69,19 @@ TEST(ParserTest, EnumAndClass) {
     EXPECT_EQ(c.Fields[2].TypeName, "EColor");
 }
 
+TEST(ParserTest, CollectionField) {
+    TSchemaModule m = ParseSrc(
+        "class TThing { int X; }\n"
+        "class THolder { collection<TThing> Things; }\n");
+
+    ASSERT_EQ(m.Classes.size(), 2u);
+    const TClassDecl& holder = m.Classes[1];
+    ASSERT_EQ(holder.Fields.size(), 1u);
+    EXPECT_EQ(holder.Fields[0].Container, EContainer::Collection);
+    EXPECT_EQ(holder.Fields[0].TypeName, "TThing");
+    EXPECT_EQ(holder.Fields[0].Name, "Things");
+}
+
 TEST(ParserTest, VariantThreeAlternativeForms) {
     TSchemaModule m = ParseSrc(
         "variant TEffect {\n"

@@ -1,5 +1,7 @@
 # Shared expression front-end (`expr`)
 
+Canonical documentation file. AGENTS.md must remain semantically equivalent.
+
 One lexer + parser + backend-agnostic AST shared by two backends:
 
 - the **`.ttrpg` code generator** ([tools/ttrpg/](../../ttrpg/)), which **lowers**
@@ -47,4 +49,5 @@ primary    := int | '$' identifier | identifier | identifier '(' args? ')' | '('
 ```
 
 Backend subsets, for reference: the DSL evaluator supports the full set; the
-codegen's computed-default lowerer rejects calls, `$`-vars, and comparison.
+codegen's computed-default lowerer rejects calls, `$`-vars, comparison, and
+logical operators.

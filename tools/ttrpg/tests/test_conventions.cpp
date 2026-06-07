@@ -60,6 +60,12 @@ TEST(ConventionsTest, CppMemberTypeForSets) {
     EXPECT_EQ(CppMemberType(Field("string", "Name"), sym), "std::string");
 }
 
+TEST(ConventionsTest, CppMemberTypeForCollections) {
+    auto sym = Symbols();
+    EXPECT_EQ(CppMemberType(Field("TThing", "Things", EContainer::Collection), sym),
+              "TIdCollection<TThing>");
+}
+
 TEST(ConventionsTest, BoundedQuantityIsBuiltinValueType) {
     auto sym = Symbols();
     EXPECT_TRUE(IsBuiltinBoundedQuantity("BoundedQuantity"));
