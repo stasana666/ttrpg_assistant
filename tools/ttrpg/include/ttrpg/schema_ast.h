@@ -16,10 +16,12 @@ enum class EContainer {
     None,
     Set,
     Collection,
+    Map,
 };
 
 struct TFieldDecl {
     std::string TypeName;
+    std::string ValueTypeName;
     EContainer Container = EContainer::None;
     std::string Name;
     std::optional<expr::TExprNode> Init;

@@ -31,6 +31,7 @@ Canonical documentation file. AGENTS.md must remain semantically equivalent.
   - `set<Enum>` lowers to `std::set`.
   - `set<Variant>` lowers to `TVariantMap`.
   - `collection<Class>` lowers to `TIdCollection`.
+  - `map<Enum, V>` lowers to `std::map`; JSON object keys are parsed through the generated enum `FromString`.
 - Defaults: int literals, `true`/`false`, enum identifiers, `max_int`, `min_int`.
 - Computed defaults are class-only stored fields. They may use arithmetic over sibling fields and member-access chains; JSON values override them.
 - `derive` fields are class-only storage-less getters. They require an initializer, are skipped in `FromJson` and `GetAst`, and can be DSL-exposed if `int`/`bool`.
@@ -71,6 +72,7 @@ Canonical documentation file. AGENTS.md must remain semantically equivalent.
 - Initializer expressions use shared `expr`; codegen accepts only its subset and rejects calls, `$` vars, comparisons, and logical operators.
 - `BoundedQuantity` is scalar only; `set<BoundedQuantity>` is rejected.
 - `collection<T>` is supported for schema-declared classes and is used by engine schemas.
+- `map<T, V>` keys must be schema-declared enums; the first engine use is `map<EDamageType, int>`.
 - DSL exposes only generated `int`/`bool` scalar getters today; widening needs new `TDslValue` alternatives.
-- No inheritance, methods, `optional`, or `map` field shapes yet.
+- No inheritance, methods, or `optional` field shapes yet.
 - Variants are closed by design; adding an alternative should force visit sites using `overloaded` to handle it.

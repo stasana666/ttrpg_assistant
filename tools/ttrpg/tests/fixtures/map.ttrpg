@@ -1,0 +1,8 @@
+enum EColor {
+    Red,
+    Green,
+}
+
+class TPalette {
+    map<EColor, int> Counts;
+}

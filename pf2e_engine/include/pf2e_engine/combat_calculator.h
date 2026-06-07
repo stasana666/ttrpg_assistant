@@ -9,6 +9,7 @@ class TCombatCalculator {
 public:
     int InitiativeBonus(const TCreature& creature) const;
     int ArmorClass(const TCreature& target, const TCreature& attacker) const;
+    int ResolveDamage(const TCreature& target, const TDamage& damage, IRandomGenerator& rng) const;
 
     bool IsOffGuardFor(const TCreature& target, const TCreature& attacker) const;
 

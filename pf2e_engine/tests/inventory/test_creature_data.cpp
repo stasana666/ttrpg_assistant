@@ -2,16 +2,23 @@
 
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/combat_calculator.h>
+#include <pf2e_engine/creature.h>
+#include <pf2e_engine/expressions/number_expression.h>
 #include <pf2e_engine/inventory/creature_data.h>
 #include <pf2e_engine/inventory/creature_parts.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/mechanics/damage.h>
 
 #include <cpp_config.h>
 
 #include <nlohmann/json.hpp>
 
+#include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 
 namespace {
 
@@ -29,6 +36,18 @@ TGameObjectFactory MakeFactoryWithRefs() {
     factory.AddSource(kRootDirPath + "/pf2e_engine/data/creatures/ability_scores/warrior_abilities.json");
     return factory;
 }
+
+template <class T>
+concept HasDamageResolverAccessor = requires(const T& creature) {
+    creature.DamageResolver();
+};
+
+static_assert(!HasDamageResolverAccessor<TCreature>);
+
+class TUnusedRng final : public IRandomGenerator {
+public:
+    int RollDice(int) final { return 1; }
+};
 
 }
 
@@ -95,4 +114,40 @@ TEST(CreatureDataTest, ComputedHitpointsJsonOverride) {
 
     EXPECT_EQ(data.Hitpoints().CurrentValue(), 5);
     EXPECT_EQ(data.Hitpoints().MaxValue(), 40);
+}
+
+TEST(CreatureDataTest, DamageDataLoadsAndIsAvailableOnCreature) {
+    TGameObjectFactory factory = MakeFactoryWithRefs();
+    nlohmann::json j = WarriorJson();
+    j["immunities"] = {"Fire"};
+    j["resistances"] = {
+        {"Fire", 10},
+        {"Slashing", 5},
+    };
+    j["vulnerabilities"] = {
+        {"Piercing", 7},
+    };
+
+    TCreatureData data = TCreatureData::FromJson(j, factory);
+    const TCreatureData& data_view = data;
+
+    EXPECT_TRUE(data_view.Immunities().contains(EDamageType::Fire));
+    EXPECT_EQ(data_view.Resistances().at(EDamageType::Fire), 10);
+    EXPECT_EQ(data_view.Resistances().at(EDamageType::Slashing), 5);
+    EXPECT_EQ(data_view.Vulnerabilities().at(EDamageType::Piercing), 7);
+
+    TCreature creature(std::move(data), TProficiency(3), THitPoints(1));
+    const TCreature& creature_view = creature;
+
+    EXPECT_TRUE(creature_view.Immunities().contains(EDamageType::Fire));
+    EXPECT_EQ(creature_view.Resistances().at(EDamageType::Fire), 10);
+    EXPECT_EQ(creature_view.Vulnerabilities().at(EDamageType::Piercing), 7);
+
+    TDamage damage;
+    damage.Add(EDamageType::Slashing, std::make_unique<TNumberExpression>(9));
+    damage.Add(EDamageType::Piercing, std::make_unique<TNumberExpression>(4));
+
+    TUnusedRng rng;
+    TCombatCalculator calculator;
+    EXPECT_EQ(calculator.ResolveDamage(creature, damage, rng), 15);
 }

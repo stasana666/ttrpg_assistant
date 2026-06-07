@@ -20,6 +20,14 @@ void EmitEnumDecl(TCppWriter& w, const TEnumDecl& e) {
     w.EmptyLine();
 }
 
+TFieldDecl MapValueField(const TFieldDecl& f) {
+    TFieldDecl value = f;
+    value.TypeName = f.ValueTypeName;
+    value.ValueTypeName.clear();
+    value.Container = EContainer::None;
+    return value;
+}
+
 void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
                    const std::unordered_map<std::string, TTypeInfo>& symbols) {
     w.Class(c.Name, [&] {
@@ -181,10 +189,46 @@ void EmitHeader(std::ostream& os,
     bool anyVariant = !mod.Variants.empty();
     bool anyBoundedQuantity = false;
     bool anyCollection = false;
+    bool anyMap = false;
 
     std::unordered_set<std::string> externalStems;
 
     auto inspectField = [&](const TFieldDecl& f, const std::string& ownerDesc) {
+        if (f.Container == EContainer::Map) {
+            auto keyIt = loaded.SymbolTable.find(f.TypeName);
+            if (keyIt == loaded.SymbolTable.end()) {
+                throw std::runtime_error(
+                    "unknown map key type '" + f.TypeName + "' referenced in " + ownerDesc +
+                    " (declare it in this file or import another .ttrpg)");
+            }
+            if (keyIt->second.Kind != ETypeKind::Enum) {
+                throw std::runtime_error(
+                    "map<K, V> key type '" + f.TypeName +
+                    "' must be a schema-declared enum");
+            }
+            if (keyIt->second.OwnerStem != loaded.PrimaryStem) {
+                externalStems.insert(keyIt->second.OwnerStem);
+            }
+            anyMap = true;
+            TFieldDecl value = MapValueField(f);
+            if (IsBuiltinPrimitive(value.TypeName)) {
+                return;
+            }
+            if (IsBuiltinBoundedQuantity(value.TypeName)) {
+                anyBoundedQuantity = true;
+                return;
+            }
+            auto valueIt = loaded.SymbolTable.find(value.TypeName);
+            if (valueIt == loaded.SymbolTable.end()) {
+                throw std::runtime_error(
+                    "unknown map value type '" + value.TypeName + "' referenced in " +
+                    ownerDesc + " (declare it in this file or import another .ttrpg)");
+            }
+            if (valueIt->second.OwnerStem != loaded.PrimaryStem) {
+                externalStems.insert(valueIt->second.OwnerStem);
+            }
+            return;
+        }
         if (IsBuiltinPrimitive(f.TypeName)) {
             return;
         }
@@ -241,6 +285,9 @@ void EmitHeader(std::ostream& os,
 
     if (anyEnumSet) {
         w.Include("set");
+    }
+    if (anyMap) {
+        w.Include("map");
     }
     if (anyVariant) {
         w.Include("type_traits");
@@ -317,6 +364,14 @@ void EmitClassImpl(TCppWriter& w,
             if (f.Container == EContainer::Collection) {
                 usesFactory = true;
             }
+            if (f.Container == EContainer::Map) {
+                TFieldDecl value = MapValueField(f);
+                EFieldKind valueKind = FieldKindOf(value, symbols);
+                if (valueKind == EFieldKind::Class || valueKind == EFieldKind::Variant ||
+                    valueKind == EFieldKind::BoundedQuantity) {
+                    usesFactory = true;
+                }
+            }
             continue;
         }
         EFieldKind k = FieldKindOf(f, symbols);
@@ -359,6 +414,16 @@ void EmitClassImpl(TCppWriter& w,
                     w.Block("for (const auto& item : j.at(\"" + key + "\")) {", "}", [&] {
                         w.Line("r." + f.Name + "_.Add(" +
                                ScalarParseExpr(f, EFieldKind::Class, "item") + ");");
+                    });
+                });
+            } else if (f.Container == EContainer::Map) {
+                TFieldDecl value = MapValueField(f);
+                EFieldKind valueKind = FieldKindOf(value, symbols);
+                w.Block("if (j.contains(\"" + key + "\")) {", "}", [&] {
+                    w.Block("for (const auto& [map_key, map_value] : j.at(\"" + key + "\").items()) {", "}", [&] {
+                        w.Line("r." + f.Name + "_.emplace(" + f.TypeName +
+                               "FromString(map_key), " +
+                               ScalarParseExpr(value, valueKind, "map_value") + ");");
                     });
                 });
             } else if (computed) {
@@ -408,6 +473,21 @@ void EmitClassImpl(TCppWriter& w,
                                "*entry, ctx);");
                     });
                     w.Line("node.AddChild(\"" + key + "\", std::move(coll_node));");
+                });
+            } else if (f.Container == EContainer::Map) {
+                TFieldDecl value = MapValueField(f);
+                EFieldKind valueKind = FieldKindOf(value, symbols);
+                w.Block("{", "}", [&] {
+                    w.Line("TAstNode map_node = TAstNode::MakeObject(\"container\");");
+                    w.Block("for (const auto& [map_key, map_value] : " + f.Name + "_) {", "}", [&] {
+                        if (valueKind == EFieldKind::Class || valueKind == EFieldKind::Variant ||
+                            valueKind == EFieldKind::BoundedQuantity) {
+                            w.Line("AddOwnedObject(map_node, ToString(map_key), map_value, ctx);");
+                        } else {
+                            w.Line("AddValueField(map_node, ToString(map_key), map_value);");
+                        }
+                    });
+                    w.Line("node.AddChild(\"" + key + "\", std::move(map_node));");
                 });
             } else if (kinds[i] == EFieldKind::Class || kinds[i] == EFieldKind::Variant ||
                        kinds[i] == EFieldKind::BoundedQuantity) {

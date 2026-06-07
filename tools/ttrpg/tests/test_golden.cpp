@@ -61,3 +61,16 @@ TEST(GoldenTest, Computed) {
 TEST(GoldenTest, Collection) {
     CheckGolden("collection");
 }
+
+TEST(GoldenTest, MapCodegen) {
+    const std::string header = GenHeader("map");
+    const std::string impl = GenImpl("map");
+
+    EXPECT_NE(header.find("#include <map>"), std::string::npos);
+    EXPECT_NE(header.find("const std::map<EColor, int>& Counts() const"), std::string::npos);
+    EXPECT_NE(header.find("TGuarded<std::map<EColor, int>> Counts()"), std::string::npos);
+    EXPECT_NE(impl.find("r.Counts_.emplace(EColorFromString(map_key), map_value.get<int>())"),
+              std::string::npos);
+    EXPECT_NE(impl.find("AddValueField(map_node, ToString(map_key), map_value)"),
+              std::string::npos);
+}

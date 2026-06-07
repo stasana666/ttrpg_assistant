@@ -18,6 +18,13 @@ TFieldDecl Field(const std::string& type, const std::string& name,
     return f;
 }
 
+TFieldDecl MapField(const std::string& keyType, const std::string& valueType,
+                    const std::string& name) {
+    TFieldDecl f = Field(keyType, name, EContainer::Map);
+    f.ValueTypeName = valueType;
+    return f;
+}
+
 std::unordered_map<std::string, TTypeInfo> Symbols() {
     return {
         {"EColor", {"basic", ETypeKind::Enum}},
@@ -64,6 +71,14 @@ TEST(ConventionsTest, CppMemberTypeForCollections) {
     auto sym = Symbols();
     EXPECT_EQ(CppMemberType(Field("TThing", "Things", EContainer::Collection), sym),
               "TIdCollection<TThing>");
+}
+
+TEST(ConventionsTest, CppMemberTypeForMaps) {
+    auto sym = Symbols();
+    EXPECT_EQ(CppMemberType(MapField("EColor", "int", "Counts"), sym),
+              "std::map<EColor, int>");
+    EXPECT_EQ(CppMemberType(MapField("EColor", "string", "Names"), sym),
+              "std::map<EColor, std::string>");
 }
 
 TEST(ConventionsTest, BoundedQuantityIsBuiltinValueType) {
