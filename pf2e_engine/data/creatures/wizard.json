@@ -4,6 +4,7 @@
     "pf2e_creature": {
         "creature_data": {
             "level": 5,
+            "size": "Medium",
             "race": "elf",
             "class": "wizard",
             "characteristic": {
@@ -18,7 +19,6 @@
             "armor": "unarmored",
             "weapons": ["dagger"]
         },
-        "size": "Medium",
         "proficiency": {
             "armor_category": {
                 "Unarmored": "trained"

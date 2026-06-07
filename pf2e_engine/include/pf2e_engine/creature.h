@@ -6,7 +6,6 @@
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/reaction.h>
 #include <pf2e_engine/condition.h>
-#include <pf2e_engine/creature_size.h>
 #include <pf2e_engine/feat.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/creature_data.h>
@@ -43,9 +42,6 @@ public:
 
     int Get(EConditionKind condition) const;
 
-    ECreatureSize Size() const;
-    void SetSize(ECreatureSize size);
-
     std::vector<const TReaction*> Reactions(ETrigger) const;
 
     TAstNode GetAst(TAstContext& ctx) const;
@@ -59,8 +55,6 @@ private:
     THitPoints hitpoints_;
 
     TResourcePool resources_;
-
-    ECreatureSize size_ = ECreatureSize::Medium;
 
     std::vector<std::shared_ptr<TAction>> actions_;
     std::vector<std::shared_ptr<TReaction>> reactions_;

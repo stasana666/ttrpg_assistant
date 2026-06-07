@@ -3,6 +3,7 @@
     "type": "pf2e_creature_data",
     "pf2e_creature_data": {
         "level": 1,
+        "size": "Medium",
         "race": "human",
         "class": "fighter",
         "characteristic": "warrior_abilities",

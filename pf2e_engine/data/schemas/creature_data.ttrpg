@@ -4,8 +4,18 @@ import "creature_parts.ttrpg";
 import "condition.ttrpg";
 import "damage.ttrpg";
 
+enum ECreatureSize {
+    Tiny,
+    Small,
+    Medium,
+    Large,
+    Huge,
+    Gargantuan,
+}
+
 class TCreatureData {
     int Level;
+    ECreatureSize Size;
     TRace Race;
     TClass Class;
     TAbilityScores Characteristic;

@@ -118,16 +118,6 @@ int TCreature::Get(EConditionKind condition) const
     throw std::logic_error("unreachable");
 }
 
-ECreatureSize TCreature::Size() const
-{
-    return size_;
-}
-
-void TCreature::SetSize(ECreatureSize size)
-{
-    size_ = size;
-}
-
 std::vector<const TReaction*> TCreature::Reactions(ETrigger trigger_type) const
 {
     std::vector<const TReaction*> reactions;
@@ -180,7 +170,6 @@ TAstNode TCreature::GetAst(TAstContext& ctx) const
     AddOwnedObject(node, "proficiency", proficiency_, ctx);
     AddOwnedObject(node, "hitpoints", hitpoints_, ctx);
     AddOwnedObject(node, "resources", resources_, ctx);
-    AddValueField(node, "size", size_);
 
     node.AddChild("actions", GetActionListAst(actions_));
     node.AddChild("reactions", GetReactionListAst(reactions_));

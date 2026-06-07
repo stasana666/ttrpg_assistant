@@ -58,6 +58,7 @@ TEST(CreatureDataTest, WarriorDataLoads) {
     const TCreatureData data = factory.Create<TCreatureData>(NameId("warrior_data"));
 
     EXPECT_EQ(data.Level(), 1);
+    EXPECT_EQ(data.Size(), ECreatureSize::Medium);
     EXPECT_EQ(data.Movement(), 5);
 
     EXPECT_EQ(data.Race().Hitpoints(), 8);
@@ -85,6 +86,7 @@ namespace {
 nlohmann::json WarriorJson() {
     return {
         {"level", 3},
+        {"size", "Medium"},
         {"race", "human"},
         {"class", "fighter"},
         {"characteristic", "warrior_abilities"},

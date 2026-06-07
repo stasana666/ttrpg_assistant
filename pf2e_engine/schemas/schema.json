@@ -202,6 +202,10 @@
             "type": "object",
             "properties": {
                 "level": { "type": "integer" },
+                "size": {
+                    "type": "string",
+                    "enum": ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
+                },
                 "race": { "type": "string" },
                 "class": { "type": "string" },
                 "characteristic": {
@@ -274,7 +278,7 @@
                     "additionalProperties": { "type": "integer" }
                 }
             },
-            "required": ["level", "race", "class", "characteristic", "armor"],
+            "required": ["level", "size", "race", "class", "characteristic", "armor"],
             "additionalProperties": false
         },
 
@@ -422,10 +426,6 @@
             "type": "object",
             "properties": {
                 "creature_data": { "$ref": "#/$defs/pf2e_creature_data_core" },
-                "size": {
-                    "type": "string",
-                    "enum": ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
-                },
                 "resources": { "$ref": "#/$defs/pf2e_creature_resources" },
                 "proficiency": { "$ref": "#/$defs/pf2e_proficiency" },
                 "actions": {
@@ -441,8 +441,7 @@
                 }
             },
             "required": [
-                "creature_data",
-                "size"
+                "creature_data"
             ],
             "additionalProperties": false
         },
