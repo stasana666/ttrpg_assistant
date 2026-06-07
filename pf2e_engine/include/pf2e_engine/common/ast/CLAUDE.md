@@ -35,7 +35,7 @@ Canonical documentation file. AGENTS.md must remain semantically equivalent.
 - Generated schema classes do not need handwritten layout asserts; schema-driven generation owns their `GetAst`.
 
 ## Pending-pointer resolution
-- A transformation record holds a raw pointer (e.g. `THitPoints*`) with no idea who owns it, yet the AST must render it as `"ref:player#3.creature.hitpoints"` — and the owning `GetAst` may run *after* the reference's. No separate finalization pass.
+- A transformation record holds a raw pointer (e.g. `TBoundedQuantity*`) with no idea who owns it, yet the AST must render it as `"ref:player#3.creature.hitpoints"` — and the owning `GetAst` may run *after* the reference's. No separate finalization pass.
 - `AddReference(node, label, ptr, ctx)`: if `IdentityOf(ptr)` is known, emit `"ref:<id>"` eagerly; otherwise add an empty Value node and `RegisterPending(ptr, &node)`. `RegisterIdentity(p, id)` records the name *and* back-fills any nodes already queued for `p`. Registration order therefore does not matter.
 - This relies on child-node pointers staying valid until the end of the enclosing `GetAst` — which is exactly why children live in `std::list` (move/splice keep element pointers stable; `std::vector` would invalidate them on realloc).
 - A pointer that is never registered (dangling, or its class was not traversed) leaves the placeholder empty, showing up as a content mismatch in a diff.

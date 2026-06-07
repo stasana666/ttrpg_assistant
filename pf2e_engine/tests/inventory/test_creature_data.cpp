@@ -138,7 +138,7 @@ TEST(CreatureDataTest, DamageDataLoadsAndIsAvailableOnCreature) {
     EXPECT_EQ(data_view.Resistances().at(EDamageType::Slashing), 5);
     EXPECT_EQ(data_view.Vulnerabilities().at(EDamageType::Piercing), 7);
 
-    TCreature creature(std::move(data), TProficiency(3), THitPoints(1));
+    TCreature creature(std::move(data), TProficiency(3));
     const TCreature& creature_view = creature;
 
     EXPECT_TRUE(creature_view.Immunities().contains(EDamageType::Fire));

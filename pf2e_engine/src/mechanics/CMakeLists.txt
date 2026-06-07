@@ -3,7 +3,6 @@ target_sources(pf2e_engine
         characteristics.cpp
         damage_resolver.cpp
         damage.cpp
-        hitpoints.cpp
         savethrow.cpp
         skills.cpp
 )

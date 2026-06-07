@@ -1,5 +1,5 @@
 add_executable(test_mechanics
-    test_hitpoints.cpp
+    test_bounded_quantity.cpp
     test_characteristics.cpp
     test_damage_resolver.cpp
 )

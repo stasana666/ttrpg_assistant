@@ -1,9 +1,9 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/bounded_quantity.h>
 #include <pf2e_engine/common/variant_map.h>
 #include <pf2e_engine/condition.h>
-#include <pf2e_engine/mechanics/hitpoints.h>
 #include <pf2e_engine/resources.h>
 #include <pf2e_engine/scheduler.h>
 #include <variant>
@@ -16,15 +16,15 @@ class TTaskScheduler;
 
 class TChangeHitPoints {
 public:
-    TChangeHitPoints(THitPoints* hitpoints, int value);
+    TChangeHitPoints(TBoundedQuantity* hitpoints, int value);
 
     void Undo();
 
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:
-    THitPoints* hitpoints_;
-    THitPoints prev_;
+    TBoundedQuantity* hitpoints_;
+    TBoundedQuantity prev_;
 };
 
 class TChangeCondition {

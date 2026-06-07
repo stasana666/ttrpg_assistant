@@ -50,14 +50,14 @@ void SetConditionValue(TVariantMap<EConditionKind, TCondition>& conditions,
 
 }
 
-TChangeHitPoints::TChangeHitPoints(THitPoints* hitpoints, int value)
+TChangeHitPoints::TChangeHitPoints(TBoundedQuantity* hitpoints, int value)
     : hitpoints_(hitpoints)
     , prev_(*hitpoints_)
 {
     if (value < 0) {
-        hitpoints_->ReduceHp(-value);
+        hitpoints_->Reduce(-value);
     } else {
-        hitpoints_->RestoreHp(value);
+        hitpoints_->Restore(value);
     }
 }
 

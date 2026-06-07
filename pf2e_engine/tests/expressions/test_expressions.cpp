@@ -5,7 +5,6 @@
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/expressions/expressions.h>
 #include <pf2e_engine/mechanics/characteristics.h>
-#include <pf2e_engine/mechanics/hitpoints.h>
 #include <pf2e_engine/random.h>
 
 #include <memory>
@@ -114,7 +113,6 @@ TEST(DiceExpressionParserTest, InvalidExpressionEmptyCount) {
 TEST(DiceExpressionParserTest, InvalidExpressionEmptySize) {
     EXPECT_THROW(ParseDiceExpression("6d"), std::invalid_argument);
 }
-
 
 
 

@@ -9,10 +9,9 @@
 
 #include <algorithm>
 
-TCreature::TCreature(TCreatureData data, TProficiency proficiency, THitPoints hitpoints)
+TCreature::TCreature(TCreatureData data, TProficiency proficiency)
     : TCreatureData(std::move(data))
     , proficiency_(proficiency)
-    , hitpoints_(hitpoints)
 {
 }
 
@@ -35,14 +34,14 @@ int TCreature::GetLevel() const
     return proficiency_.GetLevel();
 }
 
-TGuarded<THitPoints> TCreature::Hitpoints()
+TGuarded<TBoundedQuantity> TCreature::Hitpoints()
 {
-    return TGuarded<THitPoints>(hitpoints_);
+    return TCreatureData::Hitpoints();
 }
 
-const THitPoints& TCreature::Hitpoints() const
+const TBoundedQuantity& TCreature::Hitpoints() const
 {
-    return hitpoints_;
+    return TCreatureData::Hitpoints();
 }
 
 const TResourcePool& TCreature::Resources() const
@@ -79,7 +78,7 @@ TProficiency& TCreature::Proficiency()
 
 bool TCreature::IsAlive() const
 {
-    return hitpoints_.GetCurrentHp() > 0;
+    return Hitpoints().CurrentValue() > 0;
 }
 
 void TCreature::AddAction(std::shared_ptr<TAction> action)
@@ -156,19 +155,18 @@ TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& react
 
 TAstNode TCreature::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 808;
+    static constexpr size_t kExpectedSize = 792;
     AST_ASSERT_LAYOUT(TCreature, kExpectedSize);
 
     const std::string my_id = ctx.IdentityOf(this);
     if (!my_id.empty()) {
-        ctx.RegisterIdentity(&hitpoints_, my_id + ".hitpoints");
+        ctx.RegisterIdentity(&Hitpoints(), my_id + ".hitpoints");
         ctx.RegisterIdentity(&resources_, my_id + ".resources");
     }
 
     TAstNode node = TAstNode::MakeObject("TCreature");
     node.AddChild("creature_data", TCreatureData::GetAst(ctx));
     AddOwnedObject(node, "proficiency", proficiency_, ctx);
-    AddOwnedObject(node, "hitpoints", hitpoints_, ctx);
     AddOwnedObject(node, "resources", resources_, ctx);
 
     node.AddChild("actions", GetActionListAst(actions_));

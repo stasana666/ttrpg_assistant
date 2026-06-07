@@ -16,6 +16,9 @@ public:
     int CurrentValue() const { return current_value_; }
     int MaxValue() const { return max_value_; }
 
+    void Reduce(int value);
+    void Restore(int value);
+
     static TBoundedQuantity FromJson(const nlohmann::json& j, const TGameObjectFactory& factory);
     TAstNode GetAst(TAstContext& ctx) const;
 
