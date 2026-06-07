@@ -1,5 +1,7 @@
 # analyzer — headless Monte-Carlo combat simulator
 
+Canonical documentation file. AGENTS.md must remain semantically equivalent.
+
 Runs many automated battles on top of the headless engine and reports win/death
 probabilities (`analyzer_lib` library + `analyzer` executable; links only
 `pf2e_engine`). It supplies the automated `IInteractionSystem` — see the root

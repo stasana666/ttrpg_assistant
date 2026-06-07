@@ -1,5 +1,7 @@
 # Grammar-agnostic parsing primitives (`parse`)
 
+Canonical documentation file. AGENTS.md must remain semantically equivalent.
+
 Lowest layer shared by the expression front-end ([../expr/](../expr/)) and the
 `.ttrpg` code generator. Knows nothing about any specific grammar.
 

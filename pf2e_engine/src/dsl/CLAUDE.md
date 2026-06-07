@@ -1,5 +1,7 @@
 # DSL runtime (parser wrapper + evaluator)
 
+Canonical documentation file. AGENTS.md must remain semantically equivalent.
+
 The runtime side of the action-pipeline expression DSL. The lexer/parser/grammar
 are **not** here — they come from the shared expression front-end
 ([tools/common/expr/](../../../../tools/common/expr/)). This directory owns the
@@ -14,6 +16,12 @@ thin wrapper plus everything needed to evaluate the result:
 
 See the root [CLAUDE.md](../../../../CLAUDE.md) "DSL Expression Layer" section for the
 grammar, registries, and the list of built-in properties/functions.
+
+## Build / test
+
+- Build/run DSL tests: `cmake --build build --target test_dsl`.
+- For action behavior that uses DSL expressions, also check `test_actions` or
+  `test_wolf_combat`.
 
 Implementation details that are easy to get wrong:
 
@@ -53,3 +61,10 @@ filters/maps/folds with the same variable name correctly nest and unwind without
 mutating the registry. `TDslExpression` is a thin wrapper around the shared
 `expr::TExprNode` AST plus this evaluator — it replaced the former `IDslExpression`
 node hierarchy once parsing moved into the shared `expr` front-end.
+
+## Pitfalls
+
+- Do not add PF2E-specific parser syntax here unless the generic
+  [tools/common/expr/](../../../../tools/common/expr/) users can also tolerate it.
+- Burst/cone/line targeting still uses `get_targets_in_area`; the DSL has no
+  `TPosition` value or position-picking function.

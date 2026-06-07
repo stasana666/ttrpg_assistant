@@ -1,310 +1,72 @@
-# `ttrpg` — the `.ttrpg` schema language library
+# `ttrpg` Schema Language Tooling
 
-A small C++23 **library** (`ttrpg` static lib) plus a thin CLI (`ttrpg_codegen`)
-that turns one `.ttrpg` schema module into a generated `*.h` / `*.cpp` pair. The
-schema is the single source of truth: editing it regenerates the C++ type, JSON
-loader, AST serialization, and DSL property registration on the next `make`.
+Canonical documentation file. AGENTS.md must remain semantically equivalent.
 
-```
-ttrpg_codegen --schema <in.ttrpg> --out-h <gen.h> --out-cpp <gen.cpp>
-```
+## Purpose
+- C++23 static library `ttrpg` plus thin CLI `ttrpg_codegen`.
+- Turns one `.ttrpg` schema module into generated `*.h` / `*.cpp`.
+- The schema is the source of truth for generated C++ type shape, JSON loading, AST serialization, and DSL property registration.
 
-**clang-tidy is disabled** on `ttrpg`, `ttrpg_codegen`, and `test_ttrpg`
-([CMakeLists.txt](CMakeLists.txt) sets `CXX_CLANG_TIDY ""`); the code uses
-camelCase locals (`externalStems`, `kindEnum`) and builds C++-as-text which the
-project's tidy config would reject. IDE/clangd diagnostics on these files
-(missing `ttrpg/*.h` or `parse/scanner.h`, "invalid case style") are spurious —
-clangd lacks the target include paths and the tidy-off setting. Trust `make`.
+## Build/Test
+- Build CLI: `cmake --build build --target ttrpg_codegen`.
+- Test tooling: `cmake --build build --target test_ttrpg`.
+- Registered through CTest: `ctest --test-dir build --output-on-failure`.
+- `ttrpg`, `ttrpg_codegen`, and `test_ttrpg` opt out of clang-tidy in CMake; IDE case-style/include diagnostics in this subtree may be spurious.
 
-## Source layout
+## Source Layout
+- `include/ttrpg/schema_ast.h`: parsed AST declarations (`TEnumDecl`, `TVariantDecl`, `TClassDecl`, `TFieldDecl`, `TSchemaModule`, `EContainer`).
+- `include/ttrpg/parser.h`, `src/parser.cpp`: tokenization and recursive-descent parser. Initializer text after `=` is raw-captured and parsed by shared `expr::Parse`.
+- `include/ttrpg/module.h`, `src/module.cpp`: file parsing, recursive imports, duplicate type checks, circular import detection, symbol table.
+- `include/ttrpg/conventions.h`, `src/conventions.cpp`: naming and type lowering (`PascalToSnake`, `CppMemberType`, `ScalarParseExpr`, `DefaultExprToCpp`, `VariantKindEnum`).
+- `include/ttrpg/analyze.h`, `src/analyze.cpp`: computed defaults, dependency ordering, type validation, C++ expression lowering.
+- `include/ttrpg/cpp_writer.h`, `src/cpp_writer.cpp`: generated-output indentation/braces.
+- `include/ttrpg/emit.h`, `src/emit.cpp`: header/implementation emission.
+- `cli/main.cpp`: argument parsing and orchestration only.
+- `tests/`: writer, conventions, parser, analyzer, and golden-output tests.
 
-A compiler-shaped pipeline: **frontend** (text → schema AST) → **semantic layer**
-(naming/typing conventions) → **backend** (C++ emission), with a thin CLI on top.
+## Language
+- Top-level forms: `import`, `enum`, `variant`, `class`.
+- Field types: `int`, `bool`, `string`, `BoundedQuantity`, or schema-declared enum/class/variant.
+- Containers:
+  - `set<Enum>` lowers to `std::set`.
+  - `set<Variant>` lowers to `TVariantMap`.
+  - `collection<Class>` lowers to `TIdCollection`.
+- Defaults: int literals, `true`/`false`, enum identifiers, `max_int`, `min_int`.
+- Computed defaults are class-only stored fields. They may use arithmetic over sibling fields and member-access chains; JSON values override them.
+- `derive` fields are class-only storage-less getters. They require an initializer, are skipped in `FromJson` and `GetAst`, and can be DSL-exposed if `int`/`bool`.
+- Variant alternatives reject derived fields and non-constant computed initializers.
+- Type names are verbatim C++ names; the generator never adds `T` or `E` prefixes.
 
-| File | Role |
-|---|---|
-| [include/ttrpg/schema_ast.h](include/ttrpg/schema_ast.h) | The parsed module: `TEnumDecl` / `TVariantDecl` / `TVariantAlt` / `TFieldDecl` / `TClassDecl` / `TSchemaModule`, `EContainer`. |
-| [include/ttrpg/parser.h](include/ttrpg/parser.h) + [src/parser.cpp](src/parser.cpp) | `ETok`, `Tokenize` (wraps `parse::TScanner`; raw-captures `= ... ;` initializers into an `InitExpr` token), recursive-descent `TParser` → `TSchemaModule`. Field initializers are parsed by the shared `expr::Parse` ([tools/common/expr/](../common/expr/)), not here. |
-| [include/ttrpg/module.h](include/ttrpg/module.h) + [src/module.cpp](src/module.cpp) | `ParseFile`, `LoadAll` (transitive imports, cycle-detected), the cross-file symbol table (`ETypeKind`, `TTypeInfo`, `TLoadedSchemas`). |
-| [include/ttrpg/conventions.h](include/ttrpg/conventions.h) + [src/conventions.cpp](src/conventions.cpp) | The semantic layer: `PascalToSnake`, `FieldKindOf`/`EFieldKind`, `CppMemberType`, `VariantKindEnum`, `ScalarParseExpr`/`LoadFieldCall`, `DefaultExprToCpp`, `DeriveSiblingInclude`, … |
-| [include/ttrpg/analyze.h](include/ttrpg/analyze.h) + [src/analyze.cpp](src/analyze.cpp) | Field-initializer analysis: `InitIsComputed` (constant vs computed default), `FieldInitOrder` (topological evaluation order + cycle / bad-reference detection), `InitExprToCpp` (lower an expression to C++). |
-| [include/ttrpg/cpp_writer.h](include/ttrpg/cpp_writer.h) + [src/cpp_writer.cpp](src/cpp_writer.cpp) | `TCppWriter` — owns indentation/braces (see below). |
-| [include/ttrpg/emit.h](include/ttrpg/emit.h) + [src/emit.cpp](src/emit.cpp) | `EmitHeader` / `EmitImpl` and the per-construct emitters, driving the writer. |
-| [cli/main.cpp](cli/main.cpp) | Arg parsing + orchestration only (~90 lines). |
-| [tests/](tests/) | `test_ttrpg`: writer / conventions / parser / golden tests. |
+## Generated Shape
+- Enums emit `enum class`, `ToString`, and `<Name>FromString`.
+- Classes emit getters, `FromJson`, `GetAst`, `TIsAstRecursive`, and `RegisterDslProperties`.
+- Variants emit a kind enum, one payload struct per alternative, wrapper class with `std::variant` payload, `Kind()`, `Payload()`, `TryGet<T>()`, `FromJson`, and `GetAst`.
+- `set<Variant>` uses `TVariantMap<Kind, Variant>`; query with `Has(kind)` or `Get<TAlt>()`.
+- Enum/variant JSON tokens use the identifier spelling verbatim, such as `"Finesse"` or `"D8"`.
+- Generated output is formatted only by `TCppWriter`; there is no external clang-format pass. Golden tests lock exact text output.
 
-The shared scanner/token-stream ([tools/common/parse/](../common/parse/)) is
-reused by the engine's DSL too — keep generator-only token kinds in `parser.h`,
-not in the shared lib.
-
-## Pipeline
-
-1. **`Tokenize` / `TParser`** ([parser](include/ttrpg/parser.h)) — `Parse()`
-   reads leading `import "...";` directives, then `enum` / `variant` / `class`
-   declarations. Field parsing (`ParseField`) is shared between `class` bodies
-   and `variant` alternative payloads.
-2. **`LoadAll`** ([module](include/ttrpg/module.h)) — loads the primary file plus
-   all transitive imports (relative paths, cycle-detected) and builds the
-   symbol table `name -> TTypeInfo{ OwnerStem, ETypeKind }`. Duplicate type
-   names across the import graph are an error.
-3. **`EmitHeader` / `EmitImpl`** ([emit](include/ttrpg/emit.h)) — wrap the
-   caller's `ostream` in a `TCppWriter` and walk the primary module's enums,
-   then variants, then classes (order matters: classes may reference variants
-   via `set<V>`, variants reference enums). Cross-file field types pull in the
-   generated sibling header (`DeriveSiblingInclude`).
-
-## Schema language
-
-```ttrpg
-import "other.ttrpg";          // makes other.ttrpg's types visible (recursive, cycle-checked)
-
-enum EFoo { A, B, C }          // -> enum class EFoo + ToString / EFooFromString
-
-variant TBar {                 // -> closed sum type (see below)
-    Flag;                      //   flag alternative (no payload)
-    WithDie  { EDieSize Die; } //   parameterized alternative (class-style fields, defaults allowed)
-}
-
-class TBaz {                   // -> data class (FromJson / GetAst / RegisterDslProperties)
-    int Count = 0;             //   primitive field with default
-    EFoo Kind;                 //   enum field
-    TMaterial Mat;             //   class field (resolves via factory)
-    set<EFoo> Flags;           //   set<Enum>    -> std::set<EFoo>
-    set<TBar> Bars;            //   set<Variant> -> TVariantMap<EBarKind, TBar>
-}
-```
-
-- **Type names are verbatim C++** (`TArmor`, `EArmorCategory`) — the generator
-  never silently adds a `T`/`E` prefix.
-- **Field types**: `int`, `bool`, `string`, the built-in value type
-  `BoundedQuantity`, or any schema-declared enum / class / variant. Dispatch is
-  by the symbol table (`EFieldKind`) — no `ref`/`owned` keyword. `EFieldKind`:
-  `Primitive | Enum | Class | Variant | BoundedQuantity`.
-- **`BoundedQuantity`** is a built-in scalar value type (a `{current_value,
-  max_value}` pair). Like `int`/`string` it is recognized at the conventions
-  layer (`IsBuiltinBoundedQuantity`), needs no lexer/parser change, and lowers to
-  the hand-written `TBoundedQuantity` runtime type
-  ([pf2e_engine/common/bounded_quantity.h](../../pf2e_engine/include/pf2e_engine/common/bounded_quantity.h))
-  — the same "keyword → hand-written runtime type" arrangement as
-  `set<Variant>` → `TVariantMap` (below). It loads via
-  `TBoundedQuantity::FromJson` and is owned (recursive) in the AST. Scalar only —
-  `set<BoundedQuantity>` is rejected.
-- **`set<T>`**: `T` must be a schema-declared **enum** (lowers to `std::set`) or
-  **variant** (lowers to `TVariantMap`). Primitive/class set elements are an
-  error. Set fields cannot have a default (absent JSON key ⇒ empty).
-- **`collection<T>`** (`EContainer::Collection`): `T` must be a schema-declared
-  **class**; lowers to the hand-written `TIdCollection<T>`
-  ([pf2e_engine/common/id_collection.h](../../pf2e_engine/include/pf2e_engine/common/id_collection.h)),
-  factory-backed (each element loaded by the class loader). No default; `derive`
-  is a parser error on a `collection` field. Golden-tested
-  ([tests/fixtures/collection.*](tests/fixtures/)) but not yet used by a live
-  engine schema.
-- **Defaults**: int literals, `true`/`false`, an enum value identifier, or
-  `max_int` / `min_int`. Class/variant fields have no defaults.
-- **Computed defaults**: a field's `= <expr>` may be an arithmetic expression
-  (`+ - * /`, parens, int literals) over **sibling fields** referenced by their
-  PascalCase names, including **member-access chains** of any depth into class-ref
-  fields, e.g. `BoundedQuantity Hitpoints = Race.Hitpoints + Level * (Class.Hitpoints +
-  Characteristic.Constitution.Modifier);` (`Race.Hitpoints` lowers to the getter
-  call `r.Race_.Hitpoints()`; `Characteristic.Constitution.Modifier` to
-  `r.Characteristic_.Constitution().Modifier()`). Each chain hop after the root must
-  be a field of the previous hop's (schema-declared) class type; the terminal field
-  must be `int` (it may itself be a `derive` field — member access into a derived
-  getter is fine). Like all defaults it is **JSON-overridable**: if the JSON key is
-  present the JSON value wins, otherwise the expression is evaluated. Only `int` and
-  `BoundedQuantity` fields may be computed (a `BoundedQuantity` takes the int result
-  as a full `{value, value}`); the whole expression and every arithmetic operand must
-  be `int`. The classification — constant default vs computed — is: a binary/member
-  node, or a lone identifier naming a sibling field, is *computed*; a literal or a
-  lone non-field identifier (enum value / `max_int`) is a *constant default*
-  (unchanged `j.value` behavior, existing schemas untouched). Computed fields are a
-  **class** feature only — variant alternative payloads reject non-constant
-  initializers.
-- **Derived fields (`derive`)**: a class field prefixed with `derive` is a **pure
-  computed getter with no storage** — distinct from a computed default, which IS
-  stored (its own slot, JSON-overridable, mutable in play). Syntax: `derive int
-  Modifier = Value / 2 - 5;`. A `derive` field **must** have an initializer
-  (parse error otherwise), its declared type must equal the initializer's inferred
-  type (today the supported expression subset is int-only, so `derive` is effectively
-  `int`), and it is emitted as `int Modifier() const { return ((Value_ / 2) - 5); }`
-  — no member, skipped in `FromJson` and `GetAst` (it has no independent state),
-  auto-exposed to the DSL like any `int` getter. Its expression may reference stored
-  sibling fields and member-access chains; a **bare** reference to another `derive`
-  sibling is rejected (no storage to read). `derive` is a class-only feature (rejected
-  in `set<>` and in variant alternatives).
-- **Expression front-end is shared.** Initializer expressions are not parsed by
-  the schema parser: the schema lexer raw-captures everything after `=` up to
-  `;` into an `InitExpr` token, and `expr::Parse` (the shared
-  [tools/common/expr/](../common/expr/) library, also used by the engine's
-  runtime DSL) turns it into an `expr::TExprNode`. The codegen lowers the
-  supported subset (int literals, sibling-field vars, member access, arithmetic)
-  to C++ and rejects the rest (calls, comparison/logical, `$`-vars) with a clear
-  codegen error; the DSL evaluates the full grammar. This is why there is no
-  arithmetic/member-access parser in `ttrpg` itself.
-
-## Naming conventions (automatic, no per-field attributes)
-
-A PascalCase field `FooBar` →
-
-| Aspect | Result |
-|---|---|
-| C++ member (class) | `FooBar_` |
-| C++ member (variant payload struct) | `FooBar` (public, no underscore) |
-| Public getter (class) | `FooBar()` |
-| JSON key | `foo_bar` (`PascalToSnake`) |
-| DSL property | `$obj.foo_bar` |
-| AST key | `foo_bar` |
-
-Enum/variant JSON tokens are the **identifier verbatim** (PascalCase):
-`EFooFromString("A")`, trait `"Finesse"`, die `"D8"`. (The original variant
-task spec suggested lowercase `"fatal"`; we follow the existing enum
-convention instead — verbatim PascalCase — so all generated `FromString`
-casing is uniform.)
-
-## What gets emitted
-
-**Per enum**: `enum class EFoo`, `std::string ToString(EFoo)`,
-`EFoo EFooFromString(const std::string&)`.
-
-**Per class**: getters (a `derive` field's getter inlines its lowered
-expression; everything else returns the backing member); `static T FromJson(const
-json&, const TGameObjectFactory&)` (primitives `j.at(key).get<T>()` or
-`j.value(key, default)`; enums via `FromString`; **class fields dispatch on the
-JSON value's shape** — a string is a by-name `factory.Create<T>(...Register(...))`,
-an object is loaded inline via `T::FromJson(...)`; set fields loop-insert; `derive`
-fields are skipped — no storage to assign); `TAstNode GetAst(TAstContext&)`
-(`AddOwnedObject` for class/variant fields, `AddValueField` otherwise, container
-nodes for sets; `derive` fields skipped — no independent state) plus a
-`TIsAstRecursive<T>` specialization; `static void RegisterDslProperties()` (every
-`int`/`bool` scalar getter, **including `derive` getters**; everything else emitted
-as a `// dsl: '...' skipped` comment). Generated classes carry an unused
-`ast_layout_sentinel_` but **no** `AST_ASSERT_LAYOUT` — the schema is the source
-of truth, so the "edited fields without updating GetAst" failure mode is
-structurally impossible.
-
-**Per variant** `TBar` (kind enum name = `VariantKindEnum`: strip leading `T`,
-prefix `E`, suffix `Kind` ⇒ `EBarKind`):
-- the **kind enum** `EBarKind { ... }` + its `ToString`/`FromString`, emitted
-  through the normal enum emitter so casing matches `enum` exactly;
-- one **payload struct** per alternative (`TBar` + alt name ⇒ `TBarWithDie`),
-  each with `static constexpr Kind` and its (defaulted) fields;
-- the **wrapper class** `TBar` holding `using TPayload = std::variant<...>`, a
-  default ctor, a converting ctor from any alternative (constrained with
-  `requires (!is_same<decay_t<T>, TBar>)` so it never hijacks copy/move —
-  required for `TVariantMap` to store it by value), `Kind()`, `Payload()`,
-  `template<class T> const T* TryGet()`, plus `FromJson` / `GetAst` and a
-  `TIsAstRecursive<TBar>` specialization. No `RegisterDslProperties` (variants
-  aren't DSL-exposed).
-
-### Variant JSON authoring forms (`FromJson`)
-- **flag**: bare string — `"Finesse"`.
-- **single-field**: single-key object, value parsed directly as the field type
-  — `{"Fatal": "D8"}`, `{"Thrown": 20}`.
-- **multi-field**: single-key object whose value is an object of named fields,
-  with defaults applied for missing keys.
-
-Malformed input throws `std::runtime_error`: flag-with-params,
-param-without-params, multi-key object, unknown kind. Note the object form is
-read with iterator `.key()`/`.value()` — nlohmann json iterators do **not**
-structured-bind into `[key, val]`.
-
-### `set<Variant>` lowering — `TVariantMap`
-`set<TBar>` becomes `TVariantMap<EBarKind, TBar>`
-([pf2e_engine/common/variant_map.h](../../pf2e_engine/include/pf2e_engine/common/variant_map.h),
-hand-written, lives once). Keyed by `Kind()`: a weapon never has two traits of
-the same kind, and rules code wants `Has(kind)` / `Get<TAlt>()` (typed,
-nullptr-if-absent), not index iteration. `std::map` iteration order ⇒
-deterministic AST. The same header provides the `overloaded` helper for
-exhaustive `std::visit` over `Payload()`.
-
-## TCppWriter (formatting)
-
-The emitters never write `\n` or leading spaces. They describe *structure* and
-*lines* through [`TCppWriter`](include/ttrpg/cpp_writer.h), which owns the indent
-depth and brace placement and produces the final formatted text (there is **no**
-external clang-format step — the writer is the single source of formatting).
-
-- `Line` / `EmptyLine` / `Comment` / `Include` — leaf lines at the current indent.
-- `Block(opener, closer, body)` — emits `opener`, runs `body` one level deeper,
-  emits `closer`. `Class` / `Struct` / `Function` / `Switch` / `Case` are thin
-  wrappers over it.
-- `PublicSection` / `PrivateSection` — place the access label one level *out*
-  from the members it introduces (so inside a `Class` body the label lands at
-  the class's own indent).
-- `Indented(body)` — body one level deeper with no braces; for continuation
-  lines of a single statement (the `std::variant<...>` alternative list, a
-  wrapped `requires`, the `std::visit` continuation).
-
-To change generated formatting, change the writer — not the emitters. The golden
-tests (below) lock the output, so any writer change shows up as a golden diff.
-
-## Factory plumbing for class fields
-
-A class field accepts **either** a by-name string ref **or** an inline object
-(the generated `FromJson` dispatches on `is_string()`). For the by-name form
-(e.g. `TArmor` has `TMaterial Material;` and armor JSON has `"material": "steel"`),
-the referenced class must be registered with `TGameObjectFactory`: its own
-`TFactoryStorage<T>`, a `Read<T>`, a branch in `GetFactoryStorage<T>`, and a
-`kReaderMapping` entry. **A class used only inline still needs the factory branch
-(`TFactoryStorage<T>` + `GetFactoryStorage<T>`) so the dead by-name branch in the
-generated ternary compiles** — e.g. `TAbilityScore` is always nested inside
-`TAbilityScores` yet has full factory plumbing (`pf2e_ability_score`). Read methods
-for classes that themselves have class fields store **lazy** lambdas so refs resolve
-at `Create` time regardless of load order (the long-standing `ReadCreature`
-pattern). Variants load eagerly through their own `FromJson` and need no factory
-storage.
-
-## Build integration
-
-[pf2e_engine/src/inventory/CMakeLists.txt](../../pf2e_engine/src/inventory/CMakeLists.txt):
-one `add_custom_command` per schema invoking `$<TARGET_FILE:ttrpg_codegen>`.
-When schema A imports B, A's `DEPENDS` must list B's `.ttrpg` so editing B
-regenerates A. The `pf2e_engine_generated_headers` target forces ordering so
-consumers see headers before compiling; `CMP0118 NEW` (top-level) lets the
-`GENERATED` source property cross directory scopes. The top-level CMake adds
-`tools/ttrpg` before `pf2e_engine` so the `ttrpg_codegen` binary exists when
-commands resolve.
+## Factory/Engine Integration
+- Class fields load from either by-name string refs through `TGameObjectFactory` or inline JSON objects through `T::FromJson`.
+- A generated class used by-name needs factory storage, a `Read<T>`, a `GetFactoryStorage<T>` branch, and a `kReaderMapping` entry.
+- A class used only inline still needs factory plumbing if the generated by-name branch must compile.
+- Variants load eagerly through `FromJson` and need no factory storage.
+- Add one custom command per schema in `pf2e_engine/src/inventory/CMakeLists.txt`.
+- If schema A imports schema B, A's custom command must depend on B's `.ttrpg`.
+- Add generated sources to `pf2e_engine`, outputs to `pf2e_engine_generated_headers`, and call `TClass::RegisterDslProperties()` from `pf2e_engine/src/dsl/builtins.cpp` for generated classes with DSL-visible fields.
 
 ## Tests
+- `test_writer`: `TCppWriter` scopes, indentation, and brace balance.
+- `test_conventions`: naming/type-lowering conventions.
+- `test_parser`: grammar, imports, duplicate types, circular imports.
+- `test_analyze`: computed defaults, derives, ordering, and invalid expressions.
+- `test_golden`: exact generated output for `basic`, `variant`, `computed`, and `collection` fixtures.
+- Engine tests are the end-to-end gate after generator changes.
 
-`test_ttrpg` ([tests/](tests/), run via `ctest`) links the `ttrpg` library:
-- **test_writer** — `TCppWriter` scopes/indent/brace balance.
-- **test_conventions** — `PascalToSnake`, `VariantKindEnum`, `FieldKindOf`,
-  `CppMemberType` (set<enum> vs set<variant>), `DefaultExprToCpp`.
-- **test_parser** — the three variant alternative forms, imports, and the
-  duplicate-type / circular-import errors.
-- **test_golden** — generates [tests/fixtures/](tests/fixtures/) `basic.ttrpg`
-  and `variant.ttrpg` and byte-compares against committed `*.golden.h/.cpp`.
-  These goldens are the human-readable reference for the writer's formatting;
-  regenerate them (run `ttrpg_codegen` on the fixture with an out-h path under
-  `.../include/`) whenever a deliberate output change lands.
-
-The engine's own tests are the end-to-end gate: the generated `pf2e_engine`
-sources must compile and all existing tests pass after any generator change.
-
-## Extending the generator
-
-- **New field on an existing type**: edit the `.ttrpg`, `make`. Getter/JSON
-  key/DSL property/AST all follow. Wire up callers.
-- **New generated type module**: add `<name>.ttrpg`, mirror the existing
-  custom-command block in the inventory CMake (command + `target_sources` +
-  `pf2e_engine_generated_headers` deps), and call
-  `T<Class>::RegisterDslProperties()` from `RegisterAll()` in
-  [builtins.cpp](../../pf2e_engine/src/dsl/builtins.cpp) if it's a class.
-- **New scalar field shape** (e.g. another container, `optional`): add the
-  token(s) in `Tokenize`, parse into `TFieldDecl` (`EContainer` or a new flag),
-  then handle it in `CppMemberType`, `ScalarParseExpr`/`LoadFieldCall`,
-  `EmitClassImpl`'s FromJson/GetAst branches, and the header include scan in
-  `EmitHeader`. `ScalarParseExpr` is the single place that maps a json-value
-  expression to a parse call for each `EFieldKind` — reuse it.
-
-## Known limitations / out of scope
-
-- DSL exposes only `int`/`bool` scalar fields (no `string`, enum, variant, or
-  container) — widening needs new `TDslValue` alternatives.
-- No inheritance, methods, or `optional`/`map` field shapes yet (the container
-  shapes that exist are `set<Enum|Variant>` and `collection<Class>`).
-- Migrating `BaseDiceSize` (`int`) to `EDieSize` was left as-is (not done).
-- Variants are **closed** by design: adding an alternative and regenerating
-  makes every `std::visit` site built with `overloaded` fail to compile until
-  the new case is handled. That compile-time exhaustiveness is intentional.
+## Pitfalls
+- Keep generated output deterministic.
+- Initializer expressions use shared `expr`; codegen accepts only its subset and rejects calls, `$` vars, comparisons, and logical operators.
+- `BoundedQuantity` is scalar only; `set<BoundedQuantity>` is rejected.
+- `collection<T>` is supported for schema-declared classes and is used by engine schemas.
+- DSL exposes only generated `int`/`bool` scalar getters today; widening needs new `TDslValue` alternatives.
+- No inheritance, methods, `optional`, or `map` field shapes yet.
+- Variants are closed by design; adding an alternative should force visit sites using `overloaded` to handle it.

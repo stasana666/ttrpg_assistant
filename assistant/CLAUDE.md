@@ -1,5 +1,7 @@
 # assistant — player-facing application (GUI / CLI / voice)
 
+Canonical documentation file. AGENTS.md must remain semantically equivalent.
+
 The human-facing app built on top of `pf2e_engine` (`assistant_lib` library +
 `assistant` executable; links SFML, llama.cpp, Vosk, argparse on top of the
 engine). It supplies the engine's only outward dependency, the
@@ -45,5 +47,6 @@ inputs, not source.
 
 - Threads/queues in `TInteractionSystem` and `TAudioInputSystem` are subtle;
   manual testing may be needed for changes there.
+- Avoid loading or modifying assistant code for schema/codegen-only or analyzer-only tasks.
 - Do not edit vendored llama / Vosk / SFML code under `extern/` for assistant work.
 - Spinlock polling is a known limitation (TODO: condition_variable).

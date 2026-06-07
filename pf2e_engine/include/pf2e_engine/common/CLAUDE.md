@@ -1,5 +1,7 @@
 # pf2e_engine common utilities
 
+Canonical documentation file. AGENTS.md must remain semantically equivalent.
+
 Shared low-level building blocks used across the engine. Two pieces carry
 non-obvious design constraints worth knowing before changing them.
 

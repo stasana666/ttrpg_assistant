@@ -1,17 +1,5 @@
 # Parse Primitives
 
-## Purpose
-- Header-only, grammar-agnostic scanner and token-stream helpers used by `expr` and `.ttrpg` tooling.
+Compatibility mirror of CLAUDE.md. If they disagree, CLAUDE.md is authoritative.
 
-## Key Files
-- `include/parse/scanner.h`: `TScanner` with line/column tracking, whitespace/comment skipping, identifier/integer/string helpers, and location-aware errors.
-- `include/parse/token_stream.h`: templated `TToken<Kind>` and `TTokenStream<Kind>` cursor.
-
-## Conventions
-- Keep this layer ignorant of `.ttrpg`, runtime DSL, PF2E, assistant, and analyzer concepts.
-- Callers define their own token-kind enum; do not add consumer-specific token kinds here.
-
-## Pitfalls
-- `ScanIdent` and `ScanInteger` assume the caller already checked the first character.
-- `ScanQuotedString` has no escape handling and throws on newline or EOF inside the string.
-- `SkipLineComment("//")` consumes through the line but leaves the newline for whitespace handling.
+This file intentionally delegates to the canonical [CLAUDE.md](CLAUDE.md) in this directory. For Codex work in this subtree, read and follow that file. Keep this compatibility mirror semantically equivalent by updating CLAUDE.md first, then this file only if the mirror policy changes.
