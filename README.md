@@ -7,14 +7,15 @@
 
 ```console
 git clone --recursive https://github.com/stasana666/ttrpg_assistant.git
-mkdir build
-cd build
-cmake .. -DGGML_CUDA=ON
-make
+cmake -S . -B build -DGGML_CUDA=ON
+cmake --build build -j 12
 ```
 
-Для использования голосового ввода необходим vosk, в extern/CMakeLists.txt необходимо в VOSK_LIB указать путь к libvosk.so.
-Взять его например можно из соответствующего python3 модуля или собрать самостоятельно.
+Причина этой ошибки: `pf2e_engine` собирается как shared library, а статическая библиотека `nlohmann_json_schema_validator` должна быть скомпилирована с position-independent code. В проекте это включено через `CMAKE_POSITION_INDEPENDENT_CODE`.
+
+Для анализа голосового ввода требуется vosk. Путь к `libvosk.so` задается в `VOSK_LIB` внутри `extern/CMakeLists.txt`. Без vosk остаются доступны графический и консольный интерфейсы.
+
+Взять `libvosk.so` можно из соответствующего python3-модуля или собрать самостоятельно.
 
 Для использования голосового ввода необходимо наличие моделей для vosk и llama-cpp.
 путь к моделям передается в соответствующих аргументах командной строки.
@@ -31,5 +32,5 @@ make
 * pf2e_engine/main/ - точка входа приложения.
 * pf2e_engine/tests - тесты.
 * pf2e_engine/data - описание всех игровых сущностей.
-* pf2e_engien/schemas - содержит JSON schema для валидации описаний игровых сущностей.
+* pf2e_engine/schemas - содержит JSON schema для валидации описаний игровых сущностей.
 * tools/data_validation.py - скрипт для валидации без запуска основного приложения.

@@ -96,7 +96,7 @@ add_custom_command(
     VERBATIM
 )
 
-# creature_data.ttrpg imports armor.ttrpg, weapon.ttrpg and creature_parts.ttrpg
+# creature_data.ttrpg imports armor.ttrpg, weapon.ttrpg, creature_parts.ttrpg and condition.ttrpg
 # (transitively material, damage, dice), so editing any of them must rebuild it.
 add_custom_command(
     OUTPUT  ${CREATURE_DATA_GEN_H} ${CREATURE_DATA_GEN_CPP}
@@ -106,7 +106,7 @@ add_custom_command(
             --out-cpp ${CREATURE_DATA_GEN_CPP}
     DEPENDS ttrpg_codegen ${CREATURE_DATA_SCHEMA}
             ${ARMOR_SCHEMA} ${WEAPON_SCHEMA} ${MATERIAL_SCHEMA} ${DAMAGE_SCHEMA} ${DICE_SCHEMA}
-            ${CREATURE_PARTS_SCHEMA}
+            ${CREATURE_PARTS_SCHEMA} ${CONDITION_SCHEMA}
     VERBATIM
 )
 

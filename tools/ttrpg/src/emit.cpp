@@ -29,13 +29,10 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
                 if (f.Derived) {
                     w.Line(mt + " " + f.Name + "() const { return " +
                            InitExprToCpp(*f.Init, "") + "; }");
-                } else if (f.Container == EContainer::Collection) {
-                    w.Line("const " + mt + "& " + f.Name + "() const { return " + f.Name + "_; }");
-                    w.Line(mt + "& " + f.Name + "() { return " + f.Name + "_; }");
-                } else if (f.Container != EContainer::None) {
-                    w.Line("const " + mt + "& " + f.Name + "() const { return " + f.Name + "_; }");
                 } else {
-                    w.Line(mt + " " + f.Name + "() const { return " + f.Name + "_; }");
+                    w.Line("const " + mt + "& " + f.Name + "() const { return " + f.Name + "_; }");
+                    w.Line("TGuarded<" + mt + "> " + f.Name + "() { return TGuarded<" + mt +
+                           ">(" + f.Name + "_); }");
                 }
             }
             w.EmptyLine();
@@ -167,11 +164,17 @@ void EmitHeader(std::ostream& os,
     w.Line("#pragma once");
     w.EmptyLine();
     w.Include("pf2e_engine/common/ast/ast_constructable.h");
+    if (!mod.Classes.empty()) {
+        w.Include("pf2e_engine/common/guarded.h");
+    }
     w.EmptyLine();
     w.Include("nlohmann/json_fwd.hpp");
     w.EmptyLine();
     w.Include("limits");
     w.Include("string");
+    if (!mod.Classes.empty()) {
+        w.Include("utility");
+    }
 
     bool anyEnumSet = false;
     bool anyVariantSet = false;
@@ -593,6 +596,9 @@ void EmitImpl(std::ostream& os,
     w.EmptyLine();
     w.Include("stdexcept");
     w.Include("string");
+    if (!mod.Classes.empty()) {
+        w.Include("utility");
+    }
     w.EmptyLine();
 
     std::unordered_map<std::string, const TClassDecl*> classes;

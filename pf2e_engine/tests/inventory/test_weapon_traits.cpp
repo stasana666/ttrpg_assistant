@@ -46,7 +46,7 @@ std::string Describe(const TWeaponTrait& t) {
 
 
 TEST(WeaponTraitTest, FlagForm) {
-    TWeapon w = ParseWeapon({"Agile", "Finesse"});
+    const TWeapon w = ParseWeapon({"Agile", "Finesse"});
     EXPECT_TRUE(w.Traits().Has(EWeaponTraitKind::Agile));
     EXPECT_TRUE(w.Traits().Has(EWeaponTraitKind::Finesse));
     EXPECT_FALSE(w.Traits().Has(EWeaponTraitKind::Nonlethal));
@@ -54,21 +54,21 @@ TEST(WeaponTraitTest, FlagForm) {
 }
 
 TEST(WeaponTraitTest, SingleFieldFormEnumPayload) {
-    TWeapon w = ParseWeapon({{{"Fatal", "D10"}}});
+    const TWeapon w = ParseWeapon({{{"Fatal", "D10"}}});
     const auto* fatal = w.Traits().Get<TWeaponTraitFatal>();
     ASSERT_NE(fatal, nullptr);
     EXPECT_EQ(fatal->Die, EDieSize::D10);
 }
 
 TEST(WeaponTraitTest, SingleFieldFormIntPayload) {
-    TWeapon w = ParseWeapon({{{"Thrown", 20}}});
+    const TWeapon w = ParseWeapon({{{"Thrown", 20}}});
     const auto* thrown = w.Traits().Get<TWeaponTraitThrown>();
     ASSERT_NE(thrown, nullptr);
     EXPECT_EQ(thrown->RangeFeet, 20);
 }
 
 TEST(WeaponTraitTest, MixedFlagsAndParameterized) {
-    TWeapon w = ParseWeapon({"Finesse", {{"Fatal", "D8"}}, {{"Versatile", "Piercing"}}});
+    const TWeapon w = ParseWeapon({"Finesse", {{"Fatal", "D8"}}, {{"Versatile", "Piercing"}}});
     EXPECT_TRUE(w.Traits().Has(EWeaponTraitKind::Finesse));
 
     const auto* fatal = w.Traits().Get<TWeaponTraitFatal>();
@@ -81,7 +81,7 @@ TEST(WeaponTraitTest, MixedFlagsAndParameterized) {
 }
 
 TEST(WeaponTraitTest, GetReturnsNullForAbsentAlternative) {
-    TWeapon w = ParseWeapon({"Agile"});
+    const TWeapon w = ParseWeapon({"Agile"});
     EXPECT_EQ(w.Traits().Get<TWeaponTraitFatal>(), nullptr);
     EXPECT_FALSE(w.Traits().Has(EWeaponTraitKind::Fatal));
 }
@@ -94,7 +94,7 @@ TEST(WeaponTraitTest, EmptyTraitsWhenAbsent) {
         {"damage_type", "Slashing"},
         {"category", "Martial"},
     };
-    TWeapon w = TWeapon::FromJson(j, factory);
+    const TWeapon w = TWeapon::FromJson(j, factory);
     EXPECT_TRUE(w.Traits().empty());
 }
 
@@ -119,7 +119,7 @@ TEST(WeaponTraitTest, UnknownTraitThrows) {
 
 
 TEST(WeaponTraitTest, SameKindCollapsesToLastValue) {
-    TWeapon w = ParseWeapon({{{"Thrown", 10}}, {{"Thrown", 30}}});
+    const TWeapon w = ParseWeapon({{{"Thrown", 10}}, {{"Thrown", 30}}});
     EXPECT_EQ(w.Traits().size(), 1u);
     const auto* thrown = w.Traits().Get<TWeaponTraitThrown>();
     ASSERT_NE(thrown, nullptr);
@@ -140,7 +140,7 @@ TEST(WeaponTraitTest, DescribeVisitsEveryAlternative) {
 TEST(WeaponTraitTest, DaggerFromProductionData) {
     TGameObjectFactory factory;
     factory.AddSource(kRootDirPath + "/pf2e_engine/data/inventory/weapon/dagger.json");
-    TWeapon dagger = factory.Create<TWeapon>(
+    const TWeapon dagger = factory.Create<TWeapon>(
         TGameObjectIdManager::Instance().Register("dagger"));
 
     EXPECT_TRUE(dagger.Traits().Has(EWeaponTraitKind::Agile));

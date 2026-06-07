@@ -109,36 +109,16 @@ const std::vector<std::shared_ptr<TCreatureFeat>>& TCreature::Feats() const
 
 int TCreature::Get(EConditionKind condition) const
 {
-    if (!conditions_.Has(condition)) {
+    if (!Conditions().Has(condition)) {
         return 0;
     }
     switch (condition) {
         case EConditionKind::Prone:
             return 1;
         case EConditionKind::Frightened:
-            return conditions_.Get<TConditionFrightened>()->Value;
+            return Conditions().Get<TConditionFrightened>()->Value;
         case EConditionKind::MultipleAttackPenalty:
-            return conditions_.Get<TConditionMultipleAttackPenalty>()->Value;
-    }
-    throw std::logic_error("unreachable");
-}
-
-void TCreature::Set(EConditionKind condition, int value)
-{
-    if (value <= 0) {
-        conditions_.Erase(condition);
-        return;
-    }
-    switch (condition) {
-        case EConditionKind::Prone:
-            conditions_.Set(TConditionProne{});
-            return;
-        case EConditionKind::Frightened:
-            conditions_.Set(TConditionFrightened{.Value = value});
-            return;
-        case EConditionKind::MultipleAttackPenalty:
-            conditions_.Set(TConditionMultipleAttackPenalty{.Value = value});
-            return;
+            return Conditions().Get<TConditionMultipleAttackPenalty>()->Value;
     }
     throw std::logic_error("unreachable");
 }
@@ -203,11 +183,6 @@ TAstNode TCreature::GetAst(TAstContext& ctx) const
     TAstNode node = TAstNode::MakeObject("TCreature");
     node.AddChild("creature_data", TCreatureData::GetAst(ctx));
     AddOwnedObject(node, "proficiency", proficiency_, ctx);
-    TAstNode conditions_node = TAstNode::MakeObject("TConditions");
-    for (const auto& [kind, condition] : conditions_) {
-        AddOwnedObject(conditions_node, ToString(kind), condition, ctx);
-    }
-    node.AddChild("conditions", std::move(conditions_node));
     AddOwnedObject(node, "hitpoints", hitpoints_, ctx);
     AddOwnedObject(node, "resolver", resolver_, ctx);
     AddOwnedObject(node, "resources", resources_, ctx);

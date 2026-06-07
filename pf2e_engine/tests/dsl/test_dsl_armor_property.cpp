@@ -58,7 +58,7 @@ TEST_F(DslArmorPropertyTest, GeneratedAcBonusProperty) {
 }
 
 TEST_F(DslArmorPropertyTest, FromJsonRoundTrip) {
-    TArmor armor = TArmor::FromJson(MakeArmorJson("Heavy", 6, 0), factory_);
+    const TArmor armor = TArmor::FromJson(MakeArmorJson("Heavy", 6, 0), factory_);
 
     EXPECT_EQ(armor.Category(), EArmorCategory::Heavy);
     EXPECT_EQ(armor.ArmorClassBonus(), 6);
@@ -66,7 +66,7 @@ TEST_F(DslArmorPropertyTest, FromJsonRoundTrip) {
 }
 
 TEST_F(DslArmorPropertyTest, DefaultsApplied) {
-    TArmor armor;
+    const TArmor armor;
     EXPECT_EQ(armor.Category(), EArmorCategory::Unarmored);
     EXPECT_EQ(armor.ArmorClassBonus(), 0);
     EXPECT_EQ(armor.DexterityCap(), std::numeric_limits<int>::max());

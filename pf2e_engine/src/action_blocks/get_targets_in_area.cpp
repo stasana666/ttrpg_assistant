@@ -81,6 +81,9 @@ TPlayerList FGetTargetsInArea::GetEmanationTargets(std::shared_ptr<TActionContex
         [&](TWeapon*) {
             radius = 1;
         },
+        [&](const TWeapon*) {
+            radius = 1;
+        },
         [&](int r) {
             radius = r;
         },

@@ -1,6 +1,7 @@
 import "armor.ttrpg";
 import "weapon.ttrpg";
 import "creature_parts.ttrpg";
+import "condition.ttrpg";
 
 class TCreatureData {
     int Level;
@@ -12,4 +13,5 @@ class TCreatureData {
     TArmor Armor;
     collection<TWeapon> Weapons;
     collection<TWeapon> NaturalWeapons;
+    set<TCondition> Conditions;
 }

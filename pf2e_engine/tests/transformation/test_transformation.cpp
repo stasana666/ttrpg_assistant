@@ -18,52 +18,41 @@ const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
 
 class TransformationTest : public ::testing::Test {
 protected:
-    using FsPath = std::filesystem::path;
-    using FsDirEntry = std::filesystem::directory_entry;
-    using FsRecursiveIterator = std::filesystem::recursive_directory_iterator;
-
-    void SetUp() override {
-        for (const FsDirEntry& dir_entry : FsRecursiveIterator(kPathToData)) {
-            if (dir_entry.is_regular_file() && dir_entry.path().extension() == ".json") {
-                factory_.AddSource(dir_entry.path());
-            }
-        }
-
-        auto warrior_id = TGameObjectIdManager::Instance().Register("warrior");
-        creature_ = std::make_unique<TCreature>(factory_.Create<TCreature>(warrior_id));
-    }
-
-    TGameObjectFactory factory_;
-    std::unique_ptr<TCreature> creature_;
+    TVariantMap<EConditionKind, TCondition> conditions_;
 };
 
 TEST_F(TransformationTest, ChangeConditionAppliesValue) {
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_FALSE(conditions_.Has(EConditionKind::Frightened));
 
-    TChangeCondition change(creature_.get(), EConditionKind::Frightened, 3);
+    TChangeCondition change(&conditions_, EConditionKind::Frightened, 3);
 
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 3);
+    ASSERT_TRUE(conditions_.Has(EConditionKind::Frightened));
+    EXPECT_EQ(conditions_.Get<TConditionFrightened>()->Value, 3);
 }
 
 TEST_F(TransformationTest, ChangeConditionUndoRestoresPreviousValue) {
-    TChangeCondition setup(creature_.get(), EConditionKind::Frightened, 2);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 2);
+    TChangeCondition setup(&conditions_, EConditionKind::Frightened, 2);
+    ASSERT_TRUE(conditions_.Has(EConditionKind::Frightened));
+    EXPECT_EQ(conditions_.Get<TConditionFrightened>()->Value, 2);
 
-    TChangeCondition change(creature_.get(), EConditionKind::Frightened, 5);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 5);
+    TChangeCondition change(&conditions_, EConditionKind::Frightened, 5);
+    ASSERT_TRUE(conditions_.Has(EConditionKind::Frightened));
+    EXPECT_EQ(conditions_.Get<TConditionFrightened>()->Value, 5);
 
     change.Undo();
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 2);
+    ASSERT_TRUE(conditions_.Has(EConditionKind::Frightened));
+    EXPECT_EQ(conditions_.Get<TConditionFrightened>()->Value, 2);
 }
 
 TEST_F(TransformationTest, ChangeConditionUndoFromZero) {
-    EXPECT_EQ(creature_->Get(EConditionKind::MultipleAttackPenalty), 0);
+    EXPECT_FALSE(conditions_.Has(EConditionKind::MultipleAttackPenalty));
 
-    TChangeCondition change(creature_.get(), EConditionKind::MultipleAttackPenalty, 5);
-    EXPECT_EQ(creature_->Get(EConditionKind::MultipleAttackPenalty), 5);
+    TChangeCondition change(&conditions_, EConditionKind::MultipleAttackPenalty, 5);
+    ASSERT_TRUE(conditions_.Has(EConditionKind::MultipleAttackPenalty));
+    EXPECT_EQ(conditions_.Get<TConditionMultipleAttackPenalty>()->Value, 5);
 
     change.Undo();
-    EXPECT_EQ(creature_->Get(EConditionKind::MultipleAttackPenalty), 0);
+    EXPECT_FALSE(conditions_.Has(EConditionKind::MultipleAttackPenalty));
 }
 
 TEST(ChangeResourceTest, AddResourceAppliesValue) {

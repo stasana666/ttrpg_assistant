@@ -32,6 +32,21 @@ EAttackType AttackTypeFromString(const std::string& s) {
     throw std::invalid_argument("unknown attack type: " + s);
 }
 
+namespace {
+
+const TWeapon* GetWeapon(const TGameObjectPtr& object)
+{
+    if (const auto* weapon = std::get_if<TWeapon*>(&object)) {
+        return *weapon;
+    }
+    if (const auto* weapon = std::get_if<const TWeapon*>(&object)) {
+        return *weapon;
+    }
+    throw std::logic_error("expected weapon");
+}
+
+}
+
 void FRollAgainstDifficultyClass::operator() (std::shared_ptr<TActionContext> ctx) const
 {
     switch (AttackTypeFromString(input_.GetString(kTypeId))) {
@@ -46,12 +61,12 @@ void FRollAgainstDifficultyClass::operator() (std::shared_ptr<TActionContext> ct
 void FRollAgainstDifficultyClass::WeaponAttackHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
-    TWeapon& weapon = *std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
+    const TWeapon* weapon = GetWeapon(input_.Get(kWeaponId, ctx));
     int armor_class = std::get<int>(input_.Get(kDifficultyClassValueId, ctx));
-    int attack_bonus = calculator_.AttackRollBonus(*attacker.GetCreature(), weapon)
+    int attack_bonus = calculator_.AttackRollBonus(*attacker.GetCreature(), *weapon)
         - MultipleAttackPenaltyFor(attacker);
 
-    ctx->io_system->GameLog() << attacker.GetName() << " attack with " << weapon.Name() << std::endl;
+    ctx->io_system->GameLog() << attacker.GetName() << " attack with " << weapon->Name() << std::endl;
 
     ESuccessLevel result = calculator_.RollD20(ctx->dice_roller, attack_bonus, armor_class);
     ctx->io_system->GameLog() << "d20 + " << attack_bonus << " agains " << armor_class

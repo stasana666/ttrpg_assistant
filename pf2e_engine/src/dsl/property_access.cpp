@@ -8,13 +8,13 @@
 TDslValue GetDslProperty(const TDslValue& receiver, const std::string& name, TEvalContext& ctx)
 {
     return std::visit(VisitorHelper{
-        [&](TArmor* p) -> TDslValue {
+        [&](const TArmor* p) -> TDslValue {
             return TPropertyRegistry<TArmor>::Instance().Get(p, name, ctx);
         },
-        [&](TWeapon* p) -> TDslValue {
+        [&](const TWeapon* p) -> TDslValue {
             return TPropertyRegistry<TWeapon>::Instance().Get(p, name, ctx);
         },
-        [&](TCreature* p) -> TDslValue {
+        [&](const TCreature* p) -> TDslValue {
             return TPropertyRegistry<TCreature>::Instance().Get(p, name, ctx);
         },
         [&](TPlayer* p) -> TDslValue {

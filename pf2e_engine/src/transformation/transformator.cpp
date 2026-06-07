@@ -34,7 +34,9 @@ void TTransformator::Heal(TPlayer* player, int value)
 
 void TTransformator::ChangeCondition(TCreature* creature, EConditionKind condition, int new_value)
 {
-    transformations_.emplace_back(TChangeCondition(creature, condition, new_value));
+    auto conditions = creature->Conditions();
+    transformations_.emplace_back(
+        TChangeCondition(&conditions.Mutable(), condition, new_value));
 }
 
 void TTransformator::AddResource(TGuarded<TResourcePool> pool, TResourceId id, int count)

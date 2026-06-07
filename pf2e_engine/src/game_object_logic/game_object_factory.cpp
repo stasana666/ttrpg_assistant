@@ -253,7 +253,7 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
     creatures_.insert({id, [this, json_game_object, resource_pool, actions, proficiency, size, feats]() {
         TCreatureData data = TCreatureData::FromJson(json_game_object.at("creature_data"), *this);
-        THitPoints hp(data.Hitpoints().MaxValue());
+        THitPoints hp(data.Hitpoints()->MaxValue());
         TCreature creature(std::move(data), proficiency, hp);
         creature.SetSize(size);
         creature.ResourcesForInit() = resource_pool;

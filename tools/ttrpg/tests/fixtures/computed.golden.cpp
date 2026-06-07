@@ -11,6 +11,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 TPart TPart::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     (void)factory;
@@ -63,9 +64,9 @@ TStats TStats::FromJson(const nlohmann::json& j, const TGameObjectFactory& facto
     r.Health_ = j.contains("health") ? TBoundedQuantity::FromJson(j.at("health"), factory) : TBoundedQuantity((r.Base_ + (r.Level_ * r.PerLevel_)));
     r.Total_ = j.contains("total") ? j.at("total").get<int>() : (r.Base_ + r.PerLevel_);
     r.Part_ = (j.at("part")).is_string() ? factory.Create<TPart>(TGameObjectIdManager::Instance().Register((j.at("part")).get<std::string>())) : TPart::FromJson(j.at("part"), factory);
-    r.Boosted_ = j.contains("boosted") ? j.at("boosted").get<int>() : (r.Part_.Bonus() + r.Base_);
+    r.Boosted_ = j.contains("boosted") ? j.at("boosted").get<int>() : (std::as_const(r.Part_).Bonus() + r.Base_);
     r.Ability_ = (j.at("ability")).is_string() ? factory.Create<TAbility>(TGameObjectIdManager::Instance().Register((j.at("ability")).get<std::string>())) : TAbility::FromJson(j.at("ability"), factory);
-    r.ModBoost_ = j.contains("mod_boost") ? j.at("mod_boost").get<int>() : (r.Ability_.Modifier() + r.Base_);
+    r.ModBoost_ = j.contains("mod_boost") ? j.at("mod_boost").get<int>() : (std::as_const(r.Ability_).Modifier() + r.Base_);
     return r;
 }
 

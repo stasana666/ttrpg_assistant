@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/variant_map.h>
 #include <pf2e_engine/condition.h>
 #include <pf2e_engine/mechanics/hitpoints.h>
 #include <pf2e_engine/resources.h>
@@ -28,14 +29,15 @@ private:
 
 class TChangeCondition {
 public:
-    TChangeCondition(TCreature* creature, EConditionKind condition, int new_value);
+    TChangeCondition(TVariantMap<EConditionKind, TCondition>* conditions,
+                     EConditionKind condition, int new_value);
 
     void Undo();
 
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:
-    TCreature* creature_;
+    TVariantMap<EConditionKind, TCondition>* conditions_;
     EConditionKind condition_;
     int prev_value_;
 };

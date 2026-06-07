@@ -3,11 +3,13 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/guarded.h>
 
 #include <nlohmann/json_fwd.hpp>
 
 #include <limits>
 #include <string>
+#include <utility>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -86,8 +88,10 @@ struct TIsAstRecursive<TEffect> : std::true_type {};
 
 class TSpell {
 public:
-    std::string Name() const { return Name_; }
+    const std::string& Name() const { return Name_; }
+    TGuarded<std::string> Name() { return TGuarded<std::string>(Name_); }
     const TVariantMap<EEffectKind, TEffect>& Effects() const { return Effects_; }
+    TGuarded<TVariantMap<EEffectKind, TEffect>> Effects() { return TGuarded<TVariantMap<EEffectKind, TEffect>>(Effects_); }
 
     static TSpell FromJson(const nlohmann::json& j, const TGameObjectFactory& factory);
     TAstNode GetAst(TAstContext& ctx) const;

@@ -17,6 +17,21 @@ static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register
 static const TGameObjectId kTargetId = TGameObjectIdManager::Instance().Register("target");
 static const TGameObjectId kValueId = TGameObjectIdManager::Instance().Register("value");
 
+namespace {
+
+const TWeapon* GetWeapon(const TGameObjectPtr& object)
+{
+    if (const auto* weapon = std::get_if<TWeapon*>(&object)) {
+        return *weapon;
+    }
+    if (const auto* weapon = std::get_if<const TWeapon*>(&object)) {
+        return *weapon;
+    }
+    throw std::logic_error("expected weapon");
+}
+
+}
+
 void FAddCondition::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
     EConditionKind condition = EConditionKindFromString(input_.GetString(kConditionId));
@@ -39,8 +54,8 @@ void FAddCondition::MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> 
 
     int increase = 5;
     if (input_.Has(kWeaponId)) {
-        TWeapon& weapon = *std::get<TWeapon*>(input_.Get(kWeaponId, ctx));
-        if (weapon.Traits().Has(EWeaponTraitKind::Agile)) {
+        const TWeapon* weapon = GetWeapon(input_.Get(kWeaponId, ctx));
+        if (weapon->Traits().Has(EWeaponTraitKind::Agile)) {
             increase = 4;
         }
     }

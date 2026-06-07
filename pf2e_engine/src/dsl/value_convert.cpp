@@ -45,9 +45,13 @@ TGameObjectPtr ToGameObjectPtr(const TDslValue& v)
             throw std::runtime_error("dsl: cannot store bool in registry");
         },
         [](int i) -> TGameObjectPtr { return TGameObjectPtr(i); },
-        [](TArmor* p) -> TGameObjectPtr { return TGameObjectPtr(p); },
-        [](TWeapon* p) -> TGameObjectPtr { return TGameObjectPtr(p); },
-        [](TCreature* p) -> TGameObjectPtr { return TGameObjectPtr(p); },
+        [](const TArmor*) -> TGameObjectPtr {
+            throw std::runtime_error("dsl: cannot store const TArmor in registry");
+        },
+        [](const TWeapon* p) -> TGameObjectPtr { return TGameObjectPtr(p); },
+        [](const TCreature*) -> TGameObjectPtr {
+            throw std::runtime_error("dsl: cannot store const TCreature in registry");
+        },
         [](TPlayer* p) -> TGameObjectPtr { return TGameObjectPtr(p); },
         [](const TDslValue::TListPtr& list) -> TGameObjectPtr {
             if (!list) {

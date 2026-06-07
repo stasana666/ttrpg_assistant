@@ -243,10 +243,34 @@
                             { "$ref": "#/$defs/pf2e_weapon" }
                         ]
                     }
+                },
+                "conditions": {
+                    "type": "array",
+                    "default": [],
+                    "items": { "$ref": "#/$defs/pf2e_condition" }
                 }
             },
             "required": ["level", "race", "class", "characteristic", "armor"],
             "additionalProperties": false
+        },
+
+        "pf2e_condition": {
+            "oneOf": [
+                {
+                    "type": "string",
+                    "enum": ["Prone"]
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "Frightened": { "type": "integer" },
+                        "MultipleAttackPenalty": { "type": "integer" }
+                    },
+                    "minProperties": 1,
+                    "maxProperties": 1,
+                    "additionalProperties": false
+                }
+            ]
         },
 
         "pf2e_creature_data": {

@@ -117,7 +117,7 @@ std::string InitExprToCpp(const expr::TExprNode& e, const std::string& selfPrefi
         case K::Var:
             return selfPrefix + e.Text + "_";
         case K::Member:
-            return InitExprToCpp(*e.Lhs, selfPrefix) + "." + e.Text + "()";
+            return "std::as_const(" + InitExprToCpp(*e.Lhs, selfPrefix) + ")." + e.Text + "()";
         case K::Binary:
             return "(" + InitExprToCpp(*e.Lhs, selfPrefix) + " " + BinOpToCpp(e.BinOp) + " " +
                    InitExprToCpp(*e.Rhs, selfPrefix) + ")";

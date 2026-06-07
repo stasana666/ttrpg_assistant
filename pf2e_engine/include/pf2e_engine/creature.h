@@ -2,7 +2,6 @@
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/common/guarded.h>
-#include <pf2e_engine/common/variant_map.h>
 
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/reaction.h>
@@ -55,14 +54,10 @@ public:
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:
-    friend class TChangeCondition;
-    void Set(EConditionKind condition, int value);
-
     friend class TGameObjectFactory;
     TResourcePool& ResourcesForInit() { return resources_; }
 
     TProficiency proficiency_;
-    TVariantMap<EConditionKind, TCondition> conditions_;
 
     THitPoints hitpoints_;
     TDamageResolver resolver_;
