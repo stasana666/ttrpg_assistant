@@ -174,6 +174,8 @@ std::string CppMemberType(const TFieldDecl& f,
             return "std::set<" + f.TypeName + ">";
         case EContainer::Collection:
             return "TIdCollection<" + f.TypeName + ">";
+        case EContainer::Map:
+            return "std::map<" + f.TypeName + ", " + CppTypeFor(f.ValueTypeName) + ">";
     }
     return CppTypeFor(f.TypeName);
 }

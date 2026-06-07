@@ -155,6 +155,16 @@ private:
             ts_.Expect(ETok::LAngle, "'<' after 'collection'");
             f.TypeName = ExpectIdent("collection element type");
             ts_.Expect(ETok::RAngle, "'>'");
+        } else if (head == "map") {
+            if (f.Derived) {
+                ts_.Throw("'derive' cannot be applied to a 'map' field");
+            }
+            f.Container = EContainer::Map;
+            ts_.Expect(ETok::LAngle, "'<' after 'map'");
+            f.TypeName = ExpectIdent("map key type");
+            ts_.Expect(ETok::Comma, "',' after map key type");
+            f.ValueTypeName = ExpectIdent("map value type");
+            ts_.Expect(ETok::RAngle, "'>'");
         } else {
             f.TypeName = head;
         }

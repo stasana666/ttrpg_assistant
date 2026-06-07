@@ -248,6 +248,30 @@
                     "type": "array",
                     "default": [],
                     "items": { "$ref": "#/$defs/pf2e_condition" }
+                },
+                "immunities": {
+                    "type": "array",
+                    "default": [],
+                    "items": {
+                        "type": "string",
+                        "enum": ["Bludgeoning", "Piercing", "Slashing", "Fire"]
+                    }
+                },
+                "resistances": {
+                    "type": "object",
+                    "default": {},
+                    "propertyNames": {
+                        "enum": ["Bludgeoning", "Piercing", "Slashing", "Fire"]
+                    },
+                    "additionalProperties": { "type": "integer" }
+                },
+                "vulnerabilities": {
+                    "type": "object",
+                    "default": {},
+                    "propertyNames": {
+                        "enum": ["Bludgeoning", "Piercing", "Slashing", "Fire"]
+                    },
+                    "additionalProperties": { "type": "integer" }
                 }
             },
             "required": ["level", "race", "class", "characteristic", "armor"],

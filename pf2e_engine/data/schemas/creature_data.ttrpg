@@ -2,6 +2,7 @@ import "armor.ttrpg";
 import "weapon.ttrpg";
 import "creature_parts.ttrpg";
 import "condition.ttrpg";
+import "damage.ttrpg";
 
 class TCreatureData {
     int Level;
@@ -14,4 +15,7 @@ class TCreatureData {
     collection<TWeapon> Weapons;
     collection<TWeapon> NaturalWeapons;
     set<TCondition> Conditions;
+    set<EDamageType> Immunities;
+    map<EDamageType, int> Resistances;
+    map<EDamageType, int> Vulnerabilities;
 }

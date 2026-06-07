@@ -77,11 +77,6 @@ TProficiency& TCreature::Proficiency()
     return proficiency_;
 }
 
-const TDamageResolver& TCreature::DamageResolver() const
-{
-    return resolver_;
-}
-
 bool TCreature::IsAlive() const
 {
     return hitpoints_.GetCurrentHp() > 0;
@@ -171,7 +166,7 @@ TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& react
 
 TAstNode TCreature::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 840;
+    static constexpr size_t kExpectedSize = 808;
     AST_ASSERT_LAYOUT(TCreature, kExpectedSize);
 
     const std::string my_id = ctx.IdentityOf(this);
@@ -184,7 +179,6 @@ TAstNode TCreature::GetAst(TAstContext& ctx) const
     node.AddChild("creature_data", TCreatureData::GetAst(ctx));
     AddOwnedObject(node, "proficiency", proficiency_, ctx);
     AddOwnedObject(node, "hitpoints", hitpoints_, ctx);
-    AddOwnedObject(node, "resolver", resolver_, ctx);
     AddOwnedObject(node, "resources", resources_, ctx);
     AddValueField(node, "size", size_);
 

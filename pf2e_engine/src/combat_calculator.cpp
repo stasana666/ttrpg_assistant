@@ -3,6 +3,7 @@
 #include <pf2e_engine/condition.h>
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/mechanics/characteristics.h>
+#include <pf2e_engine/mechanics/damage_resolver.h>
 #include <pf2e_engine/mechanics/savethrows.h>
 #include <pf2e_engine/success_level.h>
 
@@ -31,6 +32,24 @@ int TCombatCalculator::ArmorClass(const TCreature& target, const TCreature& atta
 bool TCombatCalculator::IsOffGuardFor(const TCreature& target, [[maybe_unused]] const TCreature& attacker) const
 {
     return target.Get(EConditionKind::Prone) > 0;
+}
+
+int TCombatCalculator::ResolveDamage(
+    const TCreature& target,
+    const TDamage& damage,
+    IRandomGenerator& rng) const
+{
+    TDamageResolver resolver;
+    for (EDamageType type : target.Immunities()) {
+        resolver.AddImmunity(type);
+    }
+    for (const auto& [type, value] : target.Resistances()) {
+        resolver.AddResistance(type, value);
+    }
+    for (const auto& [type, value] : target.Vulnerabilities()) {
+        resolver.AddVulnerability(type, value);
+    }
+    return resolver(damage, rng);
 }
 
 

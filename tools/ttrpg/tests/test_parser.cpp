@@ -82,6 +82,20 @@ TEST(ParserTest, CollectionField) {
     EXPECT_EQ(holder.Fields[0].Name, "Things");
 }
 
+TEST(ParserTest, MapField) {
+    TSchemaModule m = ParseSrc(
+        "enum EDamageType { Fire, Cold, }\n"
+        "class TThing { map<EDamageType, int> Resistances; }\n");
+
+    ASSERT_EQ(m.Classes.size(), 1u);
+    const TClassDecl& c = m.Classes[0];
+    ASSERT_EQ(c.Fields.size(), 1u);
+    EXPECT_EQ(c.Fields[0].Container, EContainer::Map);
+    EXPECT_EQ(c.Fields[0].TypeName, "EDamageType");
+    EXPECT_EQ(c.Fields[0].ValueTypeName, "int");
+    EXPECT_EQ(c.Fields[0].Name, "Resistances");
+}
+
 TEST(ParserTest, VariantThreeAlternativeForms) {
     TSchemaModule m = ParseSrc(
         "variant TEffect {\n"

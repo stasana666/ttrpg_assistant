@@ -96,8 +96,8 @@ add_custom_command(
     VERBATIM
 )
 
-# creature_data.ttrpg imports armor.ttrpg, weapon.ttrpg, creature_parts.ttrpg and condition.ttrpg
-# (transitively material, damage, dice), so editing any of them must rebuild it.
+# creature_data.ttrpg imports armor.ttrpg, weapon.ttrpg, creature_parts.ttrpg, condition.ttrpg
+# and damage.ttrpg (transitively material and dice), so editing any of them must rebuild it.
 add_custom_command(
     OUTPUT  ${CREATURE_DATA_GEN_H} ${CREATURE_DATA_GEN_CPP}
     COMMAND $<TARGET_FILE:ttrpg_codegen>

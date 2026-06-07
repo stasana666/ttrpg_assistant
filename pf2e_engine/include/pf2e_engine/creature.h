@@ -12,7 +12,6 @@
 #include <pf2e_engine/inventory/creature_data.h>
 #include <pf2e_engine/inventory/creature_parts.h>
 #include <pf2e_engine/mechanics/characteristics.h>
-#include <pf2e_engine/mechanics/damage_resolver.h>
 #include <pf2e_engine/mechanics/hitpoints.h>
 #include <pf2e_engine/proficiency.h>
 
@@ -27,8 +26,6 @@ public:
 
     const TResourcePool& Resources() const;
     TGuarded<TResourcePool> Resources();
-
-    const TDamageResolver& DamageResolver() const;
 
     int MaxWeaponReach() const;
 
@@ -60,7 +57,6 @@ private:
     TProficiency proficiency_;
 
     THitPoints hitpoints_;
-    TDamageResolver resolver_;
 
     TResourcePool resources_;
 
