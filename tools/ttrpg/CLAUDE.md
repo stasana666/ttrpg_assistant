@@ -37,6 +37,10 @@ Canonical documentation file. AGENTS.md must remain semantically equivalent.
 - Variant alternatives reject derived fields and non-constant computed initializers.
 - Type names are verbatim C++ names; the generator never adds `T` or `E` prefixes.
 
+## Naming (automatic, no per-field attributes)
+- A PascalCase field `FooBar` maps to: class member `FooBar_`, variant-payload member `FooBar` (public, no underscore), getter `FooBar()`, JSON key `foo_bar` (`PascalToSnake`), DSL property `$obj.foo_bar`, AST key `foo_bar`.
+- Variant kind enum name = strip leading `T`, prefix `E`, suffix `Kind` (e.g. `TWeaponTrait` → `EWeaponTraitKind`); payload struct = type + alt name (e.g. `TWeaponTraitFatal`).
+
 ## Generated Shape
 - Enums emit `enum class`, `ToString`, and `<Name>FromString`.
 - Classes emit getters, `FromJson`, `GetAst`, `TIsAstRecursive`, and `RegisterDslProperties`.
