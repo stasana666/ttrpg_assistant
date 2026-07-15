@@ -135,30 +135,35 @@ TEST(AstState, RollbackRestoresIdenticalAst_MultipleTransformations)
     EXPECT_EQ(before, restored) << msg;
 }
 
-TEST(AstState, BypassDetected_SetPosition)
+TEST(AstState, RollbackRestoresIdenticalAst_MovePlayer)
 {
     auto fixture = MakeTwoWarriorBattle();
-    auto before = Snapshot(*fixture->battle);
 
+    TTransformator transformator(fixture->io);
     auto players = fixture->battle->GetIfPlayers(
         [](const TPlayer* p) { return p->GetId() == 0; });
     ASSERT_FALSE(players.empty());
-    TPosition original = players[0]->GetPosition();
-    players[0]->SetPosition(TPosition{2, 2});
+
+    auto before = Snapshot(*fixture->battle);
+    auto save_point = transformator.CurrentState();
+
+    transformator.MovePlayer(players[0], TPosition{2, 2});
 
     auto after = Snapshot(*fixture->battle);
-    const std::string bypass_msg =
-        "TPlayer::SetPosition bypasses TTransformator but AST should still "
-        "show the difference.";
-    EXPECT_NE(before, after) << bypass_msg;
+    EXPECT_NE(before, after);
     const std::string diff = before.DiffWith(after);
     const std::string diff_msg =
         "Diff path should mention position or battle_map. Got: " + diff;
     EXPECT_TRUE(diff.find("position") != std::string::npos ||
                 diff.find("battle_map") != std::string::npos) << diff_msg;
 
-    players[0]->SetPosition(original);
-    // TODO(rollback): SetPosition bypasses TTransformator; follow-up will
+    // Movement now goes through TTransformator, so rollback fully restores the
+    // player position and every battle-map cell it touched.
+    transformator.Undo(save_point);
+    auto restored = Snapshot(*fixture->battle);
+    const std::string msg = "Move rollback failed to restore AST.\nDiff: " +
+                            before.DiffWith(restored);
+    EXPECT_EQ(before, restored) << msg;
 }
 
 TEST(AstState, ContainerDeterminism_ResourceMutationOrder)

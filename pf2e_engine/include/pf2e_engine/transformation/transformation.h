@@ -5,6 +5,7 @@
 #include <pf2e_engine/common/resource.h>
 #include <pf2e_engine/common/variant_map.h>
 #include <pf2e_engine/condition.h>
+#include <pf2e_engine/position.h>
 #include <pf2e_engine/scheduler.h>
 #include <variant>
 
@@ -52,7 +53,7 @@ public:
 
 private:
     TResource* resource_;
-    int delta_;
+    int prev_count_;
 };
 
 class TAddEffect {
@@ -155,6 +156,19 @@ private:
     size_t prev_round_;
 };
 
+class TMovePlayer {
+public:
+    TMovePlayer(TPlayer* player, TPosition new_position);
+
+    void Undo();
+
+    TAstNode GetAst(TAstContext& ctx) const;
+
+private:
+    TPlayer* player_;
+    TPosition prev_position_;
+};
+
 using TTransformation = std::variant<
     TChangeHitPoints,
     TChangeCondition,
@@ -165,5 +179,6 @@ using TTransformation = std::variant<
     TRemoveTask,
     TAdvanceTaskProgress,
     TChangeCurrentPlayer,
-    TChangeRound
+    TChangeRound,
+    TMovePlayer
 >;

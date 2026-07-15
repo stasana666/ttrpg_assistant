@@ -3,6 +3,9 @@
 #include <assistant/audio_input/prompt.h>
 #include <pf2e_engine/actions/save_point.h>
 
+#include <poll.h>
+#include <unistd.h>
+
 #include <chrono>
 #include <sstream>
 #include <thread>
@@ -17,9 +20,17 @@ TInteractionSystem::TInteractionSystem(TChannel<TClickEvent>::TConsumer click_qu
 
 void TInteractionSystem::CinReaderWorker()
 {
-    int result;
-    while (std::cin >> result)
+    while (!stop_reader_.load(std::memory_order_relaxed))
     {
+        pollfd pfd{.fd = STDIN_FILENO, .events = POLLIN, .revents = 0};
+        int ready = ::poll(&pfd, 1, 100);
+        if (ready <= 0) {
+            continue;
+        }
+        int result;
+        if (!(std::cin >> result)) {
+            break;
+        }
         cin_queue_.Enqueue(TIndexEvent{
             .value = result,
             .timepoint = std::chrono::steady_clock::now()
@@ -29,7 +40,10 @@ void TInteractionSystem::CinReaderWorker()
 
 TInteractionSystem::~TInteractionSystem()
 {
-    cin_reader_.join();
+    stop_reader_.store(true, std::memory_order_relaxed);
+    if (cin_reader_.joinable()) {
+        cin_reader_.join();
+    }
 }
 
 void TInteractionSystem::Add(std::unique_ptr<TAudioInputSystem>&& audio_input_system)
@@ -83,12 +97,7 @@ size_t TInteractionSystem::ChooseAlternativeIndex(int player_id, const TAlternat
                     return false;
                 }
                 result = event.value;
-                int x;
                 std::cout << "llm choose " << result << std::endl;
-                std::cin >> x;
-                if (x != 0) {
-                    exit(0);
-                }
                 return true;
             });
         }

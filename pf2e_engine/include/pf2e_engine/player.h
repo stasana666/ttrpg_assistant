@@ -38,7 +38,6 @@ public:
     int GetId() const;
     int GetTeam() const;
     TPosition GetPosition() const;
-    void SetPosition(TPosition new_position);
     std::string_view GetName() const;
     const std::filesystem::path& GetImagePath() const;
 
@@ -48,6 +47,11 @@ public:
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:
+    // Position changes must go through TTransformator so they are recorded on
+    // the rollback stack; TMovePlayer is the only permitted caller.
+    friend class TMovePlayer;
+    void SetPosition(TPosition new_position);
+
     TCreature* creature_;
     TPlayerTeam team_;
     TPlayerId id_;

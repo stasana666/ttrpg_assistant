@@ -65,8 +65,13 @@ void RunSubPipeline(std::shared_ptr<TActionContext> ctx, IActionBlock* first)
 {
     IActionBlock* saved = ctx->next_block;
     ctx->next_block = first;
-    continuation::While(
-        [ctx]() { return ctx->next_block != nullptr; },
-        [ctx]() { ctx->next_block->Run(ctx); });
-    ctx->next_block = saved;
+    // Restoring next_block must survive suspension: if the sub-pipeline throws a
+    // savepoint, the restore has to run when it resumes, not be skipped here.
+    continuation::Then(
+        [ctx]() {
+            continuation::While(
+                [ctx]() { return ctx->next_block != nullptr; },
+                [ctx]() { ctx->next_block->Run(ctx); });
+        },
+        [ctx, saved]() { ctx->next_block = saved; });
 }

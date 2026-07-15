@@ -95,6 +95,18 @@ TEST(ChangeResourceTest, ReduceResourceUndoRestoresValue) {
     EXPECT_EQ(resource.Count(), 10);
 }
 
+TEST(ChangeResourceTest, ReduceBelowZeroUndoRestoresOriginalCount) {
+    TResource resource(3);
+
+    // Reducing by more than the current count clamps to 0 inside TResource.
+    TChangeResource change(&resource, -5);
+    EXPECT_EQ(resource.Count(), 0);
+
+    // Undo must restore the real previous count (3), not replay the delta (+5).
+    change.Undo();
+    EXPECT_EQ(resource.Count(), 3);
+}
+
 TEST(ChangeResourceTest, ZeroDeltaDoesNothing) {
     TResource resource(5);
 
@@ -581,4 +593,89 @@ TEST_F(IntegrationRollbackTest, ClearConditionFallbackForDirectSet) {
 
     effect_manager_->ClearCondition(player_.get(), EConditionKind::Prone, *transformator_);
     EXPECT_EQ(creature_->Get(EConditionKind::Prone), 0);
+}
+
+TEST(SchedulerReentrancy, CallbackAddingTaskDuringTriggerIsSafe) {
+    TMockInteractionSystem io;
+    TTransformator transformator(io);
+    TTaskScheduler scheduler;
+
+    const TEvent turn_end{EEvent::OnTurnEnd, TEventContext{nullptr}};
+    const TEvent round_end{EEvent::OnRoundEnd, TEventContext{nullptr}};
+
+    int fired = 0;
+    int added_fired = 0;
+    transformator.AddTask(&scheduler, TTask{
+        .events_before_call = {turn_end},
+        .callback = [&]() {
+            ++fired;
+            transformator.AddTask(&scheduler, TTask{
+                .events_before_call = {round_end},
+                .callback = [&]() { ++added_fired; return false; },
+            });
+            return false;
+        },
+    });
+
+    // Adding a task mid-trigger must not invalidate iteration; the new task
+    // waits on a different event and is not processed during this trigger.
+    scheduler.TriggerEvent(turn_end, transformator);
+    EXPECT_EQ(fired, 1);
+    EXPECT_EQ(added_fired, 0);
+
+    // The task added mid-trigger is still scheduled and fires on its own event.
+    scheduler.TriggerEvent(round_end, transformator);
+    EXPECT_EQ(added_fired, 1);
+}
+
+TEST(SchedulerReentrancy, CallbackRemovingAnotherTaskDuringTriggerIsSafe) {
+    TMockInteractionSystem io;
+    TTransformator transformator(io);
+    TTaskScheduler scheduler;
+
+    const TEvent turn_end{EEvent::OnTurnEnd, TEventContext{nullptr}};
+
+    int remover_fired = 0;
+    int victim_fired = 0;
+    TTaskId victim_id = 0;
+    bool have_victim = false;
+
+    // Added first, so it is processed before the victim in id order.
+    transformator.AddTask(&scheduler, TTask{
+        .events_before_call = {turn_end},
+        .callback = [&]() {
+            ++remover_fired;
+            if (have_victim) {
+                transformator.RemoveTask(&scheduler, victim_id,
+                    scheduler.GetTaskCopy(victim_id),
+                    scheduler.GetTaskProgress(victim_id));
+            }
+            return false;
+        },
+    });
+
+    victim_id = transformator.AddTask(&scheduler, TTask{
+        .events_before_call = {turn_end},
+        .callback = [&]() { ++victim_fired; return false; },
+    });
+    have_victim = true;
+
+    // The remover deletes the victim before iteration reaches it; must not
+    // crash, and the removed task must not fire.
+    scheduler.TriggerEvent(turn_end, transformator);
+    EXPECT_EQ(remover_fired, 1);
+    EXPECT_EQ(victim_fired, 0);
+}
+
+TEST(SchedulerReentrancy, EmptyEventListIsRejected) {
+    TMockInteractionSystem io;
+    TTransformator transformator(io);
+    TTaskScheduler scheduler;
+
+    EXPECT_THROW(
+        transformator.AddTask(&scheduler, TTask{
+            .events_before_call = {},
+            .callback = []() { return false; },
+        }),
+        std::invalid_argument);
 }

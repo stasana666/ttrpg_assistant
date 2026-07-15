@@ -48,13 +48,18 @@ TPosition TPlayer::GetPosition() const
 void TPlayer::SetPosition(TPosition new_position)
 {
     assert(battle_map_ != nullptr);
+    if (new_position == position_) {
+        return;
+    }
     auto copy = battle_map_->Copy();
+    TCell& new_cell = copy->GetCell(new_position.x, new_position.y);
+    if (new_cell.player != nullptr) {
+        throw std::runtime_error("two creatures in one cell is not supported by rules");
+    }
     TCell& old_cell = copy->GetCell(position_.x, position_.y);
-    position_ = new_position;
-    TCell& new_cell = copy->GetCell(position_.x, position_.y);
-    assert(new_cell.player == nullptr);
     new_cell.player = old_cell.player;
     old_cell.player = nullptr;
+    position_ = new_position;
     battle_map_->Set(copy);
 }
 

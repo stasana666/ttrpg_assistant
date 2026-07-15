@@ -3,7 +3,7 @@
 
 void TGameObjectRegistry::Add(TGameObjectId id, TGameObjectPtr object)
 {
-    objects_.insert({id, object});
+    objects_.insert_or_assign(id, object);
 }
 
 bool TGameObjectRegistry::Contains(TGameObjectId id) const

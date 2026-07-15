@@ -51,10 +51,10 @@ Canonical documentation file. AGENTS.md must remain semantically equivalent.
 3. The first build fails with the actual `sizeof`/sentinel offset in the error — copy those into the `kExpectedSize` / `kExpectedSentinelOffset` constants.
 
 ## Tests
-- `pf2e_engine/tests/ast/test_ast_state.cpp`: identical battles, mutation visibility, save/mutate/rollback equality, direct-mutation bypass detection, determinism, null handling, and cycle detection.
+- `pf2e_engine/tests/ast/test_ast_state.cpp`: identical battles, mutation visibility, save/mutate/rollback equality (including `TMovePlayer`), determinism, null handling, and cycle detection.
 - `ast_test_fixture.h`: `MakeTwoWarriorBattle()` fixture.
 
 ## Known Limitations
-- `TPlayer::SetPosition` mutates position and battle-map cells without `TTransformator`; `BypassDetected_SetPosition` documents this.
+- `TPlayer::SetPosition` is private and reachable only through `TMovePlayer` (via `TTransformator::MovePlayer`), so movement is on the rollback stack; `RollbackRestoresIdenticalAst_MovePlayer` covers it.
 - Non-standard-layout classes get sizeof-only checks.
 - `std::function` fields are placeholder-compared and cannot be structurally compared.

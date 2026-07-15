@@ -91,6 +91,11 @@ void TTransformator::ChangeRound(TInitiativeOrder* order, size_t new_round)
     transformations_.emplace_back(TChangeRound(order, new_round));
 }
 
+void TTransformator::MovePlayer(TPlayer* player, TPosition new_position)
+{
+    transformations_.emplace_back(TMovePlayer(player, new_position));
+}
+
 void TTransformator::Undo(TState state)
 {
     while (transformations_.size() > state.stack_size_) {

@@ -29,6 +29,8 @@ public:
     void ChangeCurrentPlayer(TInitiativeOrder* order, size_t new_position);
     void ChangeRound(TInitiativeOrder* order, size_t new_round);
 
+    void MovePlayer(TPlayer* player, TPosition new_position);
+
     void Undo(TState state);
 
     TState CurrentState() const;

@@ -2,6 +2,7 @@
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/effect_manager.h>
 #include <pf2e_engine/initiative_order.h>
+#include <pf2e_engine/player.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 
@@ -83,21 +84,22 @@ void TChangeCondition::Undo()
 
 TChangeResource::TChangeResource(TResource* resource, int delta)
     : resource_(resource)
-    , delta_(delta)
+    , prev_count_(resource->Count())
 {
-    if (delta_ > 0) {
-        resource_->Add(delta_);
-    } else if (delta_ < 0) {
-        resource_->Reduce(-delta_);
+    if (delta > 0) {
+        resource_->Add(delta);
+    } else if (delta < 0) {
+        resource_->Reduce(-delta);
     }
 }
 
 void TChangeResource::Undo()
 {
-    if (delta_ > 0) {
-        resource_->Reduce(delta_);
-    } else if (delta_ < 0) {
-        resource_->Add(-delta_);
+    int current = resource_->Count();
+    if (current < prev_count_) {
+        resource_->Add(prev_count_ - current);
+    } else if (current > prev_count_) {
+        resource_->Reduce(current - prev_count_);
     }
 }
 
@@ -191,6 +193,18 @@ void TChangeRound::Undo()
     order_->SetRound(prev_round_);
 }
 
+TMovePlayer::TMovePlayer(TPlayer* player, TPosition new_position)
+    : player_(player)
+    , prev_position_(player->GetPosition())
+{
+    player_->SetPosition(new_position);
+}
+
+void TMovePlayer::Undo()
+{
+    player_->SetPosition(prev_position_);
+}
+
 TAstNode TChangeHitPoints::GetAst(TAstContext& ctx) const
 {
     TAstNode node = TAstNode::MakeObject("TChangeHitPoints");
@@ -211,7 +225,7 @@ TAstNode TChangeResource::GetAst(TAstContext& ctx) const
 {
     TAstNode node = TAstNode::MakeObject("TChangeResource");
     AddReference(node, "resource_ref", resource_, ctx);
-    AddValueField(node, "delta", delta_);
+    AddValueField(node, "prev_count", prev_count_);
     return node;
 }
 
@@ -274,5 +288,13 @@ TAstNode TChangeRound::GetAst(TAstContext& ctx) const
     TAstNode node = TAstNode::MakeObject("TChangeRound");
     AddReference(node, "order_ref", order_, ctx);
     AddValueField(node, "prev_round", prev_round_);
+    return node;
+}
+
+TAstNode TMovePlayer::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TMovePlayer");
+    AddReference(node, "player_ref", player_, ctx);
+    AddValueField(node, "prev_position", prev_position_);
     return node;
 }

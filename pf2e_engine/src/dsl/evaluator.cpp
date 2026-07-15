@@ -128,7 +128,13 @@ TDslValue EvalBinary(const expr::TExprNode& node, TEvalContext& ctx)
         case O::Add: return TDslValue(RequireInt(lhs, "+") + RequireInt(rhs, "+"));
         case O::Sub: return TDslValue(RequireInt(lhs, "-") - RequireInt(rhs, "-"));
         case O::Mul: return TDslValue(RequireInt(lhs, "*") * RequireInt(rhs, "*"));
-        case O::Div: return TDslValue(RequireInt(lhs, "/") / RequireInt(rhs, "/"));
+        case O::Div: {
+            int divisor = RequireInt(rhs, "/");
+            if (divisor == 0) {
+                throw std::runtime_error("dsl: division by zero");
+            }
+            return TDslValue(RequireInt(lhs, "/") / divisor);
+        }
         case O::Eq:  return TDslValue(DslEquals(lhs, rhs));
         case O::Ne:  return TDslValue(!DslEquals(lhs, rhs));
         case O::Lt:  return TDslValue(RequireInt(lhs, "<") < RequireInt(rhs, "<"));

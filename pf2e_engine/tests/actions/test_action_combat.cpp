@@ -323,6 +323,60 @@ TEST_F(ActionCombatTest, WizardCastsFireball) {
     EXPECT_FALSE(warriors[0]->GetCreature()->IsAlive());
 }
 
+TEST_F(ActionCombatTest, FireballDamagesEveryTargetInArea) {
+    auto wizard_id = TGameObjectIdManager::Instance().Register("wizard");
+    auto warrior_id = TGameObjectIdManager::Instance().Register("warrior");
+    TCreature wizard = factory_.Create<TCreature>(wizard_id);
+    TCreature warrior1 = factory_.Create<TCreature>(warrior_id);
+    TCreature warrior2 = factory_.Create<TCreature>(warrior_id);
+
+    TPlayer player_wizard(&wizard, TPlayerTeam{0}, TPlayerId{0}, "Wizard", "");
+    TPlayer player_w1(&warrior1, TPlayerTeam{1}, TPlayerId{1}, "Warrior 1", "");
+    TPlayer player_w2(&warrior2, TPlayerTeam{1}, TPlayerId{2}, "Warrior 2", "");
+
+    auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
+    TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+
+    // Wizard acts first (lowest initiative). It sits outside the blast so only
+    // the two warriors are targets.
+    mock_rng_.ExpectCall(20, 0);
+    battle.AddPlayer(std::move(player_wizard), TPosition{0, 0});
+    mock_rng_.ExpectCall(20, 20);
+    battle.AddPlayer(std::move(player_w1), TPosition{5, 5});
+    mock_rng_.ExpectCall(20, 20);
+    battle.AddPlayer(std::move(player_w2), TPosition{5, 6});
+
+    mock_interaction_.ExpectChoice(0, "next action", "fireball");
+    mock_interaction_.ExpectChoice(0, "burst center", "5 5");
+
+    // 6d6 is rolled once per target (deal_damage re-evaluates the expression),
+    // so both warriors must receive their own roll: 12 rolls of 1 => 6 each.
+    for (int i = 0; i < 12; ++i) {
+        mock_rng_.ExpectCall(6, 1);
+    }
+
+    mock_interaction_.AddCheckCallback([&battle]() {
+        auto w1 = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+        auto w2 = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 2; });
+        ASSERT_FALSE(w1.empty());
+        ASSERT_FALSE(w2.empty());
+        // Both targets took damage; the second is not skipped by a stale binding.
+        EXPECT_EQ(w1[0]->GetCreature()->Hitpoints()->CurrentValue(), 15);
+        EXPECT_EQ(w2[0]->GetCreature()->Hitpoints()->CurrentValue(), 15);
+    });
+    mock_interaction_.ExpectChoice(0, "next action", "End of turn");
+
+    EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
+
+    auto w1 = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
+    auto w2 = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 2; });
+    ASSERT_FALSE(w1.empty());
+    ASSERT_FALSE(w2.empty());
+    EXPECT_EQ(w1[0]->GetCreature()->Hitpoints()->CurrentValue(), 15);
+    EXPECT_EQ(w2[0]->GetCreature()->Hitpoints()->CurrentValue(), 15);
+}
+
 TEST_F(ActionCombatTest, ReachFilterExcludesOutOfRangeTargets) {
     auto warrior_id = TGameObjectIdManager::Instance().Register("warrior");
     TCreature attacker_c = factory_.Create<TCreature>(warrior_id);
@@ -348,4 +402,50 @@ TEST_F(ActionCombatTest, ReachFilterExcludesOutOfRangeTargets) {
     mock_interaction_.ExpectChoice(0, "target", "Far");
 
     EXPECT_THROW(battle.StartBattle(), std::logic_error);
+}
+
+// Drives a move while the interaction system defers reaction triggers the way
+// the assistant does (throwing a savepoint after each step). The battle loop
+// must revert and resume so the move still completes and lands where chosen.
+// Exercises movement-through-the-transformator (2.1) plus suspension-safe
+// pipeline resumption (2.2) through the real battle loop.
+TEST_F(ActionCombatTest, MoveResumesAfterDeferredReactionTrigger) {
+    auto warrior_id = TGameObjectIdManager::Instance().Register("warrior");
+    TCreature mover_c = factory_.Create<TCreature>(warrior_id);
+    TCreature other_c = factory_.Create<TCreature>(warrior_id);
+
+    TPlayer mover(&mover_c, TPlayerTeam{0}, TPlayerId{0}, "Mover", "");
+    TPlayer other(&other_c, TPlayerTeam{1}, TPlayerId{1}, "Other", "");
+
+    auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
+    TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+
+    // Lower initiative acts first in this engine, so Mover (id 0) goes first.
+    mock_rng_.ExpectCall(20, 0);
+    battle.AddPlayer(std::move(mover), TPosition{0, 0});
+    mock_rng_.ExpectCall(20, 20);
+    battle.AddPlayer(std::move(other), TPosition{5, 0});
+
+    mock_interaction_.SetReactionSuspends(true);
+
+    mock_interaction_.ExpectChoice(0, "next action", "move");
+    // Step one cell north to (0, 1); this move throws a deferred reaction.
+    mock_interaction_.ExpectChoice(0, "move to position", "0 1");
+    // On resume, stop moving.
+    mock_interaction_.ExpectChoice(0, "move to position", "Завершить перемещение");
+
+    mock_interaction_.AddCheckCallback([&battle]() {
+        auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 0; });
+        ASSERT_FALSE(players.empty());
+        EXPECT_EQ(players[0]->GetPosition(), (TPosition{0, 1}));
+    });
+    mock_interaction_.ExpectChoice(0, "next action", "End of turn");
+
+    // The other player's turn then runs out of scripted choices.
+    EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
+
+    auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 0; });
+    ASSERT_FALSE(players.empty());
+    EXPECT_EQ(players[0]->GetPosition(), (TPosition{0, 1}));
 }
