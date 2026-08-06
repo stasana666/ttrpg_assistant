@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/i_interaction_system.h>
+#include <pf2e_engine/actions/save_point.h>
 #include <pf2e_engine/common/visit.h>
 #include <functional>
 #include <sstream>
@@ -22,7 +23,15 @@ struct TMockInteractionSystem final : public IInteractionSystem {
         return dev_log_;
     }
 
-    void HandleReactionTrigger(const TTriggerContext&, const TState&) override {}
+    void HandleReactionTrigger(const TTriggerContext&, const TState& state) override {
+        // Opt-in: mimics the assistant, which defers reaction triggers by
+        // throwing a savepoint so the battle loop reverts and resumes.
+        if (reaction_suspends_) {
+            throw TSavepointStackUnwind(state, [] {});
+        }
+    }
+
+    void SetReactionSuspends(bool value) { reaction_suspends_ = value; }
 
     struct ExpectedChoice {
         int player_id;
@@ -125,4 +134,5 @@ private:
     std::queue<Expectation> expectations_;
     std::ostringstream game_log_;
     std::ostringstream dev_log_;
+    bool reaction_suspends_ = false;
 };

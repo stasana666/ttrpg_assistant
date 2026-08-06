@@ -82,9 +82,9 @@ bool TBattleMap::InLine(TPosition start, TPosition direction_cell, int length, i
 
 TPosition TBattleMap::ChoosePosition() const
 {
-    for (int x = 0; x < x_size_; ++x) {
-        for (int y = 0; y < y_size_; ++y) {
-            if (battlemap_[x][y].player == nullptr) {
+    for (int y = 0; y < y_size_; ++y) {
+        for (int x = 0; x < x_size_; ++x) {
+            if (battlemap_[y][x].player == nullptr) {
                 return TPosition{x, y};
             }
         }
@@ -94,12 +94,12 @@ TPosition TBattleMap::ChoosePosition() const
 
 const TBattleMap::TCell& TBattleMap::GetCell(int x, int y) const
 {
-    return battlemap_[x][y];
+    return battlemap_[y][x];
 }
 
 TBattleMap::TCell& TBattleMap::GetCell(int x, int y)
 {
-    return battlemap_[x][y];
+    return battlemap_[y][x];
 }
 
 TAstNode TBattleMap::GetAst(TAstContext& ctx) const
@@ -113,12 +113,12 @@ TAstNode TBattleMap::GetAst(TAstContext& ctx) const
     AddValueField(node, "y_size", y_size_);
 
     TAstNode grid = TAstNode::MakeObject("cells");
-    for (size_t x = 0; x < battlemap_.size(); ++x) {
+    for (size_t y = 0; y < battlemap_.size(); ++y) {
         TAstNode row = TAstNode::MakeObject("row");
-        for (size_t y = 0; y < battlemap_[x].size(); ++y) {
-            AddReference(row, std::to_string(y), battlemap_[x][y].player, ctx);
+        for (size_t x = 0; x < battlemap_[y].size(); ++x) {
+            AddReference(row, std::to_string(x), battlemap_[y][x].player, ctx);
         }
-        grid.AddChild(std::to_string(x), std::move(row));
+        grid.AddChild(std::to_string(y), std::move(row));
     }
     node.AddChild("cells", std::move(grid));
     return node;

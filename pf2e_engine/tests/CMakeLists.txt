@@ -3,6 +3,7 @@ add_executable(test_pf2_engine
     test_resources.cpp
     test_random.cpp
     test_continuation.cpp
+    test_battle_map.cpp
 )
 
 target_link_libraries(test_pf2_engine

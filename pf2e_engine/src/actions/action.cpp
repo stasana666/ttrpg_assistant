@@ -42,14 +42,14 @@ void TAction::Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player)
 {
     for (auto& resource : consume_) {
         ctx->transformator->ReduceResource(
-            player.GetCreature()->Resources(), resource.resource_id, resource.count);
+            player.GetCreature()->ResourceFor(resource.kind), resource.count);
     }
 }
 
 bool TAction::Check(const TPlayer& player)
 {
     for (auto& resource : consume_) {
-        if (!player.GetCreature()->Resources().HasResource(resource.resource_id, resource.count)) {
+        if (!player.GetCreature()->ResourceFor(resource.kind).Has(resource.count)) {
             return false;
         }
     }
@@ -65,8 +65,11 @@ void RunSubPipeline(std::shared_ptr<TActionContext> ctx, IActionBlock* first)
 {
     IActionBlock* saved = ctx->next_block;
     ctx->next_block = first;
-    continuation::While(
-        [ctx]() { return ctx->next_block != nullptr; },
-        [ctx]() { ctx->next_block->Run(ctx); });
-    ctx->next_block = saved;
+    continuation::Then(
+        [ctx]() {
+            continuation::While(
+                [ctx]() { return ctx->next_block != nullptr; },
+                [ctx]() { ctx->next_block->Run(ctx); });
+        },
+        [ctx, saved]() { ctx->next_block = saved; });
 }

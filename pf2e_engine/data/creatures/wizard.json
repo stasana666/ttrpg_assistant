@@ -17,7 +17,13 @@
             },
             "movement": 5,
             "armor": "unarmored",
-            "weapons": ["dagger"]
+            "weapons": ["dagger"],
+            "hands": 2,
+            "spell_slots": {
+                "Rank1": 4,
+                "Rank2": 4,
+                "Rank3": 3
+            }
         },
         "proficiency": {
             "armor_category": {
@@ -36,12 +42,6 @@
                 "Arcana": "expert"
             },
             "Perception": "trained"
-        },
-        "resources": {
-            "hand": 2,
-            "spellslot_1": 4,
-            "spellslot_2": 4,
-            "spellslot_3": 3
         },
         "actions": [
             "fireball",

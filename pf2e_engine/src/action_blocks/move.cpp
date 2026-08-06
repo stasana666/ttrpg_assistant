@@ -62,7 +62,7 @@ void FMove::Step(TPlayer& target, int& budget, std::shared_ptr<TActionContext> c
         return;
     }
 
-    target.SetPosition(choice);
+    ctx->transformator->MovePlayer(&target, choice);
     --budget;
 
     TTriggerContext trigger{

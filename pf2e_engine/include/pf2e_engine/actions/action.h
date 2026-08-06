@@ -2,20 +2,24 @@
 
 #include <pf2e_engine/actions/action_block.h>
 #include <pf2e_engine/actions/action_context.h>
-#include <pf2e_engine/resources.h>
 
 class TWeapon;
+
+enum class EResourceKind {
+    Action,
+    Reaction,
+};
 
 class TAction {
 public:
     using TPipeline = std::vector<std::unique_ptr<IActionBlock>>;
 
-    struct TResource {
-        TResourceId resource_id;
-        size_t count;
+    struct TResourceCost {
+        EResourceKind kind;
+        int count;
     };
 
-    using TResources = std::vector<TResource>;
+    using TResources = std::vector<TResourceCost>;
 
     // TODO: only weapon variables for now; generalise to other object types.
     struct TActionVariable {

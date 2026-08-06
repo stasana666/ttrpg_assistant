@@ -10,7 +10,8 @@ Canonical documentation file. AGENTS.md must remain semantically equivalent.
 
 ## Key Concepts
 - Language forms: `import`, `enum`, `variant`, `class`, scalar fields, `set<T>`, `collection<T>`, `map<K, V>`, defaults, and `derive` computed fields.
-- Built-ins include `int`, `bool`, `string`, `BoundedQuantity`, `max_int`, and `min_int`.
+- Built-ins include `int`, `bool`, `string`, `BoundedQuantity`, `Resource`, `max_int`, and `min_int`.
+- `Resource` lowers to the runtime `TResource` (count with `Count`/`Has`/`Add`/`Reduce`); `TCreatureData` uses it for `Actions`, `Reactions`, `Hands`, and `map<ESpellSlotRank, Resource> SpellSlots`.
 - Imports are relative to this directory. CMake dependency lists in `pf2e_engine/src/inventory/CMakeLists.txt` must include imported schemas.
 - Generated JSON keys use `PascalToSnake`.
 - Class fields load from either string refs through `TGameObjectFactory` or inline JSON objects; referenced classes need factory plumbing even if normally authored inline.

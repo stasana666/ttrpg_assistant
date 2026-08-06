@@ -188,6 +188,7 @@ void EmitHeader(std::ostream& os,
     bool anyVariantSet = false;
     bool anyVariant = !mod.Variants.empty();
     bool anyBoundedQuantity = false;
+    bool anyResource = false;
     bool anyCollection = false;
     bool anyMap = false;
 
@@ -218,6 +219,10 @@ void EmitHeader(std::ostream& os,
                 anyBoundedQuantity = true;
                 return;
             }
+            if (IsBuiltinResource(value.TypeName)) {
+                anyResource = true;
+                return;
+            }
             auto valueIt = loaded.SymbolTable.find(value.TypeName);
             if (valueIt == loaded.SymbolTable.end()) {
                 throw std::runtime_error(
@@ -238,6 +243,14 @@ void EmitHeader(std::ostream& os,
                     "BoundedQuantity cannot be used inside set<> (in " + ownerDesc + ")");
             }
             anyBoundedQuantity = true;
+            return;
+        }
+        if (IsBuiltinResource(f.TypeName)) {
+            if (f.Container != EContainer::None) {
+                throw std::runtime_error(
+                    "Resource cannot be used inside set<> (in " + ownerDesc + ")");
+            }
+            anyResource = true;
             return;
         }
         auto it = loaded.SymbolTable.find(f.TypeName);
@@ -299,6 +312,9 @@ void EmitHeader(std::ostream& os,
     }
     if (anyBoundedQuantity) {
         w.Include("pf2e_engine/common/bounded_quantity.h");
+    }
+    if (anyResource) {
+        w.Include("pf2e_engine/common/resource.h");
     }
     if (anyCollection) {
         w.Include("pf2e_engine/common/id_collection.h");
@@ -368,7 +384,8 @@ void EmitClassImpl(TCppWriter& w,
                 TFieldDecl value = MapValueField(f);
                 EFieldKind valueKind = FieldKindOf(value, symbols);
                 if (valueKind == EFieldKind::Class || valueKind == EFieldKind::Variant ||
-                    valueKind == EFieldKind::BoundedQuantity) {
+                    valueKind == EFieldKind::BoundedQuantity ||
+                    valueKind == EFieldKind::Resource) {
                     usesFactory = true;
                 }
             }
@@ -377,7 +394,7 @@ void EmitClassImpl(TCppWriter& w,
         EFieldKind k = FieldKindOf(f, symbols);
         kinds.push_back(k);
         if (k == EFieldKind::Class || k == EFieldKind::Variant ||
-            k == EFieldKind::BoundedQuantity) {
+            k == EFieldKind::BoundedQuantity || k == EFieldKind::Resource) {
             usesFactory = true;
         }
     }
@@ -428,9 +445,14 @@ void EmitClassImpl(TCppWriter& w,
                 });
             } else if (computed) {
                 std::string present = ScalarParseExpr(f, kinds[idx], "j.at(\"" + key + "\")");
-                std::string fallback = (kinds[idx] == EFieldKind::BoundedQuantity)
-                    ? "TBoundedQuantity(" + InitExprToCpp(*f.Init) + ")"
-                    : InitExprToCpp(*f.Init);
+                std::string fallback;
+                if (kinds[idx] == EFieldKind::BoundedQuantity) {
+                    fallback = "TBoundedQuantity(" + InitExprToCpp(*f.Init) + ")";
+                } else if (kinds[idx] == EFieldKind::Resource) {
+                    fallback = "TResource(" + InitExprToCpp(*f.Init) + ")";
+                } else {
+                    fallback = InitExprToCpp(*f.Init);
+                }
                 w.Line("r." + f.Name + "_ = j.contains(\"" + key + "\") ? " +
                        present + " : " + fallback + ";");
             } else {
@@ -481,7 +503,8 @@ void EmitClassImpl(TCppWriter& w,
                     w.Line("TAstNode map_node = TAstNode::MakeObject(\"container\");");
                     w.Block("for (const auto& [map_key, map_value] : " + f.Name + "_) {", "}", [&] {
                         if (valueKind == EFieldKind::Class || valueKind == EFieldKind::Variant ||
-                            valueKind == EFieldKind::BoundedQuantity) {
+                            valueKind == EFieldKind::BoundedQuantity ||
+                            valueKind == EFieldKind::Resource) {
                             w.Line("AddOwnedObject(map_node, ToString(map_key), map_value, ctx);");
                         } else {
                             w.Line("AddValueField(map_node, ToString(map_key), map_value);");
@@ -490,7 +513,8 @@ void EmitClassImpl(TCppWriter& w,
                     w.Line("node.AddChild(\"" + key + "\", std::move(map_node));");
                 });
             } else if (kinds[i] == EFieldKind::Class || kinds[i] == EFieldKind::Variant ||
-                       kinds[i] == EFieldKind::BoundedQuantity) {
+                       kinds[i] == EFieldKind::BoundedQuantity ||
+                       kinds[i] == EFieldKind::Resource) {
                 w.Line("AddOwnedObject(node, \"" + key + "\", " + f.Name + "_, ctx);");
             } else {
                 w.Line("AddValueField(node, \"" + key + "\", " + f.Name + "_);");

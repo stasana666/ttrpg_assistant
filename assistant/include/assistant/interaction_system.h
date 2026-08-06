@@ -5,6 +5,7 @@
 #include <pf2e_engine/common/channel.h>
 #include <pf2e_engine/common/event.h>
 
+#include <atomic>
 #include <iostream>
 
 class TInteractionSystem : public IInteractionSystem {
@@ -26,6 +27,7 @@ protected:
 
 private:
     std::unique_ptr<TAudioInputSystem> audio_input_system_;
+    std::atomic<bool> stop_reader_{false};
     std::thread cin_reader_;
     TChannel<TIndexEvent> cin_queue_;
     TChannel<TIndexEvent> nlp_queue_;

@@ -26,7 +26,7 @@ Canonical documentation file. AGENTS.md must remain semantically equivalent.
 
 ## Language
 - Top-level forms: `import`, `enum`, `variant`, `class`.
-- Field types: `int`, `bool`, `string`, `BoundedQuantity`, or schema-declared enum/class/variant.
+- Field types: `int`, `bool`, `string`, `BoundedQuantity`, `Resource`, or schema-declared enum/class/variant.
 - Containers:
   - `set<Enum>` lowers to `std::set`.
   - `set<Variant>` lowers to `TVariantMap`.
@@ -71,6 +71,7 @@ Canonical documentation file. AGENTS.md must remain semantically equivalent.
 - Keep generated output deterministic.
 - Initializer expressions use shared `expr`; codegen accepts only its subset and rejects calls, `$` vars, comparisons, and logical operators.
 - `BoundedQuantity` is scalar only; `set<BoundedQuantity>` is rejected.
+- `Resource` is a runtime-supported scalar built-in (lowers to `TResource`), like `BoundedQuantity`: scalar-only, supports an int default, and is usable as a `map<Enum, Resource>` value; not DSL-exposed yet.
 - `collection<T>` is supported for schema-declared classes and is used by engine schemas.
 - `map<T, V>` keys must be schema-declared enums; the first engine use is `map<EDamageType, int>`.
 - DSL exposes only generated `int`/`bool` scalar getters today; widening needs new `TDslValue` alternatives.

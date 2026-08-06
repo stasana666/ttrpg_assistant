@@ -276,6 +276,29 @@
                         "enum": ["Bludgeoning", "Piercing", "Slashing", "Fire"]
                     },
                     "additionalProperties": { "type": "integer" }
+                },
+                "actions": {
+                    "type": "integer",
+                    "default": 0
+                },
+                "reactions": {
+                    "type": "integer",
+                    "default": 0
+                },
+                "hands": {
+                    "type": "integer",
+                    "default": 0
+                },
+                "spell_slots": {
+                    "type": "object",
+                    "default": {},
+                    "propertyNames": {
+                        "enum": [
+                            "Rank1", "Rank2", "Rank3", "Rank4", "Rank5",
+                            "Rank6", "Rank7", "Rank8", "Rank9", "Rank10"
+                        ]
+                    },
+                    "additionalProperties": { "type": "integer" }
                 }
             },
             "required": ["level", "size", "race", "class", "characteristic", "armor"],
@@ -333,19 +356,6 @@
                 "Wisdom",
                 "Charisma"
             ]
-        },
-
-        "pf2e_creature_resources": {
-            "type": "object",
-            "default": {
-                "hand": 2
-            },
-            "properties": {
-                "hand": {
-                    "type": "integer",
-                    "default": 2
-                }
-            }
         },
 
         "pf2e_proficiency_bonus": {
@@ -426,7 +436,6 @@
             "type": "object",
             "properties": {
                 "creature_data": { "$ref": "#/$defs/pf2e_creature_data_core" },
-                "resources": { "$ref": "#/$defs/pf2e_creature_resources" },
                 "proficiency": { "$ref": "#/$defs/pf2e_proficiency" },
                 "actions": {
                     "type": "array",

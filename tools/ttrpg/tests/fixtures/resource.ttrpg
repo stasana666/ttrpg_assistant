@@ -1,0 +1,9 @@
+enum ESlot {
+    First,
+    Second,
+}
+
+class TPool {
+    Resource Actions = 0;
+    map<ESlot, Resource> Slots;
+}

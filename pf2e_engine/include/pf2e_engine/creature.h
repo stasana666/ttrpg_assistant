@@ -3,6 +3,7 @@
 #include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/common/bounded_quantity.h>
 #include <pf2e_engine/common/guarded.h>
+#include <pf2e_engine/common/resource.h>
 
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/reaction.h>
@@ -23,8 +24,8 @@ public:
     TGuarded<TBoundedQuantity> Hitpoints();
     const TBoundedQuantity& Hitpoints() const;
 
-    const TResourcePool& Resources() const;
-    TGuarded<TResourcePool> Resources();
+    const TResource& ResourceFor(EResourceKind kind) const;
+    TGuarded<TResource> ResourceFor(EResourceKind kind);
 
     int MaxWeaponReach() const;
 
@@ -35,7 +36,7 @@ public:
 
     bool IsAlive() const;
     void AddAction(std::shared_ptr<TAction> action);
-    std::vector<std::shared_ptr<TAction>>& Actions();
+    std::vector<std::shared_ptr<TAction>>& ActionList();
 
     void AddFeat(std::shared_ptr<TCreatureFeat> feat);
     const std::vector<std::shared_ptr<TCreatureFeat>>& Feats() const;
@@ -48,11 +49,8 @@ public:
 
 private:
     friend class TGameObjectFactory;
-    TResourcePool& ResourcesForInit() { return resources_; }
 
     TProficiency proficiency_;
-
-    TResourcePool resources_;
 
     std::vector<std::shared_ptr<TAction>> actions_;
     std::vector<std::shared_ptr<TReaction>> reactions_;

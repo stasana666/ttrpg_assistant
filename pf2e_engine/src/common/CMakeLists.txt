@@ -2,6 +2,7 @@ target_sources(pf2e_engine
     PRIVATE
         hash_combine.cpp
         bounded_quantity.cpp
+        resource.cpp
 )
 
 add_subdirectory(ast)

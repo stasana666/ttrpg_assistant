@@ -15,6 +15,7 @@ bool IsBuiltinString(const std::string& t);
 bool IsBuiltinPrimitive(const std::string& t);
 
 bool IsBuiltinBoundedQuantity(const std::string& t);
+bool IsBuiltinResource(const std::string& t);
 
 std::string CppTypeFor(const std::string& schemaType);
 
@@ -24,6 +25,7 @@ enum class EFieldKind {
     Class,
     Variant,
     BoundedQuantity,
+    Resource,
 };
 
 EFieldKind FieldKindOf(const TFieldDecl& f,

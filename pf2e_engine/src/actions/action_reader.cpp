@@ -27,7 +27,6 @@
 #include <pf2e_engine/common/errors.h>
 
 #include <pf2e_engine/success_level.h>
-#include <pf2e_engine/resources.h>
 #include <pf2e_engine/expressions/dice_expression_parser.h>
 
 #include <nlohmann/json.hpp>
@@ -111,13 +110,27 @@ TAction::TVariables TActionReader::ReadVariables(nlohmann::json& json,
     return variables;
 }
 
+namespace {
+
+EResourceKind ResourceKindFromString(const std::string& name)
+{
+    if (name == "action") {
+        return EResourceKind::Action;
+    }
+    if (name == "reaction") {
+        return EResourceKind::Reaction;
+    }
+    throw std::runtime_error("unknown action resource cost: " + name);
+}
+
+}
+
 TAction::TResources TActionReader::ReadResources(nlohmann::json& json) const
 {
     TAction::TResources resources;
     for (auto& resource : json) {
-        auto resource_id = TResourceIdManager::Instance().Register(resource["name"]);
-        resources.push_back(TAction::TResource{
-            .resource_id = resource_id,
+        resources.push_back(TAction::TResourceCost{
+            .kind = ResourceKindFromString(resource["name"]),
             .count = resource["count"]
         });
     }

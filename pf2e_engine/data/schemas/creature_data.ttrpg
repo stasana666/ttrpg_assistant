@@ -13,6 +13,19 @@ enum ECreatureSize {
     Gargantuan,
 }
 
+enum ESpellSlotRank {
+    Rank1,
+    Rank2,
+    Rank3,
+    Rank4,
+    Rank5,
+    Rank6,
+    Rank7,
+    Rank8,
+    Rank9,
+    Rank10,
+}
+
 class TCreatureData {
     int Level;
     ECreatureSize Size;
@@ -28,4 +41,8 @@ class TCreatureData {
     set<EDamageType> Immunities;
     map<EDamageType, int> Resistances;
     map<EDamageType, int> Vulnerabilities;
+    Resource Actions = 0;
+    Resource Reactions = 0;
+    Resource Hands = 0;
+    map<ESpellSlotRank, Resource> SpellSlots;
 }

@@ -13,6 +13,9 @@ target_include_directories(test_actions
     PRIVATE ${CMAKE_BINARY_DIR}/cpp_config
 )
 
+include(GoogleTest)
+gtest_discover_tests(test_actions)
+
 add_executable(test_wolf_combat
     test_wolf_combat.cpp
 )

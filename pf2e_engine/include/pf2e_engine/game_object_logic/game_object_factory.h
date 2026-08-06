@@ -57,7 +57,6 @@ private:
     void ReadAction(nlohmann::json&, TGameObjectId);
     void ReadBattleMap(nlohmann::json&, TGameObjectId);
 
-    TResourcePool ReadCreatureResources(nlohmann::json&);
     TProficiency ReadProficiency(nlohmann::json& json_game_object, int level);
 
     template <class T>

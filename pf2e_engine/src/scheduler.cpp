@@ -4,32 +4,65 @@
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/ast/ast_layout_assert.h>
 
+#include <algorithm>
+#include <stdexcept>
+
 void TTaskScheduler::TriggerEvent(TEvent event, TTransformator& transformator)
 {
-    std::vector<std::tuple<TTaskId, TTask, size_t>> tasks_to_remove;
+    auto find_task = [this](TTaskId id) {
+        return std::find_if(tasks_.begin(), tasks_.end(),
+            [id](const auto& entry) { return std::get<0>(entry) == id; });
+    };
 
-    for (auto& [id, task, current] : tasks_) {
-        size_t current_index = static_cast<size_t>(current - task.events_before_call.begin());
-        if (*current == event) {
-            transformator.AdvanceTaskProgress(this, id, current_index + 1);
-        }
-        current_index = static_cast<size_t>(current - task.events_before_call.begin());
-        if (current_index == task.events_before_call.size()) {
-            if (task.callback()) {
-                transformator.AdvanceTaskProgress(this, id, 0);
-            } else {
-                tasks_to_remove.emplace_back(id, task, task.events_before_call.size());
-            }
-        }
+    std::vector<TTaskId> ids;
+    ids.reserve(tasks_.size());
+    for (const auto& entry : tasks_) {
+        ids.push_back(std::get<0>(entry));
     }
 
-    for (auto& [id, task, progress] : tasks_to_remove) {
-        transformator.RemoveTask(this, id, std::move(task), progress);
+    for (TTaskId id : ids) {
+        auto it = find_task(id);
+        if (it == tasks_.end()) {
+            continue;
+        }
+
+        {
+            auto& [task_id, task, current] = *it;
+            if (current != task.events_before_call.end() && *current == event) {
+                size_t index = static_cast<size_t>(current - task.events_before_call.begin());
+                transformator.AdvanceTaskProgress(this, id, index + 1);
+            }
+        }
+
+        it = find_task(id);
+        if (it == tasks_.end()) {
+            continue;
+        }
+
+        size_t event_count = std::get<1>(*it).events_before_call.size();
+        size_t progress = static_cast<size_t>(
+            std::get<2>(*it) - std::get<1>(*it).events_before_call.begin());
+        if (progress != event_count) {
+            continue;
+        }
+
+        TTask task_copy = std::get<1>(*it);
+        if (task_copy.callback()) {
+            if (find_task(id) != tasks_.end()) {
+                transformator.AdvanceTaskProgress(this, id, 0);
+            }
+        } else if (find_task(id) != tasks_.end()) {
+            transformator.RemoveTask(this, id, std::move(task_copy), event_count);
+        }
     }
 }
 
 TTaskId TTaskScheduler::AddTaskWithId(TTask&& task)
 {
+    if (task.events_before_call.empty()) {
+        throw std::invalid_argument(
+            "TTaskScheduler: task must have at least one event before call");
+    }
     TTaskId id = next_task_id_++;
     tasks_.emplace_back(id, std::move(task), std::vector<TEvent>::iterator{});
     std::get<2>(tasks_.back()) = std::get<1>(tasks_.back()).events_before_call.begin();

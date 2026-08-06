@@ -24,6 +24,8 @@ void IActionBlock::Run(std::shared_ptr<TActionContext> ctx)
 {
     TPlayer& self = ctx->game_object_registry->Get<TPlayer>(kSelfId);
     std::string name = GetName();
+
+    std::vector<IActionBlock*> feat_entries;
     for (const auto& feat : self.GetCreature()->Feats()) {
         if (feat->pipeline.empty()) {
             continue;
@@ -31,10 +33,17 @@ void IActionBlock::Run(std::shared_ptr<TActionContext> ctx)
         bool matches = std::find(feat->blocks.begin(), feat->blocks.end(), name)
             != feat->blocks.end();
         if (matches) {
-            RunSubPipeline(ctx, feat->pipeline.begin()->get());
+            feat_entries.push_back(feat->pipeline.begin()->get());
         }
     }
-    Apply(ctx);
+
+    continuation::Then(
+        [ctx, feat_entries]() {
+            continuation::ForEachOwned(feat_entries, [ctx](IActionBlock* first) {
+                RunSubPipeline(ctx, first);
+            });
+        },
+        [this, ctx]() { Apply(ctx); });
 }
 
 constexpr std::string ToString(EBlockType type)

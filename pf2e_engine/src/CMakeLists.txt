@@ -10,7 +10,6 @@ target_sources(pf2e_engine
         player.cpp
         proficiency.cpp
         random.cpp
-        resources.cpp
         success_level.cpp
         scheduler.cpp
 )

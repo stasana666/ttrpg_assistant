@@ -39,14 +39,20 @@ void TTransformator::ChangeCondition(TCreature* creature, EConditionKind conditi
         TChangeCondition(&conditions.Mutable(), condition, new_value));
 }
 
-void TTransformator::AddResource(TGuarded<TResourcePool> pool, TResourceId id, int count)
+void TTransformator::AddResource(TGuarded<TResource> resource, int count)
 {
-    transformations_.emplace_back(TChangeResource(&pool.Mutable(), id, count));
+    transformations_.emplace_back(TChangeResource(&resource.Mutable(), count));
 }
 
-void TTransformator::ReduceResource(TGuarded<TResourcePool> pool, TResourceId id, int count)
+void TTransformator::ReduceResource(TGuarded<TResource> resource, int count)
 {
-    transformations_.emplace_back(TChangeResource(&pool.Mutable(), id, -count));
+    transformations_.emplace_back(TChangeResource(&resource.Mutable(), -count));
+}
+
+void TTransformator::ReduceSpellSlot(TGuarded<std::map<ESpellSlotRank, TResource>> slots,
+                                     ESpellSlotRank rank, int count)
+{
+    transformations_.emplace_back(TChangeResource(&slots.Mutable().at(rank), -count));
 }
 
 void TTransformator::AddEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value)
@@ -83,6 +89,11 @@ void TTransformator::ChangeCurrentPlayer(TInitiativeOrder* order, size_t new_pos
 void TTransformator::ChangeRound(TInitiativeOrder* order, size_t new_round)
 {
     transformations_.emplace_back(TChangeRound(order, new_round));
+}
+
+void TTransformator::MovePlayer(TPlayer* player, TPosition new_position)
+{
+    transformations_.emplace_back(TMovePlayer(player, new_position));
 }
 
 void TTransformator::Undo(TState state)

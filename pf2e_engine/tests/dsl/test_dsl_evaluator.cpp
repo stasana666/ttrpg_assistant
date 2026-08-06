@@ -66,6 +66,16 @@ TEST_F(DslEvaluatorTest, MissingVariableThrows) {
     EXPECT_THROW(Eval("$missing"), std::runtime_error);
 }
 
+TEST_F(DslEvaluatorTest, DivisionByZeroThrows) {
+    EXPECT_THROW(Eval("1 / 0"), std::runtime_error);
+    Bind("z", 0);
+    EXPECT_THROW(Eval("10 / $z"), std::runtime_error);
+}
+
+TEST_F(DslEvaluatorTest, DivisionByNonZeroWorks) {
+    EXPECT_EQ(Eval("10 / 2").AsInt(), 5);
+}
+
 TEST_F(DslEvaluatorTest, WeaponReachProperty) {
     TWeapon w = MakeWeapon("longsword", 8, "Slashing", "Martial", 1);
     Bind("weapon", &w);
