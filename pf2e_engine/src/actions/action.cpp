@@ -65,8 +65,6 @@ void RunSubPipeline(std::shared_ptr<TActionContext> ctx, IActionBlock* first)
 {
     IActionBlock* saved = ctx->next_block;
     ctx->next_block = first;
-    // Restoring next_block must survive suspension: if the sub-pipeline throws a
-    // savepoint, the restore has to run when it resumes, not be skipped here.
     continuation::Then(
         [ctx]() {
             continuation::While(
