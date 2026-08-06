@@ -37,9 +37,6 @@ void IActionBlock::Run(std::shared_ptr<TActionContext> ctx)
         }
     }
 
-    // Feat sub-pipelines may suspend; chain them and this block's own Apply
-    // through continuations so a savepoint re-protects the remaining work
-    // instead of dropping it (which would skip Apply and later feats).
     continuation::Then(
         [ctx, feat_entries]() {
             continuation::ForEachOwned(feat_entries, [ctx](IActionBlock* first) {
