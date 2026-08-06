@@ -14,9 +14,6 @@ void TTaskScheduler::TriggerEvent(TEvent event, TTransformator& transformator)
             [id](const auto& entry) { return std::get<0>(entry) == id; });
     };
 
-    // Snapshot ids up front: a callback may add or remove tasks (through the
-    // transformator) during this trigger, so we must not iterate the live list.
-    // Every access re-finds the task by id and skips it if a callback removed it.
     std::vector<TTaskId> ids;
     ids.reserve(tasks_.size());
     for (const auto& entry : tasks_) {
@@ -49,9 +46,6 @@ void TTaskScheduler::TriggerEvent(TEvent event, TTransformator& transformator)
             continue;
         }
 
-        // Copy the task before running the callback: a re-entrant callback may
-        // remove this task, which would dangle the reference we still need for
-        // AdvanceTaskProgress / RemoveTask below.
         TTask task_copy = std::get<1>(*it);
         if (task_copy.callback()) {
             if (find_task(id) != tasks_.end()) {
