@@ -18,9 +18,11 @@
 #include "game_object_id.h"
 #include "proficiency.h"
 #include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/inventory/creature_data.h>
 
 #include <pf2e_engine/actions/action_reader.h>
 #include <pf2e_engine/feat.h>
+#include <pf2e_engine/player.h>
 
 namespace {
 
@@ -297,9 +299,14 @@ TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_objec
 
 void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    std::vector<TGameObjectId> actions;
-    for (const auto& action : json_game_object["actions"]) {
-        actions.emplace_back(TGameObjectIdManager::Instance().Register(action));
+    if (json_game_object.contains("actions")) {
+        auto& features = json_game_object["creature_data"]["features"];
+        if (features.is_null()) {
+            features = nlohmann::json::array();
+        }
+        for (const auto& action : json_game_object.at("actions")) {
+            features.push_back("legacy_feature." + action.get<std::string>());
+        }
     }
 
     int level = json_game_object["creature_data"]["level"];
@@ -324,12 +331,13 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
     }
 
-    creatures_.insert({id, [this, json_game_object, actions, proficiency, feats]() {
+    creatures_.insert({id, [this, json_game_object, proficiency, feats]() {
         TCreatureData data = TCreatureData::FromJson(json_game_object.at("creature_data"), *this);
-        TCreature creature(std::move(data), proficiency);
-
-        for (auto action_id : actions) {
-            creature.AddAction(Create<TAction>(action_id));
+        auto rules = AbilityRules();
+        TCreature creature(std::move(data), proficiency, std::move(rules));
+        const auto collector = creature.CollectAbilities();
+        for (const auto& grant : collector.Grants()) {
+            creature.AbilityRules().Executions.Require(grant.DefinitionId);
         }
 
         for (const auto& feat : feats) {
@@ -343,10 +351,70 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
 
 void TGameObjectFactory::ReadAction(nlohmann::json& json, TGameObjectId id)
 {
-    std::shared_ptr<TAction> action = std::make_shared<TAction>(action_reader_.ReadAction(json, *this));
-    actions_.insert({id, [=]() {
-        return action;
-    }});
+    if (actions_.contains(id)) {
+        throw std::invalid_argument("duplicate action definition");
+    }
+    auto action = std::make_shared<TAction>(action_reader_.ReadAction(json, *this));
+    const auto definition = json.value("ability", "legacy_action." +
+        std::string(TGameObjectIdManager::Instance().Name(id)));
+    std::optional<ETrigger> trigger;
+    if (json.contains("trigger")) {
+        trigger = TriggerFromString(json.at("trigger").get<std::string>());
+    }
+    const auto source = json.value("source", std::string{});
+    if (!source.empty() && source != "weapon") {
+        throw std::invalid_argument("unsupported action source: " + source);
+    }
+    actions_.emplace(id, [action]() { return action; });
+    ability_bindings_.emplace(id, TAbilityBinding{definition, trigger, source == "weapon"});
+    ability_rules_.reset();
+}
+
+std::shared_ptr<const TAbilityRules> TGameObjectFactory::AbilityRules() const
+{
+    if (ability_rules_) {
+        return ability_rules_;
+    }
+    auto rules = std::make_shared<TAbilityRules>();
+    RegisterCreatureDataAbilities(rules->Catalog);
+    std::vector<TGameObjectId> ids = AllKnown<TAction>();
+    std::ranges::sort(ids, {}, [](TGameObjectId id) {
+        return std::string(TGameObjectIdManager::Instance().Name(id));
+    });
+    for (auto id : ids) {
+        const auto& binding = ability_bindings_.at(id);
+        const auto kind = binding.Trigger ? EAbilityKind::Reaction : EAbilityKind::Action;
+        if (binding.Definition.starts_with("legacy_action.")) {
+            rules->Catalog.Register({binding.Definition, kind, {}});
+        }
+        const auto& definition = rules->Catalog.Require(binding.Definition);
+        if (definition.Kind != kind) {
+            throw std::invalid_argument("action implementation kind mismatch: " + binding.Definition);
+        }
+        const auto name = std::string(TGameObjectIdManager::Instance().Name(id));
+        rules->Catalog.Register({"legacy_feature." + name, EAbilityKind::Feature, {binding.Definition}});
+        FAbilityRequirement requirement;
+        if (binding.RequiresWeaponSource) {
+            requirement = [](const TPlayer& actor, const TAbilitySourcePath& source,
+                             const TTriggerContext*) {
+                const auto& creature = *actor.GetCreature();
+                for (const auto& [field, weapons] : {
+                        std::pair{"weapons", &creature.Weapons()},
+                        std::pair{"natural_weapons", &creature.NaturalWeapons()}}) {
+                    for (auto entry : *weapons) {
+                        if (source.StartsWith(TAbilitySourcePath{}.Field(field).Entry(entry.Id().Value))) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            };
+        }
+        rules->Executions.Register(binding.Definition, Create<TAction>(id), binding.Trigger,
+                                   std::move(requirement));
+    }
+    ability_rules_ = std::move(rules);
+    return ability_rules_;
 }
 
 

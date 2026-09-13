@@ -11,7 +11,7 @@ enum class ETrigger {
 
 struct TTriggerContext {
     ETrigger type;
-    TPlayer* triggered_player;
+    const TPlayer* triggered_player;
 };
 
 std::string ToString(ETrigger trigger);

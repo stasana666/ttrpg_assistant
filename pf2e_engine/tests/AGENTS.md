@@ -14,6 +14,10 @@ Canonical project instructions. CLAUDE.md redirects here.
   compile generated entities into `test_inventory` and verify named factories,
   identity transfer, nested methods, rollback, pure queries, and snapshots with
   collection allocator state.
+- `inventory/fixtures/granted_entities.ttrpg` imports `granted_abilities.ttrpg`;
+  `inventory/test_granted_entities.cpp` verifies imported ability registration,
+  feature and weapon grant traversal, action/reaction distinction, source IDs,
+  and provenance preservation through snapshots and removal of one source.
 - `dsl/`: runtime DSL parser/evaluator/property tests.
 - `ast/`: rollback and AST state-comparison tests.
 

@@ -18,6 +18,10 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Inventory, condition, and creature-data support types are generated from `.ttrpg` schemas into `build/generated/pf2e_engine/...`.
 - Hit-point storage and damage/healing methods are generated from `data/schemas/hitpoints.ttrpg`; `TTransformator` delegates to these methods through `TGeneratedExecutionContext`. It does not implement hit-point clipping or temporary-hit-point rules.
 - Rollback/resume behavior depends on `TTransformator`, `TSavepointStackUnwind`, continuation helpers, and AST state comparison.
+- Generated `VisitGrantedAbilities` derives ability grants from current creature, race, class, weapon, and natural-weapon feature selections. `TCreature` has no separately mutable action or reaction list; its shared `TAbilityRules` holds immutable definitions and execution bindings.
+- `TBattle::AvailableActions`, `AvailableReactions(trigger)`, and `Execute(option)` expose bound choices. Sources use generated field paths plus collection entry IDs. Execution checks the live grant and cost again; suspended actions retain their definition and weapon snapshot and revalidate their source before resuming.
+- Action/reaction declarations in `.ttrpg` currently define symbols and ownership only. Bodies, costs, weapon-source requirements, and triggers are bound through existing JSON pipelines. Reaction enumeration does not implement a reaction window or choose/execute reactions automatically.
+- Legacy `TCreatureFeat` pipeline hooks remain in use for Pack Attack. Proficiency, several creature helpers, action bodies, and PF2e reaction timing still require migration before `TCreature` is fully generated.
 
 ## Build/Test
 - Build engine: `cmake --build build --target pf2e_engine`.

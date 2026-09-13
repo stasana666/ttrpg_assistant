@@ -87,6 +87,7 @@ std::string InferAndValidate(const expr::TExprNode& e,
         case K::ObjectInit:
         case K::Index:
         case K::StringLiteral:
+        case K::ListLiteral:
         case K::Call:
             throw std::runtime_error("function calls are not supported in computed defaults" + where);
         case K::Unary:
@@ -108,6 +109,7 @@ bool InitIsComputed(const expr::TExprNode& e, const std::unordered_set<std::stri
         case K::ObjectInit:
         case K::Index:
         case K::StringLiteral:
+        case K::ListLiteral:
         case K::Member:
         case K::Call:
         case K::Unary:
@@ -133,6 +135,7 @@ std::string InitExprToCpp(const expr::TExprNode& e, const std::string& selfPrefi
         case K::ObjectInit:
         case K::Index:
         case K::StringLiteral:
+        case K::ListLiteral:
         case K::Call:
         case K::Unary:
             break;

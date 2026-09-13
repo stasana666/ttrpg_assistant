@@ -4,6 +4,7 @@ import "creature_parts.ttrpg";
 import "condition.ttrpg";
 import "damage.ttrpg";
 import "hitpoints.ttrpg";
+import "abilities.ttrpg";
 
 enum ECreatureSize {
     Tiny,
@@ -42,6 +43,7 @@ class TCreatureData {
     TArmor Armor;
     collection<TWeapon> Weapons;
     collection<TWeapon> NaturalWeapons;
+    collection<Feature> Features;
     set<TCondition> Conditions;
     set<EDamageType> Immunities;
     map<EDamageType, int> Resistances;
@@ -50,4 +52,10 @@ class TCreatureData {
     Resource Reactions = 0;
     Resource Hands = 0;
     map<ESpellSlotRank, Resource> SpellSlots;
+
+    grant @self.Features;
+    grant @self.Race;
+    grant @self.Class;
+    grant @self.Weapons;
+    grant @self.NaturalWeapons;
 }

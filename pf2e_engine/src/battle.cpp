@@ -13,6 +13,9 @@
 #include <pf2e_engine/common/ast/ast_layout_assert.h>
 
 #include <cassert>
+#include <algorithm>
+#include <map>
+#include <utility>
 #include <iostream>
 #include <stdexcept>
 #include "reaction.h"
@@ -21,6 +24,34 @@
 
 namespace {
 constexpr int kActionsPerTurn = 3;
+
+const TWeapon* SourceWeapon(const TCreature& creature, const TAbilitySourcePath& source)
+{
+    for (const auto& [field, weapons] : {
+            std::pair{"weapons", &creature.Weapons()},
+            std::pair{"natural_weapons", &creature.NaturalWeapons()}}) {
+        for (auto entry : *weapons) {
+            if (source.StartsWith(TAbilitySourcePath{}.Field(field).Entry(entry.Id().Value))) {
+                return &*entry;
+            }
+        }
+    }
+    return nullptr;
+}
+
+std::string SourceName(const TCreature& creature, const TAbilitySourcePath& source)
+{
+    if (const auto* weapon = SourceWeapon(creature, source)) {
+        return weapon->Name();
+    }
+    if (source.StartsWith(TAbilitySourcePath{}.Field("race"))) {
+        return "Ancestry feature";
+    }
+    if (source.StartsWith(TAbilitySourcePath{}.Field("class"))) {
+        return "Class feature";
+    }
+    return "Creature feature";
+}
 }
 
 TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, IInteractionSystem& io_system)
@@ -106,7 +137,6 @@ void TBattle::MakeTurn()
     TPlayer& player = *initiative_order_.CurrentPlayer();
 
     std::optional<TSavepointStackUnwind> last_save_point;
-    TAction* action;
     while (!IsBattleEnd() && player.GetCreature()->IsAlive())
     {
         try {
@@ -115,14 +145,16 @@ void TBattle::MakeTurn()
                 last_save_point->Resume();
                 last_save_point = std::nullopt;
             } else {
-                if ((action = ChooseAction(player)) != nullptr) {
-                    action->Apply(MakeActionContext(), player);
+                if (auto action = ChooseAction(player)) {
+                    Execute(*action);
                 } else {
                     break;
                 }
             }
         } catch (TSavepointStackUnwind& save_point) {
             last_save_point = save_point;
+        } catch (const TAbilityUnavailable&) {
+            last_save_point.reset();
         }
     }
 }
@@ -198,27 +230,75 @@ std::shared_ptr<TActionContext> TBattle::MakeActionContext()
     });
 }
 
-TAction* TBattle::ChooseAction(TPlayer& player) const
+std::vector<TAbilityOption> TBattle::AvailableActions(const TPlayer& player) const
 {
-    std::vector<TAction*> actions;
-    for (auto& action : player.GetCreature()->ActionList()) {
-        if (action->Check(player)) {
-            actions.emplace_back(&*action);
-        }
+    const auto& creature = *player.GetCreature();
+    if (!creature.IsAlive()) {
+        return {};
     }
+    return EnumerateActions(player.GetId(), creature.CollectAbilities(),
+                            creature.AbilityRules().Executions, player);
+}
 
+std::optional<TAbilityOption> TBattle::ChooseAction(TPlayer& player) const
+{
+    const auto actions = AvailableActions(player);
     if (actions.empty()) {
-        return nullptr;
+        return std::nullopt;
     }
 
-    TAlternatives alternatives = TAlternatives::Create<TAction*>("next action");
-
-    alternatives.AddAlternative("End of turn", static_cast<TAction*>(nullptr));
-    for (auto& action : actions) {
-        alternatives.AddAlternative(std::string(action->Name()), action);
+    auto alternatives = TAlternatives::Create<std::optional<TAbilityOption>>("next action");
+    alternatives.AddAlternative("End of turn", std::optional<TAbilityOption>{});
+    std::map<std::string, size_t> labels;
+    for (const auto& action : actions) {
+        std::string name(action.Action->Name());
+        if (std::ranges::count_if(actions, [&](const TAbilityOption& other) {
+                return other.Action->Name() == action.Action->Name();
+            }) > 1) {
+            name += " (" + SourceName(*std::as_const(player).GetCreature(), action.Source) + ")";
+            const auto occurrence = ++labels[name];
+            if (occurrence > 1) {
+                name += " " + std::to_string(occurrence);
+            }
+        }
+        alternatives.AddAlternative(std::move(name), std::optional<TAbilityOption>{action});
     }
+    return io_system_.ChooseAlternative<std::optional<TAbilityOption>>(player.GetId(), alternatives);
+}
 
-    return io_system_.ChooseAlternative<TAction*>(player.GetId(), alternatives);
+EAbilityExecutionResult TBattle::Execute(const TAbilityOption& option)
+{
+    auto actors = GetIfPlayers([&](const TPlayer* player) { return player->GetId() == option.ActorId; });
+    if (actors.size() != 1) {
+        return EAbilityExecutionResult::Unavailable;
+    }
+    TPlayer& actor = *actors.front();
+    const auto& creature = *std::as_const(actor).GetCreature();
+    if (!creature.IsAlive()) {
+        return EAbilityExecutionResult::Unavailable;
+    }
+    auto fresh = creature.CollectAbilities();
+    TAbilityExecutionBindings bindings;
+    if (const auto* weapon = SourceWeapon(creature, option.Source)) {
+        bindings.SourceWeapon = std::make_shared<const TWeapon>(*weapon);
+    }
+    if (option.Trigger) {
+        auto triggered = GetIfPlayers([&](const TPlayer* player) {
+            return player->GetId() == option.Trigger->ActorId;
+        });
+        if (triggered.size() != 1) {
+            return EAbilityExecutionResult::Unavailable;
+        }
+        bindings.TriggerActor = triggered.front();
+    }
+    bindings.ValidateSource = [&creature, definition = option.DefinitionId, source = option.Source]() {
+        const auto grants = creature.CollectAbilities();
+        return std::ranges::any_of(grants.Grants(), [&](const TGrantedAbility& grant) {
+            return grant.DefinitionId == definition && grant.Source == source;
+        });
+    };
+    return ExecuteAbility(option, MakeActionContext(), actor, fresh,
+                          creature.AbilityRules().Executions, std::move(bindings));
 }
 
 std::shared_ptr<const TBattleMap> TBattle::BattleMap() const
@@ -231,12 +311,17 @@ THolder<TBattleMap>& TBattle::BattleMapMutable()
     return battle_map_;
 }
 
-std::vector<const TReaction*> TBattle::Reactions(ETrigger trigger) const
+std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& trigger) const
 {
-    std::vector<const TReaction*> reactions;
-    for (auto& player : players_) {
-        std::vector<const TReaction*> player_reactions = player.GetCreature()->Reactions(trigger);
-        reactions.insert(reactions.begin(), player_reactions.begin(), player_reactions.end());
+    std::vector<TAbilityOption> reactions;
+    for (const auto& player : players_) {
+        const auto& creature = *player.GetCreature();
+        if (!creature.IsAlive()) {
+            continue;
+        }
+        auto candidates = EnumerateReactions(player.GetId(), creature.CollectAbilities(),
+                                            creature.AbilityRules().Executions, player, trigger);
+        reactions.insert(reactions.end(), candidates.begin(), candidates.end());
     }
     return reactions;
 }
@@ -270,4 +355,3 @@ TAstNode TBattle::GetAst(TAstContext& ctx) const
     node.AddChild("players", std::move(players_node));
     return node;
 }
-

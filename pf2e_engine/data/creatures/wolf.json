@@ -3,6 +3,7 @@
     "type": "pf2e_creature",
     "pf2e_creature": {
         "creature_data": {
+            "features": ["abilities.WolfActions"],
             "level": 1,
             "size": "Medium",
             "race": "wolf",
@@ -43,10 +44,6 @@
             },
             "Perception": "expert"
         },
-        "actions": [
-            "attack_with_weapon",
-            "move"
-        ],
         "feats": [
             {
                 "name": "Pack Attack",

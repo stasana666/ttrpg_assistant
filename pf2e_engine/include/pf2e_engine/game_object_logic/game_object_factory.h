@@ -37,6 +37,7 @@ public:
 
     std::vector<TGameObjectId> Creatures() const;
     std::vector<TGameObjectId> BattleMaps() const;
+    std::shared_ptr<const TAbilityRules> AbilityRules() const;
 
 private:
     class TGeneratedConstructionGuard {
@@ -100,6 +101,13 @@ private:
     TFactoryStorage<TCreatureData> creature_data_;
     TFactoryStorage<TCreature> creatures_;
     TFactoryStorage<std::shared_ptr<TAction>> actions_;
+    struct TAbilityBinding {
+        std::string Definition;
+        std::optional<ETrigger> Trigger;
+        bool RequiresWeaponSource;
+    };
+    std::unordered_map<TGameObjectId, TAbilityBinding, TGameObjectIdHash> ability_bindings_;
+    mutable std::shared_ptr<const TAbilityRules> ability_rules_;
     TFactoryStorage<TBattleMap> battle_maps_;
     std::unordered_map<std::string, std::type_index> generated_types_;
     std::unordered_map<std::type_index, TGeneratedDefinitions> generated_definitions_;

@@ -2,6 +2,7 @@
     "type": "pf2e_action",
     "name": "trip",
     "pf2e_action": {
+        "ability": "abilities.Trip",
         "name": "trip",
         "resources": [
             {

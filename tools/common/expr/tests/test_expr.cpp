@@ -254,3 +254,32 @@ TEST(ExprParser, RejectsInvalidStringsWithLocations) {
         EXPECT_NE(std::string(error.what()).find("line 1, col 6"), std::string::npos);
     }
 }
+
+TEST(ExprParser, ParsesCollectionListsWithObjectsAndTrailingComma) {
+    const auto value = Parse("[Training, TWeapon { Name = \"Sword\"; Features = [Keen]; },]");
+    ASSERT_EQ(value.Kind, ENodeKind::ListLiteral);
+    ASSERT_EQ(value.Args.size(), 2u);
+    EXPECT_EQ(value.Args[0].Text, "Training");
+    ASSERT_EQ(value.Args[1].Kind, ENodeKind::ObjectInit);
+    ASSERT_EQ(value.Args[1].Fields.size(), 2u);
+    const auto& nested = value.Args[1].Fields[1].Value;
+    ASSERT_EQ(nested.Kind, ENodeKind::ListLiteral);
+    EXPECT_EQ(nested.Args[0].Text, "Keen");
+    auto copy = value;
+    copy.Args[1].Fields[1].Value.Args[0].Text = "Changed";
+    EXPECT_EQ(nested.Args[0].Text, "Keen");
+    EXPECT_TRUE(Parse("[]").Args.empty());
+}
+
+TEST(ExprParser, RetainsPostfixIndexingAfterListLiteral) {
+    const auto value = Parse("[1, 2][0]");
+    ASSERT_EQ(value.Kind, ENodeKind::Index);
+    EXPECT_EQ(value.Lhs->Kind, ENodeKind::ListLiteral);
+    EXPECT_EQ(value.Rhs->Text, "0");
+}
+
+TEST(ExprParser, RejectsMalformedListLiterals) {
+    for (const std::string source : {"[", "[1", "[1 2]", "[,]", "[1,,]"}) {
+        EXPECT_THROW(Parse(source), std::runtime_error) << source;
+    }
+}

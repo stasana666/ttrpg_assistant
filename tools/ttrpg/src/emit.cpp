@@ -1,5 +1,6 @@
 #include <ttrpg/emit.h>
 #include <ttrpg/emit_rule_class.h>
+#include <ttrpg/abilities.h>
 
 #include <ttrpg/analyze.h>
 #include <ttrpg/conventions.h>
@@ -7,6 +8,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <filesystem>
 #include <set>
 #include <string>
 #include <unordered_set>
@@ -36,6 +38,7 @@ std::vector<const TClassDecl*> OrderedClasses(const TLoadedSchemas& loaded) {
 }
 
 void ValidateRules(const TLoadedSchemas& loaded) {
+    ValidateAbilityDefinitions(loaded);
     (void)OrderedClasses(loaded);
     for (const auto& c : loaded.Primary.Classes) {
         (void)CompileClass(c, loaded);
@@ -222,6 +225,7 @@ void EmitHeader(std::ostream& os,
     w.Line("#pragma once");
     w.EmptyLine();
     w.Include("pf2e_engine/common/ast/ast_constructable.h");
+    w.Include("pf2e_engine/common/ability.h");
     if (!mod.Classes.empty()) {
         w.Include("pf2e_engine/common/guarded.h");
     }
@@ -244,6 +248,9 @@ void EmitHeader(std::ostream& os,
     bool anyMap = false;
 
     std::set<std::string> externalStems;
+    for (const auto& imported : ImportedModuleStems(loaded, loaded.PrimaryStem)) {
+        externalStems.insert(imported);
+    }
 
     auto inspectField = [&](const TFieldDecl& f, const std::string& ownerDesc) {
         if (f.Container == EContainer::Map) {
@@ -286,6 +293,13 @@ void EmitHeader(std::ostream& os,
             return;
         }
         if (IsBuiltinPrimitive(f.TypeName)) {
+            return;
+        }
+        if (IsBuiltinFeature(f.TypeName)) {
+            if (f.Container != EContainer::None && f.Container != EContainer::Collection) {
+                throw std::runtime_error("Feature supports scalar and collection fields only");
+            }
+            anyCollection = anyCollection || f.Container == EContainer::Collection;
             return;
         }
         if (IsBuiltinBoundedQuantity(f.TypeName)) {
@@ -337,6 +351,9 @@ void EmitHeader(std::ostream& os,
     for (const auto& v : mod.Variants) {
         for (const auto& alt : v.Alternatives) {
             for (const auto& f : alt.Fields) {
+                if (IsBuiltinFeature(f.TypeName) || IsBuiltinFeature(f.ValueTypeName)) {
+                    throw std::runtime_error("Feature selections are supported in class fields, not variant payloads");
+                }
                 inspectField(f, "variant '" + v.Name + "' alternative '" + alt.Name + "'");
             }
         }
@@ -425,6 +442,7 @@ void EmitHeader(std::ostream& os,
     for (const auto& instance : mod.Instances) {
         w.Line(instance.TypeName + " Create" + instance.Name + "();");
     }
+    w.Line("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog);");
 }
 
 void EmitEnumImpl(TCppWriter& w, const TEnumDecl& e) {
@@ -838,4 +856,22 @@ void EmitImpl(std::ostream& os,
         });
         w.EmptyLine();
     }
+    w.Function("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog)", [&] {
+        w.Line("(void)catalog;");
+        for (const auto& imported : ImportedModuleStems(loaded, loaded.PrimaryStem)) {
+            w.Line(AbilityRegistrationFunction(imported) + "(catalog);");
+        }
+        for (const auto& ability : mod.Abilities) {
+            const std::string kind = ability.Kind == EAbilityDeclarationKind::Action ? "Action" :
+                ability.Kind == EAbilityDeclarationKind::Reaction ? "Reaction" : "Feature";
+            std::string grants = "{";
+            for (std::size_t i = 0; i < ability.Grants.size(); ++i) {
+                if (i != 0) grants += ", ";
+                grants += CppStringLiteral(AbilityId(ability.Grants[i].Source.Text, loaded));
+            }
+            w.Line("catalog.Register(TAbilityDefinition{" + CppStringLiteral(AbilityId(ability.Name, loaded)) +
+                ", EAbilityKind::" + kind + ", " + grants + "}});");
+        }
+    });
+    w.EmptyLine();
 }

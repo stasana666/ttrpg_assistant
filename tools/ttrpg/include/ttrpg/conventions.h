@@ -7,6 +7,8 @@
 #include <string>
 #include <unordered_map>
 
+std::string CppStringLiteral(const std::string& value);
+
 std::string PascalToSnake(const std::string& s);
 
 bool IsBuiltinInt(const std::string& t);
@@ -16,6 +18,7 @@ bool IsBuiltinPrimitive(const std::string& t);
 
 bool IsBuiltinBoundedQuantity(const std::string& t);
 bool IsBuiltinResource(const std::string& t);
+bool IsBuiltinFeature(const std::string& t);
 
 std::string CppTypeFor(const std::string& schemaType);
 
@@ -26,6 +29,7 @@ enum class EFieldKind {
     Variant,
     BoundedQuantity,
     Resource,
+    Feature,
 };
 
 EFieldKind FieldKindOf(const TFieldDecl& f,

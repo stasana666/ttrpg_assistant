@@ -161,3 +161,7 @@ void TSpell::RegisterDslProperties() {
     (void)r;
 }
 
+void RegisterVariantAbilities(TAbilityCatalog& catalog) {
+    (void)catalog;
+}
+

@@ -1,6 +1,7 @@
 #include <action_block.h>
 
 #include <pf2e_engine/actions/action.h>
+#include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/common/errors.h>
 #include <pf2e_engine/common/continuation.h>
 #include <pf2e_engine/creature.h>
@@ -22,6 +23,7 @@ static const TGameObjectId kSelfId = TGameObjectIdManager::Instance().Register("
 
 void IActionBlock::Run(std::shared_ptr<TActionContext> ctx)
 {
+    ValidateAbilitySource(ctx);
     TPlayer& self = ctx->game_object_registry->Get<TPlayer>(kSelfId);
     std::string name = GetName();
 
@@ -43,7 +45,10 @@ void IActionBlock::Run(std::shared_ptr<TActionContext> ctx)
                 RunSubPipeline(ctx, first);
             });
         },
-        [this, ctx]() { Apply(ctx); });
+        [this, ctx]() {
+            ValidateAbilitySource(ctx);
+            Apply(ctx);
+        });
 }
 
 constexpr std::string ToString(EBlockType type)
@@ -84,7 +89,7 @@ void TSwitchBlock::Apply(std::shared_ptr<TActionContext> ctx)
 {
     std::visit(VisitorHelper{
         [&](ESuccessLevel success_level) {
-            ctx->next_block = next_table_[success_level];
+            ctx->next_block = next_table_.at(success_level);
         },
         [](auto&&) {
             throw std::logic_error("unexpected type");

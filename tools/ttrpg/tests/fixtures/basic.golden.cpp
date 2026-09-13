@@ -92,3 +92,7 @@ void TThing::RegisterDslProperties() {
     });
 }
 
+void RegisterBasicAbilities(TAbilityCatalog& catalog) {
+    (void)catalog;
+}
+

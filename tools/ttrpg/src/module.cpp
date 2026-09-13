@@ -77,9 +77,15 @@ TLoadedSchemas LoadAll(const fs::path& primaryPath) {
         for (const std::string& imp : mod.Imports) {
             fs::path importPath = canon.parent_path() / imp;
             self(self, importPath);
+            loaded.ImportedStems[stem].push_back(fs::weakly_canonical(importPath).stem().string());
         }
 
         RegisterModuleSymbols(stem, mod, loaded.SymbolTable);
+        for (const auto& definition : mod.Abilities) {
+            if (!loaded.Definitions.emplace(definition.Name, TAbilityInfo{stem, definition.Kind}).second) {
+                throw std::runtime_error("duplicate ability definition '" + definition.Name + "'");
+            }
+        }
         loaded.ByStem.emplace(stem, std::move(mod));
         loaded.SourcePaths.push_back(canon);
         loading.erase(canonStr);
@@ -88,4 +94,18 @@ TLoadedSchemas LoadAll(const fs::path& primaryPath) {
     LoadRec(LoadRec, primaryPath);
     loaded.Primary = loaded.ByStem.at(loaded.PrimaryStem);
     return loaded;
+}
+
+std::vector<std::string> ImportedModuleStems(const TLoadedSchemas& loaded,
+                                           const std::string& ownerStem)
+{
+    if (const auto found = loaded.ImportedStems.find(ownerStem); found != loaded.ImportedStems.end()) {
+        return found->second;
+    }
+    const auto& module = ownerStem == loaded.PrimaryStem ? loaded.Primary : loaded.ByStem.at(ownerStem);
+    std::vector<std::string> result;
+    for (const auto& imported : module.Imports) {
+        result.push_back(fs::path(imported).stem().string());
+    }
+    return result;
 }

@@ -2,6 +2,7 @@
     "type": "pf2e_action",
     "name": "move",
     "pf2e_action": {
+        "ability": "abilities.Stride",
         "name": "move",
         "resources": [
             {

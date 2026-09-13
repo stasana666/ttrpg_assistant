@@ -4,6 +4,7 @@ target_sources(pf2e_engine
         bounded_quantity.cpp
         resource.cpp
         generated_execution.cpp
+        ability.cpp
 )
 
 add_subdirectory(ast)

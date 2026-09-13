@@ -166,3 +166,7 @@ void TStats::RegisterDslProperties() {
     });
 }
 
+void RegisterComputedAbilities(TAbilityCatalog& catalog) {
+    (void)catalog;
+}
+

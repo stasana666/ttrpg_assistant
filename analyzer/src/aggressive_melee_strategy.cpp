@@ -1,6 +1,7 @@
 #include <analyzer/aggressive_melee_strategy.h>
 
 #include <pf2e_engine/player.h>
+#include <pf2e_engine/actions/ability.h>
 
 #include <string_view>
 
@@ -9,7 +10,9 @@ namespace {
 size_t ChooseAction(const TAlternatives& alternatives)
 {
     for (size_t i = 0; i < alternatives.Size(); ++i) {
-        if (alternatives[i].name.find("attack") != std::string::npos) {
+        const auto option = alternatives[i].Get<std::optional<TAbilityOption>>();
+        if (option && (option->DefinitionId == "abilities.AttackWithWeapon"
+                       || option->DefinitionId == "abilities.Strike")) {
             return i;
         }
     }

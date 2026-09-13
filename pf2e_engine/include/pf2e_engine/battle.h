@@ -9,6 +9,7 @@
 #include <pf2e_engine/scheduler.h>
 #include <pf2e_engine/transformation/transformator.h>
 #include <pf2e_engine/actions/reaction.h>
+#include <pf2e_engine/actions/ability.h>
 
 #include <deque>
 #include <optional>
@@ -29,9 +30,11 @@ public:
 
     std::shared_ptr<const TBattleMap> BattleMap() const;
     THolder<TBattleMap>& BattleMapMutable();
-    TAction* ChooseAction(TPlayer&) const;
+    std::optional<TAbilityOption> ChooseAction(TPlayer&) const;
 
-    std::vector<const TReaction*> Reactions(ETrigger trigger) const;
+    std::vector<TAbilityOption> AvailableActions(const TPlayer&) const;
+    std::vector<TAbilityOption> AvailableReactions(const TTriggerContext& trigger) const;
+    EAbilityExecutionResult Execute(const TAbilityOption& option);
 
     TAstNode GetAst(TAstContext& ctx) const;
 

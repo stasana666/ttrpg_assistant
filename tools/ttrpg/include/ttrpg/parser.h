@@ -63,6 +63,8 @@ public:
                 mod.Variants.push_back(ParseVariant());
             } else if (t.text == "class" || t.text == "GameEntity") {
                 mod.Classes.push_back(ParseClass());
+            } else if (t.text == "action" || t.text == "reaction" || t.text == "feature") {
+                mod.Abilities.push_back(ParseAbility());
             } else if (t.text == "import") {
                 ts_.Throw("'import' must appear before any class/enum/variant");
             } else {
@@ -73,6 +75,35 @@ public:
     }
 
 private:
+    TGrantDecl ParseGrant() {
+        TGrantDecl grant;
+        grant.Location = ts_.Peek().loc;
+        ExpectIdentText("grant");
+        grant.Source = ReadExpression(ETok::Semi);
+        ts_.Expect(ETok::Semi, "';'");
+        return grant;
+    }
+
+    TAbilityDecl ParseAbility() {
+        TAbilityDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        const std::string keyword = ts_.Consume().text;
+        declaration.Kind = keyword == "action" ? EAbilityDeclarationKind::Action :
+            keyword == "reaction" ? EAbilityDeclarationKind::Reaction : EAbilityDeclarationKind::Feature;
+        declaration.Name = ExpectIdent("ability name");
+        if (declaration.Kind == EAbilityDeclarationKind::Feature) {
+            ts_.Expect(ETok::LBrace, "'{' after feature name");
+            while (ts_.Peek().kind != ETok::RBrace) {
+                declaration.Grants.push_back(ParseGrant());
+            }
+            ts_.Expect(ETok::RBrace, "'}'");
+            ts_.Match(ETok::Semi);
+        } else {
+            ts_.Expect(ETok::Semi, "';' after action or reaction declaration");
+        }
+        return declaration;
+    }
+
     TEnumDecl ParseEnum() {
         ExpectIdentText("enum");
         TEnumDecl e;
@@ -98,6 +129,8 @@ private:
         while (ts_.Peek().kind != ETok::RBrace) {
             if (ts_.Peek().text == "method" || ts_.Peek().text == "query") {
                 c.Methods.push_back(ParseMethod());
+            } else if (ts_.Peek().text == "grant") {
+                c.Grants.push_back(ParseGrant());
             } else {
                 c.Fields.push_back(ParseField());
             }
@@ -179,9 +212,6 @@ private:
         }
         f.Name = ExpectIdent("field name");
         if (ts_.Peek().kind == ETok::Equals) {
-            if (f.Container != EContainer::None) {
-                ts_.Throw("container fields cannot have a default value");
-            }
             ts_.Advance();
             f.Init = ReadExpression(ETok::Semi);
         }

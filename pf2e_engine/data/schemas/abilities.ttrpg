@@ -1,0 +1,29 @@
+action AttackWithWeapon;
+action Strike;
+action Stride;
+action Demoralize;
+action Trip;
+action Stand;
+action Fireball;
+reaction AttackOfOpportunity;
+
+feature HumanWarriorActions {
+    grant AttackWithWeapon;
+    grant Demoralize;
+    grant Stride;
+    grant Trip;
+    grant Stand;
+}
+
+feature WolfActions {
+    grant AttackWithWeapon;
+    grant Stride;
+}
+
+feature WeaponStrike {
+    grant Strike;
+}
+
+feature FighterReaction {
+    grant AttackOfOpportunity;
+}

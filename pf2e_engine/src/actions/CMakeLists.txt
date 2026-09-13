@@ -3,6 +3,7 @@ target_sources(pf2e_engine
         action_reader.cpp
         action_block.cpp
         action.cpp
+        ability.cpp
         reaction.cpp
         save_point.cpp
 )

@@ -6,6 +6,29 @@
 
 namespace fs = std::filesystem;
 
+std::string CppStringLiteral(const std::string& value) {
+    std::string result = "\"";
+    for (unsigned char c : value) {
+        switch (c) {
+            case '\\': result += "\\\\"; break;
+            case '"': result += "\\\""; break;
+            case '\n': result += "\\n"; break;
+            case '\r': result += "\\r"; break;
+            case '\t': result += "\\t"; break;
+            default:
+                if (c < 32 || c == 127) {
+                    result += '\\';
+                    result += static_cast<char>('0' + ((c >> 6) & 7));
+                    result += static_cast<char>('0' + ((c >> 3) & 7));
+                    result += static_cast<char>('0' + (c & 7));
+                } else {
+                    result += static_cast<char>(c);
+                }
+        }
+    }
+    return result + "\"";
+}
+
 std::string PascalToSnake(const std::string& s) {
     std::string out;
     for (size_t i = 0; i < s.size(); ++i) {
@@ -31,8 +54,12 @@ bool IsBuiltinPrimitive(const std::string& t) {
 
 bool IsBuiltinBoundedQuantity(const std::string& t) { return t == "BoundedQuantity"; }
 bool IsBuiltinResource(const std::string& t) { return t == "Resource"; }
+bool IsBuiltinFeature(const std::string& t) { return t == "Feature"; }
 
 std::string CppTypeFor(const std::string& schemaType) {
+    if (schemaType == "Feature") {
+        return "TFeatureSelection";
+    }
     if (schemaType == "string") {
         return "std::string";
     }
@@ -56,6 +83,9 @@ EFieldKind FieldKindOf(const TFieldDecl& f,
     }
     if (IsBuiltinResource(f.TypeName)) {
         return EFieldKind::Resource;
+    }
+    if (IsBuiltinFeature(f.TypeName)) {
+        return EFieldKind::Feature;
     }
     auto it = symbols.find(f.TypeName);
     if (it == symbols.end()) {
@@ -122,6 +152,8 @@ std::string ScalarParseExpr(const TFieldDecl& f,
             return "TBoundedQuantity::FromJson(" + valExpr + ", factory)";
         case EFieldKind::Resource:
             return "TResource::FromJson(" + valExpr + ", factory)";
+        case EFieldKind::Feature:
+            return "TFeatureSelection::FromJson(" + valExpr + ")";
     }
     throw std::runtime_error("unreachable: unknown EFieldKind");
 }
@@ -186,7 +218,7 @@ std::string CppMemberType(const TFieldDecl& f,
             }
             return "std::set<" + f.TypeName + ">";
         case EContainer::Collection:
-            return "TIdCollection<" + f.TypeName + ">";
+            return "TIdCollection<" + CppTypeFor(f.TypeName) + ">";
         case EContainer::Map:
             return "std::map<" + f.TypeName + ", " + CppTypeFor(f.ValueTypeName) + ">";
     }

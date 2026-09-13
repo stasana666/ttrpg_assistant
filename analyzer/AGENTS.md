@@ -19,8 +19,8 @@ contract. Keep analyzer code independent of assistant GUI/audio.
   target.
 - [include/analyzer/automated_interaction_system.h](include/analyzer/automated_interaction_system.h) —
   `TAutomatedInteractionSystem`: delegates every choice to an `IDecisionStrategy`,
-  discards log output, and **resolves reaction triggers immediately** (unlike the
-  assistant, which defers them).
+  discards log output, and acknowledges reaction notifications without selecting
+  or executing a reaction.
 - [src/combat_analyzer.cpp](src/combat_analyzer.cpp) — `TCombatAnalyzer`: builds
   the `TGameObjectFactory` once, then loops a fresh `TBattle` + seeded
   `TRandomGenerator` per run, aggregating per-team win rate and per-creature death
@@ -40,3 +40,4 @@ contract. Keep analyzer code independent of assistant GUI/audio.
   data/schema changes affect simulation results.
 - Do not change engine combat rules to move an analysis number — adjust the
   strategy or test setup instead unless explicitly asked.
+- Action alternatives carry `optional<TAbilityOption>`; the empty value ends a turn. The aggressive strategy recognizes `abilities.AttackWithWeapon` and `abilities.Strike` by definition ID, independently of display labels and the particular weapon source.

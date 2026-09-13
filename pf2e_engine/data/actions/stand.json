@@ -2,6 +2,7 @@
     "type": "pf2e_action",
     "name": "stand",
     "pf2e_action": {
+        "ability": "abilities.Stand",
         "name": "stand",
         "resources": [
             {

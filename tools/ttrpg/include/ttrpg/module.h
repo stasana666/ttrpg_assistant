@@ -21,12 +21,19 @@ struct TTypeInfo {
     ETypeKind Kind = ETypeKind::Class;
 };
 
+struct TAbilityInfo {
+    std::string OwnerStem;
+    EAbilityDeclarationKind Kind;
+};
+
 struct TLoadedSchemas {
     TSchemaModule Primary;
     std::string PrimaryStem;
     std::unordered_map<std::string, TSchemaModule> ByStem;
     std::unordered_map<std::string, TTypeInfo> SymbolTable;
     std::vector<std::filesystem::path> SourcePaths;
+    std::unordered_map<std::string, TAbilityInfo> Definitions;
+    std::unordered_map<std::string, std::vector<std::string>> ImportedStems;
 };
 
 void RegisterModuleSymbols(const std::string& stem,
@@ -34,3 +41,5 @@ void RegisterModuleSymbols(const std::string& stem,
                            std::unordered_map<std::string, TTypeInfo>& table);
 
 TLoadedSchemas LoadAll(const std::filesystem::path& primaryPath);
+std::vector<std::string> ImportedModuleStems(const TLoadedSchemas& loaded,
+                                           const std::string& ownerStem);

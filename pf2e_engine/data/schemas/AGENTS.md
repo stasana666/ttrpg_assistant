@@ -32,3 +32,10 @@ Canonical project instructions. CLAUDE.md redirects here.
 - If adding a generated class with DSL-visible fields, register its `RegisterDslProperties()` in `pf2e_engine/src/dsl/builtins.cpp`.
 - Keep `.ttrpg` language behavior changes in `tools/ttrpg/`, not here.
 - Keep `pf2e_engine/schemas/schema.json` synchronized when JSON input shape changes.
+
+## Ability Grants
+- `abilities.ttrpg` declares action symbols and reusable feature groups. `TCreatureData`, `TRace`, `TClass`, and `TWeapon` store `collection<Feature>` and expose their providers with `grant @self.Features`.
+- `TCreatureData` also grants its race, class, weapon collection, and natural-weapon collection. Traversal reads their current selections; it does not copy action lists during construction.
+- `feature WeaponStrike { grant Strike; }` can be selected on any declared weapon. Its pipeline binds that particular weapon as `$source`/`$weapon`; the original `AttackWithWeapon` action retains the legacy weapon-selection prompt.
+- Feature choices are arbitrary declared definitions at this stage; ancestry/class prerequisites, level gates, choice counts, contextual modifiers, and the full PF2e feat catalogue are not implemented.
+- `tests/inventory/fixtures/granted_entities.ttrpg` shows named fighter/wolf factories with collection literals and imported feature definitions. These are language fixtures, not complete PF2e statblocks.

@@ -66,6 +66,10 @@
         "pf2e_weapon_core": {
             "type": "object",
             "properties": {
+                "features": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                },
                 "name": { "type": "string" },
                 "base_dice_size": { "type": "integer" },
                 "damage_type": {
@@ -121,7 +125,11 @@
 
         "pf2e_race_core": {
             "type": "object",
-            "properties": { "hitpoints": { "type": "integer" } },
+            "properties": {
+                "features": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                }, "hitpoints": { "type": "integer" } },
             "required": ["hitpoints"],
             "additionalProperties": false
         },
@@ -142,7 +150,11 @@
 
         "pf2e_class_core": {
             "type": "object",
-            "properties": { "hitpoints": { "type": "integer" } },
+            "properties": {
+                "features": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                }, "hitpoints": { "type": "integer" } },
             "required": ["hitpoints"],
             "additionalProperties": false
         },
@@ -201,6 +213,10 @@
         "pf2e_creature_data_core": {
             "type": "object",
             "properties": {
+                "features": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                },
                 "level": { "type": "integer" },
                 "size": {
                     "type": "string",
@@ -242,7 +258,7 @@
                     "items": {
                         "oneOf": [
                             { "type": "string" },
-                            { "$ref": "#/$defs/pf2e_weapon" }
+                            { "$ref": "#/$defs/pf2e_weapon_core" }
                         ]
                     }
                 },
@@ -252,7 +268,7 @@
                     "items": {
                         "oneOf": [
                             { "type": "string" },
-                            { "$ref": "#/$defs/pf2e_weapon" }
+                            { "$ref": "#/$defs/pf2e_weapon_core" }
                         ]
                     }
                 },
@@ -496,6 +512,9 @@
         "pf2e_action_data": {
             "type": "object",
             "properties": {
+                "ability": { "type": "string", "minLength": 1 },
+                "source": { "type": "string", "enum": ["weapon"] },
+                "trigger": { "type": "string", "enum": ["on_move"] },
                 "variables": {
                     "type": "object",
                     "additionalProperties": {

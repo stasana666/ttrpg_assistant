@@ -5,6 +5,49 @@ Canonical project instructions. CLAUDE.md redirects here.
 Shared low-level building blocks used across the engine. These utilities carry
 non-obvious design constraints worth knowing before changing them.
 
+## Ability catalogs and source traversal (`ability.h`)
+
+`TAbilityCatalog` owns definitions keyed by module-qualified IDs. Identical repeated
+registration is harmless; conflicting definitions, invalid kinds, and grants on
+non-feature definitions are rejected. Publish catalogs through const ownership
+after loading. Executable pipelines live separately in `TAbilityExecutions` under
+`actions/ability.h`; generated schema headers depend only on the common catalog.
+
+Generated `VisitGrantedAbilities` methods traverse current source fields and
+collection entry IDs into a fresh `TAbilityCollector`. They do not maintain a
+second action list. The collector recursively expands features, rejects cycles and
+unknown references, and deduplicates by definition ID plus typed source path while
+retaining distinct provenance chains. A failed `Grant` expansion or nested `Visit`
+does not publish partial grants. `TFeatureSelection` snapshots store a definition
+ID string or null for an empty default selection; a nonempty selection must
+resolve to a feature.
+
+Paths compare field and entry segments rather than display strings. Removing a
+source affects the next traversal immediately and leaves other source instances
+intact. Gameplay collection mutation still requires the stable journal resolver
+described below; construction-time removal alone does not add rollback support.
+
+The action adapter produces value options with actor, source, definition, and
+optional reaction-trigger bindings. Enumeration uses const state and no interaction,
+RNG, resource writes, or ID allocation. Requirement callbacks must remain pure.
+Missing implementations and mismatched action/reaction bindings are configuration
+errors. Execution recollects sources and checks requirements and aggregated costs
+again before consuming resources. Reaction enumeration does not execute reactions.
+
+Options temporarily anchor actor instances with non-owning player addresses in
+addition to display IDs. Execution compares these addresses without dereferencing
+them, rejecting options from another battle with reused player IDs. Players must
+remain at stable addresses during a battle; these anchors are not persistent entity
+IDs and must not be serialized or used after that battle's lifetime.
+
+`TActionContext` retains the immutable pipeline and an owned source-weapon snapshot.
+The battle adapter resolves source paths and supplies a fresh-grant validator.
+Source validation runs before each block, after feature hooks, and before every
+resumed continuation, including a second suspension inside an earlier resume.
+An unavailable source raises `TAbilityUnavailable`; previously spent action costs
+are not charged again or automatically refunded. This continuation-aware execution
+does not wrap a yielding action in the synchronous generated-method transaction.
+
 ## Generated method execution (`generated_execution.h`)
 
 `TGeneratedExecutionContext` is a lightweight handle onto the existing

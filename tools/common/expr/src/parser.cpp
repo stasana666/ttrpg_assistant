@@ -161,6 +161,19 @@ private:
 
     TExprNode ParsePrimary() {
         const TToken& t = ts_.Peek();
+        if (t.kind == ETok::LBracket) {
+            TExprNode e;
+            e.Kind = ENodeKind::ListLiteral;
+            e.Location = t.loc;
+            ts_.Advance();
+            if (ts_.Peek().kind != ETok::RBracket) {
+                do {
+                    e.Args.push_back(ParseOr());
+                } while (ts_.Match(ETok::Comma) && ts_.Peek().kind != ETok::RBracket);
+            }
+            ts_.Expect(ETok::RBracket, "']'");
+            return e;
+        }
         if (t.kind == ETok::IntLiteral || t.kind == ETok::StringLiteral) {
             TExprNode e;
             e.Kind = t.kind == ETok::IntLiteral ? ENodeKind::IntLiteral : ENodeKind::StringLiteral;

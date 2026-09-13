@@ -1,6 +1,7 @@
 #include <ttrpg/program.h>
 
 #include <ttrpg/conventions.h>
+#include <ttrpg/abilities.h>
 
 #include <algorithm>
 #include <functional>
@@ -25,28 +26,6 @@ TClasses ClassTable(const TLoadedSchemas& loaded) {
     return result;
 }
 
-std::string Quote(const std::string& value) {
-    std::string result = "\"";
-    for (unsigned char c : value) {
-        switch (c) {
-            case '\\': result += "\\\\"; break;
-            case '"': result += "\\\""; break;
-            case '\n': result += "\\n"; break;
-            case '\r': result += "\\r"; break;
-            case '\t': result += "\\t"; break;
-            default:
-                if (c < 32 || c == 127) {
-                    result += '\\';
-                    result += static_cast<char>('0' + ((c >> 6) & 7));
-                    result += static_cast<char>('0' + ((c >> 3) & 7));
-                    result += static_cast<char>('0' + (c & 7));
-                } else {
-                    result += static_cast<char>(c);
-                }
-        }
-    }
-    return result + "\"";
-}
 
 const TFieldDecl* Field(const TClassDecl& c, const std::string& name) {
     for (const auto& field : c.Fields) if (field.Name == name) return &field;
@@ -56,7 +35,8 @@ const TFieldDecl* Field(const TClassDecl& c, const std::string& name) {
 bool NewExpression(const expr::TExprNode& value) {
     using K = expr::ENodeKind;
     if (value.Kind == K::ContextVar || value.Kind == K::ObjectInit || value.Kind == K::Call ||
-        value.Kind == K::Unary || value.Kind == K::Index || value.Kind == K::StringLiteral) return true;
+        value.Kind == K::Unary || value.Kind == K::Index || value.Kind == K::StringLiteral ||
+        value.Kind == K::ListLiteral) return true;
     if (value.Kind == K::Binary && value.BinOp != expr::EBinaryOp::Add && value.BinOp != expr::EBinaryOp::Sub &&
         value.BinOp != expr::EBinaryOp::Mul && value.BinOp != expr::EBinaryOp::Div) return true;
     if (value.Lhs && NewExpression(*value.Lhs)) return true;
@@ -108,7 +88,7 @@ public:
     }
 
     void CheckType(const std::string& type, bool allowVoid = false) const {
-        if (IsBuiltinPrimitive(type) || IsBuiltinBoundedQuantity(type) || IsBuiltinResource(type) ||
+        if (IsBuiltinPrimitive(type) || IsBuiltinBoundedQuantity(type) || IsBuiltinResource(type) || IsBuiltinFeature(type) ||
             loaded_.SymbolTable.contains(type) || classes_.contains(type) ||
             (allowVoid && type == "void")) return;
         Fail("unknown type '" + type + "'");
@@ -133,7 +113,7 @@ public:
                 } catch (const std::logic_error&) { Fail("integer literal outside int range"); }
                 return {.Type = "int", .Code = std::to_string(value)};
             }
-            case K::StringLiteral: return {.Type = "string", .Code = "std::string(" + Quote(e.Text) + ")"};
+            case K::StringLiteral: return {.Type = "string", .Code = "std::string(" + CppStringLiteral(e.Text) + ")"};
             case K::ContextVar:
                 if (e.Text != "self") Fail("unknown context variable '@" + e.Text + "'");
                 return {.Type = self_.Name, .Code = "std::as_const(self)", .Persistent = true,
@@ -155,6 +135,11 @@ public:
                     member.Text = e.Text;
                     member.Lhs = std::make_shared<expr::TExprNode>(base);
                     return Read(member, expected);
+                }
+                if (expected == "Feature") {
+                    const auto definition = ResolveAbility(e.Text, loaded_);
+                    if (definition.Kind != EAbilityDeclarationKind::Feature) Fail("Feature values require a feature definition");
+                    return {.Type = "Feature", .Code = "TFeatureSelection(" + CppStringLiteral(definition.OwnerStem + "." + e.Text) + ")"};
                 }
                 for (const auto& [stem, module] : loaded_.ByStem) {
                     for (const auto& en : module.Enums) {
@@ -230,11 +215,9 @@ public:
                 for (const auto& initializer : e.Fields) {
                     const auto* field = Field(*cls->second, initializer.Name);
                     if (!field) Fail("unknown initializer field '" + type + "." + initializer.Name + "'");
-                    if (field->Container != EContainer::None) Fail("container fields cannot be initialized by a scalar expression");
                     if (field->Derived) Fail("cannot initialize derived field '" + initializer.Name + "'");
                     if (values.contains(initializer.Name)) Fail("duplicate initializer field '" + initializer.Name + "'");
-                    auto value = Read(initializer.Value, field->TypeName);
-                    Match(value, field->TypeName);
+                    auto value = ReadInitializer(initializer.Value, *field);
                     values.emplace(initializer.Name, value.Code);
                 }
                 std::string code = type + "::Create({";
@@ -249,8 +232,33 @@ public:
                 return {.Type = type, .Code = code + "})"};
             }
             case K::Index: Fail("indexing rule collections requires stable element addressing and is not implemented");
+            case K::ListLiteral: Fail("list literals require a collection field initializer");
         }
         Fail("unsupported expression");
+    }
+
+    TValue ReadInitializer(const expr::TExprNode& expression, const TFieldDecl& field) {
+        if (field.Container == EContainer::None) {
+            auto value = Read(expression, field.TypeName);
+            if ((field.TypeName == "BoundedQuantity" || field.TypeName == "Resource") && value.Type == "int") {
+                value.Type = field.TypeName;
+                value.Code = CppTypeFor(field.TypeName) + "(" + value.Code + ")";
+            }
+            Match(value, field.TypeName);
+            return value;
+        }
+        if (field.Container != EContainer::Collection || expression.Kind != expr::ENodeKind::ListLiteral) {
+            Fail("container initialization requires a list literal for a collection field");
+        }
+        const std::string type = CppMemberType(field, loaded_.SymbolTable);
+        std::string code = "([&] { " + type + " values; ";
+        for (const auto& element : expression.Args) {
+            auto value = Read(element, field.TypeName);
+            Match(value, field.TypeName);
+            code += "values.Add(" + value.Code + "); ";
+        }
+        code += "return values; }())";
+        return {.Type = type, .Code = code};
     }
 
     TValue Call(const expr::TExprNode& call, bool effects) {
@@ -312,12 +320,14 @@ public:
                     (type->second.Kind != ETypeKind::Enum && type->second.Kind != ETypeKind::Variant))) {
                     Fail("set elements must be declared enums or variants");
                 }
-                if (field.Container == EContainer::Collection && (!declared || type->second.Kind != ETypeKind::Class)) {
-                    Fail("collection elements must be declared classes");
+                if (field.Container == EContainer::Collection && !IsBuiltinFeature(field.TypeName) &&
+                    (!declared || type->second.Kind != ETypeKind::Class)) {
+                    Fail("collection elements must be declared classes or Feature");
                 }
                 if (field.Container == EContainer::Map) {
                     if (!declared || type->second.Kind != ETypeKind::Enum) Fail("map keys must be declared enums");
                     CheckType(field.ValueTypeName);
+                    if (IsBuiltinFeature(field.ValueTypeName)) Fail("Feature supports scalar and collection fields only");
                 }
             }
             const auto nested = classes_.find(field.Container == EContainer::Map ? field.ValueTypeName : field.TypeName);
@@ -326,12 +336,7 @@ public:
             }
             if (field.Init) {
                 dependencies_.clear();
-                auto value = Read(*field.Init, field.TypeName);
-                if ((field.TypeName == "BoundedQuantity" || field.TypeName == "Resource") && value.Type == "int") {
-                    value.Type = field.TypeName;
-                    value.Code = CppTypeFor(field.TypeName) + "(" + value.Code + ")";
-                }
-                Match(value, field.TypeName);
+                auto value = ReadInitializer(*field.Init, field);
                 compiled.Initializer = value.Code;
                 for (const auto& dependency : dependencies_) dependencies[i].push_back(indices.at(dependency));
                 std::sort(dependencies[i].begin(), dependencies[i].end());
@@ -371,6 +376,7 @@ public:
             result.Methods.push_back(std::move(compiled));
         }
         method_ = nullptr;
+        result.Grants = CompileGrants(self_, loaded_);
         return result;
     }
 
@@ -428,7 +434,7 @@ private:
             "using", "virtual", "void", "volatile", "wchar_t", "while", "xor", "xor_eq"
         };
         if (keywords.contains(self_.Name)) Fail("reserved class name '" + self_.Name + "'");
-        const std::unordered_set<std::string> reserved{"Create", "FromJson", "Restore", "ToJson", "GetAst", "RegisterDslProperties", "TInitialValues", "TUninitialized"};
+        const std::unordered_set<std::string> reserved{"Create", "FromJson", "Restore", "ToJson", "GetAst", "RegisterDslProperties", "TInitialValues", "TUninitialized", "VisitGrantedAbilities"};
         for (const auto& field : self_.Fields) {
             if (field.Name == self_.Name || field.Name.ends_with('_') || keywords.contains(field.Name) || reserved.contains(field.Name) || (self_.GameEntity && field.Name == "Id")) Fail("reserved field name '" + field.Name + "'");
             if (!names.insert(field.Name).second) Fail("duplicate member '" + field.Name + "'");
@@ -459,7 +465,7 @@ private:
                     auto condition = Read(*statement.Value);
                     Match(condition, "bool");
                     line("if (!(" + condition.Code + ")) throw std::runtime_error(" +
-                         Quote("require failed in " + self_.Name + "." + method_->Name + " at line " + std::to_string(statement.Location.line)) + ");");
+                         CppStringLiteral("require failed in " + self_.Name + "." + method_->Name + " at line " + std::to_string(statement.Location.line)) + ");");
                     break;
                 }
                 case K::Assign:
@@ -480,9 +486,9 @@ private:
                             Fail("replacing objects or collections requires stable field paths");
                         }
                         if (!target.Storage.empty()) {
-                            line("ctx.Assign(" + target.Storage + ", " + value.Code + ", this, " + Quote(PascalToSnake(target.Field->Name)) + ");");
+                            line("ctx.Assign(" + target.Storage + ", " + value.Code + ", this, " + CppStringLiteral(PascalToSnake(target.Field->Name)) + ");");
                         } else {
-                            line("ctx.AssignGuarded(" + target.Guard + ", " + value.Code + ", " + target.OwnerGuard + ", " + Quote(PascalToSnake(target.Field->Name)) + ");");
+                            line("ctx.AssignGuarded(" + target.Guard + ", " + value.Code + ", " + target.OwnerGuard + ", " + CppStringLiteral(PascalToSnake(target.Field->Name)) + ");");
                         }
                     } else {
                         if (statement.Target->Kind != expr::ENodeKind::Var || !locals_.contains(statement.Target->Text) ||
@@ -552,8 +558,9 @@ bool UsesRuleSyntax(const TClassDecl& declaration, const TLoadedSchemas& loaded)
     std::unordered_set<std::string> visiting;
     std::function<bool(const TClassDecl&)> inspect = [&](const TClassDecl& c) {
         if (!visiting.insert(c.Name).second) return false;
-        if (c.GameEntity || !c.Methods.empty()) return true;
+        if (c.GameEntity || !c.Methods.empty() || !c.Grants.empty()) return true;
         for (const auto& field : c.Fields) {
+            if (IsBuiltinFeature(field.TypeName)) return true;
             if (field.Init && NewExpression(*field.Init)) return true;
             const auto nested = classes.find(field.TypeName);
             if (nested != classes.end() && inspect(*nested->second)) return true;

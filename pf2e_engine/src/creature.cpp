@@ -9,9 +9,11 @@
 
 #include <algorithm>
 
-TCreature::TCreature(TCreatureData data, TProficiency proficiency)
+TCreature::TCreature(TCreatureData data, TProficiency proficiency,
+                     std::shared_ptr<const TAbilityRules> abilities)
     : TCreatureData(std::move(data))
     , proficiency_(proficiency)
+    , abilities_(abilities ? std::move(abilities) : std::make_shared<const TAbilityRules>())
 {
 }
 
@@ -89,14 +91,16 @@ bool TCreature::IsAlive() const
     return Hitpoints().Current() > 0;
 }
 
-void TCreature::AddAction(std::shared_ptr<TAction> action)
+const TAbilityRules& TCreature::AbilityRules() const
 {
-    actions_.emplace_back(action);
+    return *abilities_;
 }
 
-std::vector<std::shared_ptr<TAction>>& TCreature::ActionList()
+TAbilityCollector TCreature::CollectAbilities() const
 {
-    return actions_;
+    TAbilityCollector collector(abilities_->Catalog);
+    VisitGrantedAbilities(collector);
+    return collector;
 }
 
 void TCreature::AddFeat(std::shared_ptr<TCreatureFeat> feat)
@@ -125,45 +129,9 @@ int TCreature::Get(EConditionKind condition) const
     throw std::logic_error("unreachable");
 }
 
-std::vector<const TReaction*> TCreature::Reactions(ETrigger trigger_type) const
-{
-    std::vector<const TReaction*> reactions;
-    for (auto& reaction : reactions_) {
-        if (reaction->TriggerType() == trigger_type) {
-            reactions.emplace_back(reaction.get());
-        }
-    }
-    return reactions;
-}
-
-TAstNode GetActionListAst(const std::vector<std::shared_ptr<TAction>>& actions)
-{
-    TAstNode node = TAstNode::MakeObject("actions");
-    AddValueField(node, "count", actions.size());
-    for (size_t i = 0; i < actions.size(); ++i) {
-        AddValueField(node, std::to_string(i),
-            actions[i] ? std::string(actions[i]->Name()) : std::string("<null>"));
-    }
-    return node;
-}
-
-TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& reactions)
-{
-    TAstNode node = TAstNode::MakeObject("reactions");
-    AddValueField(node, "count", reactions.size());
-    for (size_t i = 0; i < reactions.size(); ++i) {
-        if (reactions[i]) {
-            AddValueField(node, std::to_string(i), reactions[i]->TriggerType());
-        } else {
-            AddValueField(node, std::to_string(i), std::string("<null>"));
-        }
-    }
-    return node;
-}
-
 TAstNode TCreature::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 808;
+    static constexpr size_t kExpectedSize = 960;
     AST_ASSERT_LAYOUT(TCreature, kExpectedSize);
 
     const std::string my_id = ctx.IdentityOf(this);
@@ -181,8 +149,21 @@ TAstNode TCreature::GetAst(TAstContext& ctx) const
     node.AddChild("creature_data", TCreatureData::GetAst(ctx));
     AddOwnedObject(node, "proficiency", proficiency_, ctx);
 
-    node.AddChild("actions", GetActionListAst(actions_));
-    node.AddChild("reactions", GetReactionListAst(reactions_));
+    TAstNode abilities = TAstNode::MakeObject("granted_abilities");
+    const auto collector = CollectAbilities();
+    size_t ability_index = 0;
+    for (const auto& grant : collector.Grants()) {
+        TAstNode binding = TAstNode::MakeObject("grant");
+        AddValueField(binding, "definition", grant.DefinitionId);
+        AddValueField(binding, "kind", static_cast<int>(grant.Kind));
+        AddValueField(binding, "source", grant.Source.ToString());
+        for (size_t i = 0; i < grant.Provenance.size(); ++i) {
+            AddValueField(binding, "site_" + std::to_string(i), grant.Provenance[i]);
+        }
+        abilities.AddChild(std::to_string(ability_index++), std::move(binding));
+    }
+    node.AddChild("granted_abilities", std::move(abilities));
+
 
     TAstNode feats_node = TAstNode::MakeObject("feats");
     for (size_t i = 0; i < feats_.size(); ++i) {

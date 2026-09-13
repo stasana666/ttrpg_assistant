@@ -84,3 +84,7 @@ void THolder::RegisterDslProperties() {
     });
 }
 
+void RegisterCollectionAbilities(TAbilityCatalog& catalog) {
+    (void)catalog;
+}
+

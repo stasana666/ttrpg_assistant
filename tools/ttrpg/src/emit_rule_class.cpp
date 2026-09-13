@@ -143,11 +143,11 @@ void EmitReadField(TCppWriter& writer, const TCompiledField& compiled,
             EmitValidId(writer, next_id);
             writer.Block("for (const auto& entry : " + input + ".at(\"entries\")) {", "}", [&] {
                 EmitValidId(writer, "entry.at(\"id\")");
-                writer.Line(target + "->RestoreEntry(TId<" + field.TypeName +
+                writer.Line(target + "->RestoreEntry(TId<" + CppTypeFor(field.TypeName) +
                     ">{entry.at(\"id\").get<std::size_t>()}, " +
                     ParseScalar(value_field, "entry.at(\"value\")", loaded, true) + ");");
             });
-            writer.Line(target + "->RestoreNextId(TId<" + field.TypeName + ">{" +
+            writer.Line(target + "->RestoreNextId(TId<" + CppTypeFor(field.TypeName) + ">{" +
                 next_id + ".get<std::size_t>()});");
             return;
         }
@@ -216,6 +216,9 @@ void EmitJsonValue(TCppWriter& writer, const TFieldDecl& field,
             return;
         }
         switch (FieldKindOf(field, loaded.SymbolTable)) {
+            case EFieldKind::Feature:
+                writer.Line(result + " = " + value + ".ToJson();");
+                return;
             case EFieldKind::Primitive:
                 writer.Line(result + " = " + value + ";");
                 return;
@@ -308,7 +311,7 @@ void EmitAst(TCppWriter& writer, const TClassDecl& declaration,
             if (field.Container == EContainer::None) {
                 const auto kind = FieldKindOf(field, loaded.SymbolTable);
                 if (kind == EFieldKind::Class || kind == EFieldKind::Variant ||
-                    kind == EFieldKind::BoundedQuantity || kind == EFieldKind::Resource) {
+                    kind == EFieldKind::BoundedQuantity || kind == EFieldKind::Resource || kind == EFieldKind::Feature) {
                     writer.Block("if (!owner_identity.empty() && static_cast<const void*>(&" + source +
                         ") != static_cast<const void*>(this)) {", "}", [&] {
                         writer.Line("ctx.RegisterIdentity(&" + source + ", owner_identity + \"." + key + "\");");
@@ -413,6 +416,7 @@ void EmitRuleClassDecl(TCppWriter& writer, const TClassDecl& declaration,
             writer.Line("nlohmann::json ToJson() const;");
             writer.Line("TAstNode GetAst(TAstContext& ctx) const;");
             writer.Line("static void RegisterDslProperties();");
+            writer.Line("void VisitGrantedAbilities(TAbilityCollector& collector, const TAbilitySourcePath& source = {}) const;");
         });
         writer.EmptyLine();
         writer.PrivateSection([&] {
@@ -448,6 +452,27 @@ void EmitRuleClassDecl(TCppWriter& writer, const TClassDecl& declaration,
     writer.EmptyLine();
     writer.Line("template <>");
     writer.Line("struct TIsAstRecursive<" + declaration.Name + "> : std::true_type {};");
+    writer.EmptyLine();
+    writer.Function("inline void " + declaration.Name +
+        "::VisitGrantedAbilities(TAbilityCollector& collector, const TAbilitySourcePath& source) const", [&] {
+        writer.Line("(void)collector;");
+        writer.Line("(void)source;");
+        for (const auto& grant : compiled.Grants) {
+            if (grant.Kind == TCompiledGrant::EKind::Definition) {
+                writer.Line("collector.Grant(" + CppStringLiteral(grant.DefinitionId) + ", source, " + CppStringLiteral(grant.Site) + ");");
+                continue;
+            }
+            std::string path = "source";
+            for (const auto& field : grant.Fields) path += ".Field(" + CppStringLiteral(field) + ")";
+            if (grant.Kind == TCompiledGrant::EKind::Collection) {
+                writer.Block("for (auto entry : " + grant.Accessor + ") {", "}", [&] {
+                    writer.Line("collector.Visit(*entry, " + path + ".Entry(entry.Id().Value), " + CppStringLiteral(grant.Site) + ");");
+                });
+            } else {
+                writer.Line("collector.Visit(" + grant.Accessor + ", " + path + ", " + CppStringLiteral(grant.Site) + ");");
+            }
+        }
+    });
     writer.EmptyLine();
 }
 

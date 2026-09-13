@@ -62,6 +62,26 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("Missing", result.stderr)
         self.assertFalse(self.header.exists())
 
+    def test_check_rejects_invalid_imported_grants(self):
+        for invalid in (
+            "feature Training { grant Missing; }",
+            "feature A { grant B; } feature B { grant A; }",
+            "class TProvider { int Value; grant @self.Value; }",
+        ):
+            with self.subTest(invalid=invalid):
+                self.write("invalid.ttrpg", invalid)
+                self.schema.write_text('import "invalid.ttrpg"; class TExample { int Value; }')
+                self.command([CODEGEN, "--schema", self.schema, "--check"], success=False)
+                self.assertFalse(self.header.exists())
+
+    def test_invalid_grants_preserve_generated_outputs(self):
+        self.generate()
+        paths = [self.header, self.source, self.depfile]
+        before = [(path.read_bytes(), path.stat().st_mtime_ns) for path in paths]
+        self.schema.write_text("feature Training { grant Missing; }")
+        self.generate(success=False)
+        self.assertEqual([(path.read_bytes(), path.stat().st_mtime_ns) for path in paths], before)
+
     def test_invalid_implementation_does_not_leave_partial_header(self):
         self.schema.write_text("class TInvalid { int Value = Missing + 1; }\n")
         result = self.generate(success=False)
@@ -153,6 +173,18 @@ class TtrpgCliTest(unittest.TestCase):
         self.generate()
         self.assertIn("class TExample", self.header.read_text())
         self.assertIn("root.ttrpg", self.depfile.read_text())
+
+    def test_imported_symlink_uses_canonical_ability_registration(self):
+        imported = self.write("definitions.ttrpg", "action Strike;\nfeature Training { grant Strike; }\n")
+        alias = self.root / "alias.ttrpg"
+        alias.symlink_to(imported)
+        self.schema.write_text('import "alias.ttrpg";\nGameEntity TExample { grant Training; }\n')
+        self.generate()
+        self.assertIn("definitions.h", self.header.read_text())
+        self.assertNotIn("alias.h", self.header.read_text())
+        self.assertIn("RegisterDefinitionsAbilities(catalog)", self.source.read_text())
+        self.assertNotIn("RegisterAliasAbilities", self.source.read_text())
+        self.assertIn("definitions.Training", self.header.read_text())
 
     def test_nested_output_paths_are_rejected_before_creating_directories(self):
         self.header = self.root / "new_directory" / "root.h"

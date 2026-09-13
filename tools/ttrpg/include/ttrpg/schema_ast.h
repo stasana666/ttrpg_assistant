@@ -28,6 +28,20 @@ struct TFieldDecl {
     bool Derived = false;
 };
 
+struct TGrantDecl {
+    expr::TExprNode Source;
+    parse::TSourceLocation Location;
+};
+
+enum class EAbilityDeclarationKind { Action, Reaction, Feature };
+
+struct TAbilityDecl {
+    EAbilityDeclarationKind Kind = EAbilityDeclarationKind::Action;
+    std::string Name;
+    std::vector<TGrantDecl> Grants;
+    parse::TSourceLocation Location;
+};
+
 struct TClassDecl {
     std::string Name;
     std::vector<TFieldDecl> Fields;
@@ -55,6 +69,7 @@ struct TClassDecl {
         parse::TSourceLocation Location;
     };
     std::vector<TMethod> Methods;
+    std::vector<TGrantDecl> Grants;
 };
 
 struct TInstanceDecl {
@@ -79,4 +94,5 @@ struct TSchemaModule {
     std::vector<TVariantDecl> Variants;
     std::vector<TClassDecl> Classes;
     std::vector<TInstanceDecl> Instances;
+    std::vector<TAbilityDecl> Abilities;
 };

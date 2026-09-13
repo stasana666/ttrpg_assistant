@@ -161,6 +161,7 @@ TDslValue Eval(const expr::TExprNode& node, TEvalContext& ctx)
             return GetDslProperty(Eval(*node.Lhs, ctx), node.Text, ctx);
         case K::ContextVar:
         case K::ObjectInit:
+        case K::ListLiteral:
         case K::Index:
         case K::StringLiteral:
             throw std::runtime_error("expression is supported only by the .ttrpg compiler");

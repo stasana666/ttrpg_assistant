@@ -2,6 +2,7 @@
     "type": "pf2e_action",
     "name": "attack_of_opportunity",
     "pf2e_action": {
+        "ability": "abilities.AttackOfOpportunity",
         "name": "attack_of_opportunity",
         "resources": [
             {
@@ -133,14 +134,6 @@
                 "type": "terminate"
             }
         ],
-        "trigger": {
-            "type": "on_move",
-            "pipeline": [
-                {
-                    "name": "finish",
-                    "type": "terminate"
-                }
-            ]
-        }
+        "trigger": "on_move"
     }
 }

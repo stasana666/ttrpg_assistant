@@ -1,9 +1,15 @@
+import "abilities.ttrpg";
+
 class TRace {
     int Hitpoints;
+    collection<Feature> Features;
+    grant @self.Features;
 }
 
 class TClass {
     int Hitpoints;
+    collection<Feature> Features;
+    grant @self.Features;
 }
 
 class TAbilityScore {

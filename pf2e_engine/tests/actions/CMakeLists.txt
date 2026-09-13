@@ -1,5 +1,6 @@
 add_executable(test_actions
     test_action_combat.cpp
+    test_granted_combat.cpp
 )
 
 target_link_libraries(test_actions
@@ -32,3 +33,20 @@ target_include_directories(test_wolf_combat
 )
 
 gtest_discover_tests(test_wolf_combat)
+
+add_executable(test_abilities
+    test_ability_runtime.cpp
+)
+
+target_link_libraries(test_abilities
+    gtest_main
+    pf2e_engine
+    nlohmann_json
+)
+
+target_include_directories(test_abilities
+    PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/include/pf2e_engine/actions
+    PRIVATE ${CMAKE_BINARY_DIR}/cpp_config
+)
+
+gtest_discover_tests(test_abilities)

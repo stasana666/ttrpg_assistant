@@ -17,6 +17,11 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Put project knowledge in the nearest `AGENTS.md`, not in code comments.
 - `CLAUDE.md` files contain only a one-line link to the canonical `AGENTS.md` in the same directory.
 
+## Commits
+- Commit completed changes after the relevant build, tests, and validation pass. For work spanning several stages, commit each completed stage separately before continuing.
+- Do not ask for confirmation to create these local commits. Keep unrelated pre-existing changes separate from the task's commits.
+- Use commit messages that describe the resulting behavior. Do not push commits unless the user requests it.
+
 ## Build/Test
 - Configure: `cmake -S . -B build -DGGML_CUDA=ON`.
 - Build all: `cmake --build build`.

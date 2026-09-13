@@ -31,6 +31,7 @@ enum class ENodeKind {
     ObjectInit,
     Index,
     StringLiteral,
+    ListLiteral,
 };
 
 struct TFieldInitializer;

@@ -24,7 +24,7 @@ public:
     // TODO: only weapon variables for now; generalise to other object types.
     struct TActionVariable {
         TGameObjectId id;
-        std::shared_ptr<TWeapon> weapon;
+        std::shared_ptr<const TWeapon> weapon;
     };
 
     using TVariables = std::vector<TActionVariable>;
@@ -32,9 +32,9 @@ public:
     TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name,
             TVariables&& variables = {});
 
-    void Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player);
-    void Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player);
-    bool Check(const TPlayer& self);
+    void Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const;
+    void Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player) const;
+    bool Check(const TPlayer& self) const;
     std::string_view Name() const;
 
 private:

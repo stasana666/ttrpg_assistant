@@ -1,0 +1,30 @@
+import "granted_abilities.ttrpg";
+
+class TGrantArms {
+    string Name;
+    collection<Feature> Features;
+
+    grant FixtureStrike;
+    grant @self.Features;
+}
+
+GameEntity TGrantCreature {
+    string Name;
+    collection<TGrantArms> Weapons;
+    collection<Feature> Features;
+
+    grant FixtureStride;
+    grant @self.Weapons;
+    grant @self.Features;
+}
+
+TGrantCreature GrantFighter {
+    Name = "Human fighter";
+    Weapons = [TGrantArms { Name = "Longsword"; }];
+    Features = [FixtureFighterTraining, FixtureNaturalAmbition];
+}
+
+TGrantCreature GrantWolf {
+    Name = "Wolf";
+    Weapons = [TGrantArms { Name = "Jaws"; }];
+}

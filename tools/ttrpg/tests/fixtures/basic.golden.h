@@ -3,6 +3,7 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/ability.h>
 #include <pf2e_engine/common/guarded.h>
 
 #include <nlohmann/json_fwd.hpp>
@@ -63,3 +64,4 @@ private:
 template <>
 struct TIsAstRecursive<TThing> : std::true_type {};
 
+void RegisterBasicAbilities(TAbilityCatalog& catalog);

@@ -5,6 +5,7 @@
 #include <pf2e_engine/common/resource.h>
 
 #include <pf2e_engine/actions/action.h>
+#include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/actions/reaction.h>
 #include <pf2e_engine/condition.h>
 #include <pf2e_engine/feat.h>
@@ -17,7 +18,8 @@
 
 class TCreature : public TCreatureData {
 public:
-    TCreature(TCreatureData data, TProficiency proficiency);
+    TCreature(TCreatureData data, TProficiency proficiency,
+              std::shared_ptr<const TAbilityRules> abilities = nullptr);
 
     TAbilityScore GetCharacteristic(ECharacteristic name) const;
 
@@ -35,15 +37,13 @@ public:
     TProficiency& Proficiency();
 
     bool IsAlive() const;
-    void AddAction(std::shared_ptr<TAction> action);
-    std::vector<std::shared_ptr<TAction>>& ActionList();
+    const TAbilityRules& AbilityRules() const;
+    TAbilityCollector CollectAbilities() const;
 
     void AddFeat(std::shared_ptr<TCreatureFeat> feat);
     const std::vector<std::shared_ptr<TCreatureFeat>>& Feats() const;
 
     int Get(EConditionKind condition) const;
-
-    std::vector<const TReaction*> Reactions(ETrigger) const;
 
     TAstNode GetAst(TAstContext& ctx) const;
 
@@ -52,14 +52,10 @@ private:
 
     TProficiency proficiency_;
 
-    std::vector<std::shared_ptr<TAction>> actions_;
-    std::vector<std::shared_ptr<TReaction>> reactions_;
+    std::shared_ptr<const TAbilityRules> abilities_;
     std::vector<std::shared_ptr<TCreatureFeat>> feats_;
     [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
 
 template <>
 struct TIsAstRecursive<TCreature> : std::true_type {};
-
-TAstNode GetActionListAst(const std::vector<std::shared_ptr<TAction>>& actions);
-TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& reactions);
