@@ -68,3 +68,5 @@ node hierarchy once parsing moved into the shared `expr` front-end.
   [tools/common/expr/](../../../../tools/common/expr/) users can also tolerate it.
 - Burst/cone/line targeting still uses `get_targets_in_area`; the DSL has no
   `TPosition` value or position-picking function.
+
+- Shared expr supports compiler-only context variables, object literals, method calls, and indexing. The runtime evaluator explicitly rejects these shapes; unary minus is evaluated as checked integer negation.

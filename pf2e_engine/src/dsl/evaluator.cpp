@@ -10,6 +10,7 @@
 
 #include <expr/ast.h>
 
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -158,7 +159,15 @@ TDslValue Eval(const expr::TExprNode& node, TEvalContext& ctx)
             return EvalVar(node, ctx);
         case K::Member:
             return GetDslProperty(Eval(*node.Lhs, ctx), node.Text, ctx);
+        case K::ContextVar:
+        case K::ObjectInit:
+        case K::Index:
+        case K::StringLiteral:
+            throw std::runtime_error("expression is supported only by the .ttrpg compiler");
         case K::Call: {
+            if (node.Lhs) {
+                throw std::runtime_error("method calls require the .ttrpg compiler");
+            }
             std::vector<TDslValue> args;
             args.reserve(node.Args.size());
             for (const auto& a : node.Args) {
@@ -167,6 +176,13 @@ TDslValue Eval(const expr::TExprNode& node, TEvalContext& ctx)
             return TDslFunctionRegistry::Instance().Call(node.Text, args, ctx);
         }
         case K::Unary:
+            if (node.UnOp == expr::EUnaryOp::Negate) {
+                const int value = RequireInt(Eval(*node.Lhs, ctx), "-");
+                if (value == std::numeric_limits<int>::min()) {
+                    throw std::overflow_error("dsl: integer negation overflow");
+                }
+                return TDslValue(-value);
+            }
             return TDslValue(!RequireBool(Eval(*node.Lhs, ctx), "!"));
         case K::Binary:
             return EvalBinary(node, ctx);

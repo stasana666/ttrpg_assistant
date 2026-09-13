@@ -1,0 +1,54 @@
+class Statistic {
+    int Base = 0;
+    derive int Value = @self.Base;
+}
+
+class TDamageResult {
+    int Incoming;
+    int AbsorbedTemporary;
+    int Before;
+    int After;
+    derive int LostCurrent = @self.Before - @self.After;
+    derive int Remaining = @self.Incoming - @self.AbsorbedTemporary;
+}
+
+class THitPoints {
+    Statistic Maximum;
+    int Current = @self.Maximum.Value;
+    int Temporary = 0;
+
+    method TDamageResult DealDamage(int Amount) {
+        require Amount >= 0;
+        let Before = @self.Current;
+        let Absorbed = min(@self.Temporary, Amount);
+        let Remaining = Amount - Absorbed;
+        @self.Temporary -= Absorbed;
+        @self.Current = max(0, Before - Remaining);
+        return TDamageResult {
+            Incoming = Amount;
+            AbsorbedTemporary = Absorbed;
+            Before = Before;
+            After = @self.Current;
+        };
+    }
+
+    method int Heal(int Amount) {
+        require Amount >= 0;
+        let Restored = min(Amount, max(0, @self.Maximum.Value - @self.Current));
+        @self.Current += Restored;
+        return Restored;
+    }
+
+    method void ReplaceTemporary(int Amount) {
+        require Amount >= 0;
+        @self.Temporary = Amount;
+    }
+
+    query int GetCurrentValue() {
+        return @self.Current;
+    }
+
+    query int GetMaxValue() {
+        return @self.Maximum.Value;
+    }
+}

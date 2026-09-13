@@ -13,6 +13,14 @@
 #include <string>
 #include <utility>
 
+TThing TThing::Create(const TInitialValues& initial) {
+    TThing r;
+    if (initial.X) {
+        r.X_ = *initial.X;
+    }
+    return r;
+}
+
 TThing TThing::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     (void)factory;
     TThing r;
@@ -33,6 +41,17 @@ void TThing::RegisterDslProperties() {
     });
 }
 
+THolder THolder::Create(const TInitialValues& initial) {
+    THolder r;
+    if (initial.Count) {
+        r.Count_ = *initial.Count;
+    }
+    if (initial.Things) {
+        r.Things_ = *initial.Things;
+    }
+    return r;
+}
+
 THolder THolder::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     THolder r;
     r.Count_ = j.value("count", int{0});
@@ -49,6 +68,7 @@ TAstNode THolder::GetAst([[maybe_unused]] TAstContext& ctx) const {
     AddValueField(node, "count", Count_);
     {
         TAstNode coll_node = TAstNode::MakeObject("container");
+        AddValueField(coll_node, "next_id", Things_.NextId().Value);
         for (auto entry : Things_) {
             AddOwnedObject(coll_node, std::to_string(entry.Id().Value), *entry, ctx);
         }

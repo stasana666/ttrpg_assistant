@@ -1,5 +1,6 @@
 add_executable(test_game_object_logic
     test_game_object_factory.cpp
+    test_generated_factory.cpp
 )
 
 target_link_libraries(test_game_object_logic

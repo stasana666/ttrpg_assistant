@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 TSchemaModule ParseFile(const std::filesystem::path& path);
 
@@ -25,6 +26,7 @@ struct TLoadedSchemas {
     std::string PrimaryStem;
     std::unordered_map<std::string, TSchemaModule> ByStem;
     std::unordered_map<std::string, TTypeInfo> SymbolTable;
+    std::vector<std::filesystem::path> SourcePaths;
 };
 
 void RegisterModuleSymbols(const std::string& stem,

@@ -68,8 +68,8 @@ TEST(CreatureDataTest, WarriorDataLoads) {
     EXPECT_EQ(data.Characteristic().Strength().Value(), 18);
     EXPECT_EQ(data.Characteristic().Strength().Modifier(), 4);
 
-    EXPECT_EQ(data.Hitpoints().CurrentValue(), 21);
-    EXPECT_EQ(data.Hitpoints().MaxValue(), 21);
+    EXPECT_EQ(data.Hitpoints().Current(), 21);
+    EXPECT_EQ(data.Hitpoints().Maximum().Value(), 21);
 
     EXPECT_EQ(data.Armor().Category(), EArmorCategory::Heavy);
     EXPECT_EQ(data.Armor().ArmorClassBonus(), 6);
@@ -103,19 +103,19 @@ TEST(CreatureDataTest, ComputedHitpointsFallback) {
 
     EXPECT_EQ(data.Level(), 3);
     EXPECT_EQ(data.Movement(), 0);
-    EXPECT_EQ(data.Hitpoints().CurrentValue(), 47);
-    EXPECT_EQ(data.Hitpoints().MaxValue(), 47);
+    EXPECT_EQ(data.Hitpoints().Current(), 47);
+    EXPECT_EQ(data.Hitpoints().Maximum().Value(), 47);
 }
 
 TEST(CreatureDataTest, ComputedHitpointsJsonOverride) {
     TGameObjectFactory factory = MakeFactoryWithRefs();
     nlohmann::json j = WarriorJson();
-    j["hitpoints"] = {{"current_value", 5}, {"max_value", 40}};
+    j["hitpoints"] = {{"maximum", {{"base", 40}}}, {"current", 5}, {"temporary", 0}};
 
     const TCreatureData data = TCreatureData::FromJson(j, factory);
 
-    EXPECT_EQ(data.Hitpoints().CurrentValue(), 5);
-    EXPECT_EQ(data.Hitpoints().MaxValue(), 40);
+    EXPECT_EQ(data.Hitpoints().Current(), 5);
+    EXPECT_EQ(data.Hitpoints().Maximum().Value(), 40);
 }
 
 TEST(CreatureDataTest, DamageDataLoadsAndIsAvailableOnCreature) {

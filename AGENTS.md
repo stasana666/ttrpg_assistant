@@ -22,11 +22,12 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Build all: `cmake --build build`.
 - Run registered tests: `ctest --test-dir build --output-on-failure`.
 - Common targets: `pf2e_engine`, `assistant`, `analyzer`, `ttrpg_codegen`, `test_expr`, `test_ttrpg`, `test_inventory`, `test_dsl`.
-- `test_actions` is built but not registered with CTest in current CMake; run `./build/pf2e_engine/tests/actions/test_actions` directly for action-combat changes.
+- `test_actions` is registered with CTest through `gtest_discover_tests`; it can also run directly as `./build/pf2e_engine/tests/actions/test_actions`.
 - Validate data: `python3 tools/data_validation.py -s pf2e_engine/schemas/schema.json -t pf2e_engine/data`.
 
 ## Build System
 - Top-level CMake enables C++23, testing, warnings as errors, and global `clang-tidy`.
+- CMake 3.27 or newer is required for `SKIP_LINTING` on generated sources; generation helpers apply source properties in the consuming target's directory.
 - Add order is `extern`, shared parser/expression tools, `.ttrpg` tooling, then `pf2e_engine`, `assistant`, and `analyzer`.
 - Generated config `cpp_config.h` provides `kRootDirPath`; data-loading tests and apps use it to find `pf2e_engine/data`.
 - `tools/ttrpg` and `tools/common/expr` opt out of clang-tidy in their CMake because they use parser/codegen naming and generated-string patterns.

@@ -6,8 +6,11 @@
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/ast/ast_layout_assert.h>
 
-TState::TState(size_t stack_size)
+#include <stdexcept>
+
+TState::TState(size_t stack_size, const TTransformator* owner)
     : stack_size_(stack_size)
+    , owner_(owner)
 {
 }
 
@@ -19,17 +22,19 @@ TTransformator::TTransformator(IInteractionSystem& io_system)
 void TTransformator::DealDamage(TPlayer* player, int damage)
 {
     TCreature* creature = player->GetCreature();
-    transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints().Mutable(), -damage));
+    auto ctx = ExecutionContext();
+    ctx.Invoke(creature->Hitpoints(), &THitPoints::DealDamage, damage);
     io_system_.GameLog() << player->GetName() << " takes " << damage << " amount of damage" << std::endl;
-    io_system_.GameLog() << "current hp: " << creature->Hitpoints()->CurrentValue() << std::endl;
+    io_system_.GameLog() << "current hp: " << creature->Hitpoints()->Current() << std::endl;
 }
 
 void TTransformator::Heal(TPlayer* player, int value)
 {
     TCreature* creature = player->GetCreature();
-    transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints().Mutable(), value));
+    auto ctx = ExecutionContext();
+    ctx.Invoke(creature->Hitpoints(), &THitPoints::Heal, value);
     io_system_.GameLog() << player->GetName() << " takes " << value << " amount of heal" << std::endl;
-    io_system_.GameLog() << "current hp: " << creature->Hitpoints()->CurrentValue() << std::endl;
+    io_system_.GameLog() << "current hp: " << creature->Hitpoints()->Current() << std::endl;
 }
 
 void TTransformator::ChangeCondition(TCreature* creature, EConditionKind condition, int new_value)
@@ -98,6 +103,9 @@ void TTransformator::MovePlayer(TPlayer* player, TPosition new_position)
 
 void TTransformator::Undo(TState state)
 {
+    if (state.owner_ != this || state.stack_size_ > transformations_.size()) {
+        throw std::invalid_argument("checkpoint does not belong to the current transformation history");
+    }
     while (transformations_.size() > state.stack_size_) {
         std::visit(VisitorHelper{
             [&](auto& v) {
@@ -110,7 +118,12 @@ void TTransformator::Undo(TState state)
 
 TState TTransformator::CurrentState() const
 {
-    return TState{transformations_.size()};
+    return TState{transformations_.size(), this};
+}
+
+TGeneratedExecutionContext TTransformator::ExecutionContext()
+{
+    return TGeneratedExecutionContext(*this);
 }
 
 TAstNode TTransformator::GetAst(TAstContext& ctx) const

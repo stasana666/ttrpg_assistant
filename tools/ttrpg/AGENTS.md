@@ -11,21 +11,25 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Build CLI: `cmake --build build --target ttrpg_codegen`.
 - Test tooling: `cmake --build build --target test_ttrpg`.
 - Registered through CTest: `ctest --test-dir build --output-on-failure`.
+- CLI integration tests: `ctest --test-dir build -R '^TtrpgCliTest$' --output-on-failure`; building `test_ttrpg` also builds the CLI they invoke.
 - `ttrpg`, `ttrpg_codegen`, and `test_ttrpg` opt out of clang-tidy in CMake; IDE case-style/include diagnostics in this subtree may be spurious.
 
 ## Source Layout
 - `include/ttrpg/schema_ast.h`: parsed AST declarations (`TEnumDecl`, `TVariantDecl`, `TClassDecl`, `TFieldDecl`, `TSchemaModule`, `EContainer`).
-- `include/ttrpg/parser.h`, `src/parser.cpp`: tokenization and recursive-descent parser. Initializer text after `=` is raw-captured and parsed by shared `expr::Parse`.
-- `include/ttrpg/module.h`, `src/module.cpp`: file parsing, recursive imports, duplicate type checks, circular import detection, symbol table.
+- `include/ttrpg/parser.h`, `src/parser.cpp`: tokenization and recursive-descent parser. Expressions are reconstructed with token locations and parsed by shared `expr::Parse`; balanced delimiters preserve nested object initializers and method bodies.
+- `include/ttrpg/module.h`, `src/module.cpp`: file parsing, recursive imports, duplicate type checks, circular import detection, symbol table, and canonical `SourcePaths` for dependency tracking. Distinct files sharing a module stem are rejected.
 - `include/ttrpg/conventions.h`, `src/conventions.cpp`: naming and type lowering (`PascalToSnake`, `CppMemberType`, `ScalarParseExpr`, `DefaultExprToCpp`, `VariantKindEnum`).
-- `include/ttrpg/analyze.h`, `src/analyze.cpp`: computed defaults, dependency ordering, type validation, C++ expression lowering.
+- `include/ttrpg/analyze.h`, `src/analyze.cpp`: legacy computed-default validation and lowering.
+- `include/ttrpg/program.h`, `src/program.cpp`: typed rule expressions, method validation, purity/lvalues, query dependencies, initialization order, and checked lowering.
+- `include/ttrpg/emit_rule_class.h`, `src/emit_rule_class.cpp`: rule classes, methods, entity lifecycle, snapshots, and recursive JSON emission.
 - `include/ttrpg/cpp_writer.h`, `src/cpp_writer.cpp`: generated-output indentation/braces.
 - `include/ttrpg/emit.h`, `src/emit.cpp`: header/implementation emission.
 - `cli/main.cpp`: argument parsing and orchestration only.
+- `cmake/TtrpgCodegen.cmake`: `ttrpg_generate(SCHEMA ... HEADER ... SOURCE ... [DEPFILE ...] [TARGET ...])`; schema paths resolve against the source directory and output paths against the binary directory. `TARGET` must already exist and places generated-source properties in its directory, so `SKIP_LINTING` applies when generation is declared in a child directory.
 - `tests/`: writer, conventions, parser, analyzer, and golden-output tests.
 
 ## Language
-- Top-level forms: `import`, `enum`, `variant`, `class`.
+- Top-level forms: `import`, `enum`, `variant`, `class`, `GameEntity`, and named instances (`TActor Wolf { ... }`). The trailing semicolon after an instance is optional.
 - Field types: `int`, `bool`, `string`, `BoundedQuantity`, `Resource`, or schema-declared enum/class/variant.
 - Containers:
   - `set<Enum>` lowers to `std::set`.
@@ -33,7 +37,11 @@ Canonical project instructions. CLAUDE.md redirects here.
   - `collection<Class>` lowers to `TIdCollection`.
   - `map<Enum, V>` lowers to `std::map`; JSON object keys are parsed through the generated enum `FromString`.
 - Defaults: int literals, `true`/`false`, enum identifiers, `max_int`, `min_int`.
-- Computed defaults are class-only stored fields. They may use arithmetic over sibling fields and member-access chains; JSON values override them.
+- Stored defaults run once during creation, after their dependencies. `derive` evaluates on every read. Initial creation overrides do not turn defaults into live formulas.
+- Rule expressions support `@self`, stored/derived member reads, typed object literals, strings, int/bool operators, pure `min`/`max`, and query calls. Arithmetic checks overflow and division by zero.
+- `method ReturnType Name(Type Argument) { ... }` supports `let`, `require`, assignment/compound assignment, method calls, `return`, and `if (...) { ... } else { ... }`.
+- `query` methods are pure and cannot write persistent fields or call mutating methods. Query dependencies participate in default ordering and cycle checks.
+- Persistent field assignments and method calls automatically use the generated execution context. Local values are copied and local assignments use ordinary C++; context, guarded access, IDs, and transaction declarations are absent from the author syntax.
 - `derive` fields are class-only storage-less getters. They require an initializer, are skipped in `FromJson` and `GetAst`, and can be DSL-exposed if `int`/`bool`.
 - Variant alternatives reject derived fields and non-constant computed initializers.
 - Type names are verbatim C++ names; the generator never adds `T` or `E` prefixes.
@@ -44,7 +52,10 @@ Canonical project instructions. CLAUDE.md redirects here.
 
 ## Generated Shape
 - Enums emit `enum class`, `ToString`, and `<Name>FromString`.
-- Classes emit getters, `FromJson`, `GetAst`, `TIsAstRecursive`, and `RegisterDslProperties`.
+- All classes emit guarded/const getters, `Create(TInitialValues)`, `FromJson`, `GetAst`, `TIsAstRecursive`, and `RegisterDslProperties`.
+- Rule classes (methods, entities, new expression syntax, or fields containing rule classes) also emit `ToJson` and `Restore`. Snapshot restoration requires every stored field and bypasses creation defaults.
+- `GameEntity` adds a generated `TEntityId`; factories create distinct identities, C++ copying is disabled, moving transfers identity and clears the source, and restoration reserves the saved ID.
+- Named instances emit `Create<Name>()` factories instead of shared mutable globals. Two calls create independent values/entities.
 - Variants emit a kind enum, one payload struct per alternative, wrapper class with `std::variant` payload, `Kind()`, `Payload()`, `TryGet<T>()`, `FromJson`, and `GetAst`.
 - `set<Variant>` uses `TVariantMap<Kind, Variant>`; query with `Has(kind)` or `Get<TAlt>()`.
 - Enum/variant JSON tokens use the identifier spelling verbatim, such as `"Finesse"` or `"D8"`.
@@ -52,11 +63,12 @@ Canonical project instructions. CLAUDE.md redirects here.
 
 ## Factory/Engine Integration
 - Class fields load from either by-name string refs through `TGameObjectFactory` or inline JSON objects through `T::FromJson`.
-- A generated class used by-name needs factory storage, a `Read<T>`, a `GetFactoryStorage<T>` branch, and a `kReaderMapping` entry.
-- A class used only inline still needs factory plumbing if the generated by-name branch must compile.
+- New generated classes used by-name register with `factory.RegisterType<T>("json_type")` before `AddSource`; no dedicated storage member, reader method, or factory switch is needed. Existing built-in registrations remain supported.
+- Inline generated classes need no registration. Their generated by-name branch compiles and reports missing registration only if invoked.
+- Generic definitions retain immutable JSON and are constructed through `T::FromJson(definition, currentFactory)`, so factory moves/copies do not bind reference resolution to an old factory address. Registered JSON types validate their envelope at load time and their fields through `FromJson` when constructed.
+- Recursive by-name construction reports the reference cycle. Construction guards are scoped to the current thread, factory, C++ type, and definition id, and unwind when loading fails.
 - Variants load eagerly through `FromJson` and need no factory storage.
-- Add one custom command per schema in `pf2e_engine/src/inventory/CMakeLists.txt`.
-- If schema A imports schema B, A's custom command must depend on B's `.ttrpg`.
+- Register each schema with `ttrpg_generate` in `pf2e_engine/src/inventory/CMakeLists.txt`; its depfile tracks transitive imports without a handwritten dependency list.
 - Add generated sources to `pf2e_engine`, outputs to `pf2e_engine_generated_headers`, and call `TClass::RegisterDslProperties()` from `pf2e_engine/src/dsl/builtins.cpp` for generated classes with DSL-visible fields.
 
 ## Tests
@@ -67,13 +79,25 @@ Canonical project instructions. CLAUDE.md redirects here.
 - `test_golden`: exact generated output for `basic`, `variant`, `computed`, and `collection` fixtures.
 - Engine tests are the end-to-end gate after generator changes.
 
+## CLI
+- Generate with `ttrpg_codegen --schema module.ttrpg --out-h module.h --out-cpp module.cpp [--depfile module.d]`.
+- `ttrpg_codegen --schema module.ttrpg --check` validates header and implementation emission for every imported module without creating files; it cannot be combined with output paths.
+- Generation renders both outputs before writing, stages files beside their destinations, and restores existing outputs if publication fails. Schema or emission errors leave existing output contents and timestamps unchanged.
+- `--depfile` writes Make-compatible dependencies for both outputs, including the primary schema and every transitive import. The CMake helper enables `DEPFILE`; Makefile generators require CMake 3.20 or newer.
+
 ## Pitfalls
 - Keep generated output deterministic.
-- Initializer expressions use shared `expr`; codegen accepts only its subset and rejects calls, `$` vars, comparisons, and logical operators.
+- The legacy initializer path keeps the existing expression subset; the typed rule path supports the expanded language. `$` expressions remain the separate runtime action DSL.
+- Methods are synchronous. Do not insert continuation yields or user prompts into generated methods: suspension needs its own action executor.
+- Mutable nested fields have stable addresses while transformation history exists. Object/collection replacement and element indexing are rejected until stable paths are implemented. Method parameters currently accept primitive value types.
+- Entity-valued fields are rejected until entity-reference storage is implemented; no explicit `ref` keyword is planned. Creating entities inside methods/queries is also rejected until allocation can participate in the transformation journal. Named instance factories are initial-world construction.
+- `grant`, compiled action/reaction declarations, contextual modifiers, build choices, and fully generated `TCreature` are subsequent migration steps; they are not accepted syntax yet.
+- `Statistic` in `hitpoints.ttrpg` currently implements Base/Value only. PF2e modifier stacking is not implemented by that value class.
 - `BoundedQuantity` is scalar only; `set<BoundedQuantity>` is rejected.
 - `Resource` is a runtime-supported scalar built-in (lowers to `TResource`), like `BoundedQuantity`: scalar-only, supports an int default, and is usable as a `map<Enum, Resource>` value; not DSL-exposed yet.
 - `collection<T>` is supported for schema-declared classes and is used by engine schemas.
 - `map<T, V>` keys must be schema-declared enums; the first engine use is `map<EDamageType, int>`.
 - DSL exposes only generated `int`/`bool` scalar getters today; widening needs new `TDslValue` alternatives.
-- No inheritance, methods, or `optional` field shapes yet.
+- No inheritance or author-facing `optional` field shapes yet.
+- Legacy nested classes serialize through their schema getters. A legacy class containing its own collection still needs a snapshot restoration path before it can participate in rule-class snapshots.
 - Variants are closed by design; adding an alternative should force visit sites using `overloaded` to handle it.

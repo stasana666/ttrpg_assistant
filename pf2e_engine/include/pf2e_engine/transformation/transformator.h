@@ -34,10 +34,13 @@ public:
     void Undo(TState state);
 
     TState CurrentState() const;
+    TGeneratedExecutionContext ExecutionContext();
 
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:
+    friend class TGeneratedExecutionContext;
+
     IInteractionSystem& io_system_;
     std::vector<TTransformation> transformations_;
     [[maybe_unused]] char ast_layout_sentinel_[1] = {};

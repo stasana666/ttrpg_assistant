@@ -9,6 +9,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <sstream>
+#include <algorithm>
 
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/material.h>
@@ -20,6 +21,42 @@
 
 #include <pf2e_engine/actions/action_reader.h>
 #include <pf2e_engine/feat.h>
+
+namespace {
+
+struct TGeneratedConstruction {
+    const TGameObjectFactory* factory;
+    std::type_index type;
+    TGameObjectId id;
+};
+
+thread_local std::vector<TGeneratedConstruction> generated_constructions;
+
+}
+
+TGameObjectFactory::TGeneratedConstructionGuard::TGeneratedConstructionGuard(
+    const TGameObjectFactory& factory, std::type_index type, TGameObjectId id)
+{
+    auto cycle = std::find_if(generated_constructions.begin(), generated_constructions.end(),
+        [&](const TGeneratedConstruction& entry) {
+            return entry.factory == &factory && entry.type == type && entry.id == id;
+        });
+    if (cycle != generated_constructions.end()) {
+        std::string message = "cyclic generated object reference: ";
+        for (auto entry = cycle; entry != generated_constructions.end(); ++entry) {
+            if (entry->factory == &factory) {
+                message += std::string(TGameObjectIdManager::Instance().Name(entry->id)) + " -> ";
+            }
+        }
+        throw std::runtime_error(message + std::string(TGameObjectIdManager::Instance().Name(id)));
+    }
+    generated_constructions.push_back({&factory, type, id});
+}
+
+TGameObjectFactory::TGeneratedConstructionGuard::~TGeneratedConstructionGuard()
+{
+    generated_constructions.pop_back();
+}
 
 const std::string kPathToSchema = kRootDirPath + "/pf2e_engine/schemas/schema.json";
 
@@ -63,6 +100,9 @@ void TGameObjectFactory::ReadObjectFromFile(const std::filesystem::path& game_ob
 {
     std::ifstream game_object_stream(game_object_file);
     nlohmann::json json_game_object = nlohmann::json::parse(game_object_stream);
+    if (ReadGeneratedObject(json_game_object)) {
+        return;
+    }
     ValidateObject(json_game_object);
     
     auto reader = kReaderMapping.find(json_game_object["type"]);
@@ -75,6 +115,61 @@ void TGameObjectFactory::ReadObjectFromFile(const std::filesystem::path& game_ob
 
     TGameObjectId id = ReadGameObjectName(json_game_object);
     (this->*reader->second)(json_game_object[json_game_object["type"]], id);
+}
+
+void TGameObjectFactory::RegisterGeneratedType(std::type_index type, std::string json_type)
+{
+    if (json_type.empty() || kReaderMapping.contains(json_type)) {
+        throw std::invalid_argument("invalid generated type name: " + json_type);
+    }
+    for (const auto& [name, registered_type] : generated_types_) {
+        if (name == json_type && registered_type == type) {
+            return;
+        }
+        if (name == json_type || registered_type == type) {
+            throw std::invalid_argument("generated type registration conflicts with: " + name);
+        }
+    }
+    generated_types_.emplace(std::move(json_type), type);
+    generated_definitions_.try_emplace(type);
+}
+
+bool TGameObjectFactory::ReadGeneratedObject(const nlohmann::json& json)
+{
+    if (!json.is_object() || !json.contains("type") || !json.at("type").is_string()) {
+        return false;
+    }
+    const std::string json_type = json.at("type").get<std::string>();
+    const auto registered = generated_types_.find(json_type);
+    if (registered == generated_types_.end()) {
+        return false;
+    }
+    if (!json.contains("name") || !json.at("name").is_string()
+        || !json.contains(json_type) || !json.at(json_type).is_object()) {
+        throw std::invalid_argument(
+            "generated object requires a string name and an object payload: " + json_type);
+    }
+    const std::string name = json.at("name").get<std::string>();
+    const TGameObjectId id = TGameObjectIdManager::Instance().Register(name);
+    auto& definitions = generated_definitions_.at(registered->second);
+    if (!definitions.emplace(id, std::make_shared<const nlohmann::json>(json.at(json_type))).second) {
+        throw std::invalid_argument("duplicate generated object '" + name + "' of type " + json_type);
+    }
+    return true;
+}
+
+const nlohmann::json& TGameObjectFactory::GeneratedDefinition(std::type_index type, TGameObjectId id) const
+{
+    auto definitions = generated_definitions_.find(type);
+    const std::string name(TGameObjectIdManager::Instance().Name(id));
+    if (definitions == generated_definitions_.end()) {
+        throw std::runtime_error("no generated type registered for reference: " + name);
+    }
+    auto definition = definitions->second.find(id);
+    if (definition == definitions->second.end()) {
+        throw std::runtime_error("unknown generated object reference: " + name);
+    }
+    return *definition->second;
 }
 
 void TGameObjectFactory::ValidateObject(nlohmann::json& json) const

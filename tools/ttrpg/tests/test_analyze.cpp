@@ -187,3 +187,197 @@ TEST(AnalyzeTest, TwoLevelMemberChainValidatesAndLowers) {
     EXPECT_EQ(InitExprToCpp(c.Fields.at(1).Init.value()),
               "std::as_const(std::as_const(r.Mid_).Leaf()).X()");
 }
+
+#include <ttrpg/program.h>
+
+namespace {
+
+TLoadedSchemas RuleModule(const std::string& source) {
+    TLoadedSchemas loaded;
+    loaded.Primary = ParseModule(source);
+    loaded.PrimaryStem = "rules";
+    loaded.ByStem.emplace("rules", loaded.Primary);
+    RegisterModuleSymbols("rules", loaded.Primary, loaded.SymbolTable);
+    return loaded;
+}
+
+void CheckRules(const std::string& source) {
+    const auto loaded = RuleModule(source);
+    for (const auto& declaration : loaded.Primary.Classes) CompileClass(declaration, loaded);
+}
+
+}
+
+TEST(RuleAnalyzeTest, StoredInitializationAndDerivedValues) {
+    const auto loaded = RuleModule(R"(
+        class TPoints {
+            int Current = @self.Maximum;
+            int Maximum = 10;
+            derive bool Empty = @self.Current == 0;
+        }
+    )");
+    const auto compiled = CompileClass(loaded.Primary.Classes[0], loaded);
+    EXPECT_EQ(compiled.InitOrder, (std::vector<std::size_t>{1, 0}));
+    EXPECT_FALSE(compiled.Fields[2].Initializer.empty());
+}
+
+TEST(RuleAnalyzeTest, RejectsMutationInQueryAndDerivedFields) {
+    EXPECT_THROW(CheckRules(R"(
+        class TPoints {
+            int Current = 10;
+            query void Hurt() { @self.Current -= 1; }
+        }
+    )"), std::runtime_error);
+    EXPECT_THROW(CheckRules(R"(
+        class TPoints {
+            int Current = 10;
+            derive int Twice = @self.Current * 2;
+            method void Hurt() { @self.Twice = 1; }
+        }
+    )"), std::runtime_error);
+    EXPECT_THROW(CheckRules(R"(
+        class TPoints {
+            int Current = 10;
+            derive int Bad = @self.Hurt();
+            method int Hurt() { @self.Current -= 1; return @self.Current; }
+        }
+    )"), std::runtime_error);
+}
+
+TEST(RuleAnalyzeTest, RejectsInvalidArgumentsAndReturnPaths) {
+    EXPECT_THROW(CheckRules(R"(
+        class TPoints {
+            method int Heal(int Amount) { return Amount; }
+            method void Hurt() { @self.Heal(true); }
+        }
+    )"), std::runtime_error);
+    EXPECT_THROW(CheckRules(R"(
+        class TPoints {
+            method int Heal(int Amount) { if (Amount > 0) { return Amount; } }
+        }
+    )"), std::runtime_error);
+    EXPECT_THROW(CheckRules(R"(
+        class TPoints {
+            method int Heal(int Amount) { return Amount; }
+            method void Hurt() { @self.Heal(); }
+        }
+    )"), std::runtime_error);
+}
+
+TEST(RuleAnalyzeTest, DetectsDerivedCycles) {
+    EXPECT_THROW(CheckRules(R"(
+        class TPoints {
+            derive int A = @self.B + 1;
+            derive int B = @self.A + 1;
+        }
+    )"), std::runtime_error);
+}
+
+TEST(RuleAnalyzeTest, ValidatesObjectInitializers) {
+    EXPECT_THROW(CheckRules(R"(
+        class TResult { int Value; derive int Twice = @self.Value * 2; }
+        class TPoints {
+            method TResult Get() { return TResult { Twice = 1; }; }
+        }
+    )"), std::runtime_error);
+    EXPECT_NO_THROW(CheckRules(R"(
+        class TResult { int Value; derive int Twice = @self.Value * 2; }
+        class TPoints {
+            int Current = 10;
+            method TResult Hurt(int Amount) {
+                require Amount >= 0;
+                let Before = @self.Current;
+                @self.Current = max(0, Before - Amount);
+                return TResult { Value = Before - @self.Current; };
+            }
+        }
+    )"));
+}
+
+TEST(RuleAnalyzeTest, QueryDependenciesParticipateInInitialization) {
+    const auto loaded = RuleModule(R"(
+        class TPoints {
+            int Current = @self.ReadMaximum();
+            int Maximum = 10;
+            query int ReadMaximum() { return @self.Maximum; }
+        }
+    )");
+    EXPECT_EQ(CompileClass(loaded.Primary.Classes[0], loaded).InitOrder,
+              (std::vector<std::size_t>{1, 0}));
+    EXPECT_THROW(CheckRules(R"(
+        class TPoints {
+            derive int Current = @self.ReadCurrent();
+            query int ReadCurrent() { return @self.Current; }
+        }
+    )"), std::runtime_error);
+    EXPECT_THROW(CheckRules(R"(
+        class TPoints {
+            query int A() { return @self.B(); }
+            query int B() { return @self.A(); }
+        }
+    )"), std::runtime_error);
+}
+
+TEST(RuleAnalyzeTest, RejectsEntityValuesAndCppKeywordMembers) {
+    EXPECT_THROW(CheckRules(R"(
+        GameEntity TChild { int Value; }
+        GameEntity TParent { TChild Child; }
+    )"), std::runtime_error);
+    EXPECT_THROW(CheckRules(R"(
+        class TPoints { int class = 1; query int Read() { return @self.class; } }
+    )"), std::runtime_error);
+}
+
+TEST(RuleAnalyzeTest, VoidReturnCallsDoNotDeclareVoidVariables) {
+    const auto loaded = RuleModule(R"(
+        class TPoints {
+            method void Noop() { return; }
+            method void Execute() { return @self.Noop(); }
+        }
+    )");
+    const auto compiled = CompileClass(loaded.Primary.Classes[0], loaded);
+    for (const auto& line : compiled.Methods[1].Body) {
+        EXPECT_EQ(line.find("auto result"), std::string::npos);
+    }
+}
+
+TEST(RuleAnalyzeTest, PlainValueClassesSupportAggregateConstruction) {
+    EXPECT_NO_THROW(CheckRules(R"(
+        class TResult { int Value; }
+        class TPoints { method TResult Read() { return TResult { Value = 1; }; } }
+    )"));
+    EXPECT_THROW(CheckRules(R"(
+        enum EKey { A, B, }
+        class TResult { set<EKey> Keys; }
+        class TPoints { method TResult Read() { return TResult { Keys = A; }; } }
+    )"), std::runtime_error);
+}
+
+TEST(RuleAnalyzeTest, IntegerLiteralsAreDecimalInGeneratedCpp) {
+    const auto loaded = RuleModule(R"(
+        class TPoints { int Value = 010; query int Read() { return 08; } }
+    )");
+    const auto compiled = CompileClass(loaded.Primary.Classes[0], loaded);
+    EXPECT_EQ(compiled.Fields[0].Initializer, "10");
+    EXPECT_NE(std::find(compiled.Methods[0].Body.begin(), compiled.Methods[0].Body.end(),
+                        "auto result = 8;"), compiled.Methods[0].Body.end());
+}
+
+TEST(RuleAnalyzeTest, InvalidContainersAndGeneratedMemberCollisionsAreDiagnosed) {
+    EXPECT_THROW(CheckRules("class TPoints { set<int> Values; }"), std::runtime_error);
+    EXPECT_THROW(CheckRules("class TPoints { collection<int> Values; }"), std::runtime_error);
+    EXPECT_THROW(CheckRules("class TPoints { map<int, int> Values; }"), std::runtime_error);
+    EXPECT_THROW(CheckRules("class TPoints { int TPoints; }"), std::runtime_error);
+    EXPECT_THROW(CheckRules("class TPoints { int Value; int Value_; }"), std::runtime_error);
+}
+
+TEST(RuleAnalyzeTest, QueriesCannotAllocateEntityIdentities) {
+    EXPECT_THROW(CheckRules(R"(
+        GameEntity TActor { int Value; }
+        class TFactory { query TActor Make() { return TActor { Value = 1; }; } }
+    )"), std::runtime_error);
+    EXPECT_THROW(CheckRules(R"(
+        GameEntity TActor { int Value; }
+        class TFactory { method TActor Make() { return TActor { Value = 1; }; } }
+    )"), std::runtime_error);
+}

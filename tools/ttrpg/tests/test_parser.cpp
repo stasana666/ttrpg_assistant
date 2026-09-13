@@ -170,3 +170,37 @@ TEST(ParserTest, LoadAllBuildsSymbolTable) {
     EXPECT_EQ(loaded.SymbolTable.at("TEffect").Kind, ETypeKind::Variant);
     EXPECT_EQ(loaded.SymbolTable.at("TSpell").Kind, ETypeKind::Class);
 }
+
+TEST(ParserTest, RuleMethodsAndNamedEntities) {
+    const auto module = ParseSrc(R"(
+        GameEntity TActor {
+            int Current = 10;
+            method int Hurt(int Amount) {
+                require Amount >= 0;
+                let Before = @self.Current;
+                @self.Current -= Amount;
+                if (@self.Current < 0) { @self.Current = 0; }
+                return Before - @self.Current;
+            }
+        }
+        TActor Wolf { Current = 24; }
+        TActor Fighter { Current = 21; };
+    )");
+    ASSERT_EQ(module.Classes.size(), 1u);
+    EXPECT_TRUE(module.Classes[0].GameEntity);
+    ASSERT_EQ(module.Classes[0].Methods.size(), 1u);
+    const auto& method = module.Classes[0].Methods[0];
+    EXPECT_EQ(method.ReturnType, "int");
+    EXPECT_EQ(method.Name, "Hurt");
+    ASSERT_EQ(method.Body.size(), 5u);
+    EXPECT_EQ(method.Body[2].Kind, TClassDecl::TStatement::EKind::SubAssign);
+    EXPECT_EQ(method.Body[3].Kind, TClassDecl::TStatement::EKind::If);
+    ASSERT_EQ(module.Instances.size(), 2u);
+    EXPECT_EQ(module.Instances[0].Value.Kind, expr::ENodeKind::ObjectInit);
+    EXPECT_EQ(module.Instances[0].Value.Text, "TActor");
+}
+
+TEST(ParserTest, UnterminatedMethodFails) {
+    EXPECT_THROW(ParseSrc("class T { method void Run() { let Value = 1; }"), std::runtime_error);
+    EXPECT_THROW(ParseSrc("class T { int Value = 1 }"), std::runtime_error);
+}

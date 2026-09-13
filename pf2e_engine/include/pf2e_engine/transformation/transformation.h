@@ -1,7 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
-#include <pf2e_engine/common/bounded_quantity.h>
+#include <pf2e_engine/common/generated_execution.h>
 #include <pf2e_engine/common/resource.h>
 #include <pf2e_engine/common/variant_map.h>
 #include <pf2e_engine/condition.h>
@@ -14,19 +14,6 @@ class TEffectManager;
 class TInitiativeOrder;
 class TPlayer;
 class TTaskScheduler;
-
-class TChangeHitPoints {
-public:
-    TChangeHitPoints(TBoundedQuantity* hitpoints, int value);
-
-    void Undo();
-
-    TAstNode GetAst(TAstContext& ctx) const;
-
-private:
-    TBoundedQuantity* hitpoints_;
-    TBoundedQuantity prev_;
-};
 
 class TChangeCondition {
 public:
@@ -170,7 +157,6 @@ private:
 };
 
 using TTransformation = std::variant<
-    TChangeHitPoints,
     TChangeCondition,
     TChangeResource,
     TAddEffect,
@@ -180,5 +166,6 @@ using TTransformation = std::variant<
     TAdvanceTaskProgress,
     TChangeCurrentPlayer,
     TChangeRound,
-    TMovePlayer
+    TMovePlayer,
+    TGeneratedAssignment
 >;

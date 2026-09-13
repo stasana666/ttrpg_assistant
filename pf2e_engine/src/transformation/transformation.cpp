@@ -51,22 +51,6 @@ void SetConditionValue(TVariantMap<EConditionKind, TCondition>& conditions,
 
 }
 
-TChangeHitPoints::TChangeHitPoints(TBoundedQuantity* hitpoints, int value)
-    : hitpoints_(hitpoints)
-    , prev_(*hitpoints_)
-{
-    if (value < 0) {
-        hitpoints_->Reduce(-value);
-    } else {
-        hitpoints_->Restore(value);
-    }
-}
-
-void TChangeHitPoints::Undo()
-{
-    *hitpoints_ = prev_;
-}
-
 TChangeCondition::TChangeCondition(TVariantMap<EConditionKind, TCondition>* conditions,
                                    EConditionKind condition,
                                    int new_value)
@@ -203,14 +187,6 @@ TMovePlayer::TMovePlayer(TPlayer* player, TPosition new_position)
 void TMovePlayer::Undo()
 {
     player_->SetPosition(prev_position_);
-}
-
-TAstNode TChangeHitPoints::GetAst(TAstContext& ctx) const
-{
-    TAstNode node = TAstNode::MakeObject("TChangeHitPoints");
-    AddReference(node, "hitpoints_ref", hitpoints_, ctx);
-    AddOwnedObject(node, "prev", prev_, ctx);
-    return node;
 }
 
 TAstNode TChangeCondition::GetAst(TAstContext&) const

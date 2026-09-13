@@ -18,6 +18,12 @@ enum class ETok {
     Plus, Minus, Star, Slash,
     Lt, Le, Gt, Ge, EqEq, BangEq, AmpAmp, PipePipe, Bang,
     End,
+    At,
+    LBrace, RBrace,
+    LBracket, RBracket,
+    Assign,
+    Semicolon,
+    StringLiteral,
 };
 
 using TToken = parse::TToken<ETok>;

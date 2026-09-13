@@ -3,6 +3,7 @@ import "weapon.ttrpg";
 import "creature_parts.ttrpg";
 import "condition.ttrpg";
 import "damage.ttrpg";
+import "hitpoints.ttrpg";
 
 enum ECreatureSize {
     Tiny,
@@ -33,7 +34,11 @@ class TCreatureData {
     TClass Class;
     TAbilityScores Characteristic;
     int Movement = 0;
-    BoundedQuantity Hitpoints = Race.Hitpoints + Level * (Class.Hitpoints + Characteristic.Constitution.Modifier);
+    THitPoints Hitpoints = THitPoints {
+        Maximum = Statistic {
+            Base = @self.Race.Hitpoints + @self.Level * (@self.Class.Hitpoints + @self.Characteristic.Constitution.Modifier);
+        };
+    };
     TArmor Armor;
     collection<TWeapon> Weapons;
     collection<TWeapon> NaturalWeapons;

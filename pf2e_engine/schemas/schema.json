@@ -221,10 +221,18 @@
                 "hitpoints": {
                     "type": "object",
                     "properties": {
-                        "current_value": { "type": "integer" },
-                        "max_value": { "type": "integer" }
+                        "maximum": {
+                            "type": "object",
+                            "properties": {
+                                "base": { "type": "integer", "minimum": 0 }
+                            },
+                            "required": ["base"],
+                            "additionalProperties": false
+                        },
+                        "current": { "type": "integer", "minimum": 0 },
+                        "temporary": { "type": "integer", "minimum": 0, "default": 0 }
                     },
-                    "required": ["current_value", "max_value"],
+                    "required": ["maximum"],
                     "additionalProperties": false
                 },
                 "armor": { "type": "string" },

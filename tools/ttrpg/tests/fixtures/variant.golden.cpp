@@ -121,6 +121,17 @@ TAstNode TEffect::GetAst([[maybe_unused]] TAstContext& ctx) const {
     return node;
 }
 
+TSpell TSpell::Create(const TInitialValues& initial) {
+    TSpell r;
+    if (initial.Name) {
+        r.Name_ = *initial.Name;
+    }
+    if (initial.Effects) {
+        r.Effects_ = *initial.Effects;
+    }
+    return r;
+}
+
 TSpell TSpell::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     TSpell r;
     r.Name_ = j.at("name").get<std::string>();

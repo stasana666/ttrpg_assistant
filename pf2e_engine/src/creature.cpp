@@ -34,12 +34,12 @@ int TCreature::GetLevel() const
     return proficiency_.GetLevel();
 }
 
-TGuarded<TBoundedQuantity> TCreature::Hitpoints()
+TGuarded<THitPoints> TCreature::Hitpoints()
 {
     return TCreatureData::Hitpoints();
 }
 
-const TBoundedQuantity& TCreature::Hitpoints() const
+const THitPoints& TCreature::Hitpoints() const
 {
     return TCreatureData::Hitpoints();
 }
@@ -86,7 +86,7 @@ TProficiency& TCreature::Proficiency()
 
 bool TCreature::IsAlive() const
 {
-    return Hitpoints().CurrentValue() > 0;
+    return Hitpoints().Current() > 0;
 }
 
 void TCreature::AddAction(std::shared_ptr<TAction> action)
@@ -163,7 +163,7 @@ TAstNode GetReactionListAst(const std::vector<std::shared_ptr<TReaction>>& react
 
 TAstNode TCreature::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 800;
+    static constexpr size_t kExpectedSize = 808;
     AST_ASSERT_LAYOUT(TCreature, kExpectedSize);
 
     const std::string my_id = ctx.IdentityOf(this);

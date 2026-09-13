@@ -35,6 +35,26 @@ EColor EColorFromString(const std::string& s) {
     throw std::runtime_error("unknown EColor: \"" + s + "\"");
 }
 
+TThing TThing::Create(const TInitialValues& initial) {
+    TThing r;
+    if (initial.Name) {
+        r.Name_ = *initial.Name;
+    }
+    if (initial.Count) {
+        r.Count_ = *initial.Count;
+    }
+    if (initial.Color) {
+        r.Color_ = *initial.Color;
+    }
+    if (initial.Charges) {
+        r.Charges_ = *initial.Charges;
+    }
+    if (initial.Tags) {
+        r.Tags_ = *initial.Tags;
+    }
+    return r;
+}
+
 TThing TThing::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     TThing r;
     r.Name_ = j.at("name").get<std::string>();

@@ -16,6 +16,7 @@ TExprNode MakeBinary(EBinaryOp op, TExprNode lhs, TExprNode rhs) {
     TExprNode e;
     e.Kind = ENodeKind::Binary;
     e.BinOp = op;
+    e.Location = lhs.Location;
     e.Lhs = std::make_shared<TExprNode>(std::move(lhs));
     e.Rhs = std::make_shared<TExprNode>(std::move(rhs));
     return e;
@@ -97,11 +98,12 @@ private:
     }
 
     TExprNode ParseUnary() {
-        if (ts_.Peek().kind == ETok::Bang) {
-            ts_.Advance();
+        if (ts_.Peek().kind == ETok::Bang || ts_.Peek().kind == ETok::Minus) {
+            const auto token = ts_.Consume();
             TExprNode e;
             e.Kind = ENodeKind::Unary;
-            e.UnOp = EUnaryOp::Not;
+            e.UnOp = token.kind == ETok::Bang ? EUnaryOp::Not : EUnaryOp::Negate;
+            e.Location = token.loc;
             e.Lhs = std::make_shared<TExprNode>(ParseUnary());
             return e;
         }
@@ -110,59 +112,100 @@ private:
 
     TExprNode ParsePostfix() {
         TExprNode e = ParsePrimary();
-        while (ts_.Match(ETok::Dot)) {
-            if (ts_.Peek().kind != ETok::Ident) {
-                ts_.Throw("expr parser: expected identifier after '.'");
+        while (true) {
+            if (ts_.Match(ETok::Dot)) {
+                if (ts_.Peek().kind != ETok::Ident) {
+                    ts_.Throw("expr parser: expected identifier after '.'");
+                }
+                const auto token = ts_.Consume();
+                TExprNode member;
+                member.Kind = ENodeKind::Member;
+                member.Text = token.text;
+                member.Location = token.loc;
+                member.Lhs = std::make_shared<TExprNode>(std::move(e));
+                e = std::move(member);
+                continue;
             }
-            TExprNode m;
-            m.Kind = ENodeKind::Member;
-            m.Text = ts_.Consume().text;
-            m.Lhs = std::make_shared<TExprNode>(std::move(e));
-            e = std::move(m);
+            if (ts_.Match(ETok::LParen)) {
+                TExprNode call;
+                call.Kind = ENodeKind::Call;
+                call.Location = e.Location;
+                if (e.Kind == ENodeKind::Var && !e.HasDollar) {
+                    call.Text = std::move(e.Text);
+                } else {
+                    call.Lhs = std::make_shared<TExprNode>(std::move(e));
+                }
+                if (ts_.Peek().kind != ETok::RParen) {
+                    call.Args.push_back(ParseOr());
+                    while (ts_.Match(ETok::Comma)) {
+                        call.Args.push_back(ParseOr());
+                    }
+                }
+                ts_.Expect(ETok::RParen, "')'");
+                e = std::move(call);
+                continue;
+            }
+            if (ts_.Match(ETok::LBracket)) {
+                TExprNode index;
+                index.Kind = ENodeKind::Index;
+                index.Location = e.Location;
+                index.Lhs = std::make_shared<TExprNode>(std::move(e));
+                index.Rhs = std::make_shared<TExprNode>(ParseOr());
+                ts_.Expect(ETok::RBracket, "']'");
+                e = std::move(index);
+                continue;
+            }
+            return e;
         }
-        return e;
     }
 
     TExprNode ParsePrimary() {
         const TToken& t = ts_.Peek();
-        if (t.kind == ETok::IntLiteral) {
+        if (t.kind == ETok::IntLiteral || t.kind == ETok::StringLiteral) {
             TExprNode e;
-            e.Kind = ENodeKind::IntLiteral;
+            e.Kind = t.kind == ETok::IntLiteral ? ENodeKind::IntLiteral : ENodeKind::StringLiteral;
             e.Text = t.text;
+            e.Location = t.loc;
             ts_.Advance();
             return e;
         }
-        if (t.kind == ETok::Dollar) {
+        if (t.kind == ETok::Dollar || t.kind == ETok::At) {
+            const auto prefix = t;
             ts_.Advance();
             if (ts_.Peek().kind != ETok::Ident) {
-                ts_.Throw("expr parser: expected identifier after '$'");
+                ts_.Throw("expr parser: expected identifier after '" + prefix.text + "'");
             }
             TExprNode e;
-            e.Kind = ENodeKind::Var;
-            e.HasDollar = true;
+            e.Kind = prefix.kind == ETok::Dollar ? ENodeKind::Var : ENodeKind::ContextVar;
+            e.HasDollar = prefix.kind == ETok::Dollar;
+            e.Location = prefix.loc;
             e.Text = ts_.Consume().text;
             return e;
         }
         if (t.kind == ETok::Ident) {
+            const auto location = t.loc;
             std::string name = ts_.Consume().text;
-            if (ts_.Peek().kind == ETok::LParen) {
-                ts_.Advance();
+            if (ts_.Match(ETok::LBrace)) {
                 TExprNode e;
-                e.Kind = ENodeKind::Call;
-                e.Text = name;
-                if (ts_.Peek().kind != ETok::RParen) {
-                    e.Args.push_back(ParseOr());
-                    while (ts_.Match(ETok::Comma)) {
-                        e.Args.push_back(ParseOr());
+                e.Kind = ENodeKind::ObjectInit;
+                e.Text = std::move(name);
+                e.Location = location;
+                while (!ts_.Match(ETok::RBrace)) {
+                    if (ts_.Peek().kind != ETok::Ident) {
+                        ts_.Throw("expr parser: expected field name in object initializer");
                     }
+                    const auto field = ts_.Consume();
+                    ts_.Expect(ETok::Assign, "'='");
+                    e.Fields.push_back({field.text, ParseOr(), field.loc});
+                    ts_.Expect(ETok::Semicolon, "';'");
                 }
-                ts_.Expect(ETok::RParen, "')'");
                 return e;
             }
             TExprNode e;
             e.Kind = ENodeKind::Var;
             e.HasDollar = false;
-            e.Text = name;
+            e.Text = std::move(name);
+            e.Location = location;
             return e;
         }
         if (t.kind == ETok::LParen) {

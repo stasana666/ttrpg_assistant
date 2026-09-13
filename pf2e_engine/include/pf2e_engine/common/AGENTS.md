@@ -2,8 +2,53 @@
 
 Canonical project instructions. CLAUDE.md redirects here.
 
-Shared low-level building blocks used across the engine. Two pieces carry
+Shared low-level building blocks used across the engine. These utilities carry
 non-obvious design constraints worth knowing before changing them.
+
+## Generated method execution (`generated_execution.h`)
+
+`TGeneratedExecutionContext` is a lightweight handle onto the existing
+`TTransformator` journal. Generated methods receive it as their hidden first C++
+argument. They open `auto transaction = ctx.Atomic()`, perform writes through
+`ctx.Assign(field, value, this, "field_name")`, and call `transaction.Commit()`
+only after successful completion. A failed or uncommitted scope undoes all changes
+since its checkpoint, including committed nested calls and legacy transformations.
+Nested methods and C++ adapters call `ctx.Invoke(guarded, method, args...)` to access
+a `TGuarded<T>` without exposing a mutable getter to other code.
+For fixed nested fields, `ctx.Project(owner_guard, getter)` produces another
+guarded reference, and `ctx.AssignGuarded(field_guard, value, owner_guard, name)`
+records the same controlled assignment. Projection requires a guarded result and
+does not expose the underlying mutable reference to callers.
+
+Assignments stage the replacement and append a journal record before a noexcept
+swap changes the field. Value types must be copy constructible and nothrow
+swappable. Journal AST includes the owning object's identity, field name, and old
+value. Owners must register their stable identity during AST traversal.
+
+Field addresses and owners must remain valid and unmoved while their history is
+retained. Do not use these methods on movable collection elements, or replace an
+aggregate after journaling writes into its children. Entity and container mutation
+will require stable owner/field-path resolution before they can be supported.
+Generated transactions currently support synchronous methods only: suspension via
+`TSavepointStackUnwind` is not a method failure and needs separate continuation-aware
+transaction handling before methods may prompt, yield, or invoke reactions.
+Checkpoints are bound to their originating transformator; undo rejects a foreign
+checkpoint or a depth no longer present in the current journal.
+
+## Collection snapshots (`id_collection.h`)
+
+`TIdCollection<T>` allocates monotonically increasing typed IDs. Removing an entry
+does not return its ID to the allocator. Snapshots must store both each explicit
+entry ID and `NextId()`; serializing values alone loses holes and allocation history.
+Restore into a fresh temporary collection with `RestoreEntry(id, value)`, then
+`RestoreNextId(next)` before publishing the result. Restore rejects duplicate IDs
+and a next ID at or below any stored entry. JSON readers must reject negative and
+non-integral IDs before converting them to `size_t`.
+
+The maximum `size_t` value is reserved for an exhausted allocator and cannot be an
+entry ID. `Add` throws on exhaustion instead of wrapping or reusing IDs. These
+restore operations construct snapshot state and do not perform journaled gameplay
+mutation.
 
 ## Continuation helpers (`continuation.h`)
 

@@ -2,7 +2,9 @@
 
 #include <compare>
 #include <cstddef>
+#include <limits>
 #include <map>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -52,10 +54,34 @@ public:
     };
 
     TId<T> Add(T value) {
+        if (next_.Value == std::numeric_limits<std::size_t>::max()) {
+            throw std::overflow_error("collection id space is exhausted");
+        }
         TId<T> id = next_;
-        items_.emplace(id, std::move(value));
-        next_ = TId<T>{next_.Value + 1};
+        RestoreEntry(id, std::move(value));
         return id;
+    }
+
+    TId<T> NextId() const { return next_; }
+
+    void RestoreEntry(TId<T> id, T value) {
+        if (id.Value == std::numeric_limits<std::size_t>::max()) {
+            throw std::invalid_argument("collection entry id has no representable successor");
+        }
+        if (items_.contains(id)) {
+            throw std::invalid_argument("duplicate collection entry id");
+        }
+        items_.emplace(id, std::move(value));
+        if (next_.Value <= id.Value) {
+            next_ = TId<T>{id.Value + 1};
+        }
+    }
+
+    void RestoreNextId(TId<T> next) {
+        if (!items_.empty() && next.Value <= items_.rbegin()->first.Value) {
+            throw std::invalid_argument("collection next id must exceed every stored entry id");
+        }
+        next_ = next;
     }
 
     void Remove(TId<T> id) { items_.erase(id); }

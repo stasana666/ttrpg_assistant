@@ -1,12 +1,54 @@
 #include <ttrpg/emit.h>
+#include <ttrpg/emit_rule_class.h>
 
 #include <ttrpg/analyze.h>
 #include <ttrpg/conventions.h>
 #include <ttrpg/cpp_writer.h>
 
+#include <algorithm>
+#include <functional>
+#include <set>
 #include <string>
 #include <unordered_set>
 #include <vector>
+
+namespace {
+
+std::vector<const TClassDecl*> OrderedClasses(const TLoadedSchemas& loaded) {
+    std::unordered_map<std::string, const TClassDecl*> classes;
+    for (const auto& c : loaded.Primary.Classes) classes[c.Name] = &c;
+    std::unordered_map<std::string, int> marks;
+    std::vector<const TClassDecl*> result;
+    std::function<void(const TClassDecl&)> visit = [&](const TClassDecl& c) {
+        if (marks[c.Name] == 2) return;
+        if (marks[c.Name] == 1) throw std::runtime_error("recursive value type '" + c.Name + "'");
+        marks[c.Name] = 1;
+        for (const auto& field : c.Fields) {
+            const auto type = field.Container == EContainer::Map ? field.ValueTypeName : field.TypeName;
+            auto it = classes.find(type);
+            if (it != classes.end()) visit(*it->second);
+        }
+        marks[c.Name] = 2;
+        result.push_back(&c);
+    };
+    for (const auto& c : loaded.Primary.Classes) visit(c);
+    return result;
+}
+
+void ValidateRules(const TLoadedSchemas& loaded) {
+    (void)OrderedClasses(loaded);
+    for (const auto& c : loaded.Primary.Classes) {
+        (void)CompileClass(c, loaded);
+    }
+    std::unordered_set<std::string> names;
+    for (const auto& instance : loaded.Primary.Instances) {
+        if (!names.insert(instance.Name).second) throw std::runtime_error("duplicate instance '" + instance.Name + "'");
+        if (loaded.SymbolTable.contains("Create" + instance.Name)) throw std::runtime_error("instance factory conflicts with type 'Create" + instance.Name + "'");
+        (void)CompileInstance(instance, loaded);
+    }
+}
+
+}
 
 void EmitEnumDecl(TCppWriter& w, const TEnumDecl& e) {
     w.Block("enum class " + e.Name + " {", "};", [&] {
@@ -32,6 +74,13 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
                    const std::unordered_map<std::string, TTypeInfo>& symbols) {
     w.Class(c.Name, [&] {
         w.PublicSection([&] {
+            w.Struct("TInitialValues", [&] {
+                for (const auto& f : c.Fields) {
+                    if (!f.Derived) w.Line("std::optional<" + CppMemberType(f, symbols) + "> " + f.Name + "{};");
+                }
+            });
+            w.Line("static " + c.Name + " Create(const TInitialValues& initial);");
+            w.EmptyLine();
             for (const auto& f : c.Fields) {
                 std::string mt = CppMemberType(f, symbols);
                 if (f.Derived) {
@@ -164,6 +213,7 @@ void EmitHeader(std::ostream& os,
                 const std::string& sourceName,
                 const std::string& primaryOutH)
 {
+    ValidateRules(loaded);
     TCppWriter w(os);
     const TSchemaModule& mod = loaded.Primary;
 
@@ -182,6 +232,7 @@ void EmitHeader(std::ostream& os,
     w.Include("string");
     if (!mod.Classes.empty()) {
         w.Include("utility");
+        w.Include("optional");
     }
 
     bool anyEnumSet = false;
@@ -192,7 +243,7 @@ void EmitHeader(std::ostream& os,
     bool anyCollection = false;
     bool anyMap = false;
 
-    std::unordered_set<std::string> externalStems;
+    std::set<std::string> externalStems;
 
     auto inspectField = [&](const TFieldDecl& f, const std::string& ownerDesc) {
         if (f.Container == EContainer::Map) {
@@ -296,6 +347,33 @@ void EmitHeader(std::ostream& os,
         }
     }
 
+    bool ruleClasses = false;
+    bool entities = false;
+    for (const auto& c : mod.Classes) {
+        ruleClasses = ruleClasses || UsesRuleSyntax(c, loaded);
+        entities = entities || c.GameEntity;
+        for (const auto& method : c.Methods) {
+            if (method.ReturnType != "void") {
+                TFieldDecl field;
+                field.TypeName = method.ReturnType;
+                inspectField(field, "method '" + c.Name + "." + method.Name + "'");
+            }
+        }
+    }
+    for (const auto& instance : mod.Instances) {
+        TFieldDecl field;
+        field.TypeName = instance.TypeName;
+        inspectField(field, "instance '" + instance.Name + "'");
+    }
+    if (ruleClasses) {
+        w.Include("pf2e_engine/common/generated_execution.h");
+        w.Include("pf2e_engine/common/rule_integer.h");
+        w.Include("algorithm");
+        w.Include("type_traits");
+        w.Include("cstdint");
+    }
+    if (entities) w.Include("pf2e_engine/common/entity_id.h");
+
     if (anyEnumSet) {
         w.Include("set");
     }
@@ -337,8 +415,15 @@ void EmitHeader(std::ostream& os,
     for (const auto& v : mod.Variants) {
         EmitVariantDecl(w, v, loaded.SymbolTable);
     }
-    for (const auto& c : mod.Classes) {
-        EmitClassDecl(w, c, loaded.SymbolTable);
+    for (const auto* c : OrderedClasses(loaded)) {
+        if (UsesRuleSyntax(*c, loaded)) {
+            EmitRuleClassDecl(w, *c, CompileClass(*c, loaded), loaded);
+        } else {
+            EmitClassDecl(w, *c, loaded.SymbolTable);
+        }
+    }
+    for (const auto& instance : mod.Instances) {
+        w.Line(instance.TypeName + " Create" + instance.Name + "();");
     }
 }
 
@@ -404,6 +489,26 @@ void EmitClassImpl(TCppWriter& w,
         fieldNames.insert(f.Name);
     }
     std::vector<size_t> initOrder = FieldInitOrder(c, classes);
+
+    w.Function(c.Name + " " + c.Name + "::Create(const TInitialValues& initial)", [&] {
+        w.Line(c.Name + " r;");
+        for (size_t idx : initOrder) {
+            const auto& f = c.Fields[idx];
+            w.Block("if (initial." + f.Name + ") {", "}", [&] {
+                w.Line("r." + f.Name + "_ = *initial." + f.Name + ";");
+            });
+            if (f.Init && InitIsComputed(*f.Init, fieldNames)) {
+                std::string fallback = InitExprToCpp(*f.Init);
+                if (kinds[idx] == EFieldKind::BoundedQuantity || kinds[idx] == EFieldKind::Resource) {
+                    fallback = CppTypeFor(f.TypeName) + "(" + fallback + ")";
+                }
+                w.Block("else {", "}", [&] { w.Line("r." + f.Name + "_ = " + fallback + ";"); });
+            }
+        }
+        if (initOrder.empty()) w.Line("(void)initial;");
+        w.Line("return r;");
+    });
+    w.EmptyLine();
 
     w.Function(c.Name + " " + c.Name +
                "::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory)", [&] {
@@ -490,6 +595,7 @@ void EmitClassImpl(TCppWriter& w,
             } else if (f.Container == EContainer::Collection) {
                 w.Block("{", "}", [&] {
                     w.Line("TAstNode coll_node = TAstNode::MakeObject(\"container\");");
+                    w.Line("AddValueField(coll_node, \"next_id\", " + f.Name + "_.NextId().Value);");
                     w.Block("for (auto entry : " + f.Name + "_) {", "}", [&] {
                         w.Line("AddOwnedObject(coll_node, std::to_string(entry.Id().Value), "
                                "*entry, ctx);");
@@ -684,6 +790,7 @@ void EmitImpl(std::ostream& os,
               const TLoadedSchemas& loaded,
               const std::string& sourceName,
               const std::string& headerInclude) {
+    ValidateRules(loaded);
     TCppWriter w(os);
     const TSchemaModule& mod = loaded.Primary;
 
@@ -718,7 +825,17 @@ void EmitImpl(std::ostream& os,
     for (const auto& v : mod.Variants) {
         EmitVariantImpl(w, v, loaded.SymbolTable);
     }
-    for (const auto& c : mod.Classes) {
-        EmitClassImpl(w, c, loaded.SymbolTable, classes);
+    for (const auto* c : OrderedClasses(loaded)) {
+        if (UsesRuleSyntax(*c, loaded)) {
+            EmitRuleClassImpl(w, *c, CompileClass(*c, loaded), loaded);
+        } else {
+            EmitClassImpl(w, *c, loaded.SymbolTable, classes);
+        }
+    }
+    for (const auto& instance : mod.Instances) {
+        w.Function(instance.TypeName + " Create" + instance.Name + "()", [&] {
+            w.Line("return " + CompileInstance(instance, loaded) + ";");
+        });
+        w.EmptyLine();
     }
 }

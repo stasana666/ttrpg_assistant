@@ -7,8 +7,10 @@ add_library(ttrpg STATIC
     src/module.cpp
     src/conventions.cpp
     src/analyze.cpp
+    src/program.cpp
     src/cpp_writer.cpp
     src/emit.cpp
+    src/emit_rule_class.cpp
 )
 
 target_include_directories(ttrpg PUBLIC
@@ -24,5 +26,7 @@ set_target_properties(ttrpg PROPERTIES CXX_CLANG_TIDY "")
 add_executable(ttrpg_codegen cli/main.cpp)
 target_link_libraries(ttrpg_codegen PRIVATE ttrpg)
 set_target_properties(ttrpg_codegen PROPERTIES CXX_CLANG_TIDY "")
+
+include(cmake/TtrpgCodegen.cmake)
 
 add_subdirectory(tests)

@@ -25,6 +25,11 @@ enum class ETok {
     Comma,
     Equals,
     InitExpr,
+    LParen,
+    RParen,
+    LBracket,
+    RBracket,
+    Operator,
     End,
 };
 
@@ -56,12 +61,12 @@ public:
                 mod.Enums.push_back(ParseEnum());
             } else if (t.text == "variant") {
                 mod.Variants.push_back(ParseVariant());
-            } else if (t.text == "class") {
+            } else if (t.text == "class" || t.text == "GameEntity") {
                 mod.Classes.push_back(ParseClass());
             } else if (t.text == "import") {
                 ts_.Throw("'import' must appear before any class/enum/variant");
             } else {
-                ts_.Throw("expected 'enum', 'variant', or 'class'");
+                mod.Instances.push_back(ParseInstance());
             }
         }
         return mod;
@@ -86,12 +91,16 @@ private:
     }
 
     TClassDecl ParseClass() {
-        ExpectIdentText("class");
         TClassDecl c;
+        c.GameEntity = ts_.Consume().text == "GameEntity";
         c.Name = ExpectIdent("class name");
         ts_.Expect(ETok::LBrace, "'{'");
         while (ts_.Peek().kind != ETok::RBrace) {
-            c.Fields.push_back(ParseField());
+            if (ts_.Peek().text == "method" || ts_.Peek().text == "query") {
+                c.Methods.push_back(ParseMethod());
+            } else {
+                c.Fields.push_back(ParseField());
+            }
         }
         ts_.Expect(ETok::RBrace, "'}'");
         return c;
@@ -174,16 +183,139 @@ private:
                 ts_.Throw("container fields cannot have a default value");
             }
             ts_.Advance();
-            if (ts_.Peek().kind != ETok::InitExpr) {
-                ts_.Throw("expected initializer expression after '='");
-            }
-            f.Init = expr::Parse(ts_.Consume().text);
+            f.Init = ReadExpression(ETok::Semi);
         }
         if (f.Derived && !f.Init) {
             ts_.Throw("derived field '" + f.Name + "' requires an initializer expression");
         }
         ts_.Expect(ETok::Semi, "';'");
         return f;
+    }
+
+    expr::TExprNode ReadExpression(ETok end, bool assignment = false, const std::string& prefix = "", bool aggregate = false) {
+        std::string source = prefix;
+        int braces = 0;
+        int parens = 0;
+        int brackets = 0;
+        auto cursor = ts_.Peek().loc;
+        while (ts_.Peek().kind != ETok::End) {
+            const auto& token = ts_.Peek();
+            if (braces == 0 && parens == 0 && brackets == 0 &&
+                (token.kind == end ||
+                 (assignment && (token.text == "=" || token.text == "+=" || token.text == "-=")))) {
+                break;
+            }
+            if (token.kind == ETok::RBrace && braces == 0) {
+                ts_.Throw("expected expression terminator");
+            }
+            if (token.kind == ETok::LBrace) ++braces;
+            if (token.kind == ETok::RBrace) --braces;
+            if (token.kind == ETok::LParen) ++parens;
+            if (token.kind == ETok::RParen) --parens;
+            if (token.kind == ETok::LBracket) ++brackets;
+            if (token.kind == ETok::RBracket) --brackets;
+            while (cursor.line < token.loc.line) {
+                source += '\n';
+                ++cursor.line;
+                cursor.col = 1;
+            }
+            while (cursor.col < token.loc.col) {
+                source += ' ';
+                ++cursor.col;
+            }
+            const auto text = token.kind == ETok::StringLiteral ? "\"" + token.text + "\"" : token.text;
+            source += text;
+            cursor.col += static_cast<int>(text.size());
+            ts_.Advance();
+            if (aggregate && braces == 0 && parens == 0 && brackets == 0) break;
+        }
+        if (source.empty()) ts_.Throw("expected expression");
+        return expr::Parse(source);
+    }
+
+    TInstanceDecl ParseInstance() {
+        TInstanceDecl instance;
+        instance.TypeName = ExpectIdent("instance type");
+        instance.Name = ExpectIdent("instance name");
+        if (ts_.Peek().kind != ETok::LBrace) ts_.Throw("expected '{' after instance name");
+        auto body = ReadExpression(ETok::Semi, false, instance.TypeName, true);
+        instance.Value = std::move(body);
+        ts_.Match(ETok::Semi);
+        return instance;
+    }
+
+    TClassDecl::TMethod ParseMethod() {
+        TClassDecl::TMethod method;
+        method.Location = ts_.Peek().loc;
+        method.Query = ts_.Consume().text == "query";
+        method.ReturnType = ExpectIdent("method return type");
+        method.Name = ExpectIdent("method name");
+        ts_.Expect(ETok::LParen, "'('");
+        if (ts_.Peek().kind != ETok::RParen) {
+            do {
+                TClassDecl::TParameter parameter;
+                parameter.TypeName = ExpectIdent("parameter type");
+                parameter.Name = ExpectIdent("parameter name");
+                method.Parameters.push_back(std::move(parameter));
+            } while (ts_.Match(ETok::Comma));
+        }
+        ts_.Expect(ETok::RParen, "')'");
+        method.Body = ParseBody();
+        return method;
+    }
+
+    std::vector<TClassDecl::TStatement> ParseBody() {
+        ts_.Expect(ETok::LBrace, "'{'");
+        std::vector<TClassDecl::TStatement> body;
+        while (ts_.Peek().kind != ETok::RBrace) {
+            TClassDecl::TStatement statement;
+            statement.Location = ts_.Peek().loc;
+            using K = TClassDecl::TStatement::EKind;
+            if (ts_.Peek().text == "let") {
+                ts_.Advance();
+                statement.Kind = K::Let;
+                statement.Name = ExpectIdent("local name");
+                ts_.Expect(ETok::Equals, "'='");
+                statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "require") {
+                ts_.Advance();
+                statement.Kind = K::Require;
+                statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "return") {
+                ts_.Advance();
+                statement.Kind = K::Return;
+                if (ts_.Peek().kind != ETok::Semi) statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "if") {
+                ts_.Advance();
+                statement.Kind = K::If;
+                ts_.Expect(ETok::LParen, "'(' after if");
+                statement.Value = ReadExpression(ETok::RParen);
+                ts_.Expect(ETok::RParen, "')'");
+                statement.Body = ParseBody();
+                if (ts_.Peek().text == "else") {
+                    ts_.Advance();
+                    statement.ElseBody = ParseBody();
+                }
+                body.push_back(std::move(statement));
+                continue;
+            } else {
+                auto expression = ReadExpression(ETok::Semi, true);
+                const auto op = ts_.Peek().text;
+                if (op == "=" || op == "+=" || op == "-=") {
+                    ts_.Advance();
+                    statement.Kind = op == "=" ? K::Assign : (op == "+=" ? K::AddAssign : K::SubAssign);
+                    statement.Target = std::move(expression);
+                    statement.Value = ReadExpression(ETok::Semi);
+                } else {
+                    statement.Kind = K::Call;
+                    statement.Value = std::move(expression);
+                }
+            }
+            ts_.Expect(ETok::Semi, "';'");
+            body.push_back(std::move(statement));
+        }
+        ts_.Expect(ETok::RBrace, "'}'");
+        return body;
     }
 
     void ExpectIdentText(const std::string& text) {

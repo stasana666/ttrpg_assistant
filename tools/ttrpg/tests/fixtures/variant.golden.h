@@ -10,6 +10,7 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -88,6 +89,12 @@ struct TIsAstRecursive<TEffect> : std::true_type {};
 
 class TSpell {
 public:
+    struct TInitialValues {
+        std::optional<std::string> Name{};
+        std::optional<TVariantMap<EEffectKind, TEffect>> Effects{};
+    };
+    static TSpell Create(const TInitialValues& initial);
+
     const std::string& Name() const { return Name_; }
     TGuarded<std::string> Name() { return TGuarded<std::string>(Name_); }
     const TVariantMap<EEffectKind, TEffect>& Effects() const { return Effects_; }

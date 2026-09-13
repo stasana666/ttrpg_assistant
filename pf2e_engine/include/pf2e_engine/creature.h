@@ -1,7 +1,6 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
-#include <pf2e_engine/common/bounded_quantity.h>
 #include <pf2e_engine/common/guarded.h>
 #include <pf2e_engine/common/resource.h>
 
@@ -12,6 +11,7 @@
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/creature_data.h>
 #include <pf2e_engine/inventory/creature_parts.h>
+#include <pf2e_engine/inventory/hitpoints.h>
 #include <pf2e_engine/mechanics/characteristics.h>
 #include <pf2e_engine/proficiency.h>
 
@@ -21,8 +21,8 @@ public:
 
     TAbilityScore GetCharacteristic(ECharacteristic name) const;
 
-    TGuarded<TBoundedQuantity> Hitpoints();
-    const TBoundedQuantity& Hitpoints() const;
+    TGuarded<THitPoints> Hitpoints();
+    const THitPoints& Hitpoints() const;
 
     const TResource& ResourceFor(EResourceKind kind) const;
     TGuarded<TResource> ResourceFor(EResourceKind kind);

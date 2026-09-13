@@ -46,9 +46,10 @@ void RegisterModuleSymbols(const std::string& stem,
 
 TLoadedSchemas LoadAll(const fs::path& primaryPath) {
     TLoadedSchemas loaded;
-    loaded.PrimaryStem = primaryPath.stem().string();
+    loaded.PrimaryStem = fs::weakly_canonical(primaryPath).stem().string();
 
     std::unordered_set<std::string> loading;
+    std::unordered_map<std::string, fs::path> pathsByStem;
 
     auto LoadRec = [&](auto& self, const fs::path& path) -> void {
         fs::path canon = fs::weakly_canonical(path);
@@ -58,9 +59,17 @@ TLoadedSchemas LoadAll(const fs::path& primaryPath) {
         if (loading.count(canonStr)) {
             throw std::runtime_error("circular import detected: " + canonStr);
         }
-        if (loaded.ByStem.count(stem)) {
-            return;
+        if (auto previous = pathsByStem.find(stem); previous != pathsByStem.end()) {
+            if (previous->second != canon) {
+                throw std::runtime_error(
+                    "module stem '" + stem + "' is shared by '" +
+                    previous->second.string() + "' and '" + canonStr + "'");
+            }
+            if (loaded.ByStem.count(stem)) {
+                return;
+            }
         }
+        pathsByStem.emplace(stem, canon);
         loading.insert(canonStr);
 
         TSchemaModule mod = ParseFile(canon);
@@ -72,6 +81,7 @@ TLoadedSchemas LoadAll(const fs::path& primaryPath) {
 
         RegisterModuleSymbols(stem, mod, loaded.SymbolTable);
         loaded.ByStem.emplace(stem, std::move(mod));
+        loaded.SourcePaths.push_back(canon);
         loading.erase(canonStr);
     };
 

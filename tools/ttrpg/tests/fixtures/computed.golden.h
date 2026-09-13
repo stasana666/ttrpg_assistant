@@ -10,12 +10,18 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <optional>
 #include <pf2e_engine/common/bounded_quantity.h>
 
 class TGameObjectFactory;
 
 class TPart {
 public:
+    struct TInitialValues {
+        std::optional<int> Bonus{};
+    };
+    static TPart Create(const TInitialValues& initial);
+
     const int& Bonus() const { return Bonus_; }
     TGuarded<int> Bonus() { return TGuarded<int>(Bonus_); }
 
@@ -33,6 +39,11 @@ struct TIsAstRecursive<TPart> : std::true_type {};
 
 class TAbility {
 public:
+    struct TInitialValues {
+        std::optional<int> Value{};
+    };
+    static TAbility Create(const TInitialValues& initial);
+
     const int& Value() const { return Value_; }
     TGuarded<int> Value() { return TGuarded<int>(Value_); }
     int Modifier() const { return ((Value_ - 10) / 2); }
@@ -51,6 +62,19 @@ struct TIsAstRecursive<TAbility> : std::true_type {};
 
 class TStats {
 public:
+    struct TInitialValues {
+        std::optional<TBoundedQuantity> Health{};
+        std::optional<int> Base{};
+        std::optional<int> Level{};
+        std::optional<int> PerLevel{};
+        std::optional<int> Total{};
+        std::optional<TPart> Part{};
+        std::optional<int> Boosted{};
+        std::optional<TAbility> Ability{};
+        std::optional<int> ModBoost{};
+    };
+    static TStats Create(const TInitialValues& initial);
+
     const TBoundedQuantity& Health() const { return Health_; }
     TGuarded<TBoundedQuantity> Health() { return TGuarded<TBoundedQuantity>(Health_); }
     const int& Base() const { return Base_; }

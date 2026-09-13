@@ -3,6 +3,7 @@ target_sources(pf2e_engine
         hash_combine.cpp
         bounded_quantity.cpp
         resource.cpp
+        generated_execution.cpp
 )
 
 add_subdirectory(ast)

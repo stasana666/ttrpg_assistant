@@ -13,6 +13,14 @@
 #include <string>
 #include <utility>
 
+TPart TPart::Create(const TInitialValues& initial) {
+    TPart r;
+    if (initial.Bonus) {
+        r.Bonus_ = *initial.Bonus;
+    }
+    return r;
+}
+
 TPart TPart::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     (void)factory;
     TPart r;
@@ -31,6 +39,14 @@ void TPart::RegisterDslProperties() {
     r.Register("bonus", [](const TPart* obj, TEvalContext&) {
         return TDslValue(obj->Bonus());
     });
+}
+
+TAbility TAbility::Create(const TInitialValues& initial) {
+    TAbility r;
+    if (initial.Value) {
+        r.Value_ = *initial.Value;
+    }
+    return r;
 }
 
 TAbility TAbility::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
@@ -54,6 +70,50 @@ void TAbility::RegisterDslProperties() {
     r.Register("modifier", [](const TAbility* obj, TEvalContext&) {
         return TDslValue(obj->Modifier());
     });
+}
+
+TStats TStats::Create(const TInitialValues& initial) {
+    TStats r;
+    if (initial.Base) {
+        r.Base_ = *initial.Base;
+    }
+    if (initial.Level) {
+        r.Level_ = *initial.Level;
+    }
+    if (initial.PerLevel) {
+        r.PerLevel_ = *initial.PerLevel;
+    }
+    if (initial.Health) {
+        r.Health_ = *initial.Health;
+    }
+    else {
+        r.Health_ = TBoundedQuantity((r.Base_ + (r.Level_ * r.PerLevel_)));
+    }
+    if (initial.Total) {
+        r.Total_ = *initial.Total;
+    }
+    else {
+        r.Total_ = (r.Base_ + r.PerLevel_);
+    }
+    if (initial.Part) {
+        r.Part_ = *initial.Part;
+    }
+    if (initial.Boosted) {
+        r.Boosted_ = *initial.Boosted;
+    }
+    else {
+        r.Boosted_ = (std::as_const(r.Part_).Bonus() + r.Base_);
+    }
+    if (initial.Ability) {
+        r.Ability_ = *initial.Ability;
+    }
+    if (initial.ModBoost) {
+        r.ModBoost_ = *initial.ModBoost;
+    }
+    else {
+        r.ModBoost_ = (std::as_const(r.Ability_).Modifier() + r.Base_);
+    }
+    return r;
 }
 
 TStats TStats::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {

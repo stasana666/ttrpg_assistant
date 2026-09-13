@@ -15,19 +15,36 @@ supports and rejects the rest. It builds on the lower, grammar-agnostic
 
 ## AST (`ast.h`)
 
-`expr::TExprNode` is a single struct discriminated by `ENodeKind`
-(`IntLiteral`, `Var`, `Member`, `Call`, `Unary`, `Binary`), with `EBinaryOp`
-(arithmetic `Add/Sub/Mul/Div`, logical `Or/And`, comparison/equality
-`Eq/Ne/Lt/Le/Gt/Ge`) and `EUnaryOp` (`Not`). `Var` carries `HasDollar` recording
-whether it was written `$name`. The struct is intentionally backend-neutral; a
-backend that doesn't support, say, calls or `$`-vars rejects them at lowering/eval
-time.
+`expr::TExprNode` is discriminated by `ENodeKind`: `IntLiteral`, `Var`,
+`Member`, `Call`, `Unary`, `Binary`, `ContextVar`, `ObjectInit`, `Index`, and
+`StringLiteral`. Existing enum values remain stable; new values are appended.
+`EBinaryOp` covers arithmetic, logic, and comparisons. `EUnaryOp` has `Not`
+and `Negate`. Nodes retain a `parse::TSourceLocation` in `Location`.
+
+- `Var` preserves `HasDollar` for `$name`; `@name` is a distinct `ContextVar`.
+- Named `f(args)` preserves the existing `Call` representation: `Text = "f"`,
+  `Lhs = nullptr`, and argument nodes in `Args`.
+- Calls of member or other expressions use `Call.Lhs` for the callee expression
+  and leave `Text` empty. `obj.Heal(1)` has a `Member` callee whose receiver is
+  `obj`; repeated calls and index/member chains follow the same representation.
+- `ObjectInit.Text` is the declared type name. `Fields` contains ordered
+  `TFieldInitializer` values with `Name`, `Value`, and `Location`.
+- `Index.Lhs` is the collection expression and `Index.Rhs` is its index.
+- `StringLiteral.Text` stores the decoded string, without enclosing quotes.
+
+Types, method purity, valid assignment targets, context bindings, and supported
+node kinds belong to each backend. Parsing a form does not authorize the runtime
+DSL to execute it. Consumers must reject unsupported forms explicitly.
 
 ## Lexer (`lexer.h`)
 
 `Tokenize(src)` produces `ETok` tokens — the **union** of what the DSL and codegen
-need: arithmetic, comparison, logical, member access (`.`), calls, `$`-vars. Built
-on `parse::TScanner`.
+need: arithmetic, comparison, logic, member access, calls, `$` and `@` variables,
+object initializers, indexing, and strings. Built on `parse::TScanner`.
+Strings support escaped quote, backslash, newline, carriage return, and tab;
+unsupported escapes and literal newlines fail with source locations. Signed
+integer literals retain their original single-token form when an operand can
+begin; subtraction such as `Current-2` is tokenized independently of whitespace.
 
 ## Parser (`parser.h`)
 
@@ -43,11 +60,14 @@ equality   := comparison (('=='|'!=') comparison)*
 comparison := add_sub    (('>='|'<='|'>'|'<') add_sub)*
 add_sub    := mul_div    (('+'|'-') mul_div)*
 mul_div    := unary      (('*'|'/') unary)*
-unary      := '!' unary | postfix
-postfix    := primary ('.' identifier)*
-primary    := int | '$' identifier | identifier | identifier '(' args? ')' | '(' expression ')'
+unary      := ('!' | '-') unary | postfix
+postfix    := primary ('.' identifier | '(' args? ')' | '[' expression ']')*
+primary    := int | string | ('$' | '@') identifier | identifier
+            | identifier '{' (identifier '=' expression ';')* '}'
+            | '(' expression ')'
+args       := expression (',' expression)*
 ```
 
-Backend subsets, for reference: the DSL evaluator supports the full set; the
-codegen's computed-default lowerer rejects calls, `$`-vars, comparison, and
-logical operators.
+The legacy runtime DSL supports the original expression subset. New `.ttrpg`
+method/context/object syntax is lowered by the codegen backend and must not be
+silently reinterpreted through the legacy `$` variable or function registries.

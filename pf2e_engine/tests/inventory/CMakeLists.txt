@@ -3,7 +3,19 @@ add_executable(test_inventory
     test_armor_material_ref.cpp
     test_weapon_traits.cpp
     test_creature_data.cpp
+    test_id_collection.cpp
+    test_rule_entities.cpp
 )
+
+set(RULE_ENTITIES_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/rule_entities.h)
+set(RULE_ENTITIES_SOURCE ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/rule_entities.cpp)
+ttrpg_generate(
+    TARGET test_inventory
+    SCHEMA ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/rule_entities.ttrpg
+    HEADER ${RULE_ENTITIES_HEADER}
+    SOURCE ${RULE_ENTITIES_SOURCE}
+)
+target_sources(test_inventory PRIVATE ${RULE_ENTITIES_HEADER} ${RULE_ENTITIES_SOURCE})
 
 target_link_libraries(test_inventory
     gtest_main
@@ -13,6 +25,7 @@ target_link_libraries(test_inventory
 target_include_directories(test_inventory
     PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/include/pf2e_engine/inventory
     PRIVATE ${CMAKE_BINARY_DIR}/cpp_config
+    PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/tests/test_lib
 )
 
 include(GoogleTest)

@@ -9,12 +9,15 @@ Canonical project instructions. CLAUDE.md redirects here.
 - CMake generates C++ into `build/generated/pf2e_engine/...` through `ttrpg_codegen`.
 
 ## Key Concepts
-- Language forms: `import`, `enum`, `variant`, `class`, scalar fields, `set<T>`, `collection<T>`, `map<K, V>`, defaults, and `derive` computed fields.
+- Language forms include `GameEntity`, named instances, `method`, and `query` in addition to the existing fields/containers/defaults. See `tools/ttrpg/AGENTS.md` for the currently supported rule syntax.
+- `hitpoints.ttrpg` is the source of truth for `Statistic`, `TDamageResult`, and `THitPoints`: damage, healing, and temporary HP replacement are compiled methods. `TCreatureData.Hitpoints` constructs this type after race/class/level/attributes are initialized.
+- Damage input is the resolved amount after defenses. The result retains incoming damage, temporary absorption, before/after HP, and remaining damage. Dying/wounded/death rules are not part of this value type.
+- Temporary HP replacement accepts an explicitly selected pool; choosing between sources and scheduling expiration remain action/ruleset work.
 - Built-ins include `int`, `bool`, `string`, `BoundedQuantity`, `Resource`, `max_int`, and `min_int`.
 - `Resource` lowers to the runtime `TResource` (count with `Count`/`Has`/`Add`/`Reduce`); `TCreatureData` uses it for `Actions`, `Reactions`, `Hands`, and `map<ESpellSlotRank, Resource> SpellSlots`.
-- Imports are relative to this directory. CMake dependency lists in `pf2e_engine/src/inventory/CMakeLists.txt` must include imported schemas.
+- Imports are relative to the importing schema. `ttrpg_generate` in `pf2e_engine/src/inventory/CMakeLists.txt` tracks transitive imports through generated depfiles.
 - Generated JSON keys use `PascalToSnake`.
-- Class fields load from either string refs through `TGameObjectFactory` or inline JSON objects; referenced classes need factory plumbing even if normally authored inline.
+- Class fields load from either string refs through `TGameObjectFactory` or inline JSON objects. New by-name types use `RegisterType<T>(jsonType)`; inline-only classes need no factory registration.
 - `collection<Class>` lowers to `TIdCollection<Class>`; `TCreatureData` currently uses it for weapons and natural weapons.
 - `map<Enum, V>` lowers to `std::map`; JSON object keys are parsed through the generated enum `FromString`.
 

@@ -10,12 +10,18 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <optional>
 #include <pf2e_engine/common/id_collection.h>
 
 class TGameObjectFactory;
 
 class TThing {
 public:
+    struct TInitialValues {
+        std::optional<int> X{};
+    };
+    static TThing Create(const TInitialValues& initial);
+
     const int& X() const { return X_; }
     TGuarded<int> X() { return TGuarded<int>(X_); }
 
@@ -33,6 +39,12 @@ struct TIsAstRecursive<TThing> : std::true_type {};
 
 class THolder {
 public:
+    struct TInitialValues {
+        std::optional<int> Count{};
+        std::optional<TIdCollection<TThing>> Things{};
+    };
+    static THolder Create(const TInitialValues& initial);
+
     const int& Count() const { return Count_; }
     TGuarded<int> Count() { return TGuarded<int>(Count_); }
     const TIdCollection<TThing>& Things() const { return Things_; }

@@ -14,6 +14,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -134,4 +135,18 @@ TEST_F(DslEvaluatorTest, MinFunctionWithVariables) {
     Bind("b", 3);
     EXPECT_EQ(Eval("min($a, $b)").AsInt(), 3);
     EXPECT_EQ(Eval("max($a, $b)").AsInt(), 10);
+}
+
+TEST_F(DslEvaluatorTest, SharedUnaryMinusHasIntegerSemantics) {
+    Bind("amount", 7);
+    EXPECT_EQ(Eval("-$amount").AsInt(), -7);
+    EXPECT_EQ(Eval("$amount-2").AsInt(), 5);
+    Bind("minimum", std::numeric_limits<int>::min());
+    EXPECT_THROW(Eval("-$minimum"), std::overflow_error);
+}
+
+TEST_F(DslEvaluatorTest, CompilerOnlyExpressionsAreRejectedExplicitly) {
+    EXPECT_THROW(Eval("@self"), std::runtime_error);
+    EXPECT_THROW(Eval("$self.Heal(1)"), std::runtime_error);
+    EXPECT_THROW(Eval("TValue { Value = 1; }"), std::runtime_error);
 }

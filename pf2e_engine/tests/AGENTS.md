@@ -10,13 +10,17 @@ Canonical project instructions. CLAUDE.md redirects here.
 - `test_lib/mock_interaction_system.h`: scripted player choices and optional state checks.
 - `actions/`: combat/action pipeline tests using real data.
 - `inventory/`: generated schema type and JSON loading tests.
+- `inventory/fixtures/rule_entities.ttrpg` and `inventory/test_rule_entities.cpp`:
+  compile generated entities into `test_inventory` and verify named factories,
+  identity transfer, nested methods, rollback, pure queries, and snapshots with
+  collection allocator state.
 - `dsl/`: runtime DSL parser/evaluator/property tests.
 - `ast/`: rollback and AST state-comparison tests.
 
 ## Build/Test
 - Build a focused target, for example `cmake --build build --target test_inventory`.
 - Run all registered tests: `ctest --test-dir build --output-on-failure`.
-- `test_actions` is built but is not registered with CTest in current CMake; run `./build/pf2e_engine/tests/actions/test_actions` directly for action-combat changes.
+- `test_actions` is registered with CTest through `gtest_discover_tests`; it can also run directly as `./build/pf2e_engine/tests/actions/test_actions`.
 - Many tests load `pf2e_engine/data` using generated `cpp_config.h` and `kRootDirPath`.
 
 ## Pitfalls

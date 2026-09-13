@@ -10,6 +10,7 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <optional>
 #include <set>
 #include <pf2e_engine/common/bounded_quantity.h>
 
@@ -26,6 +27,15 @@ EColor EColorFromString(const std::string& s);
 
 class TThing {
 public:
+    struct TInitialValues {
+        std::optional<std::string> Name{};
+        std::optional<int> Count{};
+        std::optional<EColor> Color{};
+        std::optional<TBoundedQuantity> Charges{};
+        std::optional<std::set<EColor>> Tags{};
+    };
+    static TThing Create(const TInitialValues& initial);
+
     const std::string& Name() const { return Name_; }
     TGuarded<std::string> Name() { return TGuarded<std::string>(Name_); }
     const int& Count() const { return Count_; }

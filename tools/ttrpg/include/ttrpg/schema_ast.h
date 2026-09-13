@@ -31,6 +31,36 @@ struct TFieldDecl {
 struct TClassDecl {
     std::string Name;
     std::vector<TFieldDecl> Fields;
+    bool GameEntity = false;
+    struct TParameter {
+        std::string TypeName;
+        std::string Name;
+    };
+    struct TStatement {
+        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If };
+        EKind Kind = EKind::Call;
+        std::string Name;
+        std::optional<expr::TExprNode> Target;
+        std::optional<expr::TExprNode> Value;
+        std::vector<TStatement> Body;
+        std::vector<TStatement> ElseBody;
+        parse::TSourceLocation Location;
+    };
+    struct TMethod {
+        std::string ReturnType;
+        std::string Name;
+        std::vector<TParameter> Parameters;
+        std::vector<TStatement> Body;
+        bool Query = false;
+        parse::TSourceLocation Location;
+    };
+    std::vector<TMethod> Methods;
+};
+
+struct TInstanceDecl {
+    std::string TypeName;
+    std::string Name;
+    expr::TExprNode Value;
 };
 
 struct TVariantAlt {
@@ -48,4 +78,5 @@ struct TSchemaModule {
     std::vector<TEnumDecl> Enums;
     std::vector<TVariantDecl> Variants;
     std::vector<TClassDecl> Classes;
+    std::vector<TInstanceDecl> Instances;
 };
