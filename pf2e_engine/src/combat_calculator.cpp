@@ -21,7 +21,7 @@ int TCombatCalculator::ArmorClass(const TCreature& target, const TCreature& atta
     int dex = target.GetCharacteristic(ECharacteristic::Dexterity).Modifier();
     int ac = 10 + armor.ArmorClassBonus()
         + std::min(armor.DexterityCap(), dex)
-        + target.Proficiency().GetProficiency(armor)
+        + ProficiencyBonus(target, armor)
         - Penalty(target, TArmorClassTag{});
     if (IsOffGuardFor(target, attacker)) {
         ac -= 2;
@@ -56,7 +56,7 @@ int TCombatCalculator::ResolveDamage(
 template <class T>
 int TCombatCalculator::RollBonus(const TCreature& creature, T type) const
 {
-    int proficiency    = creature.Proficiency().GetProficiency(type);
+    int proficiency    = ProficiencyBonus(creature, type);
     int characteristic = creature.GetCharacteristic(BindedCharacteristic(type)).Modifier();
     return proficiency + characteristic - Penalty(creature, type);
 }
@@ -105,7 +105,7 @@ int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon&
     }
 
     return ability_mod
-        + creature.Proficiency().GetProficiency(weapon)
+        + ProficiencyBonus(creature, weapon)
         - Penalty(creature, TWeaponAttackTag{});
 }
 

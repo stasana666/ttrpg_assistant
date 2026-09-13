@@ -10,6 +10,8 @@
 #include <stdexcept>
 #include <sstream>
 #include <algorithm>
+#include <cctype>
+#include <limits>
 
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/material.h>
@@ -33,6 +35,58 @@ struct TGeneratedConstruction {
 };
 
 thread_local std::vector<TGeneratedConstruction> generated_constructions;
+
+nlohmann::json NormalizeLegacyProficiencyValue(const nlohmann::json& value)
+{
+    if (value.is_number_unsigned()) {
+        if (value.get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+            throw std::invalid_argument("proficiency override exceeds int range");
+        }
+        return {{"is_fixed", true}, {"fixed_bonus", value.get<int>()}};
+    }
+    if (value.is_number_integer()) {
+        const auto bonus = value.get<std::int64_t>();
+        if (bonus < std::numeric_limits<int>::min() || bonus > std::numeric_limits<int>::max()) {
+            throw std::invalid_argument("proficiency override exceeds int range");
+        }
+        return {{"is_fixed", true}, {"fixed_bonus", static_cast<int>(bonus)}};
+    }
+    if (!value.is_string()) {
+        throw std::invalid_argument("legacy proficiency must be a rank or an integer bonus");
+    }
+    auto rank = value.get<std::string>();
+    if (rank.empty()) {
+        throw std::invalid_argument("proficiency rank must not be empty");
+    }
+    rank.front() = static_cast<char>(std::toupper(static_cast<unsigned char>(rank.front())));
+    EProficiencyRankFromString(rank);
+    return {{"rank", rank}};
+}
+
+nlohmann::json NormalizeLegacyProficiency(const nlohmann::json& value)
+{
+    if (!value.is_object()) {
+        throw std::invalid_argument("proficiency must be an object");
+    }
+    nlohmann::json result = nlohmann::json::object();
+    for (const auto* field : {"armor_category", "weapon_category", "savethrow", "skill"}) {
+        if (!value.contains(field)) {
+            continue;
+        }
+        const auto& entries = value.at(field);
+        if (!entries.is_object()) {
+            throw std::invalid_argument("proficiency categories must be objects");
+        }
+        result[field] = nlohmann::json::object();
+        for (const auto& [key, entry] : entries.items()) {
+            result[field][key] = NormalizeLegacyProficiencyValue(entry);
+        }
+    }
+    if (value.contains("Perception")) {
+        result["perception"] = NormalizeLegacyProficiencyValue(value.at("Perception"));
+    }
+    return result;
+}
 
 }
 
@@ -261,42 +315,6 @@ void TGameObjectFactory::ReadCreatureData(nlohmann::json& json_game_object, TGam
 }
 
 
-TProficiency TGameObjectFactory::ReadProficiency(nlohmann::json& json_game_object, int level)
-{
-    TProficiency proficiency(level);
-    auto& json_proficiency = json_game_object["proficiency"];
-
-    auto get_value = [](nlohmann::basic_json<> json_value) {
-        TProficiency::Value value;
-        if (json_value.is_number()) {
-            value = json_value.get<int>();
-        } else {
-            value = ProficiencyLevelFromString(json_value.get<std::string>());
-        }
-        return value;
-    };
-
-    for (auto& [json_key, json_value] : json_proficiency["armor_category"].items()) {
-        proficiency.SetProficiency(EArmorCategoryFromString(json_key), get_value(json_value));
-    }
-
-    for (auto& [json_key, json_value] : json_proficiency["weapon_category"].items()) {
-        proficiency.SetProficiency(EWeaponCategoryFromString(json_key), get_value(json_value));
-    }
-
-    for (auto& [json_key, json_value] : json_proficiency["savethrow"].items()) {
-        proficiency.SetProficiency(SavethrowFromString(json_key), get_value(json_value));
-    }
-
-    for (auto& [json_key, json_value] : json_proficiency["skill"].items()) {
-        proficiency.SetProficiency(SkillFromString(json_key), get_value(json_value));
-    }
-
-    proficiency.SetProficiency(TPerceptionTag{}, get_value(json_proficiency["Perception"]));
-
-    return proficiency;
-}
-
 void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObjectId id)
 {
     if (json_game_object.contains("actions")) {
@@ -309,8 +327,13 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
     }
 
-    int level = json_game_object["creature_data"]["level"];
-    TProficiency proficiency = ReadProficiency(json_game_object, level);
+    if (json_game_object.contains("proficiency")) {
+        auto& data = json_game_object.at("creature_data");
+        if (data.contains("proficiency")) {
+            throw std::invalid_argument("proficiency is defined in both creature data and legacy envelope");
+        }
+        data["proficiency"] = NormalizeLegacyProficiency(json_game_object.at("proficiency"));
+    }
 
     std::vector<std::shared_ptr<TCreatureFeat>> feats;
     if (json_game_object.contains("feats")) {
@@ -331,10 +354,10 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
         }
     }
 
-    creatures_.insert({id, [this, json_game_object, proficiency, feats]() {
+    creatures_.insert({id, [this, json_game_object, feats]() {
         TCreatureData data = TCreatureData::FromJson(json_game_object.at("creature_data"), *this);
         auto rules = AbilityRules();
-        TCreature creature(std::move(data), proficiency, std::move(rules));
+        TCreature creature(std::move(data), std::move(rules));
         const auto collector = creature.CollectAbilities();
         for (const auto& grant : collector.Grants()) {
             creature.AbilityRules().Executions.Require(grant.DefinitionId);

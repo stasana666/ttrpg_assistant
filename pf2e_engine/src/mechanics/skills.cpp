@@ -4,55 +4,9 @@
 
 #include <stdexcept>
 
-std::string ToString(ESkill skill)
-{
-    switch (skill) {
-        case ESkill::Acrobatics:
-            return "Acrobatics";
-        case ESkill::Arcana:
-            return "Arcana";
-        case ESkill::Athletics:
-            return "Athletics";
-        case ESkill::Crafting:
-            return "Crafting";
-        case ESkill::Deception:
-            return "Deception";
-        case ESkill::Diplomacy:
-            return "Diplomacy";
-        case ESkill::Intimidation:
-            return "Intimidation";
-        case ESkill::Medicine:
-            return "Medicine";
-        case ESkill::Nature:
-            return "Nature";
-        case ESkill::Occultism:
-            return "Occultism";
-        case ESkill::Performance:
-            return "Performance";
-        case ESkill::Religion:
-            return "Religion";
-        case ESkill::Society:
-            return "Society";
-        case ESkill::Stealth:
-            return "Stealth";
-        case ESkill::Survival:
-            return "Survival";
-        case ESkill::Thievery:
-            return "Thievery";
-        case ESkill::COUNT:
-            throw std::invalid_argument("COUNT is not valid ESkill");
-    }
-    throw std::invalid_argument("incorrect value of ESkill");
-}
-
 ESkill SkillFromString(std::string skill)
 {
-    for (size_t i = 0; i < static_cast<size_t>(ESkill::COUNT); ++i) {
-        if (ToString(static_cast<ESkill>(i)) == skill) {
-            return static_cast<ESkill>(i);
-        }
-    }
-    throw std::invalid_argument("unknown ESkill: \"" + skill + "\"");
+    return ESkillFromString(skill);
 }
 
 ECharacteristic BindedCharacteristic(ESkill skill)
@@ -90,8 +44,6 @@ ECharacteristic BindedCharacteristic(ESkill skill)
             return ECharacteristic::Wisdom;
         case ESkill::Thievery:
             return ECharacteristic::Dexterity;
-        case ESkill::COUNT:
-            throw std::invalid_argument("COUNT is not valid ESkill");
     }
     throw std::invalid_argument("incorrect value of ESkill");
 }

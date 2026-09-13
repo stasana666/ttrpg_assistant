@@ -5,6 +5,7 @@ import "condition.ttrpg";
 import "damage.ttrpg";
 import "hitpoints.ttrpg";
 import "abilities.ttrpg";
+import "proficiency.ttrpg";
 
 enum ECreatureSize {
     Tiny,
@@ -34,6 +35,7 @@ class TCreatureData {
     TRace Race;
     TClass Class;
     TAbilityScores Characteristic;
+    TProficiency Proficiency;
     int Movement = 0;
     THitPoints Hitpoints = THitPoints {
         Maximum = Statistic {
@@ -52,6 +54,26 @@ class TCreatureData {
     Resource Reactions = 0;
     Resource Hands = 0;
     map<ESpellSlotRank, Resource> SpellSlots;
+
+    query int ArmorProficiency(EArmorCategory Category) {
+        return @self.Proficiency.ArmorBonus(Category, @self.Level);
+    }
+
+    query int WeaponProficiency(EWeaponCategory Category) {
+        return @self.Proficiency.WeaponBonus(Category, @self.Level);
+    }
+
+    query int SaveProficiency(ESavethrow Save) {
+        return @self.Proficiency.SaveBonus(Save, @self.Level);
+    }
+
+    query int SkillProficiency(ESkill Skill) {
+        return @self.Proficiency.SkillBonus(Skill, @self.Level);
+    }
+
+    query int PerceptionProficiency() {
+        return @self.Proficiency.PerceptionBonus(@self.Level);
+    }
 
     grant @self.Features;
     grant @self.Race;

@@ -70,7 +70,6 @@ private:
 
     void ValidateObject(nlohmann::json&) const;
     TGameObjectId ReadGameObjectName(nlohmann::json&) const;
-    TProficiency ReadProficiency(nlohmann::json& json_game_object);
 
     void ReadArmor(nlohmann::json&, TGameObjectId);
     void ReadMaterial(nlohmann::json&, TGameObjectId);
@@ -83,8 +82,6 @@ private:
     void ReadCreature(nlohmann::json&, TGameObjectId);
     void ReadAction(nlohmann::json&, TGameObjectId);
     void ReadBattleMap(nlohmann::json&, TGameObjectId);
-
-    TProficiency ReadProficiency(nlohmann::json& json_game_object, int level);
 
     template <class T>
     const TFactoryStorage<TCreatedObject<T>>* GetFactoryStorage() const;

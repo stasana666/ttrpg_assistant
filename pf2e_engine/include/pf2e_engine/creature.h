@@ -18,7 +18,7 @@
 
 class TCreature : public TCreatureData {
 public:
-    TCreature(TCreatureData data, TProficiency proficiency,
+    explicit TCreature(TCreatureData data,
               std::shared_ptr<const TAbilityRules> abilities = nullptr);
 
     TAbilityScore GetCharacteristic(ECharacteristic name) const;
@@ -33,9 +33,6 @@ public:
 
     int GetLevel() const;
 
-    const TProficiency& Proficiency() const;
-    TProficiency& Proficiency();
-
     bool IsAlive() const;
     const TAbilityRules& AbilityRules() const;
     TAbilityCollector CollectAbilities() const;
@@ -49,8 +46,6 @@ public:
 
 private:
     friend class TGameObjectFactory;
-
-    TProficiency proficiency_;
 
     std::shared_ptr<const TAbilityRules> abilities_;
     std::vector<std::shared_ptr<TCreatureFeat>> feats_;

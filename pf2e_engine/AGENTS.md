@@ -21,7 +21,8 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Generated `VisitGrantedAbilities` derives ability grants from current creature, race, class, weapon, and natural-weapon feature selections. `TCreature` has no separately mutable action or reaction list; its shared `TAbilityRules` holds immutable definitions and execution bindings.
 - `TBattle::AvailableActions`, `AvailableReactions(trigger)`, and `Execute(option)` expose bound choices. Sources use generated field paths plus collection entry IDs. Execution checks the live grant and cost again; suspended actions retain their definition and weapon snapshot and revalidate their source before resuming.
 - Action/reaction declarations in `.ttrpg` currently define symbols and ownership only. Bodies, costs, weapon-source requirements, and triggers are bound through existing JSON pipelines. Reaction enumeration does not implement a reaction window or choose/execute reactions automatically.
-- Legacy `TCreatureFeat` pipeline hooks remain in use for Pack Attack. Proficiency, several creature helpers, action bodies, and PF2e reaction timing still require migration before `TCreature` is fully generated.
+- `data/schemas/proficiency.ttrpg` generates proficiency storage and rank/fixed-bonus rules. `TCreatureData` owns `Proficiency`; its queries pass the creature's current `Level`, so no separate proficiency level is stored. The remaining C++ `ProficiencyBonus` overloads only route calculator requests to these generated queries.
+- Legacy `TCreatureFeat` pipeline hooks remain in use for Pack Attack. Several creature helpers, action bodies, and PF2e reaction timing still require migration before `TCreature` is fully generated.
 
 ## Build/Test
 - Build engine: `cmake --build build --target pf2e_engine`.

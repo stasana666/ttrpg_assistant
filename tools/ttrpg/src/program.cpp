@@ -16,6 +16,16 @@ namespace {
 using TStatement = TClassDecl::TStatement;
 using TMethod = TClassDecl::TMethod;
 using TClasses = std::unordered_map<std::string, const TClassDecl*>;
+using TEnums = std::unordered_map<std::string, const TEnumDecl*>;
+
+TEnums EnumTable(const TLoadedSchemas& loaded) {
+    TEnums result;
+    for (const auto& [stem, module] : loaded.ByStem) {
+        for (const auto& enumeration : module.Enums) result.emplace(enumeration.Name, &enumeration);
+    }
+    for (const auto& enumeration : loaded.Primary.Enums) result[enumeration.Name] = &enumeration;
+    return result;
+}
 
 TClasses ClassTable(const TLoadedSchemas& loaded) {
     TClasses result;
@@ -25,7 +35,6 @@ TClasses ClassTable(const TLoadedSchemas& loaded) {
     for (const auto& c : loaded.Primary.Classes) result[c.Name] = &c;
     return result;
 }
-
 
 const TFieldDecl* Field(const TClassDecl& c, const std::string& name) {
     for (const auto& field : c.Fields) if (field.Name == name) return &field;
@@ -73,12 +82,15 @@ struct TValue {
     std::string Storage{};
     std::string OwnerGuard{};
     const TFieldDecl* Field = nullptr;
+    EContainer Container = EContainer::None;
+    std::string KeyType{};
+    std::string ElementType{};
 };
 
 class TCompiler {
 public:
     TCompiler(const TClassDecl& self, const TLoadedSchemas& loaded)
-        : self_(self), loaded_(loaded), classes_(ClassTable(loaded)) {
+        : self_(self), loaded_(loaded), classes_(ClassTable(loaded)), enums_(EnumTable(loaded)) {
         classes_[self.Name] = &self;
     }
 
@@ -141,13 +153,16 @@ public:
                     if (definition.Kind != EAbilityDeclarationKind::Feature) Fail("Feature values require a feature definition");
                     return {.Type = "Feature", .Code = "TFeatureSelection(" + CppStringLiteral(definition.OwnerStem + "." + e.Text) + ")"};
                 }
-                for (const auto& [stem, module] : loaded_.ByStem) {
-                    for (const auto& en : module.Enums) {
-                        if (en.Name == expected && std::find(en.Values.begin(), en.Values.end(), e.Text) != en.Values.end()) {
-                            return {.Type = expected, .Code = expected + "::" + e.Text};
-                        }
+                const TEnumDecl* literal_type = nullptr;
+                for (const auto& [name, enumeration] : enums_) {
+                    if ((!expected.empty() && name != expected) ||
+                        std::find(enumeration->Values.begin(), enumeration->Values.end(), e.Text) == enumeration->Values.end()) {
+                        continue;
                     }
+                    if (literal_type) Fail("ambiguous enum value '" + e.Text + "'; a typed context is required");
+                    literal_type = enumeration;
                 }
+                if (literal_type) return {.Type = literal_type->Name, .Code = literal_type->Name + "::" + e.Text};
                 Fail("unknown name '" + e.Text + "'");
             }
             case K::Member: {
@@ -161,9 +176,14 @@ public:
                 TValue result;
                 result.Type = CppMemberType(*field, loaded_.SymbolTable);
                 if (field->Container == EContainer::None) result.Type = field->TypeName;
-                result.Code = "(" + owner.Code + ")." + e.Text + "()";
+                const std::string receiver = owner.Persistent ? owner.Code :
+                    "static_cast<const " + owner.Type + "&>(" + owner.Code + ")";
+                result.Code = "(" + receiver + ")." + e.Text + "()";
                 result.Persistent = owner.Persistent;
                 result.Field = field;
+                result.Container = field->Container;
+                result.KeyType = field->Container == EContainer::Map ? field->TypeName : "";
+                result.ElementType = field->Container == EContainer::Map ? field->ValueTypeName : field->TypeName;
                 if (!field->Derived && direct) {
                     result.Storage = "self." + e.Text + "_";
                     result.Guard = "self." + e.Text + "()";
@@ -174,15 +194,24 @@ public:
                 return result;
             }
             case K::Binary: {
-                auto left = Read(*e.Lhs);
-                auto right = Read(*e.Rhs, left.Type);
                 using O = expr::EBinaryOp;
+                TValue left;
+                TValue right;
+                if ((e.BinOp == O::Eq || e.BinOp == O::Ne) && UnboundName(*e.Lhs) && !UnboundName(*e.Rhs)) {
+                    right = Read(*e.Rhs);
+                    left = Read(*e.Lhs, right.Type);
+                } else {
+                    left = Read(*e.Lhs);
+                    right = Read(*e.Rhs, left.Type);
+                }
                 std::string type = "int";
                 if (e.BinOp == O::And || e.BinOp == O::Or) {
                     Match(left, "bool"); Match(right, "bool"); type = "bool";
                 } else if (e.BinOp == O::Eq || e.BinOp == O::Ne) {
                     Match(right, left.Type);
-                    if (!IsBuiltinPrimitive(left.Type)) Fail("equality currently requires primitive operands");
+                    if (!IsBuiltinPrimitive(left.Type) && !enums_.contains(left.Type)) {
+                        Fail("equality requires primitive values or values of the same enum type");
+                    }
                     type = "bool";
                 } else {
                     Match(left, "int"); Match(right, "int");
@@ -273,6 +302,20 @@ public:
         if (call.Lhs->Kind != expr::ENodeKind::Member) Fail("only named methods can be called");
         const auto& member = *call.Lhs;
         auto owner = Read(*member.Lhs);
+        if (owner.Container == EContainer::Map) {
+            if (member.Text != "get") Fail("map supports only the pure 'get' lookup");
+            if (call.Args.size() != 2) Fail("map.get expects a key and a fallback value");
+            auto key = Read(call.Args[0], owner.KeyType);
+            auto fallback = Read(call.Args[1], owner.ElementType);
+            Match(key, owner.KeyType);
+            Match(fallback, owner.ElementType);
+            const auto value_type = CppTypeFor(owner.ElementType);
+            const std::string code = "([](const auto& rule_map, " + CppTypeFor(owner.KeyType) +
+                " rule_key, " + value_type + " rule_fallback) -> " + value_type +
+                " { const auto rule_entry = rule_map.find(rule_key); if (rule_entry == rule_map.end()) { return rule_fallback; } "
+                "return rule_entry->second; }(" + owner.Code + ", " + key.Code + ", " + fallback.Code + "))";
+            return {.Type = owner.ElementType, .Code = code};
+        }
         const auto cls = classes_.find(owner.Type);
         if (cls == classes_.end()) Fail("method receiver must be a class");
         const TMethod* method = nullptr;
@@ -359,7 +402,9 @@ public:
             CheckType(method.ReturnType, true);
             for (const auto& parameter : method.Parameters) {
                 CheckType(parameter.TypeName);
-                if (!IsBuiltinPrimitive(parameter.TypeName)) Fail("method parameters currently require primitive value types");
+                if (!IsBuiltinPrimitive(parameter.TypeName) && !enums_.contains(parameter.TypeName)) {
+                    Fail("method parameters require primitive or enum value types");
+                }
                 if (!locals_.emplace(parameter.Name, TValue{.Type = parameter.TypeName, .Code = "arg_" + parameter.Name}).second) {
                     Fail("duplicate parameter '" + parameter.Name + "'");
                 }
@@ -381,6 +426,12 @@ public:
     }
 
 private:
+    bool UnboundName(const expr::TExprNode& value) const {
+        return value.Kind == expr::ENodeKind::Var && !value.HasDollar &&
+            value.Text != "true" && value.Text != "false" && value.Text != "min_int" && value.Text != "max_int" &&
+            !locals_.contains(value.Text) && !Field(self_, value.Text);
+    }
+
     void QueryDependencies(const TMethod& method, std::unordered_set<std::string>& visiting) {
         if (!visiting.insert(method.Name).second) Fail("recursive query '" + method.Name + "'");
         std::unordered_set<std::string> names;
@@ -458,7 +509,8 @@ private:
                     auto value = Read(*statement.Value, "", effects);
                     if (value.Type == "void") Fail("cannot bind void result");
                     line("[[maybe_unused]] auto local_" + statement.Name + " = " + value.Code + ";");
-                    locals_[statement.Name] = {.Type = value.Type, .Code = "local_" + statement.Name};
+                    locals_[statement.Name] = {.Type = value.Type, .Code = "local_" + statement.Name,
+                        .Container = value.Container, .KeyType = value.KeyType, .ElementType = value.ElementType};
                     break;
                 }
                 case K::Require: {
@@ -546,6 +598,7 @@ private:
     const TClassDecl& self_;
     const TLoadedSchemas& loaded_;
     TClasses classes_;
+    TEnums enums_;
     std::unordered_map<std::string, TValue> locals_;
     std::unordered_set<std::string> dependencies_;
     const TMethod* method_ = nullptr;

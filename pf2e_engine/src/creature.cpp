@@ -9,10 +9,9 @@
 
 #include <algorithm>
 
-TCreature::TCreature(TCreatureData data, TProficiency proficiency,
+TCreature::TCreature(TCreatureData data,
                      std::shared_ptr<const TAbilityRules> abilities)
     : TCreatureData(std::move(data))
-    , proficiency_(proficiency)
     , abilities_(abilities ? std::move(abilities) : std::make_shared<const TAbilityRules>())
 {
 }
@@ -33,7 +32,7 @@ TAbilityScore TCreature::GetCharacteristic(ECharacteristic name) const
 
 int TCreature::GetLevel() const
 {
-    return proficiency_.GetLevel();
+    return Level();
 }
 
 TGuarded<THitPoints> TCreature::Hitpoints()
@@ -74,16 +73,6 @@ int TCreature::MaxWeaponReach() const
         reach = std::max(reach, weapon->Reach());
     }
     return reach;
-}
-
-const TProficiency& TCreature::Proficiency() const
-{
-    return proficiency_;
-}
-
-TProficiency& TCreature::Proficiency()
-{
-    return proficiency_;
 }
 
 bool TCreature::IsAlive() const
@@ -147,7 +136,6 @@ TAstNode TCreature::GetAst(TAstContext& ctx) const
 
     TAstNode node = TAstNode::MakeObject("TCreature");
     node.AddChild("creature_data", TCreatureData::GetAst(ctx));
-    AddOwnedObject(node, "proficiency", proficiency_, ctx);
 
     TAstNode abilities = TAstNode::MakeObject("granted_abilities");
     const auto collector = CollectAbilities();

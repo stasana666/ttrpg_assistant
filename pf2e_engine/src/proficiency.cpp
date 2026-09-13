@@ -1,181 +1,33 @@
 #include <pf2e_engine/proficiency.h>
 
-#include <pf2e_engine/common/ast/ast_helpers.h>
-#include <pf2e_engine/common/ast/ast_layout_assert.h>
-#include <pf2e_engine/common/visit.h>
-
-#include <stdexcept>
-#include "characteristics.h"
-#include "savethrows.h"
-#include "skills.h"
-
-std::string ToString(EProficiencyLevel proficiency)
-{
-    switch (proficiency) {
-        case EProficiencyLevel::Untrained:
-            return "untrained";
-        case EProficiencyLevel::Trained:
-            return "trained";
-        case EProficiencyLevel::Expert:
-            return "expert";
-        case EProficiencyLevel::Master:
-            return "master";
-        case EProficiencyLevel::Legendary:
-            return "legendary";
-    }
-    throw std::invalid_argument("incorrect value of EProficiencyLevel");
-}
-
-EProficiencyLevel ProficiencyLevelFromString(std::string proficiency_str)
-{
-    for (auto proficiency :
-        { EProficiencyLevel::Untrained
-        , EProficiencyLevel::Trained
-        , EProficiencyLevel::Expert
-        , EProficiencyLevel::Master
-        , EProficiencyLevel::Legendary})
-    {
-        if (ToString(proficiency) == proficiency_str) {
-            return proficiency;
-        }
-    }
-    throw std::invalid_argument("unknown EProficiencyLevel: \"" + proficiency_str + "\"");
-}
+#include <pf2e_engine/creature.h>
 
 ECharacteristic BindedCharacteristic(TPerceptionTag)
 {
     return ECharacteristic::Wisdom;
 }
 
-TProficiency::TProficiency(int level)
-    : level_(level)
+int ProficiencyBonus(const TCreature& creature, const TWeapon& weapon)
 {
+    return creature.WeaponProficiency(weapon.Category());
 }
 
-void TProficiency::SetProficiency(EArmorCategory armor_category, Value value)
+int ProficiencyBonus(const TCreature& creature, const TArmor& armor)
 {
-    armor_category_[armor_category] = value;
+    return creature.ArmorProficiency(armor.Category());
 }
 
-void TProficiency::SetProficiency(EWeaponCategory weapon_category, Value value)
+int ProficiencyBonus(const TCreature& creature, ESavethrow save)
 {
-    weapon_category_[weapon_category] = value;
+    return creature.SaveProficiency(save);
 }
 
-void TProficiency::SetProficiency(ESavethrow savethrows, Value value)
+int ProficiencyBonus(const TCreature& creature, ESkill skill)
 {
-    savethrow_[savethrows] = value;
+    return creature.SkillProficiency(skill);
 }
 
-void TProficiency::SetProficiency(ESkill skill, Value value)
+int ProficiencyBonus(const TCreature& creature, TPerceptionTag)
 {
-    skill_[skill] = value;
-}
-
-void TProficiency::SetProficiency(TPerceptionTag, Value value)
-{
-    perception_ = value;
-}
-
-int TProficiency::GetProficiency(const TWeapon& weapon) const
-{
-    if (!weapon_category_.contains(weapon.Category())) {
-        return 0;
-    }
-    return GetProficiency(weapon_category_.at(weapon.Category()));
-}
-
-int TProficiency::GetProficiency(const TArmor& armor) const
-{
-    if (!armor_category_.contains(armor.Category())) {
-        return 0;
-    }
-    return GetProficiency(armor_category_.at(armor.Category()));
-}
-
-int TProficiency::GetProficiency(ESavethrow savethrow) const
-{
-    if (!savethrow_.contains(savethrow)) {
-        return 0;
-    }
-    return GetProficiency(savethrow_.at(savethrow));
-}
-
-int TProficiency::GetProficiency(ESkill skill) const
-{
-    if (!skill_.contains(skill)) {
-        return 0;
-    }
-    return GetProficiency(skill_.at(skill));
-}
-
-int TProficiency::GetProficiency(TPerceptionTag) const
-{
-    return GetProficiency(perception_);
-}
-
-int TProficiency::GetProficiency(Value proficiency) const
-{
-    int result{};
-    std::visit(VisitorHelper{
-        [&result, this](EProficiencyLevel proficiency) {
-            result = GetProficiency(proficiency);
-        },
-        [&result](int value) {
-            result = value;
-        }
-    }, proficiency);
-    return result;
-}
-
-int TProficiency::GetProficiency(EProficiencyLevel proficiency) const
-{
-    switch (proficiency) {
-        case EProficiencyLevel::Untrained:
-            return 0;
-        case EProficiencyLevel::Trained:
-            return 2 + level_;
-        case EProficiencyLevel::Expert:
-            return 4 + level_;
-        case EProficiencyLevel::Master:
-            return 6 + level_;
-        case EProficiencyLevel::Legendary:
-            return 8 + level_;
-    }
-    throw std::invalid_argument("wrong EProficiencyLevel value in TProficiency::GetProficiency");
-}
-
-int TProficiency::GetLevel() const
-{
-    return level_;
-}
-
-namespace {
-
-template <class K>
-TAstNode SerializeProfMap(const std::map<K, TProficiency::Value>& m,
-                          std::string_view label)
-{
-    TAstNode node = TAstNode::MakeObject(std::string(label));
-    for (const auto& [k, v] : m) {
-        AddValueField(node, ToString(k), v);
-    }
-    return node;
-}
-
-}
-
-TAstNode TProficiency::GetAst([[maybe_unused]] TAstContext& ctx) const
-{
-    static constexpr size_t kExpectedSize = 216;
-    AST_ASSERT_LAYOUT(TProficiency, kExpectedSize);
-
-    TAstNode node = TAstNode::MakeObject("TProficiency");
-    AddValueField(node, "level", level_);
-    node.AddChild("armor_category",  SerializeProfMap(armor_category_,  "map"));
-    node.AddChild("weapon_category", SerializeProfMap(weapon_category_, "map"));
-    node.AddChild("savethrow",       SerializeProfMap(savethrow_,       "map"));
-    node.AddChild("skill",           SerializeProfMap(skill_,           "map"));
-    AddValueField(node, "perception", perception_);
-    return node;
+    return creature.PerceptionProficiency();
 }

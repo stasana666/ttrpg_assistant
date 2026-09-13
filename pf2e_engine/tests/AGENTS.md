@@ -18,6 +18,13 @@ Canonical project instructions. CLAUDE.md redirects here.
   `inventory/test_granted_entities.cpp` verifies imported ability registration,
   feature and weapon grant traversal, action/reaction distinction, source IDs,
   and provenance preservation through snapshots and removal of one source.
+- `inventory/test_proficiency.cpp` verifies generated rank and fixed-value queries,
+  map defaults, enum JSON, snapshots, and checked arithmetic. The mechanics tests
+  in `mechanics/test_proficiency_calculation.cpp` cover real warrior/wolf bonuses,
+  level changes with rollback, fixed contributions, and condition penalties.
+- `game_object_logic/test_proficiency_loading.cpp` covers legacy proficiency
+  normalization, canonical nested profiles, missing defaults, conflicting input
+  locations, invalid enum keys, and integer bounds through the real factory.
 - `dsl/`: runtime DSL parser/evaluator/property tests.
 - `ast/`: rollback and AST state-comparison tests.
 

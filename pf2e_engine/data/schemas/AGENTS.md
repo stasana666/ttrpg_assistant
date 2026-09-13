@@ -11,6 +11,8 @@ Canonical project instructions. CLAUDE.md redirects here.
 ## Key Concepts
 - Language forms include `GameEntity`, named instances, `method`, and `query` in addition to the existing fields/containers/defaults. See `tools/ttrpg/AGENTS.md` for the currently supported rule syntax.
 - `hitpoints.ttrpg` is the source of truth for `Statistic`, `TDamageResult`, and `THitPoints`: damage, healing, and temporary HP replacement are compiled methods. `TCreatureData.Hitpoints` constructs this type after race/class/level/attributes are initialized.
+- `proficiency.ttrpg` defines proficiency ranks, fixed contributions, and bonus queries. `TProficiencyValue.Bonus(Level)` keeps rank arithmetic in the schema; `TProficiency` stores category maps and perception without storing another level. Missing map entries use an untrained value and do not insert a map entry.
+- `skills.ttrpg` and `saving_throws.ttrpg` own `ESkill` and `ESavethrow`; armor and weapon categories remain in their existing schemas. Canonical generated JSON uses PascalCase enum tokens. The factory normalizes legacy lowercase proficiency ranks and fixed integer contributions before loading generated types.
 - Damage input is the resolved amount after defenses. The result retains incoming damage, temporary absorption, before/after HP, and remaining damage. Dying/wounded/death rules are not part of this value type.
 - Temporary HP replacement accepts an explicitly selected pool; choosing between sources and scheduling expiration remain action/ruleset work.
 - Built-ins include `int`, `bool`, `string`, `BoundedQuantity`, `Resource`, `max_int`, and `min_int`.

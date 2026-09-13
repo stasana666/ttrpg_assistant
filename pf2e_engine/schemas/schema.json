@@ -213,6 +213,7 @@
         "pf2e_creature_data_core": {
             "type": "object",
             "properties": {
+                "proficiency": { "$ref": "#/$defs/pf2e_proficiency_data" },
                 "features": {
                     "type": "array",
                     "items": { "type": "string", "minLength": 1 }
@@ -451,6 +452,142 @@
                         "Thievery": { "$ref": "#/$defs/pf2e_proficiency_bonus" }
                     },
                     "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        },
+
+        "pf2e_proficiency_value": {
+            "type": "object",
+            "properties": {
+                "rank": {
+                    "type": "string",
+                    "enum": [
+                        "Untrained",
+                        "Trained",
+                        "Expert",
+                        "Master",
+                        "Legendary"
+                    ]
+                },
+                "is_fixed": {
+                    "type": "boolean"
+                },
+                "fixed_bonus": {
+                    "type": "integer",
+                    "minimum": -2147483648,
+                    "maximum": 2147483647
+                }
+            },
+            "additionalProperties": false
+        },
+        "pf2e_proficiency_data": {
+            "type": "object",
+            "properties": {
+                "armor_category": {
+                    "type": "object",
+                    "properties": {
+                        "Heavy": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Medium": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Light": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Unarmored": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "weapon_category": {
+                    "type": "object",
+                    "properties": {
+                        "Unarmed": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Simple": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Martial": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "savethrow": {
+                    "type": "object",
+                    "properties": {
+                        "Fortitude": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Reflex": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Will": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "skill": {
+                    "type": "object",
+                    "properties": {
+                        "Acrobatics": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Arcana": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Athletics": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Crafting": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Deception": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Diplomacy": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Intimidation": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Medicine": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Nature": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Occultism": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Performance": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Religion": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Society": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Stealth": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Survival": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Thievery": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "perception": {
+                    "$ref": "#/$defs/pf2e_proficiency_value"
                 }
             },
             "additionalProperties": false
