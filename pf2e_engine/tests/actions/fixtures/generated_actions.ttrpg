@@ -1,0 +1,58 @@
+import "../../../data/schemas/creature.ttrpg";
+
+action Mend for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive();
+    let Amount = roll(1, 6);
+    Target.Hitpoints.Heal(Amount);
+}
+
+action Harm for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive();
+    Target.Hitpoints.DealDamage(7);
+}
+
+action HeldAid for TCreature {
+    cost @self.Hands = 2;
+    choose TCreature Target where Target.IsAlive();
+    Target.Hitpoints.ReplaceTemporary(4);
+    Target.Hitpoints.Heal(6);
+}
+
+action Relay for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature First where First.IsAlive();
+    let Amount = roll(1, 6);
+    First.Hitpoints.Heal(Amount);
+    choose TCreature Second where Second.IsAlive();
+    Second.Hitpoints.DealDamage(Amount);
+}
+
+action RestrictedAid for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive();
+    Target.Hitpoints.Heal(2);
+    require Target.Level > @self.Level;
+    Target.Hitpoints.DealDamage(9);
+}
+
+feature Mending {
+    grant Mend;
+}
+
+feature Injuring {
+    grant Harm;
+}
+
+feature HeldAidTraining {
+    grant HeldAid;
+}
+
+feature RelayTraining {
+    grant Relay;
+}
+
+feature RestrictedAidTraining {
+    grant RestrictedAid;
+}

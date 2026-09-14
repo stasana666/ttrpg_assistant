@@ -85,9 +85,10 @@ void ValidateAbilityDefinitions(const TLoadedSchemas& loaded) {
     std::unordered_map<std::string, const TAbilityDecl*> declarations;
     std::unordered_set<std::string> functions;
     for (const auto& [stem, module] : Modules(loaded)) {
-        const auto function = AbilityRegistrationFunction(stem);
-        if (!functions.insert(function).second || loaded.SymbolTable.contains(function)) {
-            throw std::runtime_error("ability registration name collision '" + function + "'");
+        for (const auto& function : {AbilityRegistrationFunction(stem), RulesRegistrationFunction(stem)}) {
+            if (!functions.insert(function).second || loaded.SymbolTable.contains(function)) {
+                throw std::runtime_error("ability registration name collision '" + function + "'");
+            }
         }
         for (const auto& definition : module->Abilities) {
             if (loaded.SymbolTable.contains(definition.Name) || definition.Name == "Feature") {
@@ -117,6 +118,12 @@ void ValidateAbilityDefinitions(const TLoadedSchemas& loaded) {
     for (const auto& [stem, module] : Modules(loaded)) {
         for (const auto& definition : module->Abilities) visit(definition.Name);
     }
+}
+
+std::string RulesRegistrationFunction(const std::string& stem) {
+    auto name = AbilityRegistrationFunction(stem);
+    name.resize(name.size() - std::string("Abilities").size());
+    return name + "Rules";
 }
 
 std::vector<TCompiledGrant> CompileGrants(const TClassDecl& declaration, const TLoadedSchemas& loaded) {

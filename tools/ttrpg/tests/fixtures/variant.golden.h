@@ -115,3 +115,5 @@ template <>
 struct TIsAstRecursive<TSpell> : std::true_type {};
 
 void RegisterVariantAbilities(TAbilityCatalog& catalog);
+struct TAbilityRules;
+void RegisterVariantRules(TAbilityRules& rules);

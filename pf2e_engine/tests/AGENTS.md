@@ -9,6 +9,12 @@ Canonical project instructions. CLAUDE.md redirects here.
 - `test_lib/mock_dice_roller.h`: deterministic RNG expectations for reproducible tests.
 - `test_lib/mock_interaction_system.h`: scripted player choices and optional state checks.
 - `actions/`: combat/action pipeline tests using real data.
+- `actions/fixtures/generated_actions.ttrpg` and `actions/test_generated_actions.cpp`
+  compile actions into `test_generated_actions` and execute them through battle
+  grants. They cover chosen entities, dice, arbitrary declared resource fields,
+  HP effects, suspended and repeated choices, source removal, actor eligibility,
+  and caller-controlled journal rollback. These fixtures are language acceptance
+  cases, not the production PF2e action catalog.
 - `actions/test_ability_runtime.cpp` covers grant and feature provenance, immutable
   hook execution, source removal during suspension, replay after successful resume
   and rollback, and battle identity/insertion failures. Hook-removal tests replace

@@ -97,7 +97,7 @@ public:
     }
 
     template <class T, class Getter>
-    auto Project(TGuarded<T> target, Getter getter)
+    static auto Project(TGuarded<T> target, Getter getter)
     {
         return RequireGuarded(std::invoke(getter, target.Mutable()));
     }

@@ -32,6 +32,19 @@ struct TCompiledClass {
     std::vector<TCompiledGrant> Grants;
 };
 
+struct TCompiledActionCost {
+    std::string Key;
+    int Count = 0;
+    std::string Read;
+    std::string Write;
+};
+
+struct TCompiledAction {
+    std::vector<TCompiledActionCost> Costs;
+    std::vector<std::string> Body;
+};
+
 bool UsesRuleSyntax(const TClassDecl& declaration, const TLoadedSchemas& loaded);
 TCompiledClass CompileClass(const TClassDecl& declaration, const TLoadedSchemas& loaded);
 std::string CompileInstance(const TInstanceDecl& declaration, const TLoadedSchemas& loaded);
+TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded);

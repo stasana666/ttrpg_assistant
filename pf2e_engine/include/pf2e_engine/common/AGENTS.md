@@ -73,6 +73,32 @@ Battle insertion rejects missing, moved-from, and duplicate creature identities
 and duplicate player IDs before binding map cells. A failed initiative insertion
 restores the map and player list.
 
+## Compiled action execution (`actions/generated_action.h`)
+
+Generated actions use `TAction::FBody` and direct C++ continuations. They do not
+build action-reader pipelines or invoke legacy block hooks. Resource costs bind
+generated `Resource` field paths through separate const reads and guarded writes;
+payment aggregates aliases, validates all bindings and availability first, then
+journals payment atomically. Costs are paid once before the body starts.
+
+Entity bindings retain type, identity and a stable participant address. Reads,
+guard projection and choice resumes validate the binding; actor execution also
+checks the current battle eligibility policy. The native battle adapter currently
+provides `TCreature` participants. The compiler has no hard-coded creature type,
+HP field names or resource categories. Future native entity kinds need adapters.
+
+`IInteractionSystem::RequestChoice` either invokes its receiver synchronously or
+suspends through `TSavepointStackUnwind` with an owned callback. It must not return
+without delivering a choice or suspending. Generated callbacks capture earlier
+locals by value and create fresh locals on every invocation so an old savepoint
+can be replayed after rollback. The selected entity and its predicate are checked
+again on resume; the enclosing execution also rechecks the granting source.
+
+A yielding action is not enclosed in a synchronous method transaction. A failed
+body leaves its paid costs and completed mutations in the caller's journal until
+that caller undoes them. Empty choices and failed requirements follow this same
+policy. Whole-action cancellation and target preflight remain separate work.
+
 ## Generated method execution (`generated_execution.h`)
 
 `TGeneratedExecutionContext` is a lightweight handle onto the existing

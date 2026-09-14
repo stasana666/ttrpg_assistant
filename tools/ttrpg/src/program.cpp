@@ -4,8 +4,12 @@
 #include <ttrpg/abilities.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <iomanip>
+#include <limits>
+#include <map>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
@@ -85,6 +89,8 @@ struct TValue {
     EContainer Container = EContainer::None;
     std::string KeyType{};
     std::string ElementType{};
+    std::string Binding{};
+    std::string LocalCode{};
 };
 
 class TCompiler {
@@ -128,6 +134,10 @@ public:
             case K::StringLiteral: return {.Type = "string", .Code = "std::string(" + CppStringLiteral(e.Text) + ")"};
             case K::ContextVar:
                 if (e.Text != "self") Fail("unknown context variable '@" + e.Text + "'");
+                if (action_) {
+                    return {.Type = self_.Name, .Code = "action_self.Read()", .Persistent = true,
+                        .Guard = "action_self.Guard()", .Binding = "action_self"};
+                }
                 return {.Type = self_.Name, .Code = "std::as_const(self)", .Persistent = true,
                         .Guard = "TGuarded<" + self_.Name + ">(self)", .Storage = "self"};
             case K::Var: {
@@ -209,7 +219,10 @@ public:
                     Match(left, "bool"); Match(right, "bool"); type = "bool";
                 } else if (e.BinOp == O::Eq || e.BinOp == O::Ne) {
                     Match(right, left.Type);
-                    if (!IsBuiltinPrimitive(left.Type) && !enums_.contains(left.Type)) {
+                    if (!left.Binding.empty() && !right.Binding.empty()) {
+                        left.Code += ".Id()";
+                        right.Code += ".Id()";
+                    } else if (!IsBuiltinPrimitive(left.Type) && !enums_.contains(left.Type)) {
                         Fail("equality requires primitive values or values of the same enum type");
                     }
                     type = "bool";
@@ -292,6 +305,15 @@ public:
 
     TValue Call(const expr::TExprNode& call, bool effects) {
         if (!call.Lhs) {
+            if (call.Text == "roll") {
+                if (!action_ || !effects) Fail("roll is allowed only as an effectful action expression");
+                if (call.Args.size() != 2) Fail("roll expects a count and a die size");
+                auto count = Read(call.Args[0]);
+                auto size = Read(call.Args[1]);
+                Match(count, "int");
+                Match(size, "int");
+                return {.Type = "int", .Code = "RollActionDice(Context, " + count.Code + ", " + size.Code + ")", .Effect = true};
+            }
             if (call.Text != "min" && call.Text != "max") Fail("unknown function '" + call.Text + "'");
             if (call.Args.size() != 2) Fail("function '" + call.Text + "' expects two arguments");
             auto left = Read(call.Args[0]);
@@ -425,7 +447,165 @@ public:
         return result;
     }
 
+    TCompiledAction CompileActionBody(const TAbilityDecl& declaration) {
+        if (!self_.GameEntity) Fail("compiled action owner must be a GameEntity");
+        action_ = true;
+        TMethod body_method;
+        body_method.Name = declaration.Name;
+        body_method.ReturnType = "void";
+        method_ = &body_method;
+        TCompiledAction result;
+        std::size_t first = 0;
+        while (first < declaration.Body.size() && declaration.Body[first].Kind == TStatement::EKind::Cost) {
+            result.Costs.push_back(ActionCost(declaration.Body[first++]));
+        }
+        result.Body.push_back("[[maybe_unused]] auto action_self = ActionSelf<" + self_.Name + ">(Context);");
+        result.Body.push_back("[[maybe_unused]] auto ctx = Context->transformator->ExecutionContext();");
+        ActionStatements(declaration.Body, first, result.Body, "");
+        method_ = nullptr;
+        return result;
+    }
+
 private:
+    void ValidateActionStep(std::vector<std::string>& output, const std::string& indent) const {
+        output.push_back(indent + "ValidateActionActor(Context);");
+        output.push_back(indent + "action_self.View().Validate();");
+        std::set<std::string> bindings;
+        for (const auto& [name, value] : locals_) {
+            if (!value.Binding.empty()) bindings.insert(value.Binding);
+        }
+        for (const auto& binding : bindings) output.push_back(indent + binding + ".View().Validate();");
+    }
+
+    TValue EntityBinding(const std::string& type, const std::string& name) const {
+        return {.Type = type, .Code = name + ".Read()", .Persistent = true,
+            .Guard = name + ".Guard()", .Binding = name, .LocalCode = name};
+    }
+
+    std::int64_t ConstantInteger(const expr::TExprNode& value) const {
+        using K = expr::ENodeKind;
+        using O = expr::EBinaryOp;
+        std::int64_t result = 0;
+        if (value.Kind == K::IntLiteral) {
+            try { result = std::stoll(value.Text); }
+            catch (const std::logic_error&) { Fail("cost integer is outside int range"); }
+        } else if (value.Kind == K::Var && !value.HasDollar &&
+                   (value.Text == "min_int" || value.Text == "max_int")) {
+            result = value.Text == "min_int" ? std::numeric_limits<int>::min() : std::numeric_limits<int>::max();
+        } else if (value.Kind == K::Unary && value.UnOp == expr::EUnaryOp::Negate) {
+            result = -ConstantInteger(*value.Lhs);
+        } else if (value.Kind == K::Binary) {
+            const auto left = ConstantInteger(*value.Lhs);
+            const auto right = ConstantInteger(*value.Rhs);
+            switch (value.BinOp) {
+                case O::Add: result = left + right; break;
+                case O::Sub: result = left - right; break;
+                case O::Mul: result = left * right; break;
+                case O::Div:
+                    if (right == 0) Fail("division by zero in resource cost");
+                    result = left / right;
+                    break;
+                default: Fail("cost must be a constant integer expression");
+            }
+        } else if (value.Kind == K::Call && !value.Lhs && value.Args.size() == 2 &&
+                   (value.Text == "min" || value.Text == "max")) {
+            const auto left = ConstantInteger(value.Args[0]);
+            const auto right = ConstantInteger(value.Args[1]);
+            result = value.Text == "min" ? std::min(left, right) : std::max(left, right);
+        } else {
+            Fail("cost must be a constant integer expression");
+        }
+        if (result < std::numeric_limits<int>::min() || result > std::numeric_limits<int>::max()) {
+            Fail("cost integer is outside int range");
+        }
+        return result;
+    }
+
+    TCompiledActionCost ActionCost(const TStatement& statement) {
+        auto amount = Read(*statement.Value);
+        Match(amount, "int");
+        const auto count = ConstantInteger(*statement.Value);
+        if (count < 0) Fail("resource cost cannot be negative");
+        std::vector<std::string> path;
+        std::function<void(const expr::TExprNode&)> read_path = [&](const expr::TExprNode& value) {
+            if (value.Kind == expr::ENodeKind::ContextVar && value.Text == "self") return;
+            if (value.Kind != expr::ENodeKind::Member || !value.Lhs) Fail("cost requires a stored field path rooted at @self");
+            read_path(*value.Lhs);
+            path.push_back(value.Text);
+        };
+        read_path(*statement.Target);
+        if (path.empty()) Fail("cost requires a Resource field");
+        TCompiledActionCost result;
+        result.Key = self_.Name;
+        result.Count = static_cast<int>(count);
+        result.Read = "BindActionEntity<" + self_.Name + ">(player).Read()";
+        result.Write = "BindActionEntity<" + self_.Name + ">(player).Guard()";
+        const TClassDecl* owner = &self_;
+        for (std::size_t i = 0; i < path.size(); ++i) {
+            const auto* field = Field(*owner, path[i]);
+            if (!field) Fail("unknown cost field '" + path[i] + "'");
+            if (field->Derived || field->Container != EContainer::None) Fail("cost requires stored scalar fields");
+            result.Key += "." + PascalToSnake(path[i]);
+            result.Read += "." + path[i] + "()";
+            result.Write = "ProjectActionField(" + result.Write + ", [](auto& value) { return value." + path[i] + "(); })";
+            if (i + 1 == path.size()) {
+                if (!IsBuiltinResource(field->TypeName)) Fail("cost requires a Resource field");
+            } else {
+                const auto nested = classes_.find(field->TypeName);
+                if (nested == classes_.end()) Fail("cost path must traverse stored class fields");
+                owner = nested->second;
+            }
+        }
+        return result;
+    }
+
+    void ActionStatements(const std::vector<TStatement>& body, std::size_t first,
+                          std::vector<std::string>& output, const std::string& indent) {
+        for (std::size_t i = first; i < body.size(); ++i) {
+            const auto& statement = body[i];
+            if (statement.Kind != TStatement::EKind::Choose) {
+                if (Statements({statement}, output, indent)) {
+                    if (i + 1 != body.size()) Fail("unreachable statement after return");
+                    return;
+                }
+                continue;
+            }
+            ValidateActionStep(output, indent);
+            const auto type = classes_.find(statement.TypeName);
+            if (type == classes_.end() || !type->second->GameEntity) Fail("choose requires a GameEntity type");
+            if (locals_.contains(statement.Name)) Fail("duplicate local '" + statement.Name + "'");
+            std::map<std::string, std::string> captured;
+            for (const auto& [name, value] : locals_) captured.emplace(name, value.LocalCode);
+            std::string captures = "Context, action_self";
+            for (const auto& [name, code] : captured) captures += ", captured_" + name + " = " + code;
+            const auto binding_type = "TGeneratedEntityBinding<" + statement.TypeName + ">";
+            const auto binding_name = "bound_" + statement.Name;
+            locals_.emplace(statement.Name, EntityBinding(statement.TypeName, binding_name));
+            std::string predicate = "true";
+            if (statement.Value) {
+                auto value = Read(*statement.Value);
+                Match(value, "bool");
+                predicate = value.Code;
+            }
+            output.push_back(indent + "ChooseActionEntity<" + statement.TypeName + ">(Context, ActionEntities<" + statement.TypeName + ">(Context),");
+            output.push_back(indent + "    [" + captures + "]([[maybe_unused]] const " + binding_type + "& " + binding_name + ") {");
+            output.push_back(indent + "        (void)Context;");
+            output.push_back(indent + "        (void)action_self;");
+            for (const auto& [name, code] : captured) output.push_back(indent + "        [[maybe_unused]] auto " + code + " = captured_" + name + ";");
+            ValidateActionStep(output, indent + "        ");
+            output.push_back(indent + "        return " + predicate + ";");
+            output.push_back(indent + "    },");
+            output.push_back(indent + "    [" + captures + "]([[maybe_unused]] " + binding_type + " " + binding_name + ") {");
+            output.push_back(indent + "        [[maybe_unused]] auto ctx = Context->transformator->ExecutionContext();");
+            output.push_back(indent + "        (void)action_self;");
+            for (const auto& [name, code] : captured) output.push_back(indent + "        [[maybe_unused]] auto " + code + " = captured_" + name + ";");
+            ValidateActionStep(output, indent + "        ");
+            ActionStatements(body, i + 1, output, indent + "        ");
+            output.push_back(indent + "    });");
+            return;
+        }
+    }
+
     bool UnboundName(const expr::TExprNode& value) const {
         return value.Kind == expr::ENodeKind::Var && !value.HasDollar &&
             value.Text != "true" && value.Text != "false" && value.Text != "min_int" && value.Text != "max_int" &&
@@ -501,6 +681,7 @@ private:
         bool returns = false;
         for (const auto& statement : statements) {
             if (returns) Fail("unreachable statement after return");
+            if (action_) ValidateActionStep(output, indent);
             auto line = [&](const std::string& value) { output.push_back(indent + value); };
             const bool effects = !method_->Query;
             switch (statement.Kind) {
@@ -508,9 +689,15 @@ private:
                     if (locals_.contains(statement.Name)) Fail("duplicate local '" + statement.Name + "'");
                     auto value = Read(*statement.Value, "", effects);
                     if (value.Type == "void") Fail("cannot bind void result");
+                    if (action_ && !value.Binding.empty()) {
+                        line("[[maybe_unused]] auto local_" + statement.Name + " = " + value.Binding + ";");
+                        locals_[statement.Name] = EntityBinding(value.Type, "local_" + statement.Name);
+                        break;
+                    }
                     line("[[maybe_unused]] auto local_" + statement.Name + " = " + value.Code + ";");
                     locals_[statement.Name] = {.Type = value.Type, .Code = "local_" + statement.Name,
-                        .Container = value.Container, .KeyType = value.KeyType, .ElementType = value.ElementType};
+                        .Container = value.Container, .KeyType = value.KeyType, .ElementType = value.ElementType,
+                        .LocalCode = "local_" + statement.Name};
                     break;
                 }
                 case K::Require: {
@@ -561,16 +748,16 @@ private:
                         Match(value, method_->ReturnType);
                         if (value.Type == "void") {
                             line(value.Code + ";");
-                            if (!method_->Query) line("transaction.Commit();");
+                            if (!method_->Query && !action_) line("transaction.Commit();");
                             line("return;");
                         } else {
                             line("auto result = " + value.Code + ";");
-                            if (!method_->Query) line("transaction.Commit();");
+                            if (!method_->Query && !action_) line("transaction.Commit();");
                             line("return result;");
                         }
                     } else {
                         if (method_->ReturnType != "void") Fail("return value required");
-                        if (!method_->Query) line("transaction.Commit();");
+                        if (!method_->Query && !action_) line("transaction.Commit();");
                         line("return;");
                     }
                     returns = true;
@@ -590,6 +777,8 @@ private:
                     returns = yes && no;
                     break;
                 }
+                case K::Choose: Fail("choose is supported only at the top level of an action body");
+                case K::Cost: Fail("cost declarations must precede all statements in an action body");
             }
         }
         return returns;
@@ -602,6 +791,7 @@ private:
     std::unordered_map<std::string, TValue> locals_;
     std::unordered_set<std::string> dependencies_;
     const TMethod* method_ = nullptr;
+    bool action_ = false;
 };
 
 }
@@ -637,4 +827,14 @@ std::string CompileInstance(const TInstanceDecl& declaration, const TLoadedSchem
     auto value = compiler.Read(declaration.Value, declaration.TypeName);
     compiler.Match(value, declaration.TypeName);
     return value.Code;
+}
+
+TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded) {
+    if (declaration.Kind != EAbilityDeclarationKind::Action || declaration.OwnerType.empty()) {
+        throw std::runtime_error("compiled action requires an owner type");
+    }
+    const auto classes = ClassTable(loaded);
+    const auto owner = classes.find(declaration.OwnerType);
+    if (owner == classes.end()) throw std::runtime_error("unknown action owner type '" + declaration.OwnerType + "'");
+    return TCompiler(*owner->second, loaded).CompileActionBody(declaration);
 }

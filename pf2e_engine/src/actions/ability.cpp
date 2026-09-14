@@ -1,5 +1,6 @@
 #include <pf2e_engine/actions/ability.h>
 
+#include <pf2e_engine/creature.h>
 #include <pf2e_engine/player.h>
 
 #include <algorithm>
@@ -52,6 +53,9 @@ namespace {
 bool IsEligible(const TAbilityExecution& execution, const TGrantedAbility& grant,
                 const TPlayer& actor, const TTriggerContext* trigger)
 {
+    if (actor.GetCreature() == nullptr || !actor.GetCreature()->IsAlive()) {
+        return false;
+    }
     if (grant.Kind == EAbilityKind::Action) {
         if (execution.Trigger.has_value()) {
             throw std::invalid_argument("action execution must not have a reaction trigger");

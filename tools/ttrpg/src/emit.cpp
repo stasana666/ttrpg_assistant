@@ -1,5 +1,6 @@
 #include <ttrpg/emit.h>
 #include <ttrpg/emit_rule_class.h>
+#include <ttrpg/emit_action.h>
 #include <ttrpg/abilities.h>
 
 #include <ttrpg/analyze.h>
@@ -42,6 +43,9 @@ void ValidateRules(const TLoadedSchemas& loaded) {
     (void)OrderedClasses(loaded);
     for (const auto& c : loaded.Primary.Classes) {
         (void)CompileClass(c, loaded);
+    }
+    for (const auto& ability : loaded.Primary.Abilities) {
+        if (!ability.OwnerType.empty()) (void)CompileAction(ability, loaded);
     }
     std::unordered_set<std::string> names;
     for (const auto& instance : loaded.Primary.Instances) {
@@ -443,6 +447,8 @@ void EmitHeader(std::ostream& os,
         w.Line(instance.TypeName + " Create" + instance.Name + "();");
     }
     w.Line("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog);");
+    w.Line("struct TAbilityRules;");
+    w.Line("void " + RulesRegistrationFunction(loaded.PrimaryStem) + "(TAbilityRules& rules);");
 }
 
 void EmitEnumImpl(TCppWriter& w, const TEnumDecl& e) {
@@ -816,6 +822,10 @@ void EmitImpl(std::ostream& os,
     w.Include(headerInclude);
     w.EmptyLine();
     w.Include("pf2e_engine/common/ast/ast_helpers.h");
+    w.Include("pf2e_engine/actions/ability.h");
+    if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty(); })) {
+        w.Include("pf2e_engine/actions/generated_action.h");
+    }
     w.Include("pf2e_engine/dsl/property_registry.h");
     w.Include("pf2e_engine/dsl/value.h");
     w.Include("pf2e_engine/game_object_logic/game_object_factory.h");
@@ -874,4 +884,5 @@ void EmitImpl(std::ostream& os,
         }
     });
     w.EmptyLine();
+    EmitActionRegistration(w, loaded);
 }

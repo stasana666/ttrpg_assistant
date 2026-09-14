@@ -2,6 +2,7 @@
 #include <computed.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/dsl/property_registry.h>
 #include <pf2e_engine/dsl/value.h>
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
@@ -168,5 +169,9 @@ void TStats::RegisterDslProperties() {
 
 void RegisterComputedAbilities(TAbilityCatalog& catalog) {
     (void)catalog;
+}
+
+void RegisterComputedRules(TAbilityRules& rules) {
+    RegisterComputedAbilities(rules.Catalog);
 }
 

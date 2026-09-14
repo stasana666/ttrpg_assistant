@@ -6,6 +6,7 @@ target_sources(pf2e_engine
         effect_manager.cpp
         feat.cpp
         initiative_order.cpp
+        i_interaction_system.cpp
         player.cpp
         proficiency.cpp
         random.cpp

@@ -2,6 +2,7 @@
 #include <collection.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/dsl/property_registry.h>
 #include <pf2e_engine/dsl/value.h>
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
@@ -86,5 +87,9 @@ void THolder::RegisterDslProperties() {
 
 void RegisterCollectionAbilities(TAbilityCatalog& catalog) {
     (void)catalog;
+}
+
+void RegisterCollectionRules(TAbilityRules& rules) {
+    RegisterCollectionAbilities(rules.Catalog);
 }
 

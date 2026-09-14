@@ -91,7 +91,15 @@ private:
         declaration.Kind = keyword == "action" ? EAbilityDeclarationKind::Action :
             keyword == "reaction" ? EAbilityDeclarationKind::Reaction : EAbilityDeclarationKind::Feature;
         declaration.Name = ExpectIdent("ability name");
-        if (declaration.Kind == EAbilityDeclarationKind::Feature) {
+        if (ts_.Peek().text == "for") {
+            if (declaration.Kind != EAbilityDeclarationKind::Action) {
+                ts_.Throw("compiled bodies currently support action declarations only");
+            }
+            ts_.Advance();
+            declaration.OwnerType = ExpectIdent("action owner type");
+            declaration.Body = ParseBody();
+            ts_.Match(ETok::Semi);
+        } else if (declaration.Kind == EAbilityDeclarationKind::Feature) {
             ts_.Expect(ETok::LBrace, "'{' after feature name");
             while (ts_.Peek().kind != ETok::RBrace) {
                 declaration.Grants.push_back(ParseGrant());
@@ -301,7 +309,22 @@ private:
             TClassDecl::TStatement statement;
             statement.Location = ts_.Peek().loc;
             using K = TClassDecl::TStatement::EKind;
-            if (ts_.Peek().text == "let") {
+            if (ts_.Peek().text == "cost") {
+                ts_.Advance();
+                statement.Kind = K::Cost;
+                statement.Target = ReadExpression(ETok::Equals);
+                ts_.Expect(ETok::Equals, "'=' after resource cost field");
+                statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "choose") {
+                ts_.Advance();
+                statement.Kind = K::Choose;
+                statement.TypeName = ExpectIdent("chosen entity type");
+                statement.Name = ExpectIdent("chosen entity name");
+                if (ts_.Peek().text == "where") {
+                    ts_.Advance();
+                    statement.Value = ReadExpression(ETok::Semi);
+                }
+            } else if (ts_.Peek().text == "let") {
                 ts_.Advance();
                 statement.Kind = K::Let;
                 statement.Name = ExpectIdent("local name");

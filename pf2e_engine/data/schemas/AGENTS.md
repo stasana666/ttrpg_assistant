@@ -46,7 +46,8 @@ Canonical project instructions. CLAUDE.md redirects here.
 ## Migration Sequence
 - Completed: typed methods and queries, implicit journaled mutations, generated hit-point rules, named entity factories, source-bound ability grants, and proficiency rules using the current creature level.
 - Completed: fully generated `TCreature`, immutable ability definitions and compatibility hooks owned by the battle ruleset, and generated state loaded through the factory that performs construction.
-- Next: compile action/reaction bodies and feature hooks from `.ttrpg`, preserving suspended choices, costs, source validation, and rollback. JSON pipelines remain a migration adapter until their behavior has declarative replacements.
+- Completed: the first compiled action bodies with declared resource costs, entity choices, dice, journaled mutations, and replayable continuations. `tests/actions/fixtures/generated_actions.ttrpg` exercises these mechanisms through the real battle adapter.
+- Next: typed feature hooks and reaction bodies/windows, followed by declarative replacements for production PF2e action pipelines. JSON pipelines remain a migration adapter until those replacements exist. Target preflight and action cancellation/refund policy still need explicit rule/runtime support.
 - Then: contextual statistics and feature modifiers, declaration-time character choices, complete fighter/wolf definitions, and reusable encounter construction with selected weapons and class/ancestry features.
 - Final acceptance: construct one human fighter and two independent wolves from declarations, equip different declared weapons and features, enumerate and execute their actions and reactions, and verify selection, resource use, effects, and rollback in combat. The existence of generated entity and grant plumbing alone does not complete this sequence.
 

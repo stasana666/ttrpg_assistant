@@ -65,3 +65,5 @@ template <>
 struct TIsAstRecursive<TThing> : std::true_type {};
 
 void RegisterBasicAbilities(TAbilityCatalog& catalog);
+struct TAbilityRules;
+void RegisterBasicRules(TAbilityRules& rules);

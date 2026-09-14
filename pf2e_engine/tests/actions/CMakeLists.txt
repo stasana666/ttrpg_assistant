@@ -50,3 +50,24 @@ target_include_directories(test_abilities
 )
 
 gtest_discover_tests(test_abilities)
+
+add_executable(test_generated_actions
+    test_generated_actions.cpp
+)
+
+set(GENERATED_ACTIONS_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/generated_actions.h)
+set(GENERATED_ACTIONS_SOURCE ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/generated_actions.cpp)
+ttrpg_generate(
+    TARGET test_generated_actions
+    SCHEMA ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/generated_actions.ttrpg
+    HEADER ${GENERATED_ACTIONS_HEADER}
+    SOURCE ${GENERATED_ACTIONS_SOURCE}
+)
+target_sources(test_generated_actions PRIVATE ${GENERATED_ACTIONS_HEADER} ${GENERATED_ACTIONS_SOURCE})
+
+target_link_libraries(test_generated_actions
+    gtest_main
+    pf2e_engine
+)
+
+gtest_discover_tests(test_generated_actions)

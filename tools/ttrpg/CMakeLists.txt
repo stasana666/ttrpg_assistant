@@ -11,6 +11,7 @@ add_library(ttrpg STATIC
     src/abilities.cpp
     src/cpp_writer.cpp
     src/emit.cpp
+    src/emit_action.cpp
     src/emit_rule_class.cpp
 )
 

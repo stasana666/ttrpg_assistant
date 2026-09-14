@@ -20,7 +20,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Rollback/resume behavior depends on `TTransformator`, `TSavepointStackUnwind`, continuation helpers, and AST state comparison.
 - Generated `VisitGrantedAbilities` derives ability grants from current creature, race, class, weapon, and natural-weapon feature selections. `TCreature` has no separately mutable action or reaction list; the battle owns shared immutable `TAbilityRules` with definitions and execution bindings.
 - `TBattle::AvailableActions`, `AvailableReactions(trigger)`, and `Execute(option)` expose bound choices. Sources use generated field paths plus collection entry IDs. Execution checks the live grant and cost again; suspended actions retain their definition and weapon snapshot and revalidate their source before resuming.
-- Action/reaction declarations in `.ttrpg` currently define symbols and ownership only. Bodies, costs, weapon-source requirements, and triggers are bound through existing JSON pipelines. Reaction enumeration does not implement a reaction window or choose/execute reactions automatically.
+- `.ttrpg` action bodies compile directly to C++ with resource costs, entity choices, dice, and journaled field writes/method calls. `Register<Module>Rules` binds their executors alongside the catalog. Production PF2e actions still use JSON pipelines during migration; reaction bodies, typed feature hooks, and reaction windows remain subsequent work.
 - `data/schemas/proficiency.ttrpg` generates proficiency storage and rank/fixed-bonus rules. `TCreature` owns `Proficiency`; its queries pass the creature's current `Level`, so no separate proficiency level is stored. The remaining C++ `ProficiencyBonus` overloads only route calculator requests to these generated queries.
 - `TCreature` is a generated `GameEntity` with no handwritten subclass. Legacy `TCreatureFeat` pipeline hooks remain an import adapter for Pack Attack; they are immutable ruleset definitions selected through generated features. Remaining native resource/condition/reach adapters live in `mechanics/creature.h`; action bodies, contextual modifiers, character choices, and PF2e reaction timing are subsequent rule-language work.
 
@@ -31,7 +31,8 @@ Canonical project instructions. CLAUDE.md redirects here.
 - `test_actions` is registered with CTest through `gtest_discover_tests`; it can also run directly as `./build/pf2e_engine/tests/actions/test_actions`.
 
 ## Extending Actions
-- Prefer exposing a DSL property or function in `src/dsl/builtins.cpp` before adding a new action-block class.
+- Prefer compiled `.ttrpg` bodies for new declarative rules. Extend compiler operations through small generic runtime adapters; keep PF2e formulas in rule declarations.
+- For legacy JSON pipelines, prefer exposing a DSL property or function in `src/dsl/builtins.cpp` before adding a new action-block class.
 - Add a new action block only for C++ side effects such as RNG, transformations, scheduling, prompts, or named outputs beyond `let`.
 - When adding a block, update the header/source, `pf2e_engine/src/action_blocks/CMakeLists.txt`, includes, and `TPipelineReader::kFunctionMapping`.
 

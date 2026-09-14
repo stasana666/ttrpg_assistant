@@ -2,6 +2,10 @@
 
 #include <pf2e_engine/actions/action_block.h>
 #include <pf2e_engine/actions/action_context.h>
+#include <pf2e_engine/common/guarded.h>
+#include <pf2e_engine/common/resource.h>
+
+#include <functional>
 
 class TWeapon;
 
@@ -21,6 +25,17 @@ public:
 
     using TResources = std::vector<TResourceCost>;
 
+    using FBody = std::function<void(std::shared_ptr<TActionContext>)>;
+
+    struct TBoundResourceCost {
+        std::string Key;
+        int Count;
+        std::function<const TResource&(const TPlayer&)> Read;
+        std::function<TGuarded<TResource>(TPlayer&)> Write;
+    };
+
+    using TBoundResources = std::vector<TBoundResourceCost>;
+
     // TODO: only weapon variables for now; generalise to other object types.
     struct TActionVariable {
         TGameObjectId id;
@@ -31,6 +46,7 @@ public:
 
     TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name,
             TVariables&& variables = {});
+    TAction(FBody body, TBoundResources costs, std::string name);
 
     void Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const;
     void Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player) const;
@@ -39,7 +55,8 @@ public:
 
 private:
     TPipeline pipeline_;
-    TResources consume_;
+    FBody body_;
+    TBoundResources consume_;
     std::string name_;
     TVariables variables_;
 };

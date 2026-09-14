@@ -51,7 +51,9 @@ void TTransformator::AddResource(TGuarded<TResource> resource, int count)
 
 void TTransformator::ReduceResource(TGuarded<TResource> resource, int count)
 {
-    transformations_.emplace_back(TChangeResource(&resource.Mutable(), -count));
+    static_assert(std::is_nothrow_move_constructible_v<TTransformation>);
+    transformations_.emplace_back(
+        std::in_place_type<TChangeResource>, &resource.Mutable(), -count);
 }
 
 void TTransformator::ReduceSpellSlot(TGuarded<std::map<ESpellSlotRank, TResource>> slots,

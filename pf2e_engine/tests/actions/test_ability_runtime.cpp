@@ -75,6 +75,23 @@ std::shared_ptr<const TAction> MakeAction(
     return std::make_shared<TAction>(std::move(pipeline), std::move(resources), "test action");
 }
 
+TAction::TBoundResourceCost BindResource(
+    std::string key, int count,
+    const TResource& (TCreature::*read)() const,
+    TGuarded<TResource> (TCreature::*write)())
+{
+    return {
+        .Key = std::move(key),
+        .Count = count,
+        .Read = [read](const TPlayer& actor) -> const TResource& {
+            return std::invoke(read, *actor.GetCreature());
+        },
+        .Write = [write](TPlayer& actor) {
+            return std::invoke(write, *actor.GetCreature());
+        },
+    };
+}
+
 TPlayer& Actor(TTestBattle& fixture, int id = 0)
 {
     auto players = fixture.battle->GetIfPlayers([id](const auto* player) {
@@ -664,4 +681,232 @@ TEST(AbilityBattleTest, FailedInitiativeRestoresMapAndPlayers)
     EXPECT_NO_THROW(fixture->battle->AddPlayer(
         TPlayer(&extra, TPlayerTeam{0}, TPlayerId{2}, "Extra", ""), {2, 0}));
     EXPECT_EQ(fixture->battle->GetIfPlayers([](const auto*) { return true; }).size(), 3);
+}
+
+TEST(GeneratedActionTest, RejectsInvalidBodiesAndResourceBindings)
+{
+    const auto body = [](auto) {};
+    const auto cost = BindResource("self.hands", 1, &TCreature::Hands, &TCreature::Hands);
+    EXPECT_THROW(TAction(TAction::FBody{}, {}, "empty body"), std::invalid_argument);
+    auto invalid = cost;
+    invalid.Key.clear();
+    EXPECT_THROW(TAction(body, {invalid}, "empty key"), std::invalid_argument);
+    invalid = cost;
+    invalid.Read = {};
+    EXPECT_THROW(TAction(body, {invalid}, "missing read"), std::invalid_argument);
+    invalid = cost;
+    invalid.Write = {};
+    EXPECT_THROW(TAction(body, {invalid}, "missing write"), std::invalid_argument);
+    invalid = cost;
+    invalid.Count = -1;
+    EXPECT_THROW(TAction(body, {invalid}, "negative cost"), std::invalid_argument);
+    invalid.Count = std::numeric_limits<int>::max();
+    EXPECT_THROW(TAction(body, {invalid, cost}, "overflow"), std::invalid_argument);
+}
+
+TEST(GeneratedActionTest, CustomResourceCostsAggregateAliasesAndEnumerationIsPure)
+{
+    auto fixture = MakeTwoWarriorBattle();
+    auto& actor = Actor(*fixture);
+    TTransformator transformator(fixture->io);
+    transformator.AddResource(actor.GetCreature()->Hands(), 5);
+    const auto before = transformator.CurrentState();
+    const auto cost = BindResource("self.hands", 1, &TCreature::Hands, &TCreature::Hands);
+    auto alias = cost;
+    alias.Key = "alias.hands";
+    int applied = 0;
+    auto action = std::make_shared<TAction>([&](std::shared_ptr<TActionContext> ctx) {
+        ++applied;
+        EXPECT_EQ(&ctx->game_object_registry->Get<TPlayer>(
+            TGameObjectIdManager::Instance().Register("self")), &actor);
+        EXPECT_EQ(ctx->next_block, nullptr);
+    }, TAction::TBoundResources{cost, cost, alias}, "bound hands");
+    const auto catalog = MakeCatalog();
+    TAbilityCollector collector(catalog);
+    collector.Grant("test.Strike", {}, "self");
+    TAbilityExecutions executions;
+    executions.Register("test.Strike", action);
+    TAstContext before_context;
+    const auto battle_before = fixture->battle->GetAst(before_context);
+    TAstContext journal_before_context;
+    const auto journal_before = transformator.GetAst(journal_before_context);
+    const auto options = EnumerateActions(actor.GetId(), collector, executions, actor);
+    ASSERT_EQ(options.size(), 1);
+    EXPECT_EQ(applied, 0);
+    TAstContext after_context;
+    EXPECT_EQ(fixture->battle->GetAst(after_context), battle_before);
+    TAstContext journal_after_context;
+    EXPECT_EQ(transformator.GetAst(journal_after_context), journal_before);
+    EXPECT_EQ(ExecuteAbility(options[0], MakeContext(*fixture, transformator), actor,
+                             collector, executions), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(applied, 1);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 2);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 0);
+    EXPECT_TRUE(EnumerateActions(actor.GetId(), collector, executions, actor).empty());
+    transformator.Undo(before);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 5);
+}
+
+TEST(GeneratedActionTest, ConflictingKeysAndAliasOverflowAreRejectedWithoutPayment)
+{
+    auto fixture = MakeTwoWarriorBattle();
+    auto& actor = Actor(*fixture);
+    TTransformator transformator(fixture->io);
+    transformator.AddResource(actor.GetCreature()->Hands(), 3);
+    transformator.AddResource(actor.GetCreature()->Actions(), 3);
+    const auto hands = BindResource("self.shared", 1, &TCreature::Hands, &TCreature::Hands);
+    const auto actions = BindResource("self.shared", 1, &TCreature::Actions, &TCreature::Actions);
+    const TAction conflicting([](auto) {}, {hands, actions}, "conflicting key");
+    EXPECT_THROW(conflicting.Check(actor), std::invalid_argument);
+    EXPECT_THROW(conflicting.Consume(MakeContext(*fixture, transformator), actor),
+                 std::invalid_argument);
+    auto large = hands;
+    large.Key = "large.alias";
+    large.Count = std::numeric_limits<int>::max();
+    const TAction overflow([](auto) {}, {hands, large}, "alias overflow");
+    EXPECT_THROW(overflow.Check(actor), std::invalid_argument);
+    EXPECT_THROW(overflow.Consume(MakeContext(*fixture, transformator), actor),
+                 std::invalid_argument);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 3);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 3);
+}
+
+TEST(GeneratedActionTest, BindingFailuresAndChangedBalancesDoNotPartiallyPay)
+{
+    auto fixture = MakeTwoWarriorBattle();
+    auto& actor = Actor(*fixture);
+    TTransformator transformator(fixture->io);
+    transformator.AddResource(actor.GetCreature()->Hands(), 3);
+    transformator.AddResource(actor.GetCreature()->Actions(), 3);
+    const auto hands = BindResource("self.hands", 2, &TCreature::Hands, &TCreature::Hands);
+    const auto actions = BindResource("self.actions", 2, &TCreature::Actions, &TCreature::Actions);
+    auto invalid = actions;
+    invalid.Write = hands.Write;
+    TAstContext before_context;
+    const auto before = transformator.GetAst(before_context);
+    const TAction mismatch([](auto) {}, {hands, invalid}, "mismatched binding");
+    EXPECT_TRUE(mismatch.Check(actor));
+    EXPECT_THROW(mismatch.Consume(MakeContext(*fixture, transformator), actor),
+                 std::invalid_argument);
+    invalid.Write = [](TPlayer&) -> TGuarded<TResource> {
+        throw std::runtime_error("resource binding unavailable");
+    };
+    const TAction failing([](auto) {}, {hands, invalid}, "failed binding");
+    EXPECT_THROW(failing.Consume(MakeContext(*fixture, transformator), actor), std::runtime_error);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 3);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 3);
+    TAstContext after_context;
+    EXPECT_EQ(transformator.GetAst(after_context), before);
+
+    const TAction valid([](auto) {}, {hands, actions}, "changed resources");
+    EXPECT_TRUE(valid.Check(actor));
+    transformator.ReduceResource(actor.GetCreature()->Actions(), 2);
+    EXPECT_THROW(valid.Consume(MakeContext(*fixture, transformator), actor), TAbilityUnavailable);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 3);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 1);
+}
+
+TEST(GeneratedActionTest, PaidCostsComposeWithOuterRollbackAndBodyFailures)
+{
+    auto fixture = MakeTwoWarriorBattle();
+    auto& actor = Actor(*fixture);
+    TTransformator transformator(fixture->io);
+    transformator.AddResource(actor.GetCreature()->Hands(), 3);
+    transformator.AddResource(actor.GetCreature()->Actions(), 3);
+    const TAction action([](auto) { throw std::runtime_error("body failed"); }, {
+        BindResource("self.hands", 1, &TCreature::Hands, &TCreature::Hands),
+        BindResource("self.actions", 2, &TCreature::Actions, &TCreature::Actions),
+    }, "body failure");
+    const auto before = transformator.CurrentState();
+    auto execution = transformator.ExecutionContext();
+    const auto failed_outer_method = [&]() {
+        auto transaction = execution.Atomic();
+        action.Consume(MakeContext(*fixture, transformator), actor);
+        EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 2);
+        EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 1);
+        throw std::runtime_error("outer method failed");
+    };
+    EXPECT_THROW(failed_outer_method(), std::runtime_error);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 3);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 3);
+    EXPECT_THROW(action.Apply(MakeContext(*fixture, transformator), actor), std::runtime_error);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 2);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 1);
+    transformator.Undo(before);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 3);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 3);
+}
+
+TEST(GeneratedActionTest, SuspendedBodyRevalidatesWithoutRepeatingPayment)
+{
+    auto fixture = MakeTwoWarriorBattle();
+    auto& actor = Actor(*fixture);
+    TTransformator transformator(fixture->io);
+    transformator.AddResource(actor.GetCreature()->Hands(), 3);
+    const auto catalog = MakeCatalog();
+    TAbilityCollector collector(catalog);
+    collector.Grant("test.Strike", {}, "self");
+    int entered = 0;
+    int first_resumed = 0;
+    int second_resumed = 0;
+    bool present = true;
+    auto action = std::make_shared<TAction>([&](auto ctx) {
+        ++entered;
+        throw TSavepointStackUnwind(ctx->transformator->CurrentState(), [&, ctx]() {
+            ++first_resumed;
+            throw TSavepointStackUnwind(ctx->transformator->CurrentState(), [&]() {
+                ++second_resumed;
+            });
+        });
+    }, TAction::TBoundResources{
+        BindResource("self.hands", 2, &TCreature::Hands, &TCreature::Hands),
+    }, "suspended body");
+    TAbilityExecutions executions;
+    executions.Register("test.Strike", action);
+    const auto option = EnumerateActions(actor.GetId(), collector, executions, actor).at(0);
+    std::optional<TSavepointStackUnwind> first;
+    try {
+        ExecuteAbility(option, MakeContext(*fixture, transformator), actor, collector, executions,
+                       {.ValidateSource = [&present]() { return present; }});
+        FAIL() << "generated body did not suspend";
+    } catch (const TSavepointStackUnwind& save_point) {
+        first = save_point;
+    }
+    ASSERT_TRUE(first.has_value());
+    EXPECT_EQ(entered, 1);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 1);
+    first->Revert(transformator);
+    std::optional<TSavepointStackUnwind> second;
+    try {
+        first->Resume();
+        FAIL() << "generated body did not suspend again";
+    } catch (const TSavepointStackUnwind& save_point) {
+        second = save_point;
+    }
+    ASSERT_TRUE(second.has_value());
+    EXPECT_EQ(first_resumed, 1);
+    present = false;
+    EXPECT_THROW(second->Resume(), TAbilityUnavailable);
+    EXPECT_EQ(second_resumed, 0);
+    present = true;
+    second->Resume();
+    EXPECT_EQ(entered, 1);
+    EXPECT_EQ(first_resumed, 1);
+    EXPECT_EQ(second_resumed, 1);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 1);
+}
+
+TEST(GeneratedActionTest, DirectBodyDoesNotEnterLegacyBlockHooks)
+{
+    int hooks = 0;
+    int legacy_actions = 0;
+    int bodies = 0;
+    auto fixture = MakeHookBattle([&](auto) { ++hooks; }, [&](auto) { ++legacy_actions; });
+    auto& actor = Actor(*fixture);
+    TTransformator transformator(fixture->io);
+    const TAction generated([&](auto) { ++bodies; }, {}, "probe");
+    generated.Apply(MakeContext(*fixture, transformator), actor);
+    EXPECT_EQ(bodies, 1);
+    EXPECT_EQ(hooks, 0);
+    EXPECT_EQ(legacy_actions, 0);
 }

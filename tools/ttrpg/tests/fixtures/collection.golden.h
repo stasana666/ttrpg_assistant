@@ -65,3 +65,5 @@ template <>
 struct TIsAstRecursive<THolder> : std::true_type {};
 
 void RegisterCollectionAbilities(TAbilityCatalog& catalog);
+struct TAbilityRules;
+void RegisterCollectionRules(TAbilityRules& rules);

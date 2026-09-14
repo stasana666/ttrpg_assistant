@@ -35,13 +35,6 @@ struct TGrantDecl {
 
 enum class EAbilityDeclarationKind { Action, Reaction, Feature };
 
-struct TAbilityDecl {
-    EAbilityDeclarationKind Kind = EAbilityDeclarationKind::Action;
-    std::string Name;
-    std::vector<TGrantDecl> Grants;
-    parse::TSourceLocation Location;
-};
-
 struct TClassDecl {
     std::string Name;
     std::vector<TFieldDecl> Fields;
@@ -51,7 +44,7 @@ struct TClassDecl {
         std::string Name;
     };
     struct TStatement {
-        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If };
+        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If, Cost, Choose };
         EKind Kind = EKind::Call;
         std::string Name;
         std::optional<expr::TExprNode> Target;
@@ -59,6 +52,7 @@ struct TClassDecl {
         std::vector<TStatement> Body;
         std::vector<TStatement> ElseBody;
         parse::TSourceLocation Location;
+        std::string TypeName;
     };
     struct TMethod {
         std::string ReturnType;
@@ -70,6 +64,15 @@ struct TClassDecl {
     };
     std::vector<TMethod> Methods;
     std::vector<TGrantDecl> Grants;
+};
+
+struct TAbilityDecl {
+    EAbilityDeclarationKind Kind = EAbilityDeclarationKind::Action;
+    std::string Name;
+    std::vector<TGrantDecl> Grants;
+    parse::TSourceLocation Location;
+    std::string OwnerType;
+    std::vector<TClassDecl::TStatement> Body;
 };
 
 struct TInstanceDecl {

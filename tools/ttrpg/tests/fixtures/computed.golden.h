@@ -116,3 +116,5 @@ template <>
 struct TIsAstRecursive<TStats> : std::true_type {};
 
 void RegisterComputedAbilities(TAbilityCatalog& catalog);
+struct TAbilityRules;
+void RegisterComputedRules(TAbilityRules& rules);
