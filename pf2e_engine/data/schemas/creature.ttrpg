@@ -6,6 +6,9 @@ import "damage.ttrpg";
 import "hitpoints.ttrpg";
 import "proficiency.ttrpg";
 import "statistic_baseline.ttrpg";
+import "check_modifiers.ttrpg";
+import "statistics.ttrpg";
+import "lore.ttrpg";
 
 enum ECreatureSize {
     Tiny,
@@ -36,6 +39,11 @@ GameEntity TCreature {
     TClass Class;
     TAbilityScores Characteristic;
     TProficiency Proficiency;
+    TStatisticBaseline PerceptionBaseline;
+    map<ESavethrow, TStatisticBaseline> SaveBaselines;
+    map<ESkill, TStatisticBaseline> SkillBaselines;
+    TClassDCProfile ClassDcProfile;
+    collection<TLoreSkill> LoreSkills;
     int Movement = 0;
     THitPoints Hitpoints = THitPoints {
         Maximum = Statistic {
@@ -99,6 +107,121 @@ GameEntity TCreature {
 
     query int PerceptionProficiency() {
         return @self.Proficiency.PerceptionBonus(@self.Level);
+    }
+
+    query int PerceptionBase() {
+        if (@self.PerceptionBaseline.IsFixed) {
+            return @self.PerceptionBaseline.Value;
+        }
+        return @self.GetCharacteristic(TStatisticRules {}.PerceptionAttribute()).Modifier
+            + @self.PerceptionProficiency();
+    }
+
+    query int SaveBase(ESavethrow Save) {
+        let Baseline = @self.SaveBaselines.get(Save, TStatisticBaseline {});
+        if (Baseline.IsFixed) {
+            return Baseline.Value;
+        }
+        return @self.GetCharacteristic(TStatisticRules {}.SaveAttribute(Save)).Modifier
+            + @self.SaveProficiency(Save);
+    }
+
+    query int SkillBase(ESkill Skill) {
+        let Baseline = @self.SkillBaselines.get(Skill, TStatisticBaseline {});
+        if (Baseline.IsFixed) {
+            return Baseline.Value;
+        }
+        return @self.GetCharacteristic(TStatisticRules {}.SkillAttribute(Skill)).Modifier
+            + @self.SkillProficiency(Skill);
+    }
+
+    query int LoreBase(TLoreSkill Lore) {
+        return Lore.Base(@self.Level, @self.Characteristic.Intelligence.Modifier);
+    }
+
+    query bool HasClassDC() {
+        return @self.ClassDcProfile.Enabled;
+    }
+
+    query int ClassDCBase() {
+        return @self.ClassDcProfile.Base(@self.Level,
+            @self.GetCharacteristic(@self.ClassDcProfile.KeyAttribute).Modifier);
+    }
+
+    query TCheckModifiers CheckConditionModifiers() {
+        return TCheckModifiers { StatusPenalty = @self.ConditionPenalty(); };
+    }
+
+    query int PerceptionBonusWithModifiers(TCheckModifiers Extra) {
+        return @self.PerceptionBase() + @self.CheckConditionModifiers().Merge(Extra).Total();
+    }
+
+    query int PerceptionBonus() {
+        return @self.PerceptionBonusWithModifiers(TCheckModifiers {});
+    }
+
+    query int SaveBonusWithModifiers(ESavethrow Save, TCheckModifiers Extra) {
+        return @self.SaveBase(Save) + @self.CheckConditionModifiers().Merge(Extra).Total();
+    }
+
+    query int SaveBonus(ESavethrow Save) {
+        return @self.SaveBonusWithModifiers(Save, TCheckModifiers {});
+    }
+
+    query int SkillBonusWithModifiers(ESkill Skill, TCheckModifiers Extra) {
+        return @self.SkillBase(Skill) + @self.CheckConditionModifiers().Merge(Extra).Total();
+    }
+
+    query int SkillBonus(ESkill Skill) {
+        return @self.SkillBonusWithModifiers(Skill, TCheckModifiers {});
+    }
+
+    query int LoreBonusWithModifiers(TLoreSkill Lore, TCheckModifiers Extra) {
+        return @self.LoreBase(Lore) + @self.CheckConditionModifiers().Merge(Extra).Total();
+    }
+
+    query int LoreBonus(TLoreSkill Lore) {
+        return @self.LoreBonusWithModifiers(Lore, TCheckModifiers {});
+    }
+
+    query int ClassDCWithModifiers(TCheckModifiers Extra) {
+        return @self.ClassDCBase() + @self.CheckConditionModifiers().Merge(Extra).Total();
+    }
+
+    query int ClassDC() {
+        return @self.ClassDCWithModifiers(TCheckModifiers {});
+    }
+
+    query int PerceptionDCWithModifiers(TCheckModifiers Extra) {
+        return 10 + @self.PerceptionBonusWithModifiers(Extra);
+    }
+
+    query int PerceptionDC() {
+        return @self.PerceptionDCWithModifiers(TCheckModifiers {});
+    }
+
+    query int SaveDCWithModifiers(ESavethrow Save, TCheckModifiers Extra) {
+        return 10 + @self.SaveBonusWithModifiers(Save, Extra);
+    }
+
+    query int SaveDC(ESavethrow Save) {
+        return @self.SaveDCWithModifiers(Save, TCheckModifiers {});
+    }
+
+    query int SkillDCWithModifiers(ESkill Skill, TCheckModifiers Extra) {
+        return 10 + @self.SkillBonusWithModifiers(Skill, Extra);
+    }
+
+    query int SkillDC(ESkill Skill) {
+        return @self.SkillDCWithModifiers(Skill, TCheckModifiers {});
+    }
+
+    query int LoreDCWithModifiers(TLoreSkill Lore, TCheckModifiers Extra) {
+        return 10 + @self.LoreBonusWithModifiers(Lore, Extra);
+    }
+
+    query int LoreDC(TLoreSkill Lore) {
+        return @self.LoreDCWithModifiers(Lore, TCheckModifiers {});
     }
 
     query int ConditionPenalty() {

@@ -1,0 +1,16 @@
+import "proficiency.ttrpg";
+import "statistic_baseline.ttrpg";
+
+class TLoreSkill {
+    string Name;
+    TProficiencyValue Proficiency;
+    TStatisticBaseline Baseline;
+
+    query int Base(int Level, int IntelligenceModifier) {
+        require @self.Name != "";
+        if (@self.Baseline.IsFixed) {
+            return @self.Baseline.Value;
+        }
+        return IntelligenceModifier + @self.Proficiency.Bonus(Level);
+    }
+}

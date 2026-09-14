@@ -1,10 +1,11 @@
 #include <pf2e_engine/proficiency.h>
 
 #include <pf2e_engine/creature.h>
+#include <pf2e_engine/inventory/statistics.h>
 
 ECharacteristic BindedCharacteristic(TPerceptionTag)
 {
-    return ECharacteristic::Wisdom;
+    return TStatisticRules::Create({}).PerceptionAttribute();
 }
 
 int ProficiencyBonus(const TCreature& creature, const TWeapon& weapon)

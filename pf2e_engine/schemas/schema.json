@@ -76,6 +76,49 @@
             "additionalProperties": false
         },
 
+        "pf2e_save_baselines": {
+            "type": "object",
+            "propertyNames": { "enum": ["Fortitude", "Will", "Reflex"] },
+            "additionalProperties": { "$ref": "#/$defs/pf2e_statistic_baseline" }
+        },
+
+        "pf2e_skill_baselines": {
+            "type": "object",
+            "propertyNames": {
+                "enum": [
+                    "Acrobatics", "Arcana", "Athletics", "Crafting", "Deception",
+                    "Diplomacy", "Intimidation", "Medicine", "Nature", "Occultism",
+                    "Performance", "Religion", "Society", "Stealth", "Survival", "Thievery"
+                ]
+            },
+            "additionalProperties": { "$ref": "#/$defs/pf2e_statistic_baseline" }
+        },
+
+        "pf2e_class_dc_profile": {
+            "type": "object",
+            "properties": {
+                "enabled": { "type": "boolean" },
+                "key_attribute": {
+                    "type": "string",
+                    "enum": ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"]
+                },
+                "proficiency": { "$ref": "#/$defs/pf2e_proficiency_value" },
+                "baseline": { "$ref": "#/$defs/pf2e_statistic_baseline" }
+            },
+            "additionalProperties": false
+        },
+
+        "pf2e_lore_skill": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "minLength": 1 },
+                "proficiency": { "$ref": "#/$defs/pf2e_proficiency_value" },
+                "baseline": { "$ref": "#/$defs/pf2e_statistic_baseline" }
+            },
+            "required": ["name"],
+            "additionalProperties": false
+        },
+
         "pf2e_weapon_core": {
             "type": "object",
             "properties": {
@@ -234,6 +277,14 @@
             "type": "object",
             "properties": {
                 "proficiency": { "$ref": "#/$defs/pf2e_proficiency_data" },
+                "perception_baseline": { "$ref": "#/$defs/pf2e_statistic_baseline" },
+                "save_baselines": { "$ref": "#/$defs/pf2e_save_baselines" },
+                "skill_baselines": { "$ref": "#/$defs/pf2e_skill_baselines" },
+                "class_dc_profile": { "$ref": "#/$defs/pf2e_class_dc_profile" },
+                "lore_skills": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/pf2e_lore_skill" }
+                },
                 "armor_class_baseline": { "$ref": "#/$defs/pf2e_statistic_baseline" },
                 "attacks_made": {
                     "type": "integer",

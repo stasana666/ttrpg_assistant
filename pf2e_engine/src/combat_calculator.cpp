@@ -10,6 +10,7 @@
 #include <pf2e_engine/success_level.h>
 
 #include <stdexcept>
+#include <type_traits>
 
 
 int TCombatCalculator::InitiativeBonus(const TCreature& creature) const
@@ -41,9 +42,14 @@ int TCombatCalculator::ResolveDamage(
 template <class T>
 int TCombatCalculator::RollBonus(const TCreature& creature, T type) const
 {
-    int proficiency    = ProficiencyBonus(creature, type);
-    int characteristic = creature.GetCharacteristic(BindedCharacteristic(type)).Modifier();
-    return proficiency + characteristic - Penalty(creature, type);
+    if constexpr (std::is_same_v<T, ESkill>) {
+        return creature.SkillBonus(type);
+    } else if constexpr (std::is_same_v<T, ESavethrow>) {
+        return creature.SaveBonus(type);
+    } else {
+        static_assert(std::is_same_v<T, TPerceptionTag>);
+        return creature.PerceptionBonus();
+    }
 }
 
 template int TCombatCalculator::RollBonus<ESkill>(const TCreature&, ESkill) const;
@@ -54,7 +60,14 @@ template int TCombatCalculator::RollBonus<TPerceptionTag>(const TCreature&, TPer
 template <class T>
 int TCombatCalculator::DifficultyClass(const TCreature& creature, T type) const
 {
-    return 10 + RollBonus(creature, type);
+    if constexpr (std::is_same_v<T, ESkill>) {
+        return creature.SkillDC(type);
+    } else if constexpr (std::is_same_v<T, ESavethrow>) {
+        return creature.SaveDC(type);
+    } else {
+        static_assert(std::is_same_v<T, TPerceptionTag>);
+        return creature.PerceptionDC();
+    }
 }
 
 template int TCombatCalculator::DifficultyClass<ESkill>(const TCreature&, ESkill) const;

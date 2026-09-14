@@ -4,6 +4,7 @@ add_executable(test_mechanics
     test_damage_resolver.cpp
     test_proficiency_calculation.cpp
     test_generated_combat_rules.cpp
+    test_generated_statistics.cpp
 )
 
 target_link_libraries(test_mechanics

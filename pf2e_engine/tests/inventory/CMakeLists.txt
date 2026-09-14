@@ -7,6 +7,7 @@ add_executable(test_inventory
     test_rule_entities.cpp
     test_granted_entities.cpp
     test_proficiency.cpp
+    test_statistic_profiles.cpp
 )
 
 set(RULE_ENTITIES_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/rule_entities.h)

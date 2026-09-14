@@ -1,0 +1,37 @@
+class TCheckModifiers {
+    int ItemBonus = 0;
+    int ItemPenalty = 0;
+    int StatusBonus = 0;
+    int StatusPenalty = 0;
+    int CircumstanceBonus = 0;
+    int CircumstancePenalty = 0;
+    int UntypedPenalty = 0;
+
+    query bool IsValid() {
+        return @self.ItemBonus >= 0 && @self.ItemPenalty >= 0
+            && @self.StatusBonus >= 0 && @self.StatusPenalty >= 0
+            && @self.CircumstanceBonus >= 0 && @self.CircumstancePenalty >= 0
+            && @self.UntypedPenalty >= 0;
+    }
+
+    query TCheckModifiers Merge(TCheckModifiers Other) {
+        require @self.IsValid() && Other.IsValid();
+        return TCheckModifiers {
+            ItemBonus = max(@self.ItemBonus, Other.ItemBonus);
+            ItemPenalty = max(@self.ItemPenalty, Other.ItemPenalty);
+            StatusBonus = max(@self.StatusBonus, Other.StatusBonus);
+            StatusPenalty = max(@self.StatusPenalty, Other.StatusPenalty);
+            CircumstanceBonus = max(@self.CircumstanceBonus, Other.CircumstanceBonus);
+            CircumstancePenalty = max(@self.CircumstancePenalty, Other.CircumstancePenalty);
+            UntypedPenalty = @self.UntypedPenalty + Other.UntypedPenalty;
+        };
+    }
+
+    query int Total() {
+        require @self.IsValid();
+        return (@self.ItemBonus - @self.ItemPenalty)
+            + (@self.StatusBonus - @self.StatusPenalty)
+            + (@self.CircumstanceBonus - @self.CircumstancePenalty)
+            - @self.UntypedPenalty;
+    }
+}
