@@ -104,6 +104,31 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("recursive activity calls", result.stderr)
         self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
 
+    def test_parameterized_factories_import_types_and_preserve_outputs_on_errors(self):
+        self.write("items.ttrpg", "class TItem { int Amount = 2; } feature First; feature Second; GameEntity TActor { collection<TItem> Items; collection<Feature> Features; }")
+        self.schema.write_text('import "items.ttrpg"; TActor Fighter(collection<TItem> Equipment = [TItem {}], choice Feature Feat from [First, Second] = First) { Items = Equipment; Features = [Feat]; }')
+        self.command([CODEGEN, "--schema", self.schema, "--check"])
+        self.generate()
+        self.assertIn("TFighterOptions", self.header.read_text())
+        self.assertIn("items.h", self.header.read_text())
+        self.assertIn("::TActor::ResolveInitialValues", self.source.read_text())
+        self.assertIn("DescribeFighter", self.source.read_text())
+        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
+        self.schema.write_text('import "items.ttrpg"; TActor Fighter(choice Feature Feat from [First] = First, Feature First = Second) {}')
+        result = self.generate(success=False)
+        self.assertIn("must precede", result.stderr)
+        self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
+
+    def test_imported_parameterized_values_and_generated_name_collisions(self):
+        self.write("items.ttrpg", "class TItem { int Amount = 2; } TItem Configured(int Amount = 3) { Amount = Amount; }")
+        self.schema.write_text('import "items.ttrpg"; GameEntity TActor { collection<TItem> Items; } TActor Fighter(collection<TItem> Equipment = [Configured]) { Items = Equipment; }')
+        self.command([CODEGEN, "--schema", self.schema, "--check"])
+        self.generate()
+        self.assertIn("::CreateConfigured()", self.source.read_text())
+        self.schema.write_text('import "items.ttrpg"; class TConfiguredOptions {}')
+        result = self.command([CODEGEN, "--schema", self.schema, "--check"], success=False)
+        self.assertIn("constructor generated name collision", result.stderr)
+
     def test_invalid_grants_preserve_generated_outputs(self):
         self.generate()
         paths = [self.header, self.source, self.depfile]

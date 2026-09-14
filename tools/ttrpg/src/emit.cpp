@@ -6,6 +6,7 @@
 #include <ttrpg/abilities.h>
 #include <ttrpg/events.h>
 #include <ttrpg/emit_source.h>
+#include <ttrpg/emit_instance.h>
 
 #include <ttrpg/analyze.h>
 #include <ttrpg/conventions.h>
@@ -73,6 +74,7 @@ std::vector<const TClassDecl*> OrderedClasses(const TLoadedSchemas& loaded) {
 }
 
 void ValidateRules(const TLoadedSchemas& loaded) {
+    if (loaded.SymbolTable.contains("TGeneratedConstruction")) throw std::runtime_error("TGeneratedConstruction is reserved for generated construction");
     if (loaded.SymbolTable.contains("Position")) throw std::runtime_error("Position is a reserved builtin type");
     if (HasJsonIntegerFields(loaded.Primary) && loaded.SymbolTable.contains("ReadGeneratedRuleInteger")) {
         throw std::runtime_error("type name 'ReadGeneratedRuleInteger' is reserved for generated JSON parsing");
@@ -80,6 +82,7 @@ void ValidateRules(const TLoadedSchemas& loaded) {
     ValidateAbilityDefinitions(loaded);
     ValidateEventDefinitions(loaded);
     ValidateActivityDefinitions(loaded);
+    ValidateConstructorNames(loaded);
     std::unordered_set<std::string> variantNames;
     auto validateVariants = [&](const TSchemaModule& module) {
         for (const auto& variant : module.Variants) {
@@ -107,7 +110,8 @@ void ValidateRules(const TLoadedSchemas& loaded) {
     for (const auto& instance : loaded.Primary.Instances) {
         if (!names.insert(instance.Name).second) throw std::runtime_error("duplicate instance '" + instance.Name + "'");
         if (loaded.SymbolTable.contains("Create" + instance.Name)) throw std::runtime_error("instance factory conflicts with type 'Create" + instance.Name + "'");
-        (void)CompileInstance(instance, loaded);
+        if (instance.Parameterized) (void)CompileConstructor(instance, loaded);
+        else (void)CompileInstance(instance, loaded);
     }
 }
 
@@ -144,6 +148,7 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
                 }
             });
             w.Line("static " + c.Name + " Create(const TInitialValues& initial);");
+            w.Line("static TInitialValues ResolveInitialValues(const TInitialValues& initial);");
             w.EmptyLine();
             for (const auto& f : c.Fields) {
                 std::string mt = CppMemberType(f, symbols);
@@ -454,9 +459,19 @@ void EmitHeader(std::ostream& os,
         TFieldDecl field;
         field.TypeName = instance.TypeName;
         inspectField(field, "instance '" + instance.Name + "'");
+        for (const auto& parameter : instance.Parameters) inspectField(parameter.Field, "constructor parameter '" + parameter.Field.Name + "'");
+    }
+    if (std::any_of(mod.Instances.begin(), mod.Instances.end(), [](const auto& instance) { return instance.Parameterized; })) {
+        w.Include("pf2e_engine/common/construction.h");
+        w.Include("pf2e_engine/common/rule_integer.h");
+        w.Include("algorithm");
+    }
+    if (!mod.Classes.empty()) {
+        w.Include("pf2e_engine/common/rule_integer.h");
     }
     if (ruleClasses) {
         w.Include("pf2e_engine/common/generated_execution.h");
+        w.Include("pf2e_engine/common/generated_construction.h");
         w.Include("pf2e_engine/common/rule_integer.h");
         w.Include("algorithm");
         w.Include("type_traits");
@@ -514,7 +529,7 @@ void EmitHeader(std::ostream& os,
         }
     }
     for (const auto& instance : mod.Instances) {
-        w.Line(instance.TypeName + " Create" + instance.Name + "();");
+        EmitInstanceDeclaration(w, instance, loaded);
     }
     EmitEventDeclarations(w, loaded);
     EmitActivityDeclarations(w, loaded);
@@ -547,7 +562,8 @@ void EmitEnumImpl(TCppWriter& w, const TEnumDecl& e) {
 void EmitClassImpl(TCppWriter& w,
                    const TClassDecl& c,
                    const std::unordered_map<std::string, TTypeInfo>& symbols,
-                   const std::unordered_map<std::string, const TClassDecl*>& classes)
+                   const std::unordered_map<std::string, const TClassDecl*>& classes,
+                   const TLoadedSchemas& loaded)
 {
     std::vector<EFieldKind> kinds;
     kinds.reserve(c.Fields.size());
@@ -586,22 +602,14 @@ void EmitClassImpl(TCppWriter& w,
     }
     std::vector<size_t> initOrder = FieldInitOrder(c, classes);
 
+    EmitInitialValueResolver(w, c, CompileClass(c, loaded), loaded, false);
     w.Function(c.Name + " " + c.Name + "::Create(const TInitialValues& initial)", [&] {
+        w.Line("[[maybe_unused]] auto values = ResolveInitialValues(initial);");
         w.Line(c.Name + " r;");
         for (size_t idx : initOrder) {
             const auto& f = c.Fields[idx];
-            w.Block("if (initial." + f.Name + ") {", "}", [&] {
-                w.Line("r." + f.Name + "_ = *initial." + f.Name + ";");
-            });
-            if (f.Init && InitIsComputed(*f.Init, fieldNames)) {
-                std::string fallback = InitExprToCpp(*f.Init);
-                if (kinds[idx] == EFieldKind::BoundedQuantity || kinds[idx] == EFieldKind::Resource) {
-                    fallback = CppTypeFor(f.TypeName) + "(" + fallback + ")";
-                }
-                w.Block("else {", "}", [&] { w.Line("r." + f.Name + "_ = " + fallback + ";"); });
-            }
+            w.Line("r." + f.Name + "_ = std::move(*values." + f.Name + ");");
         }
-        if (initOrder.empty()) w.Line("(void)initial;");
         w.Line("return r;");
     });
     w.EmptyLine();
@@ -939,14 +947,11 @@ void EmitImpl(std::ostream& os,
         if (UsesRuleSyntax(*c, loaded)) {
             EmitRuleClassImpl(w, *c, CompileClass(*c, loaded), loaded);
         } else {
-            EmitClassImpl(w, *c, loaded.SymbolTable, classes);
+            EmitClassImpl(w, *c, loaded.SymbolTable, classes, loaded);
         }
     }
     for (const auto& instance : mod.Instances) {
-        w.Function(instance.TypeName + " Create" + instance.Name + "()", [&] {
-            w.Line("return " + CompileInstance(instance, loaded) + ";");
-        });
-        w.EmptyLine();
+        EmitInstanceImplementation(w, instance, loaded);
     }
     w.Function("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog)", [&] {
         w.Line("(void)catalog;");

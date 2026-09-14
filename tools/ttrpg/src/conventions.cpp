@@ -6,6 +6,27 @@
 
 namespace fs = std::filesystem;
 
+std::string QualifiedCppType(const std::string& type,
+                             const std::unordered_map<std::string, TTypeInfo>& symbols) {
+    const auto identifier = [](char value) {
+        return (value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||
+            (value >= '0' && value <= '9') || value == '_';
+    };
+    std::string result;
+    for (std::size_t index = 0; index < type.size();) {
+        if (!identifier(type[index])) {
+            result += type[index++];
+            continue;
+        }
+        const auto first = index;
+        while (index < type.size() && identifier(type[index])) ++index;
+        const auto token = type.substr(first, index - first);
+        if (symbols.contains(token) && (first < 2 || type.substr(first - 2, 2) != "::")) result += "::";
+        result += token;
+    }
+    return result;
+}
+
 std::string CppStringLiteral(const std::string& value) {
     std::string result = "\"";
     for (unsigned char c : value) {
@@ -170,6 +191,10 @@ std::string LoadFieldCall(const TFieldDecl& f,
                           EFieldKind kind,
                           const std::string& jsonKey)
 {
+    if (kind == EFieldKind::Enum && f.Init) {
+        return "j.contains(\"" + jsonKey + "\") ? " + ScalarParseExpr(f, kind, "j.at(\"" + jsonKey + "\")") +
+            " : " + DefaultExprToCpp(f.Init->Text, f.TypeName);
+    }
     if (kind == EFieldKind::Primitive && f.Init) {
         if (IsBuiltinInt(f.TypeName)) {
             return "j.contains(\"" + jsonKey + "\") ? " + ScalarParseExpr(f, kind, "j.at(\"" + jsonKey + "\")") +

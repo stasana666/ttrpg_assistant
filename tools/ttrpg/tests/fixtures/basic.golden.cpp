@@ -50,23 +50,26 @@ EColor EColorFromString(const std::string& s) {
     throw std::runtime_error("unknown EColor: \"" + s + "\"");
 }
 
+TThing::TInitialValues TThing::ResolveInitialValues(const TInitialValues& initial) {
+    TThing result;
+    [[maybe_unused]] auto& self = result;
+    (void)initial;
+    result.Name_ = initial.Name ? *initial.Name : std::string{};
+    result.Count_ = initial.Count ? *initial.Count : 3;
+    result.Color_ = initial.Color ? *initial.Color : EColor{};
+    result.Charges_ = initial.Charges ? *initial.Charges : TBoundedQuantity{};
+    result.Tags_ = initial.Tags ? *initial.Tags : std::set<EColor>{};
+    return TInitialValues{.Name = std::move(result.Name_), .Count = std::move(result.Count_), .Color = std::move(result.Color_), .Charges = std::move(result.Charges_), .Tags = std::move(result.Tags_), };
+}
+
 TThing TThing::Create(const TInitialValues& initial) {
+    [[maybe_unused]] auto values = ResolveInitialValues(initial);
     TThing r;
-    if (initial.Name) {
-        r.Name_ = *initial.Name;
-    }
-    if (initial.Count) {
-        r.Count_ = *initial.Count;
-    }
-    if (initial.Color) {
-        r.Color_ = *initial.Color;
-    }
-    if (initial.Charges) {
-        r.Charges_ = *initial.Charges;
-    }
-    if (initial.Tags) {
-        r.Tags_ = *initial.Tags;
-    }
+    r.Name_ = std::move(*values.Name);
+    r.Count_ = std::move(*values.Count);
+    r.Color_ = std::move(*values.Color);
+    r.Charges_ = std::move(*values.Charges);
+    r.Tags_ = std::move(*values.Tags);
     return r;
 }
 

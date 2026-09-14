@@ -12,6 +12,7 @@
 #include <string>
 #include <utility>
 #include <optional>
+#include <pf2e_engine/common/rule_integer.h>
 #include <set>
 #include <pf2e_engine/common/bounded_quantity.h>
 
@@ -44,6 +45,7 @@ public:
         std::optional<std::set<EColor>> Tags{};
     };
     static TThing Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
 
     const std::string& Name() const { return Name_; }
     TGuarded<std::string> Name() { return TGuarded<std::string>(Name_); }

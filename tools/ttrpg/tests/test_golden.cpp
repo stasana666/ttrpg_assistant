@@ -141,6 +141,22 @@ TEST(GoldenTest, SharesCheckedJsonIntegerParsingAcrossStorageAndDefaults) {
     EXPECT_THROW(EmitImpl(output, loaded, "checked_json.ttrpg", "checked_json.h"), std::runtime_error);
 }
 
+TEST(GoldenTest, LegacyEnumDefaultsDoNotMakeRequiredOrUnknownValuesOptional) {
+    TLoadedSchemas loaded;
+    loaded.PrimaryStem = "enum_defaults";
+    loaded.Primary = TParser(Tokenize(R"(
+        enum EMode { Normal, Alternate }
+        class TDefaults { EMode Optional = Alternate; EMode Required; }
+    )")).Parse();
+    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
+    std::ostringstream output;
+    EmitImpl(output, loaded, "enum_defaults.ttrpg", "enum_defaults.h");
+    const auto code = output.str();
+    EXPECT_NE(code.find("r.Optional_ = j.contains(\"optional\") ? EModeFromString(j.at(\"optional\").get<std::string>()) : EMode::Alternate;"), std::string::npos);
+    EXPECT_NE(code.find("r.Required_ = EModeFromString(j.at(\"required\").get<std::string>());"), std::string::npos);
+    EXPECT_NE(code.find("throw std::runtime_error(\"unknown EMode:"), std::string::npos);
+}
+
 TEST(GoldenTest, EmptyStorageFactoriesDoNotDeclareUnusedRestorationValues) {
     TLoadedSchemas loaded;
     loaded.PrimaryStem = "empty_storage";
@@ -162,7 +178,7 @@ TEST(GoldenTest, EmptyStorageFactoriesDoNotDeclareUnusedRestorationValues) {
         ASSERT_NE(fromJson, std::string::npos);
         ASSERT_NE(restore, std::string::npos);
         ASSERT_NE(toJson, std::string::npos);
-        EXPECT_NE(code.substr(create, fromJson - create).find("(void)initial;"), std::string::npos);
+        EXPECT_NE(code.substr(create, fromJson - create).find("ResolveInitialValues(initial)"), std::string::npos);
         EXPECT_NE(code.substr(fromJson, restore - fromJson).find("return Create(initial);"), std::string::npos);
         EXPECT_EQ(code.substr(restore, toJson - restore).find("TInitialValues initial;"), std::string::npos);
     }

@@ -136,14 +136,20 @@ TAstNode TEffect::GetAst([[maybe_unused]] TAstContext& ctx) const {
     return node;
 }
 
+TSpell::TInitialValues TSpell::ResolveInitialValues(const TInitialValues& initial) {
+    TSpell result;
+    [[maybe_unused]] auto& self = result;
+    (void)initial;
+    result.Name_ = initial.Name ? *initial.Name : std::string{};
+    result.Effects_ = initial.Effects ? *initial.Effects : TVariantMap<EEffectKind, TEffect>{};
+    return TInitialValues{.Name = std::move(result.Name_), .Effects = std::move(result.Effects_), };
+}
+
 TSpell TSpell::Create(const TInitialValues& initial) {
+    [[maybe_unused]] auto values = ResolveInitialValues(initial);
     TSpell r;
-    if (initial.Name) {
-        r.Name_ = *initial.Name;
-    }
-    if (initial.Effects) {
-        r.Effects_ = *initial.Effects;
-    }
+    r.Name_ = std::move(*values.Name);
+    r.Effects_ = std::move(*values.Effects);
     return r;
 }
 

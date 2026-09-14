@@ -370,6 +370,43 @@ void EmitRuleJsonValue(TCppWriter& writer, const TFieldDecl& field,
     EmitJsonValue(writer, field, source, target, loaded, sequence);
 }
 
+void EmitInitialValueResolver(TCppWriter& writer, const TClassDecl& declaration,
+                              const TCompiledClass& compiled, const TLoadedSchemas& loaded, bool ruleClass) {
+    writer.Function(declaration.Name + "::TInitialValues " + declaration.Name + "::ResolveInitialValues(const TInitialValues& initial)", [&] {
+        std::string construct = declaration.Name + " result(TUninitialized{}";
+        for (const auto& field : compiled.Fields) {
+            if (ruleClass && !field.Declaration.Derived) {
+                construct += ", initial." + field.Declaration.Name + " ? *initial." + field.Declaration.Name + " : TGeneratedConstruction::Blank<" + QualifiedCppType(field.CppType, loaded.SymbolTable) + ">()";
+            }
+        }
+        writer.Line(ruleClass ? construct + ");" : declaration.Name + " result;");
+        writer.Line("[[maybe_unused]] auto& self = result;");
+        writer.Line("(void)initial;");
+        for (const auto index : compiled.InitOrder) {
+            const auto& field = compiled.Fields.at(index);
+            const std::string name = field.Declaration.Name;
+            std::string fallback = field.Initializer;
+            if (fallback.empty()) {
+                if (field.Declaration.Container == EContainer::None &&
+                    FieldKindOf(field.Declaration, loaded.SymbolTable) == EFieldKind::Class) {
+                    fallback = QualifiedCppType(field.CppType, loaded.SymbolTable) + "::Create({})";
+                } else {
+                    fallback = field.CppType + "{}";
+                }
+            }
+            writer.Line("result." + name + "_ = initial." + name + " ? *initial." + name + " : " + fallback + ";");
+        }
+        std::string values = "return TInitialValues{";
+        for (const auto& field : compiled.Fields) {
+            if (!field.Declaration.Derived) {
+                values += "." + field.Declaration.Name + " = std::move(result." + field.Declaration.Name + "_), ";
+            }
+        }
+        writer.Line(values + "};");
+    });
+    writer.EmptyLine();
+}
+
 void EmitRuleClassDecl(TCppWriter& writer, const TClassDecl& declaration,
                        const TCompiledClass& compiled, const TLoadedSchemas& loaded) {
     (void)loaded;
@@ -394,6 +431,7 @@ void EmitRuleClassDecl(TCppWriter& writer, const TClassDecl& declaration,
                     MoveCondition(compiled, true) + ";");
             }
             writer.Line("static " + declaration.Name + " Create(const TInitialValues& initial);");
+            writer.Line("static TInitialValues ResolveInitialValues(const TInitialValues& initial);");
             if (declaration.GameEntity) {
                 writer.Line("TEntityId Id() const { return Id_; }");
             }
@@ -422,13 +460,14 @@ void EmitRuleClassDecl(TCppWriter& writer, const TClassDecl& declaration,
         });
         writer.EmptyLine();
         writer.PrivateSection([&] {
+            writer.Line("friend struct TGeneratedConstruction;");
             writer.Line("struct TUninitialized {};");
             std::string constructor = "explicit " + declaration.Name + "(TUninitialized";
             std::string initializers;
             for (const auto& field : compiled.Fields) {
                 if (!field.Declaration.Derived) {
                     const std::string name = field.Declaration.Name;
-                    constructor += ", " + field.CppType + " value_" + name + " = {}";
+                    constructor += ", " + field.CppType + " value_" + name + " = TGeneratedConstruction::Blank<" + QualifiedCppType(field.CppType, loaded.SymbolTable) + ">()";
                     if (!initializers.empty()) {
                         initializers += ", ";
                     }
@@ -509,27 +548,15 @@ void EmitRuleClassImpl(TCppWriter& writer, const TClassDecl& declaration,
         });
         writer.EmptyLine();
     }
+    EmitInitialValueResolver(writer, declaration, compiled, loaded, true);
     writer.Function(declaration.Name + " " + declaration.Name + "::Create(const TInitialValues& initial)", [&] {
-        writer.Line(declaration.Name + " result(TUninitialized{});");
-        writer.Line("[[maybe_unused]] auto& self = result;");
-        writer.Line("(void)initial;");
-        if (declaration.GameEntity) {
-            writer.Line("result.Id_ = NewEntityId();");
+        writer.Line("[[maybe_unused]] auto values = ResolveInitialValues(initial);");
+        std::string construct = declaration.Name + " result(TUninitialized{}";
+        for (const auto& field : compiled.Fields) {
+            if (!field.Declaration.Derived) construct += ", std::move(*values." + field.Declaration.Name + ")";
         }
-        for (const auto index : compiled.InitOrder) {
-            const auto& field = compiled.Fields.at(index);
-            const std::string name = field.Declaration.Name;
-            std::string fallback = field.Initializer;
-            if (fallback.empty()) {
-                if (field.Declaration.Container == EContainer::None &&
-                    FieldKindOf(field.Declaration, loaded.SymbolTable) == EFieldKind::Class) {
-                    fallback = field.CppType + "::Create({})";
-                } else {
-                    fallback = field.CppType + "{}";
-                }
-            }
-            writer.Line("result." + name + "_ = initial." + name + " ? *initial." + name + " : " + fallback + ";");
-        }
+        writer.Line(construct + ");");
+        if (declaration.GameEntity) writer.Line("result.Id_ = NewEntityId();");
         writer.Line("return result;");
     });
     writer.EmptyLine();

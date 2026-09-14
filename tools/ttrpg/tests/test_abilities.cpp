@@ -113,7 +113,7 @@ TEST(AbilityCompilerTest, BuildsFeatureSelectionsAndCollectionsInNamedInstances)
     )");
     const auto compiled = CompileClass(loaded.Primary.Classes[1], loaded);
     EXPECT_EQ(compiled.Fields[0].Initializer, "TFeatureSelection(\"rules.Training\")");
-    EXPECT_NE(compiled.Fields[1].Initializer.find("values.Add(TFeatureSelection(\"rules.Training\"))"), std::string::npos);
+    EXPECT_NE(compiled.Fields[1].Initializer.find("TFeatureSelection(\"rules.Training\")"), std::string::npos);
     const auto implementation = Implementation(loaded);
     EXPECT_NE(implementation.find("TActor CreateFighter()"), std::string::npos);
     EXPECT_NE(implementation.find("TIdCollection<TFeatureSelection> values;"), std::string::npos);

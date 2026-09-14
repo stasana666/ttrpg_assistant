@@ -12,6 +12,7 @@
 #include <string>
 #include <utility>
 #include <optional>
+#include <pf2e_engine/common/rule_integer.h>
 #include <pf2e_engine/common/id_collection.h>
 
 class TGameObjectFactory;
@@ -31,6 +32,7 @@ public:
         std::optional<int> X{};
     };
     static TThing Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
 
     const int& X() const { return X_; }
     TGuarded<int> X() { return TGuarded<int>(X_); }
@@ -64,6 +66,7 @@ public:
         std::optional<TIdCollection<TThing>> Things{};
     };
     static THolder Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
 
     const int& Count() const { return Count_; }
     TGuarded<int> Count() { return TGuarded<int>(Count_); }

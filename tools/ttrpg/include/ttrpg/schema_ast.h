@@ -105,6 +105,16 @@ struct TInstanceDecl {
     std::string TypeName;
     std::string Name;
     expr::TExprNode Value;
+    struct TParameter {
+        TFieldDecl Field;
+        bool Choice = false;
+        std::optional<expr::TExprNode> Pool;
+        std::optional<expr::TExprNode> When;
+        parse::TSourceLocation Location;
+    };
+    std::vector<TParameter> Parameters;
+    std::vector<TClassDecl::TStatement> Requirements;
+    bool Parameterized = false;
 };
 
 struct TVariantAlt {

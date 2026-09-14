@@ -29,13 +29,13 @@
 
 namespace {
 
-struct TGeneratedConstruction {
+struct TConstructionTraceEntry {
     const TGameObjectFactory* factory;
     std::type_index type;
     TGameObjectId id;
 };
 
-thread_local std::vector<TGeneratedConstruction> generated_constructions;
+thread_local std::vector<TConstructionTraceEntry> generated_constructions;
 
 nlohmann::json NormalizeLegacyProficiencyValue(const nlohmann::json& value)
 {
@@ -95,7 +95,7 @@ TGameObjectFactory::TGeneratedConstructionGuard::TGeneratedConstructionGuard(
     const TGameObjectFactory& factory, std::type_index type, TGameObjectId id)
 {
     auto cycle = std::find_if(generated_constructions.begin(), generated_constructions.end(),
-        [&](const TGeneratedConstruction& entry) {
+        [&](const TConstructionTraceEntry& entry) {
             return entry.factory == &factory && entry.type == type && entry.id == id;
         });
     if (cycle != generated_constructions.end()) {

@@ -12,6 +12,7 @@
 #include <string>
 #include <utility>
 #include <optional>
+#include <pf2e_engine/common/rule_integer.h>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -103,6 +104,7 @@ public:
         std::optional<TVariantMap<EEffectKind, TEffect>> Effects{};
     };
     static TSpell Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
 
     const std::string& Name() const { return Name_; }
     TGuarded<std::string> Name() { return TGuarded<std::string>(Name_); }

@@ -106,6 +106,12 @@ Canonical project instructions. CLAUDE.md redirects here.
   field mutation records; attribute edits and whole-collection edits use separate
   scenarios and explicitly reversible journals.
 - `inventory/`: generated schema type and JSON loading tests.
+- `inventory/fixtures/constructor_choices.ttrpg` and `inventory/test_constructor_choices.cpp`
+  verify configurable factory reports and actual construction together: dependent
+  choices, disabled input rejection and lazy defaults, declared feature pools,
+  combination requirements, arbitrary and empty equipment, nested default failures
+  before identity allocation, and independent fighter/wolf values. Restored sparse
+  collections retain explicit empty selections and their allocator history.
 - `inventory/fixtures/rule_entities.ttrpg` and `inventory/test_rule_entities.cpp`:
   compile generated entities into `test_inventory` and verify named factories,
   identity transfer, nested methods, rollback, pure queries, and snapshots with

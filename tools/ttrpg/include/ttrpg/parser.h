@@ -109,6 +109,7 @@ private:
             declaration.Body = ParseBody();
             ts_.Match(ETok::Semi);
         } else if (declaration.Kind == EAbilityDeclarationKind::Feature) {
+            if (ts_.Match(ETok::Semi)) return declaration;
             ts_.Expect(ETok::LBrace, "'{' after feature name");
             while (ts_.Peek().kind != ETok::RBrace) {
                 if (ts_.Peek().text == "on") {
@@ -293,16 +294,19 @@ private:
     }
 
     expr::TExprNode ReadExpression(ETok end, bool assignment = false, const std::string& prefix = "", bool aggregate = false,
-                                   const std::string& endKeyword = "") {
+                                   const std::string& endKeyword = "", bool parameter = false) {
         std::string source = prefix;
         int braces = 0;
         int parens = 0;
         int brackets = 0;
+        std::string previous;
         auto cursor = ts_.Peek().loc;
         while (ts_.Peek().kind != ETok::End) {
             const auto& token = ts_.Peek();
             if (braces == 0 && parens == 0 && brackets == 0 &&
                 (token.kind == end || (!endKeyword.empty() && token.text == endKeyword) ||
+                 (parameter && (token.kind == ETok::Comma || token.kind == ETok::RParen ||
+                    token.kind == ETok::Equals || (previous != "." && (token.text == "from" || token.text == "when")))) ||
                  (assignment && (token.text == "=" || token.text == "+=" || token.text == "-=")))) {
                 break;
             }
@@ -327,6 +331,7 @@ private:
             const auto text = token.kind == ETok::StringLiteral ? "\"" + token.text + "\"" : token.text;
             source += text;
             cursor.col += static_cast<int>(text.size());
+            previous = token.text;
             ts_.Advance();
             if (aggregate && braces == 0 && parens == 0 && brackets == 0) break;
         }
@@ -338,9 +343,63 @@ private:
         TInstanceDecl instance;
         instance.TypeName = ExpectIdent("instance type");
         instance.Name = ExpectIdent("instance name");
+        if (ts_.Match(ETok::LParen)) {
+            instance.Parameterized = true;
+            while (ts_.Peek().kind != ETok::RParen) {
+                TInstanceDecl::TParameter parameter;
+                parameter.Location = ts_.Peek().loc;
+                auto type = ExpectIdent("constructor parameter type");
+                if (type == "choice") {
+                    parameter.Choice = true;
+                    type = ExpectIdent("choice type");
+                }
+                if (type == "collection") {
+                    parameter.Field.Container = EContainer::Collection;
+                    ts_.Expect(ETok::LAngle, "'<' after collection");
+                    type = ExpectIdent("collection element type");
+                    ts_.Expect(ETok::RAngle, "'>'");
+                }
+                parameter.Field.TypeName = type;
+                parameter.Field.Name = ExpectIdent("constructor parameter name");
+                if (parameter.Choice) {
+                    if (ExpectIdent("'from' after choice name") != "from") ts_.Throw("choice requires 'from'");
+                    parameter.Pool = ReadExpression(ETok::RParen, false, "", false, "", true);
+                }
+                if (ts_.Peek().text == "when") {
+                    ts_.Advance();
+                    parameter.When = ReadExpression(ETok::RParen, false, "", false, "", true);
+                }
+                if (ts_.Match(ETok::Equals)) {
+                    parameter.Field.Init = ReadExpression(ETok::RParen, false, "", false, "", true);
+                }
+                instance.Parameters.push_back(std::move(parameter));
+                if (!ts_.Match(ETok::Comma)) break;
+            }
+            ts_.Expect(ETok::RParen, "')' after constructor parameters");
+        }
         if (ts_.Peek().kind != ETok::LBrace) ts_.Throw("expected '{' after instance name");
-        auto body = ReadExpression(ETok::Semi, false, instance.TypeName, true);
-        instance.Value = std::move(body);
+        ts_.Advance();
+        instance.Value.Kind = expr::ENodeKind::ObjectInit;
+        instance.Value.Text = instance.TypeName;
+        while (ts_.Peek().text == "requires") {
+            TClassDecl::TStatement requirement;
+            requirement.Kind = TClassDecl::TStatement::EKind::Requires;
+            requirement.Location = ts_.Consume().loc;
+            requirement.Value = ReadExpression(ETok::Semi);
+            ts_.Expect(ETok::Semi, "';' after constructor requires");
+            instance.Requirements.push_back(std::move(requirement));
+            instance.Parameterized = true;
+        }
+        while (ts_.Peek().kind != ETok::RBrace) {
+            expr::TFieldInitializer field;
+            field.Location = ts_.Peek().loc;
+            field.Name = ExpectIdent("instance field name");
+            ts_.Expect(ETok::Equals, "'=' after instance field");
+            field.Value = ReadExpression(ETok::Semi);
+            ts_.Expect(ETok::Semi, "';' after instance field");
+            instance.Value.Fields.push_back(std::move(field));
+        }
+        ts_.Expect(ETok::RBrace, "'}'");
         ts_.Match(ETok::Semi);
         return instance;
     }

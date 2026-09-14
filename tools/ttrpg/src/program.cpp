@@ -4,6 +4,7 @@
 #include <ttrpg/abilities.h>
 #include <ttrpg/activities.h>
 #include <ttrpg/events.h>
+#include <ttrpg/constructors.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -216,6 +217,7 @@ public:
             }
             case K::StringLiteral: return {.Type = "string", .Code = "std::string(" + CppStringLiteral(e.Text) + ")"};
             case K::ContextVar:
+                if (constructorScope_) Fail("constructor expressions cannot access @self");
                 if (e.Text != "self") Fail("unknown context variable '@" + e.Text + "'");
                 if (action_ || hook_ || preflight_) {
                     return EntityBinding(self_.Name, "action_self", action_);
@@ -230,10 +232,14 @@ public:
                 }
                 const auto local = locals_.find(e.Text);
                 if (local != locals_.end()) {
+                    if (const auto parameter = constructorInputs_.find(e.Text); parameter != constructorInputs_.end()) {
+                        constructorDependencies_.insert(parameter->second);
+                    }
                     auto value = local->second;
                     if (sourceInputAudit_ && auditedSourceLocals_.contains(value.LocalCode)) value.SourceDerived = true;
                     return value;
                 }
+                if (constructorInputs_.contains(e.Text)) Fail("constructor parameter '" + e.Text + "' must precede this expression");
                 if (Field(self_, e.Text)) {
                     expr::TExprNode base;
                     base.Kind = K::ContextVar;
@@ -262,6 +268,13 @@ public:
                     literal_type = enumeration;
                 }
                 if (literal_type) return {.Type = literal_type->Name, .Code = CppRuleType(literal_type->Name) + "::" + e.Text};
+                if (expected.empty()) {
+                    const auto definitions = AbilitySymbols(loaded_);
+                    const auto definition = definitions.find(e.Text);
+                    if (definition != definitions.end() && definition->second.Kind == EAbilityDeclarationKind::Feature) {
+                        return {.Type = "Feature", .Code = "TFeatureSelection(" + CppStringLiteral(definition->second.OwnerStem + "." + e.Text) + ")"};
+                    }
+                }
                 if (const auto instance = instances_.find(e.Text); instance != instances_.end()) {
                     return ReadNamedValue(*instance->second);
                 }
@@ -334,7 +347,7 @@ public:
                     if (!left.Binding.empty() && !right.Binding.empty()) {
                         left.Code += ".Id()";
                         right.Code += ".Id()";
-                    } else if (!IsBuiltinPrimitive(left.Type) && !IsBuiltinPosition(left.Type) && !enums_.contains(left.Type)) {
+                    } else if (!IsBuiltinPrimitive(left.Type) && !IsBuiltinPosition(left.Type) && !IsBuiltinFeature(left.Type) && !enums_.contains(left.Type)) {
                         Fail("equality requires primitive values or values of the same enum type");
                     }
                     type = "bool";
@@ -381,6 +394,9 @@ public:
                 const auto type = e.Text.empty() ? expected : e.Text;
                 const auto cls = classes_.find(type);
                 if (cls == classes_.end()) Fail("unknown constructed class '" + type + "'");
+                if (cls->second->GameEntity && forbidEntityConstruction_ && &e != allowedEntity_) {
+                    Fail("constructor expressions cannot create GameEntity values");
+                }
                 if (cls->second->GameEntity && method_ != nullptr) {
                     Fail("creating entities inside methods requires transactional entity allocation, which is not supported yet");
                 }
@@ -442,6 +458,18 @@ public:
             return value;
         }
         const std::string type = CppMemberType(field, loaded_.SymbolTable);
+        if (expression.Kind != expr::ENodeKind::ListLiteral &&
+            !(field.Container == EContainer::Map && expression.Kind == expr::ENodeKind::ObjectInit)) {
+            auto value = Read(expression);
+            if (value.Container == EContainer::None) Fail("container initialization requires a list literal or matching container value");
+            Match(value, type);
+            if (value.Container != field.Container || value.ElementType !=
+                (field.Container == EContainer::Map ? field.ValueTypeName : field.TypeName) ||
+                (field.Container == EContainer::Map && value.KeyType != field.TypeName)) {
+                Fail("container initializer types must match");
+            }
+            return value;
+        }
         std::string code = "([&] { " + CppRuleType(type) + " values; ";
         bool sourceDerived = false;
         if (field.Container == EContainer::Map) {
@@ -477,6 +505,10 @@ public:
                 code += "auto " + local + " = " + value.Code + "; if (values.Has(" + local +
                     ".Kind())) { throw std::invalid_argument(" + CppStringLiteral("duplicate variant alternative in " + field.Name) +
                     "); } values.Set(std::move(" + local + ")); ";
+            } else if (field.Container == EContainer::Collection && IsBuiltinFeature(field.TypeName)) {
+                const auto local = "element_" + std::to_string(elementIndex++);
+                code += "auto " + local + " = " + value.Code + "; if (!" + local +
+                    ".DefinitionId().empty()) { values.Add(std::move(" + local + ")); } ";
             } else {
                 code += std::string(field.Container == EContainer::Collection ? "values.Add(" : "values.insert(") + value.Code + "); ";
             }
@@ -676,6 +708,14 @@ public:
             result.SourceDerived = (owner.SourceDerived || fallback.SelectedSource || fallback.SourceDerived) && CarriesSourceClass(result);
             return result;
         }
+        if (owner.Container == EContainer::Collection && IsBuiltinFeature(owner.ElementType)) {
+            if (member.Text != "has" || call.Args.size() != 1) Fail("Feature collections support only 'has' with one argument");
+            const auto feature = Read(call.Args.front(), "Feature");
+            Match(feature, "Feature");
+            return {.Type = "bool", .Code = "([](const auto& values, const TFeatureSelection& feature) { "
+                "for (const auto& entry : values) { if (*entry == feature) { return true; } } return false; }(" +
+                owner.Code + ", " + feature.Code + "))"};
+        }
         const auto cls = classes_.find(owner.Type);
         if (cls == classes_.end()) Fail("method receiver must be a class");
         const TMethod* method = nullptr;
@@ -771,7 +811,7 @@ public:
             for (const auto& parameter : method.Parameters) {
                 CheckType(parameter.TypeName);
                 const auto parameter_class = classes_.find(parameter.TypeName);
-                if (!IsBuiltinPrimitive(parameter.TypeName) && !enums_.contains(parameter.TypeName) &&
+                if (!IsBuiltinPrimitive(parameter.TypeName) && !IsBuiltinFeature(parameter.TypeName) && !enums_.contains(parameter.TypeName) &&
                     (parameter_class == classes_.end() || parameter_class->second->GameEntity)) {
                     Fail("method parameters require primitive, enum, or ordinary class value types");
                 }
@@ -792,6 +832,66 @@ public:
         }
         method_ = nullptr;
         result.Grants = CompileGrants(self_, loaded_);
+        return result;
+    }
+
+    TCompiledConstructor CompileConstructorBody(const TInstanceDecl& declaration) {
+        constructorScope_ = true;
+        forbidEntityConstruction_ = true;
+        allowedEntity_ = &declaration.Value;
+        TCompiledConstructor result;
+        for (std::size_t i = 0; i < declaration.Parameters.size(); ++i) {
+            const auto& parameter = declaration.Parameters[i];
+            if (!constructorInputs_.emplace(parameter.Field.Name, i).second) Fail("duplicate constructor parameter '" + parameter.Field.Name + "'");
+        }
+        auto expression = [&](const expr::TExprNode& node, const TFieldDecl& type) {
+            constructorDependencies_.clear();
+            const auto value = ReadInitializer(node, type);
+            return TConstructorExpression{value.Code, {constructorDependencies_.begin(), constructorDependencies_.end()}};
+        };
+        TFieldDecl boolean;
+        boolean.TypeName = "bool";
+        TFieldDecl pool;
+        pool.TypeName = "Feature";
+        pool.Container = EContainer::Collection;
+        for (std::size_t i = 0; i < declaration.Parameters.size(); ++i) {
+            const auto& parameter = declaration.Parameters[i];
+            const auto& field = parameter.Field;
+            CheckType(field.TypeName);
+            const auto cls = classes_.find(field.TypeName);
+            const bool ordinary = cls != classes_.end() && !cls->second->GameEntity;
+            if (field.Container == EContainer::Collection) {
+                if (!ordinary && !IsBuiltinFeature(field.TypeName)) Fail("constructor collections require ordinary class or Feature elements");
+            } else if (field.Container != EContainer::None || (!ordinary && !IsBuiltinPrimitive(field.TypeName) &&
+                       !IsBuiltinFeature(field.TypeName) && !enums_.contains(field.TypeName))) {
+                Fail("constructor parameters require primitive, enum, Feature, or ordinary class values");
+            }
+            if (parameter.Choice && (field.Container != EContainer::None || !IsBuiltinFeature(field.TypeName))) {
+                Fail("constructor choices require scalar Feature values");
+            }
+            if (parameter.When && !parameter.Choice) Fail("when is supported only for constructor choices");
+            TCompiledConstructorParameter compiled;
+            compiled.Declaration = parameter;
+            compiled.CppType = CppRuleType(CppMemberType(field, loaded_.SymbolTable));
+            compiled.OptionCppType = field.Container == EContainer::Collection
+                ? "std::vector<" + CppRuleType(CppTypeFor(field.TypeName)) + ">" : compiled.CppType;
+            if (parameter.When) compiled.When = expression(*parameter.When, boolean);
+            if (parameter.Pool) compiled.Pool = expression(*parameter.Pool, pool);
+            if (field.Init) compiled.Default = expression(*field.Init, field);
+            result.Parameters.push_back(std::move(compiled));
+            locals_.emplace(field.Name, TValue{
+                .Type = field.Container == EContainer::None ? field.TypeName : CppMemberType(field, loaded_.SymbolTable),
+                .Code = "(*resolved.Input" + std::to_string(i) + ")", .Container = field.Container,
+                .ElementType = field.Container == EContainer::None ? "" : field.TypeName});
+        }
+        for (const auto& requirement : declaration.Requirements) {
+            result.Requirements.push_back(expression(*requirement.Value, boolean));
+        }
+        auto value = Read(declaration.Value, declaration.TypeName);
+        Match(value, declaration.TypeName);
+        const auto prefix = CppRuleType(declaration.TypeName) + "::Create(";
+        if (!value.Code.starts_with(prefix)) Fail("constructor body requires an object initializer");
+        result.Construction = CppRuleType(declaration.TypeName) + "::ResolveInitialValues(" + value.Code.substr(prefix.size());
         return result;
     }
 
@@ -929,7 +1029,7 @@ private:
     }
 
     std::string CppRuleType(const std::string& type) const {
-        if (!action_ && !preflight_) return type;
+        if (!action_ && !preflight_ && !constructorScope_) return type;
         const auto& names = RuleCppTypes();
         std::string result;
         const auto identifier = [](char value) {
@@ -1010,6 +1110,7 @@ private:
     void ValidateQueryConstruction(const TClassDecl& owner, const TMethod& method) {
         CheckConstruction("query " + owner.Name + "." + method.Name, [&] {
             TCompiler compiler(owner, loaded_, construction_);
+            compiler.forbidEntityConstruction_ = forbidEntityConstruction_;
             compiler.method_ = &method;
             for (const auto& parameter : method.Parameters) {
                 if (!compiler.locals_.emplace(parameter.Name, TValue{.Type = parameter.TypeName, .Code = "arg_" + parameter.Name}).second) {
@@ -1045,10 +1146,15 @@ private:
             TClassDecl scope;
             scope.Name = "value " + instance.Name;
             TCompiler compiler(scope, loaded_, construction_);
-            auto value = compiler.Read(instance.Value, instance.TypeName);
-            compiler.Match(value, instance.TypeName);
+            compiler.forbidEntityConstruction_ = forbidEntityConstruction_;
+            if (instance.Parameterized) {
+                (void)compiler.CompileConstructorBody(instance);
+            } else {
+                auto value = compiler.Read(instance.Value, instance.TypeName);
+                compiler.Match(value, instance.TypeName);
+            }
         });
-        return {.Type = instance.TypeName, .Code = "Create" + instance.Name + "()"};
+        return {.Type = instance.TypeName, .Code = std::string(constructorScope_ ? "::" : "") + "Create" + instance.Name + "()"};
     }
 
     void ValidateConstructionDefaults(const TClassDecl& declaration,
@@ -1059,6 +1165,7 @@ private:
             if (!field.Init && !nested) continue;
             CheckConstruction("default " + declaration.Name + "." + field.Name, [&] {
                 TCompiler compiler(declaration, loaded_, construction_);
+                compiler.forbidEntityConstruction_ = forbidEntityConstruction_;
                 if (field.Init) {
                     compiler.ReadInitializer(*field.Init, field);
                 } else {
@@ -1537,7 +1644,7 @@ private:
             "using", "virtual", "void", "volatile", "wchar_t", "while", "xor", "xor_eq"
         };
         if (keywords.contains(self_.Name)) Fail("reserved class name '" + self_.Name + "'");
-        const std::unordered_set<std::string> reserved{"Create", "FromJson", "Restore", "ToJson", "GetAst", "RegisterDslProperties", "TInitialValues", "TUninitialized", "VisitGrantedAbilities", "VisitAbilitySources"};
+        const std::unordered_set<std::string> reserved{"Create", "ResolveInitialValues", "FromJson", "Restore", "ToJson", "GetAst", "RegisterDslProperties", "TInitialValues", "TUninitialized", "VisitGrantedAbilities", "VisitAbilitySources"};
         for (const auto& field : self_.Fields) {
             if (field.Name == self_.Name || field.Name.ends_with('_') || keywords.contains(field.Name) || reserved.contains(field.Name) || (self_.GameEntity && field.Name == "Id")) Fail("reserved field name '" + field.Name + "'");
             if (!names.insert(field.Name).second) Fail("duplicate member '" + field.Name + "'");
@@ -1713,6 +1820,11 @@ private:
     std::unordered_map<std::string, TActivityInfo> activities_;
     TInstances instances_;
     std::shared_ptr<std::vector<std::string>> construction_;
+    bool constructorScope_ = false;
+    bool forbidEntityConstruction_ = false;
+    const expr::TExprNode* allowedEntity_ = nullptr;
+    std::unordered_map<std::string, std::size_t> constructorInputs_;
+    std::set<std::size_t> constructorDependencies_;
     std::unordered_map<std::string, TValue> locals_;
     std::unordered_set<std::string> dependencies_;
     const TMethod* method_ = nullptr;
@@ -1765,6 +1877,15 @@ std::string CompileInstance(const TInstanceDecl& declaration, const TLoadedSchem
     auto value = compiler.Read(declaration.Value, declaration.TypeName);
     compiler.Match(value, declaration.TypeName);
     return value.Code;
+}
+
+TCompiledConstructor CompileConstructor(const TInstanceDecl& declaration, const TLoadedSchemas& loaded) {
+    ValidateConstructorNames(loaded);
+    const auto classes = ClassTable(loaded);
+    if (!classes.contains(declaration.TypeName)) throw std::runtime_error("unknown instance type '" + declaration.TypeName + "'");
+    TClassDecl scope;
+    scope.Name = "constructor " + declaration.Name;
+    return TCompiler(scope, loaded).CompileConstructorBody(declaration);
 }
 
 TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded) {

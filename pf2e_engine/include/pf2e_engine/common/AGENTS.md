@@ -341,6 +341,16 @@ transaction handling before methods may prompt, yield, or invoke reactions.
 Checkpoints are bound to their originating transformator; undo rejects a foreign
 checkpoint or a depth no longer present in the current journal.
 
+## Generated construction
+
+`construction.h` contains constructor reports and feature-choice descriptors shared
+by generated factories and native interfaces. Pending dependencies are distinct
+from disabled choices. `generated_construction.h` is a friend of generated classes
+and creates private temporary storage without evaluating rule defaults. This is
+an implementation detail used by construction and restore, not a gameplay mutation
+or an author-facing declaration form. A successful generated entity construction
+allocates identity only after all stored field initialization succeeds.
+
 ## Collection snapshots (`id_collection.h`)
 
 `TIdCollection<T>` allocates monotonically increasing typed IDs. Removing an entry

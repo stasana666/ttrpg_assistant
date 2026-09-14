@@ -8,6 +8,7 @@ add_executable(test_inventory
     test_granted_entities.cpp
     test_proficiency.cpp
     test_statistic_profiles.cpp
+    test_constructor_choices.cpp
 )
 
 set(RULE_ENTITIES_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/rule_entities.h)
@@ -20,7 +21,7 @@ ttrpg_generate(
 )
 target_sources(test_inventory PRIVATE ${RULE_ENTITIES_HEADER} ${RULE_ENTITIES_SOURCE})
 
-foreach(GRANTED_FIXTURE IN ITEMS granted_abilities granted_entities)
+foreach(GRANTED_FIXTURE IN ITEMS granted_abilities granted_entities constructor_choices)
     set(GRANTED_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/${GRANTED_FIXTURE}.h)
     set(GRANTED_SOURCE ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/${GRANTED_FIXTURE}.cpp)
     ttrpg_generate(

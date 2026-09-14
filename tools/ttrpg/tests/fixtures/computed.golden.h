@@ -12,6 +12,7 @@
 #include <string>
 #include <utility>
 #include <optional>
+#include <pf2e_engine/common/rule_integer.h>
 #include <pf2e_engine/common/bounded_quantity.h>
 
 class TGameObjectFactory;
@@ -32,6 +33,7 @@ public:
         std::optional<int> Bonus{};
     };
     static TPart Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
 
     const int& Bonus() const { return Bonus_; }
     TGuarded<int> Bonus() { return TGuarded<int>(Bonus_); }
@@ -61,6 +63,7 @@ public:
         std::optional<int> Value{};
     };
     static TAbility Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
 
     const int& Value() const { return Value_; }
     TGuarded<int> Value() { return TGuarded<int>(Value_); }
@@ -101,6 +104,7 @@ public:
         std::optional<int> ModBoost{};
     };
     static TStats Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
 
     const TBoundedQuantity& Health() const { return Health_; }
     TGuarded<TBoundedQuantity> Health() { return TGuarded<TBoundedQuantity>(Health_); }

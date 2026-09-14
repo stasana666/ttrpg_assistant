@@ -28,11 +28,18 @@ namespace {
     }
 }
 
+TThing::TInitialValues TThing::ResolveInitialValues(const TInitialValues& initial) {
+    TThing result;
+    [[maybe_unused]] auto& self = result;
+    (void)initial;
+    result.X_ = initial.X ? *initial.X : int{};
+    return TInitialValues{.X = std::move(result.X_), };
+}
+
 TThing TThing::Create(const TInitialValues& initial) {
+    [[maybe_unused]] auto values = ResolveInitialValues(initial);
     TThing r;
-    if (initial.X) {
-        r.X_ = *initial.X;
-    }
+    r.X_ = std::move(*values.X);
     return r;
 }
 
@@ -56,14 +63,20 @@ void TThing::RegisterDslProperties() {
     });
 }
 
+THolder::TInitialValues THolder::ResolveInitialValues(const TInitialValues& initial) {
+    THolder result;
+    [[maybe_unused]] auto& self = result;
+    (void)initial;
+    result.Count_ = initial.Count ? *initial.Count : 0;
+    result.Things_ = initial.Things ? *initial.Things : TIdCollection<TThing>{};
+    return TInitialValues{.Count = std::move(result.Count_), .Things = std::move(result.Things_), };
+}
+
 THolder THolder::Create(const TInitialValues& initial) {
+    [[maybe_unused]] auto values = ResolveInitialValues(initial);
     THolder r;
-    if (initial.Count) {
-        r.Count_ = *initial.Count;
-    }
-    if (initial.Things) {
-        r.Things_ = *initial.Things;
-    }
+    r.Count_ = std::move(*values.Count);
+    r.Things_ = std::move(*values.Things);
     return r;
 }
 

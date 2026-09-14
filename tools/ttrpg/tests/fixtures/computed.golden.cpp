@@ -28,11 +28,18 @@ namespace {
     }
 }
 
+TPart::TInitialValues TPart::ResolveInitialValues(const TInitialValues& initial) {
+    TPart result;
+    [[maybe_unused]] auto& self = result;
+    (void)initial;
+    result.Bonus_ = initial.Bonus ? *initial.Bonus : int{};
+    return TInitialValues{.Bonus = std::move(result.Bonus_), };
+}
+
 TPart TPart::Create(const TInitialValues& initial) {
+    [[maybe_unused]] auto values = ResolveInitialValues(initial);
     TPart r;
-    if (initial.Bonus) {
-        r.Bonus_ = *initial.Bonus;
-    }
+    r.Bonus_ = std::move(*values.Bonus);
     return r;
 }
 
@@ -56,11 +63,18 @@ void TPart::RegisterDslProperties() {
     });
 }
 
+TAbility::TInitialValues TAbility::ResolveInitialValues(const TInitialValues& initial) {
+    TAbility result;
+    [[maybe_unused]] auto& self = result;
+    (void)initial;
+    result.Value_ = initial.Value ? *initial.Value : int{};
+    return TInitialValues{.Value = std::move(result.Value_), };
+}
+
 TAbility TAbility::Create(const TInitialValues& initial) {
+    [[maybe_unused]] auto values = ResolveInitialValues(initial);
     TAbility r;
-    if (initial.Value) {
-        r.Value_ = *initial.Value;
-    }
+    r.Value_ = std::move(*values.Value);
     return r;
 }
 
@@ -87,47 +101,34 @@ void TAbility::RegisterDslProperties() {
     });
 }
 
+TStats::TInitialValues TStats::ResolveInitialValues(const TInitialValues& initial) {
+    TStats result;
+    [[maybe_unused]] auto& self = result;
+    (void)initial;
+    result.Base_ = initial.Base ? *initial.Base : int{};
+    result.Level_ = initial.Level ? *initial.Level : 1;
+    result.PerLevel_ = initial.PerLevel ? *initial.PerLevel : int{};
+    result.Health_ = initial.Health ? *initial.Health : TBoundedQuantity(TRuleInteger::Add((std::as_const(self)).Base(), TRuleInteger::Multiply((std::as_const(self)).Level(), (std::as_const(self)).PerLevel())));
+    result.Total_ = initial.Total ? *initial.Total : TRuleInteger::Add((std::as_const(self)).Base(), (std::as_const(self)).PerLevel());
+    result.Part_ = initial.Part ? *initial.Part : ::TPart::Create({});
+    result.Boosted_ = initial.Boosted ? *initial.Boosted : TRuleInteger::Add(((std::as_const(self)).Part()).Bonus(), (std::as_const(self)).Base());
+    result.Ability_ = initial.Ability ? *initial.Ability : ::TAbility::Create({});
+    result.ModBoost_ = initial.ModBoost ? *initial.ModBoost : TRuleInteger::Add(((std::as_const(self)).Ability()).Modifier(), (std::as_const(self)).Base());
+    return TInitialValues{.Health = std::move(result.Health_), .Base = std::move(result.Base_), .Level = std::move(result.Level_), .PerLevel = std::move(result.PerLevel_), .Total = std::move(result.Total_), .Part = std::move(result.Part_), .Boosted = std::move(result.Boosted_), .Ability = std::move(result.Ability_), .ModBoost = std::move(result.ModBoost_), };
+}
+
 TStats TStats::Create(const TInitialValues& initial) {
+    [[maybe_unused]] auto values = ResolveInitialValues(initial);
     TStats r;
-    if (initial.Base) {
-        r.Base_ = *initial.Base;
-    }
-    if (initial.Level) {
-        r.Level_ = *initial.Level;
-    }
-    if (initial.PerLevel) {
-        r.PerLevel_ = *initial.PerLevel;
-    }
-    if (initial.Health) {
-        r.Health_ = *initial.Health;
-    }
-    else {
-        r.Health_ = TBoundedQuantity((r.Base_ + (r.Level_ * r.PerLevel_)));
-    }
-    if (initial.Total) {
-        r.Total_ = *initial.Total;
-    }
-    else {
-        r.Total_ = (r.Base_ + r.PerLevel_);
-    }
-    if (initial.Part) {
-        r.Part_ = *initial.Part;
-    }
-    if (initial.Boosted) {
-        r.Boosted_ = *initial.Boosted;
-    }
-    else {
-        r.Boosted_ = (std::as_const(r.Part_).Bonus() + r.Base_);
-    }
-    if (initial.Ability) {
-        r.Ability_ = *initial.Ability;
-    }
-    if (initial.ModBoost) {
-        r.ModBoost_ = *initial.ModBoost;
-    }
-    else {
-        r.ModBoost_ = (std::as_const(r.Ability_).Modifier() + r.Base_);
-    }
+    r.Base_ = std::move(*values.Base);
+    r.Level_ = std::move(*values.Level);
+    r.PerLevel_ = std::move(*values.PerLevel);
+    r.Health_ = std::move(*values.Health);
+    r.Total_ = std::move(*values.Total);
+    r.Part_ = std::move(*values.Part);
+    r.Boosted_ = std::move(*values.Boosted);
+    r.Ability_ = std::move(*values.Ability);
+    r.ModBoost_ = std::move(*values.ModBoost);
     return r;
 }
 

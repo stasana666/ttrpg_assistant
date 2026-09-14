@@ -8,6 +8,8 @@
 #include <unordered_map>
 
 std::string CppStringLiteral(const std::string& value);
+std::string QualifiedCppType(const std::string& type,
+                             const std::unordered_map<std::string, TTypeInfo>& symbols);
 
 std::string PascalToSnake(const std::string& s);
 
