@@ -81,7 +81,7 @@ void ValidateTriggerDefinitions(const TLoadedSchemas& loaded) {
     std::set<std::string> names{
         "void", "int", "bool", "string", "Resource", "BoundedQuantity", "Feature", "Position",
         "roll", "min", "max", "entities", "grid_distance", "same_team", "has_line_of_effect", "sources",
-        "position_x", "position_y", "position", "adjacent_positions", "contains_position", "can_occupy", "move",
+        "position_x", "position_y", "position", "adjacent_positions", "contains_position", "can_occupy", "move", "move_before_current_turn",
         "TReactionScope", "TReactionWindowResult", "TReactionExecution"
     };
     const auto modules = Modules(loaded);

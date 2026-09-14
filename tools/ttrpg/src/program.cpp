@@ -523,10 +523,19 @@ public:
     TValue Call(const expr::TExprNode& call, bool effects) {
         if (!call.Lhs) {
             if (preflightProbe_ && (triggers_.contains(call.Text) || activities_.contains(call.Text) ||
-                events_.contains(call.Text) || call.Text == "roll" || call.Text == "move")) throw TPreflightBoundary{};
+                events_.contains(call.Text) || call.Text == "roll" || call.Text == "move" ||
+                call.Text == "move_before_current_turn")) throw TPreflightBoundary{};
             if (triggers_.contains(call.Text)) Fail("reaction windows require a standalone action, activity, or reaction let/call statement");
             if (activities_.contains(call.Text)) Fail("activity calls require a standalone action or activity let/call statement");
             if (call.Text == "sources") Fail("sources(...) is only supported as a source choice collection expression");
+            if (call.Text == "move_before_current_turn") {
+                if (!action_ || !effects) Fail("move_before_current_turn is allowed only as an effectful action expression");
+                if (call.Args.size() != 1) Fail("move_before_current_turn expects one entity");
+                const auto entity = Read(call.Args.front());
+                if (entity.Binding.empty()) Fail("move_before_current_turn requires a checked GameEntity binding");
+                if (entity.Guard.empty()) Fail("move_before_current_turn requires a mutable entity binding");
+                return {.Type = "void", .Code = "MoveActionEntityBeforeCurrentTurn(Context, " + entity.Binding + ".View())", .Effect = true};
+            }
             if (call.Text == "position" || call.Text == "adjacent_positions" ||
                 call.Text == "contains_position" || call.Text == "can_occupy" || call.Text == "move") {
                 RequireWorldScope();

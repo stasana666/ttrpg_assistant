@@ -109,12 +109,28 @@ activity ECheckOutcome ResolveMeleeStrike for TCreature(
                 Amount += Extra;
             }
         }
-        Target.ReceiveDamageWithContext(Weapon.DamageType, Amount, TDamageContext {
+        ApplyCreatureDamage(Target, Weapon.DamageType, Amount, TDamageContext {
             Critical = Outcome == CriticalSuccess;
             Nonlethal = Weapon.Traits.has(Nonlethal);
         });
     }
     return Outcome;
+}
+
+activity void ApplyCreatureDamage for TCreature(
+    TCreature Target, EDamageType Type, int Amount, TDamageContext Context
+) {
+    let Resolved = Target.DamageAmount(Type, Amount);
+    ApplyResolvedCreatureDamage(Target, Resolved, Context);
+}
+
+activity void ApplyResolvedCreatureDamage for TCreature(
+    TCreature Target, int Amount, TDamageContext Context
+) {
+    let Result = Target.ApplyResolvedDamage(Amount, Context);
+    if (Target.ZeroHpRule != Defeat && Result.NewlyKnockedOut && !Result.NewlyDead) {
+        move_before_current_turn(Target);
+    }
 }
 
 feature PackAttack {

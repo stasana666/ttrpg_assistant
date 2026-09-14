@@ -40,6 +40,10 @@ add_executable(test_initiative test_initiative.cpp)
 target_link_libraries(test_initiative gtest_main pf2e_engine nlohmann_json)
 gtest_discover_tests(test_initiative)
 
+add_executable(test_knockout_initiative test_knockout_initiative.cpp)
+target_link_libraries(test_knockout_initiative gtest_main pf2e_engine nlohmann_json)
+gtest_discover_tests(test_knockout_initiative)
+
 add_executable(test_health test_health.cpp)
 target_link_libraries(test_health gtest_main pf2e_engine nlohmann_json)
 target_include_directories(test_health PRIVATE ${CMAKE_BINARY_DIR}/cpp_config)

@@ -6,6 +6,10 @@ Canonical project instructions. CLAUDE.md redirects here.
 - GoogleTest coverage for engine mechanics, actions, runtime DSL, inventory data, game object loading, AST snapshots, and transformations.
 
 ## Key Files
+- `test_knockout_initiative.cpp` follows generated and legacy damage delivery through
+  an actual battle. It checks that a new knockout delays recovery until the next
+  initiative cycle, preserves the current actor, and leaves death/legacy defeat
+  ordering unchanged. Full battle and journal snapshots survive Undo and replay.
 - `test_lib/mock_dice_roller.h`: deterministic RNG expectations for reproducible tests.
 - `test_lib/mock_interaction_system.h`: scripted player choices and optional state checks.
 - `test_lifecycle.cpp` builds as `test_lifecycle` and verifies generated round/turn
@@ -26,6 +30,11 @@ Canonical project instructions. CLAUDE.md redirects here.
   independent NPC totals, current-stat changes without rerolling stored order,
   round replay, exact journal rollback and failed battle insertion. Native tie
   ordering uses encounter options without inferring PC/NPC roles from teams.
+  Relocation cases move already-acted, unacted and current entries without rerolls,
+  preserve the active participant and restore previous successors through multiple
+  moves and round advancement. Runtime tests distinguish the current turn from a
+  reacting actor, validate writable membership even during setup, and reject late
+  or duplicate enrollment before RNG or map changes.
 - `test_health.cpp` builds as `test_health` and verifies explicit defeat/dying/death
   policies, normal and critical knockout, nonlethal damage, temporary HP, defenses,
   massive damage and four-degree recovery with explicit DC adjustments. Healing,

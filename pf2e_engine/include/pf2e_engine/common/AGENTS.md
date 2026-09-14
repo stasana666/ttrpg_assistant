@@ -368,6 +368,16 @@ transaction handling before methods may prompt, yield, or invoke reactions.
 Checkpoints are bound to their originating transformator; undo rejects a foreign
 checkpoint or a depth no longer present in the current journal.
 
+## Initiative relocation
+
+`actions/generated_initiative.h` exposes journaled movement before the current
+turn's participant. It validates the action actor, live source, target identity,
+battle membership and mutable capability before any operation, including the
+setup no-op. A reaction's executing actor is not the anchor. Initiative relocation
+does not inspect hit points or apply game-specific knockout policy. The order uses
+stable list iterators; each journal record retains the target's previous successor
+and restores it with LIFO Undo. Participants and the order must outlive that history.
+
 ## Generated construction
 
 `construction.h` contains constructor reports and feature-choice descriptors shared

@@ -23,6 +23,8 @@ public:
 
     void StartBattle();
     void AddPlayer(TPlayer&& player, TPosition position, const TInitiativeOptions& options = {});
+    const TPlayer* CurrentTurnPlayer() const;
+    void MoveBeforeCurrentTurn(TPlayer& target, TTransformator& transformator);
 
     const TPlayer* GetPlayer(std::function<bool(const TPlayer*)> predicate) const;
     std::vector<TPlayer*> GetIfPlayers(std::function<bool(const TPlayer*)> predicate);

@@ -3,6 +3,8 @@
 #include <pf2e_engine/mechanics/damage.h>
 #include <pf2e_engine/transformation/transformator.h>
 #include <pf2e_engine/player.h>
+#include <pf2e_engine/actions/generated_action.h>
+#include <pf2e_engine/inventory/abilities.h>
 
 #include <stdexcept>
 
@@ -21,8 +23,7 @@ void FDealDamage::operator() (std::shared_ptr<TActionContext> ctx) const
     }
 
     TCombatCalculator calculator;
-    ctx->transformator->DealDamageWithContext(
-        target,
-        calculator.ResolveDamage(*target->GetCreature(), *damage, *ctx->dice_roller),
-        damage->Context());
+    const int amount = calculator.ResolveDamage(*target->GetCreature(), *damage, *ctx->dice_roller);
+    RunAbilitiesApplyResolvedCreatureDamage(ctx, BindActionEntity<TCreature>(*target), amount,
+                                            damage->Context(), [] {});
 }

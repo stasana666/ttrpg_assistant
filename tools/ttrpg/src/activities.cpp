@@ -66,7 +66,7 @@ void ValidateActivityDefinitions(const TLoadedSchemas& loaded) {
     const std::unordered_set<std::string> builtins{
         "void", "int", "bool", "string", "Resource", "BoundedQuantity", "Feature", "Position",
         "roll", "min", "max", "entities", "grid_distance", "same_team", "has_line_of_effect",
-        "sources", "position_x", "position_y", "position", "adjacent_positions", "contains_position", "can_occupy", "move"
+        "sources", "position_x", "position_y", "position", "adjacent_positions", "contains_position", "can_occupy", "move", "move_before_current_turn"
     };
     for (const auto& [stem, module] : Modules(loaded)) {
         names.insert(AbilityRegistrationFunction(stem));

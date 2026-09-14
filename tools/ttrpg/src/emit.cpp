@@ -931,6 +931,7 @@ void EmitImpl(std::ostream& os,
         w.Include("pf2e_engine/actions/generated_action.h");
         w.Include("pf2e_engine/actions/generated_world.h");
         w.Include("pf2e_engine/actions/generated_movement.h");
+        w.Include("pf2e_engine/actions/generated_initiative.h");
         w.Include("pf2e_engine/actions/reaction_window.h");
         w.Include("pf2e_engine/actions/feature_event.h");
     }

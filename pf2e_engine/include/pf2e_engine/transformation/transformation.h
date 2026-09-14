@@ -143,6 +143,20 @@ private:
     size_t prev_round_;
 };
 
+class TMoveInitiativePlayer {
+public:
+    TMoveInitiativePlayer(TInitiativeOrder* order, TPlayer* target, TPlayer* anchor);
+
+    void Undo();
+
+    TAstNode GetAst(TAstContext& ctx) const;
+
+private:
+    TInitiativeOrder* order_;
+    TPlayer* target_;
+    TPlayer* previous_successor_;
+};
+
 class TMovePlayer {
 public:
     TMovePlayer(TPlayer* player, TPosition new_position);
@@ -166,6 +180,7 @@ using TTransformation = std::variant<
     TAdvanceTaskProgress,
     TChangeCurrentPlayer,
     TChangeRound,
+    TMoveInitiativePlayer,
     TMovePlayer,
     TGeneratedAssignment
 >;

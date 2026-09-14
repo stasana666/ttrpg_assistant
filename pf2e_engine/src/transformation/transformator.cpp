@@ -2,6 +2,7 @@
 #include <pf2e_engine/common/visit.h>
 #include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/player.h>
+#include <pf2e_engine/initiative_order.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/ast/ast_layout_assert.h>
@@ -116,6 +117,18 @@ void TTransformator::MovePlayer(TPlayer* player, TPosition new_position)
 {
     static_assert(std::is_nothrow_move_constructible_v<TTransformation>);
     transformations_.emplace_back(std::in_place_type<TMovePlayer>, player, new_position);
+}
+
+void TTransformator::MoveInitiativeBefore(TInitiativeOrder* order, TPlayer* target, TPlayer* anchor)
+{
+    if (order == nullptr) {
+        throw std::invalid_argument("initiative relocation requires an order");
+    }
+    if (!order->ValidateMoveBefore(target, anchor)) {
+        return;
+    }
+    static_assert(std::is_nothrow_move_constructible_v<TTransformation>);
+    transformations_.emplace_back(std::in_place_type<TMoveInitiativePlayer>, order, target, anchor);
 }
 
 void TTransformator::Undo(TState state)

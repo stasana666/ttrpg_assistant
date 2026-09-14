@@ -106,3 +106,42 @@ TEST(OperationCompilerTest, RejectsPositionTypeAndCapabilityErrors) {
     Rejects("event int move for TActor();", "event name conflicts");
     Rejects("action A for TActor { choose int Value from [1, true]; }", "expected 'int'");
 }
+
+TEST(OperationCompilerTest, ReordersOnlyMutableEntitiesInExecutableBodies) {
+    const auto code = Implementation(R"(
+        trigger int Opening(int Pending, TActor Subject);
+        activity void Reorder for TActor(TActor Target) {
+            let Alias = Target;
+            move_before_current_turn(Alias);
+        }
+        action A for TActor {
+            move_before_current_turn(@self);
+            choose TActor Target;
+            Reorder(Target);
+        }
+        reaction Reply for TActor on Opening {
+            move_before_current_turn(Subject);
+            return Pending;
+        }
+    )");
+    EXPECT_NE(code.find("pf2e_engine/actions/generated_initiative.h"), std::string::npos);
+    EXPECT_NE(code.find("MoveActionEntityBeforeCurrentTurn(Context, local_Alias.View())"), std::string::npos);
+    EXPECT_NE(code.find("MoveActionEntityBeforeCurrentTurn(Context, action_self.View())"), std::string::npos);
+    EXPECT_NE(code.find("MoveActionEntityBeforeCurrentTurn(Context, arg_Subject.View())"), std::string::npos);
+}
+
+TEST(OperationCompilerTest, RejectsInitiativeMutationInPureScopesAndReadonlyAliases) {
+    Rejects("action A for TActor { move_before_current_turn(); }", "expects one entity");
+    Rejects("action A for TActor { move_before_current_turn(@self, @self); }", "expects one entity");
+    Rejects("action A for TActor { move_before_current_turn(1); }", "checked GameEntity");
+    Rejects("action A for TActor { move_before_current_turn(@self.Item); }", "checked GameEntity");
+    Rejects("action A for TActor { for Other in entities(TActor) { let Alias = Other; move_before_current_turn(Alias); } }", "mutable entity");
+    Rejects("action A for TActor { requires move_before_current_turn(@self); }", "effectful action");
+    Rejects("class TBad { query int Read() { move_before_current_turn(@self); return 1; } }", "effectful action");
+    Rejects("class TBad { method void Change() { move_before_current_turn(@self); } }", "effectful action");
+    Rejects("event int Bonus for TActor(); feature F { on Bonus { move_before_current_turn(@self); return 1; } }", "effectful action");
+    Rejects("TActor Example(int Value = move_before_current_turn(1)) {}", "effectful action");
+    Rejects("activity void move_before_current_turn for TActor() {}", "conflicts");
+    Rejects("event int move_before_current_turn for TActor();", "conflicts");
+    Rejects("trigger int move_before_current_turn(int Pending);", "conflicts");
+}

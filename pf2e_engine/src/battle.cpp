@@ -65,6 +65,7 @@ TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller,
 
 void TBattle::AddPlayer(TPlayer&& player, TPosition position, const TInitiativeOptions& options)
 {
+    initiative_order_.ValidateEnrollment(&player);
     const auto* creature = player.GetCreature();
     if (creature == nullptr || creature->Id().Value == 0) {
         throw std::invalid_argument("player must reference a creature with an identity");
@@ -87,6 +88,21 @@ void TBattle::AddPlayer(TPlayer&& player, TPosition position, const TInitiativeO
         battle_map_.Set(std::move(original_map));
         players_.pop_back();
         throw;
+    }
+}
+
+const TPlayer* TBattle::CurrentTurnPlayer() const
+{
+    return initiative_order_.CurrentPlayer();
+}
+
+void TBattle::MoveBeforeCurrentTurn(TPlayer& target, TTransformator& transformator)
+{
+    if (GetPlayer([&target](const TPlayer* player) { return player == &target; }) == nullptr) {
+        throw std::invalid_argument("initiative relocation target does not belong to this battle");
+    }
+    if (auto* current = initiative_order_.CurrentPlayer()) {
+        initiative_order_.MoveBefore(&target, current, transformator);
     }
 }
 
@@ -364,7 +380,7 @@ std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& t
 
 TAstNode TBattle::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 488;
+    static constexpr size_t kExpectedSize = 464;
     AST_ASSERT_LAYOUT(TBattle, kExpectedSize);
 
     ctx.RegisterIdentity(&initiative_order_, "battle.initiative_order");

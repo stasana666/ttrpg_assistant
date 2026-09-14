@@ -30,6 +30,7 @@ public:
 
     void ChangeCurrentPlayer(TInitiativeOrder* order, size_t new_position);
     void ChangeRound(TInitiativeOrder* order, size_t new_round);
+    void MoveInitiativeBefore(TInitiativeOrder* order, TPlayer* target, TPlayer* anchor);
 
     void MovePlayer(TPlayer* player, TPosition new_position);
 
