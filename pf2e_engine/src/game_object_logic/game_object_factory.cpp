@@ -15,6 +15,7 @@
 
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/abilities.h>
+#include <pf2e_engine/inventory/movement.h>
 #include <pf2e_engine/inventory/material.h>
 #include "battle_map.h"
 #include "characteristics.h"
@@ -416,6 +417,7 @@ std::shared_ptr<const TAbilityRules> TGameObjectFactory::AbilityRules() const
     }
     auto rules = std::make_shared<TAbilityRules>();
     RegisterAbilitiesRules(*rules);
+    RegisterMovementRules(*rules);
     rules->Lifecycle.Register(ELifecyclePhase::TurnStart,
         std::make_shared<const TLifecycleExecution>(TLifecycleExecution{
             .OwnerType = typeid(TCreature),

@@ -265,3 +265,7 @@ ttrpg_generate(
 target_sources(test_generated_reactions PRIVATE ${GENERATED_REACTIONS_HEADER} ${GENERATED_REACTIONS_SOURCE})
 target_link_libraries(test_generated_reactions gtest_main pf2e_engine)
 gtest_discover_tests(test_generated_reactions)
+
+add_executable(test_generated_movement test_generated_movement.cpp)
+target_link_libraries(test_generated_movement gtest_main pf2e_engine)
+gtest_discover_tests(test_generated_movement)

@@ -1,0 +1,163 @@
+import "abilities.ttrpg";
+
+enum EOpeningKind {
+    MovementOpeningKind,
+    ManipulationOpeningKind,
+    RangedOpeningKind,
+}
+
+enum EMovementChoice {
+    ContinueMovement,
+    FinishMovement,
+}
+
+class TActionOpening {
+    bool Disrupted = false;
+}
+
+class TMovementRules {
+    query int CellCost(bool Diagonal, int PreviousDiagonals) {
+        require PreviousDiagonals >= 0;
+        if (Diagonal && PreviousDiagonals - (PreviousDiagonals / 2) * 2 == 1) {
+            return 2;
+        }
+        return 1;
+    }
+}
+
+trigger TActionOpening MovementOpening(TActionOpening Pending, TCreature Subject, EOpeningKind Kind) once per activity;
+trigger TActionOpening ActionOpening(TActionOpening Pending, TCreature Subject, EOpeningKind Kind);
+
+reaction ReactiveStrike for TCreature on MovementOpening, ActionOpening {
+    cost @self.Reactions = 1;
+    requires Subject != @self && Subject.IsAlive()
+        && grid_distance(@self, Subject) <= @self.MaxWeaponReach()
+        && has_line_of_effect(@self, Subject);
+    choose TWeapon Weapon from sources(@self.Weapons, @self.NaturalWeapons)
+        where Weapon.Reach > 0 && grid_distance(@self, Subject) <= Weapon.Reach;
+    let Outcome = ResolveMeleeStrike(Weapon, Subject, 0, 0, false);
+    return TActionOpening {
+        Disrupted = Pending.Disrupted
+            || (Kind == ManipulationOpeningKind && Outcome == CriticalSuccess);
+    };
+}
+
+activity void StrideMovement for TCreature(int Budget) {
+    require Budget >= 0 && !@self.Conditions.has(Prone);
+    let Rules = TMovementRules {};
+    let Remaining = Budget;
+    let KeepMoving = true;
+    let Moved = false;
+    while (KeepMoving && Remaining > 0) {
+        let Origin = position(@self);
+        let HasDestination = false;
+        for Candidate in adjacent_positions(Origin) {
+            if (can_occupy(@self, Candidate)
+                && Rules.CellCost(Candidate.X != Origin.X && Candidate.Y != Origin.Y, @self.DiagonalSteps) <= Remaining) {
+                HasDestination = true;
+            }
+        }
+        if (!HasDestination) {
+            KeepMoving = false;
+        } else {
+            choose EMovementChoice Decision from [ContinueMovement, FinishMovement];
+            if (Decision == FinishMovement) {
+                KeepMoving = false;
+            } else {
+                choose Position Next from adjacent_positions(Origin)
+                    where can_occupy(@self, Next)
+                        && Rules.CellCost(Next.X != Origin.X && Next.Y != Origin.Y, @self.DiagonalSteps) <= Remaining;
+                let Opening = MovementOpening(TActionOpening {}, @self, MovementOpeningKind);
+                if (Opening.Disrupted) {
+                    return;
+                }
+                require !@self.Conditions.has(Prone);
+                let Diagonal = Next.X != Origin.X && Next.Y != Origin.Y;
+                let Cost = Rules.CellCost(Diagonal, @self.DiagonalSteps);
+                require Cost <= Remaining;
+                let NextDiagonalCount = @self.DiagonalSteps;
+                if (Diagonal) {
+                    NextDiagonalCount += 1;
+                }
+                move(@self, Origin, Next);
+                @self.DiagonalSteps = NextDiagonalCount;
+                Remaining -= Cost;
+                Moved = true;
+            }
+        }
+    }
+    if (!Moved) {
+        MovementOpening(TActionOpening {}, @self, MovementOpeningKind);
+    }
+}
+
+action UseStride for TCreature {
+    cost @self.Actions = 1;
+    requires @self.Movement > 0 && !@self.Conditions.has(Prone);
+    StrideMovement(@self.Movement);
+}
+
+action UseStep for TCreature {
+    cost @self.Actions = 1;
+    requires @self.Movement >= 2 && !@self.Conditions.has(Prone);
+    let Origin = position(@self);
+    let Rules = TMovementRules {};
+    choose Position Next from adjacent_positions(Origin)
+        where can_occupy(@self, Next)
+            && Rules.CellCost(Next.X != Origin.X && Next.Y != Origin.Y, @self.DiagonalSteps) <= 1;
+    let NextDiagonalCount = @self.DiagonalSteps;
+    if (Next.X != Origin.X && Next.Y != Origin.Y) {
+        NextDiagonalCount += 1;
+    }
+    move(@self, Origin, Next);
+    @self.DiagonalSteps = NextDiagonalCount;
+}
+
+action UseStand for TCreature {
+    cost @self.Actions = 1;
+    requires @self.Conditions.has(Prone);
+    @self.Conditions.erase(Prone);
+    MovementOpening(TActionOpening {}, @self, MovementOpeningKind);
+}
+
+action UseSuddenCharge for TCreature {
+    cost @self.Actions = 2;
+    cost @self.Flourishes = 1;
+    requires @self.Movement > 0 && !@self.Conditions.has(Prone);
+    StrideMovement(@self.Movement);
+    StrideMovement(@self.Movement);
+    let HasTarget = false;
+    for Candidate in entities(TCreature) {
+        if (Candidate != @self && Candidate.IsAlive() && !same_team(@self, Candidate)
+            && grid_distance(@self, Candidate) <= @self.MaxWeaponReach()
+            && has_line_of_effect(@self, Candidate)) {
+            HasTarget = true;
+        }
+    }
+    if (HasTarget) {
+        choose bool MakeStrike from [true, false];
+        if (MakeStrike) {
+            choose TCreature Target where Target != @self && Target.IsAlive()
+                && !same_team(@self, Target)
+                && grid_distance(@self, Target) <= @self.MaxWeaponReach()
+                && has_line_of_effect(@self, Target);
+            choose TWeapon Weapon from sources(@self.Weapons, @self.NaturalWeapons)
+                where Weapon.Reach > 0 && grid_distance(@self, Target) <= Weapon.Reach;
+            ResolveMeleeStrike(Weapon, Target, 0, 1, true);
+        }
+    }
+}
+
+feature BaseActions {
+    grant UseStride;
+    grant UseStep;
+    grant UseStand;
+}
+
+feature ReactiveStrikeTraining {
+    grant ReactiveStrike;
+}
+
+feature SuddenCharge {
+    grant UseSuddenCharge;
+}

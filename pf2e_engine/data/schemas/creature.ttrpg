@@ -70,6 +70,7 @@ GameEntity TCreature {
     map<EDamageType, int> Resistances;
     map<EDamageType, int> Vulnerabilities;
     int AttacksMade = 0;
+    int DiagonalSteps = 0;
     Resource Actions = 0;
     Resource Reactions = 0;
     Resource Flourishes = 1;
@@ -412,6 +413,7 @@ GameEntity TCreature {
     method void EndTurn() {
         @self.Actions.SetCount(0);
         @self.ResetAttacks();
+        @self.DiagonalSteps = 0;
     }
 
     method TDamageResult ReceiveDamage(EDamageType Type, int Amount) {

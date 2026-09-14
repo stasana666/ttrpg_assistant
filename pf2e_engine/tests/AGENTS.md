@@ -43,6 +43,16 @@ Canonical project instructions. CLAUDE.md redirects here.
   preserve health state. Unconscious creatures regain turn resources but cannot
   use them, while dead creatures do not regain actions or reactions.
 - `actions/`: combat/action pipeline tests using real data.
+- `actions/test_generated_movement.cpp` builds as `test_generated_movement` and
+  executes production Stride, Step, Stand, Sudden Charge and movement-triggered
+  Reactive Strike. It checks diagonal costs across actions and own-turn reset,
+  Step preflight without payment, departure versus entry timing, zero-distance
+  movement, Stand after removing Prone, reaction MAP exemption and class grants
+  independent of weapons. Two subordinate Strides have separate reaction scopes
+  while sharing diagonal state and Flourish with Vicious Swing. Suspended choices
+  recheck occupancy, original position and reaction grants through exact Undo/replay.
+  Maps in these cases are unobstructed flat grids; terrain and creature-space
+  sharing are outside the current movement adapter.
 - `actions/test_generated_strike.cpp` builds as `test_generated_strike` and loads
   the production compiled Strike through the real factory catalog. It covers
   declared weapons and natural-attack baselines, check outcomes, attack counting,

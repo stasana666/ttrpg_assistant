@@ -59,6 +59,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Completed: configurable named factories with optional native overrides, legal feature pools, conditional choices, dependent defaults and shared construction reports. Errors in explicit fields and class defaults are detected before allocating entity identity.
 - Completed: native typed reaction windows, independent reactor contexts, shared atomic resource payment and replayable pending values.
 - Completed: `.ttrpg` trigger declarations and typed reaction bodies, compatible multi-trigger subscriptions, window calls in compiled control flow and implicit activity scopes. Compilation validates pending values, pure requirements and cycles through subscribers and activities; no authored runtime scope or callback is required.
+- Completed: declared flat-grid Stride, Step, Stand, Sudden Charge and movement-triggered Reactive Strike. Pure local prefixes before the first choice participate in availability checks, so Step cannot pay for an empty destination set. Legacy movement IDs remain until their creature declarations migrate.
 - Completed: generic journaled initiative relocation and its declared trigger on a new nonfatal knockout. Generated and legacy battle damage share the same activity.
 - Completed: declared health policies, critical/nonlethal damage context, unconsciousness, dying/wounded, healing, recovery and death. Turn-start recovery executes a generated activity with feature contributions through generic lifecycle hooks. Legacy damage delivery uses the same generated health methods.
 - Completed: generated descriptive creature fields, typed senses, arbitrary named languages and the Advanced weapon category. These fields describe a statblock; they do not implement perception or visibility mechanics.
@@ -68,7 +69,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 
 ## Remaining Integration Boundaries
 - `abilities.ttrpg` imports creature types. Creature, ancestry/class and weapon modules depend only on the built-in `Feature`, without importing the action catalog. The factory explicitly calls `RegisterAbilitiesRules`, so production action bodies can use creature types without an import cycle.
-- Compiled combat now has controlled movement/condition/resource operations, choices within branches and loops, and composed activity calls. PF2e movement budgets and predeparture reaction windows remain necessary before replacing production Stride. Keep their formulas and timing in the rules module. World queries expose generic grid coordinates and Chebyshev distance, without encoding PF2e movement costs.
+- `movement.ttrpg` implements movement budgets and predeparture reaction windows for the flat land grid. Its new action IDs coexist with legacy JSON movement until creature declarations select the new feature groups. World queries expose generic grid coordinates and Chebyshev distance; PF2e movement costs remain in the rules module.
 - Configurable factories support one feature per enabled `choice`, conditional extra choices and declared combination requirements. Production ancestry/class prerequisites and full fighter/wolf declarations still need to be authored; compiler fixtures do not supply PF2e content.
 - NPC final-stat baselines must be separate from fixed proficiency contributions: a wolf's fixed attack +9 already includes its attributes. Keep `TProficiencyValue.FixedBonus` as a proficiency contribution. Legacy JSON baselines remain covered by their own tests while new Remaster profiles receive separate expectations.
 - Attack penalties use attacks made and the current weapon's Agile trait, capped after two prior attacks. Legacy JSON `add_condition("MultipleAttackPenalty")` is only an import shim that records an attack. Turn boundaries reset the count through the journal. Vicious Swing counts as two attacks, including a miss; Knockdown still needs an explicit immediately preceding attack record.
@@ -80,11 +81,47 @@ Canonical project instructions. CLAUDE.md redirects here.
 - `TCreature.ArmorClass` and `AttackBonus` calculate character statistics or use fixed baselines, then apply conditions. `TWeapon.DamageModifierBaseline` similarly replaces the Strength contribution for a fixed natural attack. Changing creature level continues to affect rank-based proficiency without changing a fixed NPC total.
 - Strike checks live target eligibility before payment and again on selection, rolls once for the attack, records a miss as an attack, and applies one accumulated damage amount. Pack Attack counts two other living allies with reach and line of effect; two wolves alone cannot activate it.
 - Critical Strike replaces the base die for Fatal, doubles the minimum-adjusted base damage and Pack Attack dice, then adds Fatal/Deadly critical-only dice. Deadly currently adds one die: striking rune tiers are not represented, and arbitrary `DamageDiceCount` must not be interpreted as a rune tier.
-- `ResolveMeleeStrike` returns the check outcome. Extra weapon dice use the Fatal die size and critical doubling; zero attacks counted leaves attack history untouched. The heavy and unpenalized Strike fixtures verify this reusable core; Reactive Strike's trigger windows remain separate work.
+- `ResolveMeleeStrike` returns the check outcome. Extra weapon dice use the Fatal die size and critical doubling; zero attacks counted leaves attack history untouched. Movement's Reactive Strike uses zero attacks counted and disables MAP through this same activity.
 - `feature ViciousSwing` grants `UseViciousSwing`. It pays two Actions and one shared Flourishes resource, selects a live target and a suitable weapon from equipment or natural attacks, then calls `ResolveMeleeStrike`. It uses the current MAP, records two attacks, and adds one weapon die before level 10, two through level 17, and three thereafter. The chosen item need not grant any action itself. Character-level eligibility and feat selection still belong to the upcoming constructor validation.
 - Source choices retain an exact owner/field/entry locator until selection, then an immutable snapshot plus live presence checks. Aliases preserve the binding; child activities inherit scoped input checks without changing their parent's context. Class-valued results that could discard selected-source provenance are conservatively restricted; see the compiler documentation for these temporary authoring boundaries.
 - This Strike represents a melee profile. It passes critical and Nonlethal weapon-trait metadata to the declared health rules. Versatile damage-type selection, Thrown range/mode, TwoHand grip and ranged ammunition remain subsequent work. Trait storage alone does not implement those behaviors.
 - Historical JSON creatures, weapons and legacy Pack Attack hooks retain their previous data. The compiled Strike tests use separate fixtures with explicit baselines; complete Remaster declarations remain an acceptance milestone.
+
+## Compiled Land Movement
+- `movement.ttrpg` imports the combat abilities module and declares `UseStride`,
+  `UseStep`, `UseStand` and `UseSuddenCharge`. `BaseActions` grants the first three;
+  `SuddenCharge` and `ReactiveStrikeTraining` are independent selectable features.
+  Legacy `abilities.Stride` and `abilities.Stand` keep their existing JSON bindings.
+- `StrideMovement(Budget)` is a free activity. Its loop opens `MovementOpening`
+  before leaving each square, retaining one implicit reaction scope across the
+  entire Stride. A move action that leaves no square opens its window at the end.
+  Step opens no movement window; Stand removes Prone before its end window.
+  These timings follow [Reactions to Movement](https://2e.aonprd.com/Rules.aspx?ID=2355).
+- `TMovementRules.CellCost` declares alternating diagonal costs of one and two
+  grid cells. The persistent `TCreature.DiagonalSteps` counter spans multiple move
+  actions and resets in the creature's own `EndTurn`, matching the explicit reset
+  in [Diagonal Movement](https://2e.aonprd.com/Rules.aspx?ID=2355). That paragraph
+  does not separately resolve counter carry-over between movements outside the
+  creature's turn on different opponents' turns; no additional reset is inferred.
+- Reactive Strike selects equipment or a natural weapon independently of its
+  granting feature. It neither applies nor increases MAP. Its trigger permits any
+  other creature in reach, including an ally; taking the reaction remains an
+  explicit choice. A critical hit disrupts only a manipulate opening, not movement.
+  `ActionOpening` has the matching payload for future manipulate/ranged callpoints;
+  those actions do not yet open it automatically.
+- [Sudden Charge](https://2e.aonprd.com/Feats.aspx?ID=4774) pays two Actions and one
+  shared Flourishes resource, invokes two separate Stride activities, and permits
+  a final melee Strike against an enemy in reach. Each Stride gets a fresh reaction
+  scope, while both share the creature's diagonal count. It can start without an
+  enemy in reach and may finish without making the optional Strike.
+- Step requires at least two cells of Speed and an affordable adjacent destination.
+  Its pure Origin/Rules prefix participates in availability preflight; an empty
+  destination set consumes no action. Origin is captured again at execution before
+  prompting, and the checked move rejects relocation or newly occupied destinations
+  after suspension. [Step](https://2e.aonprd.com/Actions.aspx?ID=2304) also excludes
+  difficult terrain, but terrain, passage through willing creatures, shared occupied
+  spaces, footprints and alternate movement modes are not modeled by this adapter.
+  These declarations currently support free cells on a flat land grid.
 
 ## Statistic Profiles
 - `statistics.ttrpg` owns attribute bindings and `TClassDCProfile`; `lore.ttrpg` owns independent named `TLoreSkill` values. Lore queries require a nonempty specialization name. A disabled Class DC profile has no usable DC and its query rejects the request.
@@ -108,7 +145,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Reactions persist after a turn and across a round boundary until the creature's next `BeginTurn`. Before its first turn, a creature retains its explicitly initialized reaction count; the default is zero. Scenarios can initialize one when the GM permits reactions before the first turn.
 - The factory binds the generated `StartCreatureTurn` activity to the runtime turn-start hook. It resolves recovery first, collecting `RecoveryDCAdjustment` feature contributions, then calls `BeginTurn`. `Toughness` contributes -1 through the pure event and can be granted transitively by any provider; HP from Toughness belongs to creature construction. Duplicate reductions use the lowest contribution. No named feat is hard-coded into the creature's health methods.
 - Automatic phases retain actor identity and journaled state across choices. They use an internal system execution mode so unconscious creatures can make recovery checks and dead creatures can finish cleanup. Ordinary actions and reactions require `CanAct()`. Unconscious creatures still regain resources but cannot use them; dead creatures do not regain actions or reactions.
-- Slowed/stunned, persistent damage and condition expiration remain separate work. Movement's per-turn diagonal counter belongs to the subsequent Stride rules; knockout initiative repositioning is not yet connected to damage results.
+- Slowed/stunned, persistent damage and condition expiration remain separate work. The movement module uses a journaled diagonal counter reset at the creature's own turn end; knockout initiative repositioning is integrated separately with damage results.
 
 ## Creature Description
 - `creature_description.ttrpg` declares `ECreatureTrait`, `TLanguage`, `TSense`, sense kinds and precision. `TCreature` stores its name, trait set, languages and senses; race and class values also have names. Languages use named class values so a setting can declare arbitrary languages without changing a fixed language enum.
