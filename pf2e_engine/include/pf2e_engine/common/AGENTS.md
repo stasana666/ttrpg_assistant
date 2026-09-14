@@ -99,6 +99,34 @@ body leaves its paid costs and completed mutations in the caller's journal until
 that caller undoes them. Empty choices and failed requirements follow this same
 policy. Whole-action cancellation and target preflight remain separate work.
 
+## Typed feature events (`common/feature_event.h`, `actions/feature_event.h`)
+
+`TAbilityRules::Events` stores immutable handlers by event identity and feature
+definition. Generated event tags retain their C++ owner, argument and result types;
+the registry rejects conflicting tag types or handlers and permits registration
+of the same shared handler more than once. Feature hooks do not require terminal
+action grants: dispatch reads `CollectAbilities(owner, Catalog).Features()`.
+The common registry has no dependency on creature or action types. Generated
+registrars retain static shared handlers so repeated imports preserve identity.
+
+Each feature definition and source contributes once, while the same definition
+selected through different sources contributes separately. Results retain the
+value, feature ID, source path, provenance and owner ID in traversal order.
+Dispatch constructs a fresh result sequence and publishes it only after all handlers succeed. The
+sequence is a snapshot; later source changes affect the next dispatch, not a
+value already retained across an action's suspended choice.
+
+Handlers receive readonly entity bindings and copied value arguments. They are
+synchronous and pure; nested dispatch and suspension are rejected. The context
+overload validates the acting participant and membership of owner/entity arguments
+in that battle. The rules-only overload permits readonly evaluation outside an
+action and does not impose actor eligibility on the event owner. Its caller must
+keep the referenced entities and rules snapshot alive.
+Readonly capabilities preserve identity while rejecting `Guard()` and mutable
+participant access. The recursion guard is thread-local. Native handlers must
+obey the same purity contract as generated handlers; captured external references
+cannot be sandboxed by the registry.
+
 ## Generated method execution (`generated_execution.h`)
 
 `TGeneratedExecutionContext` is a lightweight handle onto the existing

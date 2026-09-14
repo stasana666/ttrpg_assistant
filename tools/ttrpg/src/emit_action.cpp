@@ -3,6 +3,29 @@
 #include <ttrpg/abilities.h>
 #include <ttrpg/conventions.h>
 #include <ttrpg/program.h>
+#include <ttrpg/events.h>
+
+void EmitEventDeclarations(TCppWriter& writer, const TLoadedSchemas& loaded) {
+    if (!loaded.Primary.Events.empty()) {
+        writer.Line("template <class T> class TGeneratedEntityBinding;");
+        writer.EmptyLine();
+    }
+    for (const auto& event : loaded.Primary.Events) {
+        writer.Struct(EventTagName(event), [&] {
+            writer.Line("using TOwner = " + event.OwnerType + ";");
+            writer.Line("using TResult = " + CppTypeFor(event.ReturnType) + ";");
+            std::string arguments = "std::tuple<";
+            for (std::size_t i = 0; i < event.Parameters.size(); ++i) {
+                if (i != 0) arguments += ", ";
+                arguments += EventArgumentCppType(event.Parameters[i].TypeName, loaded);
+            }
+            writer.Line("using TArguments = " + arguments + ">;");
+            writer.Line("using FHandler = std::function<TResult(const TGeneratedEntityBinding<TOwner>&, const TArguments&)>;");
+            writer.Line("static constexpr std::string_view kId = " + CppStringLiteral(loaded.PrimaryStem + "." + event.Name) + ";");
+        });
+        writer.EmptyLine();
+    }
+}
 
 void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
     writer.Function("void " + RulesRegistrationFunction(loaded.PrimaryStem) + "(TAbilityRules& rules)", [&] {
@@ -10,7 +33,23 @@ void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
         for (const auto& imported : ImportedModuleStems(loaded, loaded.PrimaryStem)) {
             writer.Line(RulesRegistrationFunction(imported) + "(rules);");
         }
+        std::size_t hookIndex = 0;
         for (const auto& ability : loaded.Primary.Abilities) {
+            for (const auto& hook : ability.Hooks) {
+                const auto events = EventSymbols(loaded);
+                const auto& event = *events.at(hook.EventName).Declaration;
+                const auto tag = EventTagName(event);
+                const auto variable = "hook_" + std::to_string(hookIndex++);
+                const auto body = CompileFeatureHook(ability, hook, loaded);
+                writer.Line("static const auto " + variable + " = std::make_shared<const " + tag + "::FHandler>(");
+                writer.Indented([&] {
+                    writer.Block("[]([[maybe_unused]] const TGeneratedEntityBinding<" + event.OwnerType +
+                        ">& action_self, [[maybe_unused]] const " + tag + "::TArguments& arguments) -> " + CppTypeFor(event.ReturnType) + " {", "});", [&] {
+                        for (const auto& line : body) writer.Line(line);
+                    });
+                });
+                writer.Line("rules.Events.Register<" + tag + ">(" + CppStringLiteral(AbilityId(ability.Name, loaded)) + ", " + variable + ");");
+            }
             if (ability.OwnerType.empty()) continue;
             const auto compiled = CompileAction(ability, loaded);
             writer.Line("static const auto action_" + ability.Name + " = std::make_shared<const TAction>(");

@@ -20,6 +20,10 @@ Canonical project instructions. CLAUDE.md redirects here.
   and rollback, and battle identity/insertion failures. Hook-removal tests replace
   a generated class value through the journal only when none of its child fields
   have retained mutation history; they do not introduce collection mutation APIs.
+- `actions/test_feature_event_runtime.cpp` builds as `test_feature_events` and
+  checks typed immutable handler registration, readonly argument capabilities,
+  source deduplication and provenance, snapshot results, context membership,
+  stale entity bindings, and rejection of nested or suspending event handlers.
 - `inventory/`: generated schema type and JSON loading tests.
 - `inventory/fixtures/rule_entities.ttrpg` and `inventory/test_rule_entities.cpp`:
   compile generated entities into `test_inventory` and verify named factories,

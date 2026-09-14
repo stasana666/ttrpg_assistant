@@ -50,6 +50,7 @@ TLoadedSchemas LoadAll(const fs::path& primaryPath) {
 
     std::unordered_set<std::string> loading;
     std::unordered_map<std::string, fs::path> pathsByStem;
+    std::unordered_map<std::string, std::string> eventOwners;
 
     auto LoadRec = [&](auto& self, const fs::path& path) -> void {
         fs::path canon = fs::weakly_canonical(path);
@@ -84,6 +85,11 @@ TLoadedSchemas LoadAll(const fs::path& primaryPath) {
         for (const auto& definition : mod.Abilities) {
             if (!loaded.Definitions.emplace(definition.Name, TAbilityInfo{stem, definition.Kind}).second) {
                 throw std::runtime_error("duplicate ability definition '" + definition.Name + "'");
+            }
+        }
+        for (const auto& event : mod.Events) {
+            if (!eventOwners.emplace(event.Name, stem).second) {
+                throw std::runtime_error("duplicate event definition '" + event.Name + "'");
             }
         }
         loaded.ByStem.emplace(stem, std::move(mod));

@@ -23,16 +23,6 @@ void RequireContext(const std::shared_ptr<TActionContext>& ctx)
     ValidateAbilitySource(ctx);
 }
 
-void ValidateChoiceEntity(const std::shared_ptr<TActionContext>& ctx,
-                          const TGeneratedEntityView& candidate)
-{
-    const auto* player = &candidate.Player();
-    if (ctx->battle == nullptr ||
-        ctx->battle->GetPlayer([player](const TPlayer* current) { return current == player; }) == nullptr) {
-        throw TAbilityUnavailable();
-    }
-}
-
 }
 
 void TGeneratedEntityView::Validate() const
@@ -63,6 +53,15 @@ TPlayer& TGeneratedEntityView::MutablePlayer() const
         throw std::logic_error("entity binding has no mutable participant");
     }
     return *mutable_player_;
+}
+
+TGeneratedEntityView TGeneratedEntityView::ReadOnly() const
+{
+    Validate();
+    auto result = *this;
+    result.mutable_address_ = nullptr;
+    result.mutable_player_ = nullptr;
+    return result;
 }
 
 TGeneratedEntityView BindGeneratedActionEntity(const TPlayer& player, const TBattle* battle)
@@ -107,6 +106,26 @@ void ValidateActionActor(const std::shared_ptr<TActionContext>& ctx)
     GeneratedActionSelf(ctx).Validate();
 }
 
+void ValidateActionEntity(const std::shared_ptr<TActionContext>& ctx,
+                          const TGeneratedEntityView& entity)
+{
+    RequireContext(ctx);
+    const auto* player = &entity.Player();
+    if (ctx->battle == nullptr ||
+        ctx->battle->GetPlayer([player](const TPlayer* current) { return current == player; }) == nullptr) {
+        throw TAbilityUnavailable();
+    }
+}
+
+const TAbilityRules& GeneratedActionRules(const std::shared_ptr<TActionContext>& ctx)
+{
+    ValidateActionActor(ctx);
+    if (ctx->battle == nullptr) {
+        throw std::invalid_argument("generated action rules require a battle");
+    }
+    return ctx->battle->AbilityRules();
+}
+
 std::vector<TGeneratedEntityView> GeneratedActionEntities(const std::shared_ptr<TActionContext>& ctx,
                                                         std::type_index type)
 {
@@ -138,7 +157,7 @@ void RequestActionEntity(const std::shared_ptr<TActionContext>& ctx,
     const auto actor = GeneratedActionSelf(ctx);
     auto alternatives = TAlternatives::Create<TPlayer*>("target");
     for (const auto& candidate : candidates) {
-        ValidateChoiceEntity(ctx, candidate);
+        ValidateActionEntity(ctx, candidate);
         const auto& player = candidate.Player();
         alternatives.AddAlternative(std::string(player.GetName()), &candidate.MutablePlayer());
     }
@@ -150,7 +169,7 @@ void RequestActionEntity(const std::shared_ptr<TActionContext>& ctx,
         if (index >= candidates.size()) {
             throw std::out_of_range("selected entity is outside the alternatives");
         }
-        ValidateChoiceEntity(ctx, candidates[index]);
+        ValidateActionEntity(ctx, candidates[index]);
         *received = true;
         receive(candidates[index]);
     };

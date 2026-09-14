@@ -44,7 +44,7 @@ struct TClassDecl {
         std::string Name;
     };
     struct TStatement {
-        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If, Cost, Choose };
+        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If, Cost, Choose, ForEach };
         EKind Kind = EKind::Call;
         std::string Name;
         std::optional<expr::TExprNode> Target;
@@ -73,6 +73,20 @@ struct TAbilityDecl {
     parse::TSourceLocation Location;
     std::string OwnerType;
     std::vector<TClassDecl::TStatement> Body;
+    struct THook {
+        std::string EventName;
+        std::vector<TClassDecl::TStatement> Body;
+        parse::TSourceLocation Location;
+    };
+    std::vector<THook> Hooks;
+};
+
+struct TEventDecl {
+    std::string Name;
+    std::string OwnerType;
+    std::string ReturnType;
+    std::vector<TClassDecl::TParameter> Parameters;
+    parse::TSourceLocation Location;
 };
 
 struct TInstanceDecl {
@@ -98,4 +112,5 @@ struct TSchemaModule {
     std::vector<TClassDecl> Classes;
     std::vector<TInstanceDecl> Instances;
     std::vector<TAbilityDecl> Abilities;
+    std::vector<TEventDecl> Events;
 };

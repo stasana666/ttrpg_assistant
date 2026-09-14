@@ -9,6 +9,7 @@ add_library(ttrpg STATIC
     src/analyze.cpp
     src/program.cpp
     src/abilities.cpp
+    src/events.cpp
     src/cpp_writer.cpp
     src/emit.cpp
     src/emit_action.cpp

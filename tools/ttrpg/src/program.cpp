@@ -2,6 +2,7 @@
 
 #include <ttrpg/conventions.h>
 #include <ttrpg/abilities.h>
+#include <ttrpg/events.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -91,12 +92,13 @@ struct TValue {
     std::string ElementType{};
     std::string Binding{};
     std::string LocalCode{};
+    std::string SequenceElement{};
 };
 
 class TCompiler {
 public:
     TCompiler(const TClassDecl& self, const TLoadedSchemas& loaded)
-        : self_(self), loaded_(loaded), classes_(ClassTable(loaded)), enums_(EnumTable(loaded)) {
+        : self_(self), loaded_(loaded), classes_(ClassTable(loaded)), enums_(EnumTable(loaded)), events_(EventSymbols(loaded)) {
         classes_[self.Name] = &self;
     }
 
@@ -134,7 +136,7 @@ public:
             case K::StringLiteral: return {.Type = "string", .Code = "std::string(" + CppStringLiteral(e.Text) + ")"};
             case K::ContextVar:
                 if (e.Text != "self") Fail("unknown context variable '@" + e.Text + "'");
-                if (action_) {
+                if (action_ || hook_) {
                     return {.Type = self_.Name, .Code = "action_self.Read()", .Persistent = true,
                         .Guard = "action_self.Guard()", .Binding = "action_self"};
                 }
@@ -305,6 +307,31 @@ public:
 
     TValue Call(const expr::TExprNode& call, bool effects) {
         if (!call.Lhs) {
+            if (const auto event = events_.find(call.Text); event != events_.end()) {
+                if (hook_) Fail("event dispatch is not allowed inside a feature hook");
+                if (!action_) Fail("event dispatch currently requires an action context");
+                const auto& declaration = *event->second.Declaration;
+                if (call.Args.size() != declaration.Parameters.size() + 1) Fail("wrong argument count for event '" + call.Text + "'");
+                auto owner = Read(call.Args[0], declaration.OwnerType);
+                Match(owner, declaration.OwnerType);
+                if (owner.Binding.empty()) Fail("event owner requires a checked entity binding");
+                const auto tag = EventTagName(declaration);
+                std::string code = "DispatchFeatureEvent<" + tag + ">(Context, " + owner.Binding + ", " + tag + "::TArguments{";
+                for (std::size_t i = 0; i < declaration.Parameters.size(); ++i) {
+                    const auto& parameter = declaration.Parameters[i];
+                    auto value = Read(call.Args[i + 1], parameter.TypeName);
+                    Match(value, parameter.TypeName);
+                    if (i != 0) code += ", ";
+                    const auto cls = classes_.find(parameter.TypeName);
+                    if (cls != classes_.end() && cls->second->GameEntity) {
+                        if (value.Binding.empty()) Fail("entity event parameters require checked bindings");
+                        code += value.Binding;
+                    } else {
+                        code += value.Code;
+                    }
+                }
+                return {.Type = "list<" + declaration.ReturnType + ">", .Code = code + "})", .SequenceElement = declaration.ReturnType};
+            }
             if (call.Text == "roll") {
                 if (!action_ || !effects) Fail("roll is allowed only as an effectful action expression");
                 if (call.Args.size() != 2) Fail("roll expects a count and a die size");
@@ -464,6 +491,36 @@ public:
         ActionStatements(declaration.Body, first, result.Body, "");
         method_ = nullptr;
         return result;
+    }
+
+    std::vector<std::string> CompileHookBody(const TAbilityDecl& feature, const TAbilityDecl::THook& hook) {
+        hook_ = true;
+        const auto found = events_.find(hook.EventName);
+        if (found == events_.end()) Fail("unknown hook event '" + hook.EventName + "'");
+        const auto& event = *found->second.Declaration;
+        TMethod method;
+        method.Name = feature.Name + ".on." + event.Name;
+        method.ReturnType = event.ReturnType;
+        method.Query = true;
+        method_ = &method;
+        std::vector<std::string> body;
+        for (std::size_t i = 0; i < event.Parameters.size(); ++i) {
+            const auto& parameter = event.Parameters[i];
+            const auto name = "arg_" + parameter.Name;
+            body.push_back("[[maybe_unused]] const auto& " + name + " = std::get<" + std::to_string(i) + ">(arguments);");
+            const auto cls = classes_.find(parameter.TypeName);
+            TValue value;
+            if (cls != classes_.end() && cls->second->GameEntity) {
+                value = EntityBinding(parameter.TypeName, name);
+            } else {
+                value.Type = parameter.TypeName;
+                value.Code = name;
+            }
+            if (!locals_.emplace(parameter.Name, std::move(value)).second) Fail("duplicate event parameter '" + parameter.Name + "'");
+        }
+        if (!Statements(hook.Body, body, "")) Fail("feature hook must return a value on every path");
+        method_ = nullptr;
+        return body;
     }
 
 private:
@@ -689,7 +746,7 @@ private:
                     if (locals_.contains(statement.Name)) Fail("duplicate local '" + statement.Name + "'");
                     auto value = Read(*statement.Value, "", effects);
                     if (value.Type == "void") Fail("cannot bind void result");
-                    if (action_ && !value.Binding.empty()) {
+                    if ((action_ || hook_) && !value.Binding.empty()) {
                         line("[[maybe_unused]] auto local_" + statement.Name + " = " + value.Binding + ";");
                         locals_[statement.Name] = EntityBinding(value.Type, "local_" + statement.Name);
                         break;
@@ -697,7 +754,7 @@ private:
                     line("[[maybe_unused]] auto local_" + statement.Name + " = " + value.Code + ";");
                     locals_[statement.Name] = {.Type = value.Type, .Code = "local_" + statement.Name,
                         .Container = value.Container, .KeyType = value.KeyType, .ElementType = value.ElementType,
-                        .LocalCode = "local_" + statement.Name};
+                        .LocalCode = "local_" + statement.Name, .SequenceElement = value.SequenceElement};
                     break;
                 }
                 case K::Require: {
@@ -779,6 +836,27 @@ private:
                 }
                 case K::Choose: Fail("choose is supported only at the top level of an action body");
                 case K::Cost: Fail("cost declarations must precede all statements in an action body");
+                case K::ForEach: {
+                    if (!action_) Fail("for currently requires an action event sequence");
+                    if (locals_.contains(statement.Name)) Fail("duplicate local '" + statement.Name + "'");
+                    auto sequence = Read(*statement.Value);
+                    if (sequence.SequenceElement.empty()) Fail("for requires an event contribution sequence");
+                    const auto number = std::to_string(loop_++);
+                    const auto snapshot = "event_values_" + number;
+                    const auto entry = "event_value_" + number;
+                    const auto local = "local_" + statement.Name;
+                    auto saved = locals_;
+                    line("{");
+                    line("    const auto " + snapshot + " = " + sequence.Code + ";");
+                    line("    for (const auto& " + entry + " : " + snapshot + ") {");
+                    line("        [[maybe_unused]] auto " + local + " = " + entry + ".Value;");
+                    locals_[statement.Name] = {.Type = sequence.SequenceElement, .Code = local, .LocalCode = local};
+                    Statements(statement.Body, output, indent + "        ");
+                    locals_ = std::move(saved);
+                    line("    }");
+                    line("}");
+                    break;
+                }
             }
         }
         return returns;
@@ -788,10 +866,13 @@ private:
     const TLoadedSchemas& loaded_;
     TClasses classes_;
     TEnums enums_;
+    std::unordered_map<std::string, TEventInfo> events_;
     std::unordered_map<std::string, TValue> locals_;
     std::unordered_set<std::string> dependencies_;
     const TMethod* method_ = nullptr;
     bool action_ = false;
+    bool hook_ = false;
+    std::size_t loop_ = 0;
 };
 
 }
@@ -837,4 +918,15 @@ TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSche
     const auto owner = classes.find(declaration.OwnerType);
     if (owner == classes.end()) throw std::runtime_error("unknown action owner type '" + declaration.OwnerType + "'");
     return TCompiler(*owner->second, loaded).CompileActionBody(declaration);
+}
+
+std::vector<std::string> CompileFeatureHook(const TAbilityDecl& feature, const TAbilityDecl::THook& hook,
+                                          const TLoadedSchemas& loaded) {
+    const auto events = EventSymbols(loaded);
+    const auto event = events.find(hook.EventName);
+    if (event == events.end()) throw std::runtime_error("unknown hook event '" + hook.EventName + "'");
+    const auto classes = ClassTable(loaded);
+    const auto owner = classes.find(event->second.Declaration->OwnerType);
+    if (owner == classes.end() || !owner->second->GameEntity) throw std::runtime_error("event owner must be a GameEntity");
+    return TCompiler(*owner->second, loaded).CompileHookBody(feature, hook);
 }

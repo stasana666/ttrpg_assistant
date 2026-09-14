@@ -1,5 +1,13 @@
 import "../../../data/schemas/creature.ttrpg";
 
+class THealingDice {
+    int Count;
+    int Size;
+}
+
+event int HealingBonus for TCreature(TCreature Target, int Amount);
+event THealingDice HealingDice for TCreature(TCreature Target);
+
 action Mend for TCreature {
     cost @self.Actions = 1;
     choose TCreature Target where Target.IsAlive();
@@ -37,6 +45,37 @@ action RestrictedAid for TCreature {
     Target.Hitpoints.DealDamage(9);
 }
 
+action AssistedMend for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive();
+    let Amount = roll(1, 6);
+    for Bonus in HealingBonus(@self, Target, Amount) {
+        Amount += Bonus;
+    }
+    Target.Hitpoints.Heal(Amount);
+}
+
+action EventRelay for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature First where First.IsAlive();
+    let Amount = roll(1, 6);
+    for Bonus in HealingBonus(@self, First, Amount) {
+        Amount += Bonus;
+    }
+    choose TCreature Second where Second.IsAlive();
+    Second.Hitpoints.Heal(Amount);
+}
+
+action DiceMend for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive();
+    let Amount = 0;
+    for Dice in HealingDice(@self, Target) {
+        Amount += roll(Dice.Count, Dice.Size);
+    }
+    Target.Hitpoints.Heal(Amount);
+}
+
 feature Mending {
     grant Mend;
 }
@@ -55,4 +94,73 @@ feature RelayTraining {
 
 feature RestrictedAidTraining {
     grant RestrictedAid;
+}
+
+feature Helpful {
+    on HealingBonus {
+        return 2;
+    }
+}
+
+feature ParameterizedHelp {
+    on HealingBonus {
+        return @self.Level + Target.Level + Amount;
+    }
+}
+
+feature AssistedMending {
+    grant AssistedMend;
+}
+
+feature HelpfulMending {
+    grant AssistedMend;
+    grant Helpful;
+}
+
+feature ParameterizedMending {
+    grant AssistedMend;
+    grant Helpful;
+    grant ParameterizedHelp;
+}
+
+feature LeftHelp {
+    grant Helpful;
+}
+
+feature RightHelp {
+    grant Helpful;
+}
+
+feature DiamondMending {
+    grant AssistedMend;
+    grant LeftHelp;
+    grant RightHelp;
+}
+
+feature EventRelayTraining {
+    grant EventRelay;
+}
+
+feature D8Healing {
+    on HealingDice {
+        return THealingDice {
+            Count = 1;
+            Size = 8;
+        };
+    }
+}
+
+feature D4Healing {
+    on HealingDice {
+        return THealingDice {
+            Count = 2;
+            Size = 4;
+        };
+    }
+}
+
+feature DiceMending {
+    grant DiceMend;
+    grant D8Healing;
+    grant D4Healing;
 }

@@ -122,12 +122,14 @@ protected:
 
     TPlayer& Add(std::string name, int current, const std::string& feature = {},
                  int temporary = 0, int hands = 0, bool class_feature = false,
-                 int level = 1)
+                 int level = 1, const std::string& additional_class_feature = {})
     {
         const int id = static_cast<int>(creatures_.size());
         creatures_.push_back(TCreature::Create({
             .Level = level,
-            .Class = TClass::Create({.Features = Features(class_feature ? feature : "")}),
+            .Class = TClass::Create({
+                .Features = Features(class_feature ? feature : additional_class_feature),
+            }),
             .Hitpoints = THitPoints::Create({
                 .Maximum = Statistic::Create({.Base = 20}),
                 .Current = current,
@@ -502,6 +504,148 @@ TEST_F(TGeneratedActionsTest, SuspendedCompiledBodyRejectsDefeatedActor)
     transformator_->Undo(initial);
     point.Resume();
     EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 8);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
+}
+
+TEST_F(TGeneratedActionsTest, FeatureEventsUseOwnerSelectionsAndAllowAnEmptyResult)
+{
+    auto& actor = Add("Actor", 20, "AssistedMending");
+    auto& target = Add("Target", 5, "Helpful");
+    EXPECT_TRUE(battle_->AvailableActions(target).empty());
+    io_.ExpectChoice("Target");
+    rng_.ExpectCall(6, 3);
+
+    EXPECT_EQ(battle_->Execute(Option(actor, "AssistedMend")), EAbilityExecutionResult::Applied);
+
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 8);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
+}
+
+TEST_F(TGeneratedActionsTest, FeatureWithoutActionGrantsContributesThroughItsSelectedParent)
+{
+    auto& actor = Add("Actor", 20, "HelpfulMending");
+    auto& target = Add("Target", 5);
+    const auto collected = CollectAbilities(*actor.GetCreature(), battle_->AbilityRules().Catalog);
+    ASSERT_EQ(collected.Grants().size(), 1u);
+    EXPECT_TRUE(std::ranges::any_of(collected.Features(), [](const TGrantedAbility& feature) {
+        return feature.DefinitionId == "generated_actions.Helpful";
+    }));
+    io_.ExpectChoice("Target");
+    rng_.ExpectCall(6, 3);
+
+    EXPECT_EQ(battle_->Execute(Option(actor, "AssistedMend")), EAbilityExecutionResult::Applied);
+
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 10);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
+}
+
+TEST_F(TGeneratedActionsTest, TypedFeatureHandlerReadsOwnerTargetAndOriginalScalarArgument)
+{
+    auto& actor = Add("Actor", 20, "ParameterizedMending", 0, 0, false, 2);
+    auto& target = Add("Target", 2, {}, 0, 0, false, 3);
+    io_.ExpectChoice("Target");
+    rng_.ExpectCall(6, 4);
+
+    EXPECT_EQ(battle_->Execute(Option(actor, "AssistedMend")), EAbilityExecutionResult::Applied);
+
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 17);
+    EXPECT_EQ(actor.GetCreature()->Hitpoints()->Current(), 20);
+}
+
+TEST_F(TGeneratedActionsTest, EventHandlersDeduplicateGrantPathsButPreserveDistinctSources)
+{
+    auto& actor = Add("Actor", 20, "DiamondMending", 0, 0, false, 1, "Helpful");
+    auto& target = Add("Target", 5);
+    const auto collected = CollectAbilities(*actor.GetCreature(), battle_->AbilityRules().Catalog);
+    EXPECT_EQ(std::ranges::count_if(collected.Features(), [](const TGrantedAbility& feature) {
+        return feature.DefinitionId == "generated_actions.Helpful";
+    }), 2);
+    io_.ExpectChoice("Target");
+    rng_.ExpectCall(6, 3);
+
+    EXPECT_EQ(battle_->Execute(Option(actor, "AssistedMend")), EAbilityExecutionResult::Applied);
+
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 12);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
+}
+
+TEST_F(TGeneratedActionsTest, EventDispatchReadsSourcesPresentWhenTheActionResumes)
+{
+    auto& actor = Add("Actor", 20, "AssistedMending", 0, 0, false, 1, "Helpful");
+    auto& target = Add("Target", 5);
+    const auto option = Option(actor, "AssistedMend");
+    io_.ExpectChoice("Target", true);
+    rng_.ExpectCall(6, 3);
+    const auto point = Suspend([&]() { battle_->Execute(option); });
+    const auto initial = transformator_->CurrentState();
+    auto context = transformator_->ExecutionContext();
+    context.AssignGuarded(actor.GetCreature()->Class(), TClass::Create({}),
+                          TGuarded<TCreature>(*actor.GetCreature()), "class");
+
+    point.Resume();
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 8);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
+
+    transformator_->Undo(initial);
+    io_.ExpectChoice("Target");
+    rng_.ExpectCall(6, 3);
+    EXPECT_EQ(battle_->Execute(option), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 13);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 1);
+}
+
+TEST_F(TGeneratedActionsTest, FoldedEventValuesSurviveSuspensionAndReevaluateOnEarlierReplay)
+{
+    auto& actor = Add("Actor", 20, "EventRelayTraining", 0, 0, false, 1, "Helpful");
+    auto& first = Add("First", 5);
+    auto& second = Add("Second", 3);
+    const auto before = Snapshot();
+    const auto initial = transformator_->CurrentState();
+    io_.ExpectChoice("First", true);
+    io_.ExpectChoice("Second", true);
+    rng_.ExpectCall(6, 4);
+    const auto first_point = Suspend([&]() { ExecuteJournal(actor, Option(actor, "EventRelay")); });
+    const auto second_point = Suspend([&]() { first_point.Resume(); });
+    EXPECT_EQ(second.GetCreature()->Hitpoints()->Current(), 3);
+
+    TTransformator source_editor(io_);
+    const auto sources_before = source_editor.CurrentState();
+    auto source_context = source_editor.ExecutionContext();
+    source_context.AssignGuarded(actor.GetCreature()->Class(), TClass::Create({}),
+                                 TGuarded<TCreature>(*actor.GetCreature()), "class");
+    second_point.Resume();
+    EXPECT_EQ(second.GetCreature()->Hitpoints()->Current(), 9);
+    second_point.Revert(*transformator_);
+    second_point.Resume();
+    EXPECT_EQ(second.GetCreature()->Hitpoints()->Current(), 9);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
+
+    first_point.Revert(*transformator_);
+    io_.ExpectChoice("Second", true);
+    rng_.ExpectCall(6, 2);
+    const auto replayed_second = Suspend([&]() { first_point.Resume(); });
+    replayed_second.Resume();
+    EXPECT_EQ(second.GetCreature()->Hitpoints()->Current(), 5);
+    EXPECT_EQ(first.GetCreature()->Hitpoints()->Current(), 5);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
+
+    source_editor.Undo(sources_before);
+    transformator_->Undo(initial);
+    EXPECT_EQ(Snapshot(), before);
+}
+
+TEST_F(TGeneratedActionsTest, ClassValuedEventContributionsDriveDiceThroughCompiledLoop)
+{
+    auto& actor = Add("Actor", 20, "DiceMending");
+    auto& target = Add("Target", 2);
+    io_.ExpectChoice("Target");
+    rng_.ExpectCall(8, 3);
+    rng_.ExpectCall(4, 1);
+    rng_.ExpectCall(4, 4);
+
+    EXPECT_EQ(battle_->Execute(Option(actor, "DiceMend")), EAbilityExecutionResult::Applied);
+
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 10);
     EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
 }
 

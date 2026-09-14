@@ -65,6 +65,8 @@ public:
                 mod.Classes.push_back(ParseClass());
             } else if (t.text == "action" || t.text == "reaction" || t.text == "feature") {
                 mod.Abilities.push_back(ParseAbility());
+            } else if (t.text == "event") {
+                mod.Events.push_back(ParseEvent());
             } else if (t.text == "import") {
                 ts_.Throw("'import' must appear before any class/enum/variant");
             } else {
@@ -102,13 +104,43 @@ private:
         } else if (declaration.Kind == EAbilityDeclarationKind::Feature) {
             ts_.Expect(ETok::LBrace, "'{' after feature name");
             while (ts_.Peek().kind != ETok::RBrace) {
-                declaration.Grants.push_back(ParseGrant());
+                if (ts_.Peek().text == "on") {
+                    TAbilityDecl::THook hook;
+                    hook.Location = ts_.Consume().loc;
+                    hook.EventName = ExpectIdent("event name");
+                    hook.Body = ParseBody();
+                    declaration.Hooks.push_back(std::move(hook));
+                } else {
+                    declaration.Grants.push_back(ParseGrant());
+                }
             }
             ts_.Expect(ETok::RBrace, "'}'");
             ts_.Match(ETok::Semi);
         } else {
             ts_.Expect(ETok::Semi, "';' after action or reaction declaration");
         }
+        return declaration;
+    }
+
+    TEventDecl ParseEvent() {
+        TEventDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        ExpectIdentText("event");
+        declaration.ReturnType = ExpectIdent("event result type");
+        declaration.Name = ExpectIdent("event name");
+        ExpectIdentText("for");
+        declaration.OwnerType = ExpectIdent("event owner type");
+        ts_.Expect(ETok::LParen, "'('");
+        if (ts_.Peek().kind != ETok::RParen) {
+            do {
+                TClassDecl::TParameter parameter;
+                parameter.TypeName = ExpectIdent("event parameter type");
+                parameter.Name = ExpectIdent("event parameter name");
+                declaration.Parameters.push_back(std::move(parameter));
+            } while (ts_.Match(ETok::Comma));
+        }
+        ts_.Expect(ETok::RParen, "')'");
+        ts_.Expect(ETok::Semi, "';' after event declaration");
         return declaration;
     }
 
@@ -349,6 +381,15 @@ private:
                     ts_.Advance();
                     statement.ElseBody = ParseBody();
                 }
+                body.push_back(std::move(statement));
+                continue;
+            } else if (ts_.Peek().text == "for") {
+                ts_.Advance();
+                statement.Kind = K::ForEach;
+                statement.Name = ExpectIdent("loop variable name");
+                ExpectIdentText("in");
+                statement.Value = ReadExpression(ETok::LBrace);
+                statement.Body = ParseBody();
                 body.push_back(std::move(statement));
                 continue;
             } else {

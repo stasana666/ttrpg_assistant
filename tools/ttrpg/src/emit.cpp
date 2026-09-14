@@ -2,6 +2,7 @@
 #include <ttrpg/emit_rule_class.h>
 #include <ttrpg/emit_action.h>
 #include <ttrpg/abilities.h>
+#include <ttrpg/events.h>
 
 #include <ttrpg/analyze.h>
 #include <ttrpg/conventions.h>
@@ -40,12 +41,14 @@ std::vector<const TClassDecl*> OrderedClasses(const TLoadedSchemas& loaded) {
 
 void ValidateRules(const TLoadedSchemas& loaded) {
     ValidateAbilityDefinitions(loaded);
+    ValidateEventDefinitions(loaded);
     (void)OrderedClasses(loaded);
     for (const auto& c : loaded.Primary.Classes) {
         (void)CompileClass(c, loaded);
     }
     for (const auto& ability : loaded.Primary.Abilities) {
         if (!ability.OwnerType.empty()) (void)CompileAction(ability, loaded);
+        for (const auto& hook : ability.Hooks) (void)CompileFeatureHook(ability, hook, loaded);
     }
     std::unordered_set<std::string> names;
     for (const auto& instance : loaded.Primary.Instances) {
@@ -238,6 +241,11 @@ void EmitHeader(std::ostream& os,
     w.EmptyLine();
     w.Include("limits");
     w.Include("string");
+    if (!mod.Events.empty()) {
+        w.Include("functional");
+        w.Include("tuple");
+        w.Include("string_view");
+    }
     if (!mod.Classes.empty()) {
         w.Include("utility");
         w.Include("optional");
@@ -446,6 +454,7 @@ void EmitHeader(std::ostream& os,
     for (const auto& instance : mod.Instances) {
         w.Line(instance.TypeName + " Create" + instance.Name + "();");
     }
+    EmitEventDeclarations(w, loaded);
     w.Line("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog);");
     w.Line("struct TAbilityRules;");
     w.Line("void " + RulesRegistrationFunction(loaded.PrimaryStem) + "(TAbilityRules& rules);");
@@ -823,8 +832,9 @@ void EmitImpl(std::ostream& os,
     w.EmptyLine();
     w.Include("pf2e_engine/common/ast/ast_helpers.h");
     w.Include("pf2e_engine/actions/ability.h");
-    if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty(); })) {
+    if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty() || !ability.Hooks.empty(); })) {
         w.Include("pf2e_engine/actions/generated_action.h");
+        w.Include("pf2e_engine/actions/feature_event.h");
     }
     w.Include("pf2e_engine/dsl/property_registry.h");
     w.Include("pf2e_engine/dsl/value.h");

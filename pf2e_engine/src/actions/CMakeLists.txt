@@ -5,6 +5,7 @@ target_sources(pf2e_engine
         action.cpp
         ability.cpp
         generated_action.cpp
+        feature_event.cpp
         reaction.cpp
         save_point.cpp
 )

@@ -18,6 +18,9 @@ TGeneratedEntityView BindGeneratedActionEntity(const TPlayer& player, const TBat
 TGeneratedEntityView BindGeneratedActionEntity(TPlayer& player, const TBattle* battle = nullptr);
 TGeneratedEntityView GeneratedActionSelf(const std::shared_ptr<TActionContext>& ctx);
 void ValidateActionActor(const std::shared_ptr<TActionContext>& ctx);
+void ValidateActionEntity(const std::shared_ptr<TActionContext>& ctx,
+                          const TGeneratedEntityView& entity);
+const TAbilityRules& GeneratedActionRules(const std::shared_ptr<TActionContext>& ctx);
 std::vector<TGeneratedEntityView> GeneratedActionEntities(const std::shared_ptr<TActionContext>& ctx,
                                                         std::type_index type);
 void RequestActionEntity(const std::shared_ptr<TActionContext>& ctx,
@@ -31,6 +34,7 @@ public:
     void Validate() const;
     const TPlayer& Player() const;
     TPlayer& MutablePlayer() const;
+    TGeneratedEntityView ReadOnly() const;
 
     friend bool operator==(const TGeneratedEntityView& lhs, const TGeneratedEntityView& rhs)
     {
@@ -95,6 +99,11 @@ public:
     const TGeneratedEntityView& View() const
     {
         return view_;
+    }
+
+    TGeneratedEntityBinding ReadOnly() const
+    {
+        return TGeneratedEntityBinding(view_.ReadOnly());
     }
 
     friend bool operator==(const TGeneratedEntityBinding&, const TGeneratedEntityBinding&) = default;

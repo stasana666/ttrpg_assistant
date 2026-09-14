@@ -71,3 +71,14 @@ target_link_libraries(test_generated_actions
 )
 
 gtest_discover_tests(test_generated_actions)
+
+add_executable(test_feature_events
+    test_feature_event_runtime.cpp
+)
+
+target_link_libraries(test_feature_events
+    gtest_main
+    pf2e_engine
+)
+
+gtest_discover_tests(test_feature_events)

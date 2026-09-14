@@ -3,6 +3,7 @@
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/reaction.h>
 #include <pf2e_engine/common/ability.h>
+#include <pf2e_engine/common/feature_event.h>
 
 #include <functional>
 #include <map>
@@ -38,6 +39,7 @@ private:
 struct TAbilityRules {
     TAbilityCatalog Catalog;
     TAbilityExecutions Executions;
+    TFeatureEventRegistry Events;
     std::map<std::string, std::shared_ptr<const TCreatureFeat>, std::less<>> FeatureHooks;
 };
 
