@@ -198,8 +198,13 @@ TEST(SourceChoiceCompilerTest, AllowsComputedPrimitiveEnumAndPositionResultsWith
 TEST(SourceChoiceCompilerTest, ReservesSourcesAndDoesNotSpeculateAfterExecutableStatements) {
     Rejects("event int sources for TActor();", "conflicts");
     Rejects("activity int sources for TActor() { return 1; }", "conflicts");
-    const auto loaded = Rules("action Use for TActor { let Value = 1; choose TItem Item from @self.Items; }");
+    const auto loaded = Rules("action Use for TActor { let Value = roll(1, 6); choose TItem Item from @self.Items; }");
     EXPECT_TRUE(CompileAction(loaded.Primary.Abilities.front(), loaded).Requirement.empty());
+    const auto pure = Rules("action Use for TActor { let Owner = @self; let Value = 1; choose TItem Item from Owner.Items where Item.Size > Value; }");
+    const auto requirement = Join(CompileAction(pure.Primary.Abilities.front(), pure).Requirement);
+    EXPECT_NE(requirement.find("SourceCandidates<::TActor, ::TItem>(local_Owner"), std::string::npos);
+    EXPECT_NE(requirement.find("local_Value"), std::string::npos);
+    EXPECT_EQ(requirement.find("SelectActionSource"), std::string::npos);
 }
 
 TEST(SourceChoiceCompilerTest, RejectsClassIdentityQueriesAndAggregateEscapes) {

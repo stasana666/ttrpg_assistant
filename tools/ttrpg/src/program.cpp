@@ -117,6 +117,8 @@ std::string Operator(expr::EBinaryOp op) {
 
 enum class ESequenceKind { None, Contribution, Entity, Value, Source };
 
+struct TPreflightBoundary {};
+
 struct TStoredOrigin {
     std::string OwnerType;
     std::string OwnerBinding;
@@ -520,6 +522,8 @@ public:
 
     TValue Call(const expr::TExprNode& call, bool effects) {
         if (!call.Lhs) {
+            if (preflightProbe_ && (triggers_.contains(call.Text) || activities_.contains(call.Text) ||
+                events_.contains(call.Text) || call.Text == "roll" || call.Text == "move")) throw TPreflightBoundary{};
             if (triggers_.contains(call.Text)) Fail("reaction windows require a standalone action, activity, or reaction let/call statement");
             if (activities_.contains(call.Text)) Fail("activity calls require a standalone action or activity let/call statement");
             if (call.Text == "sources") Fail("sources(...) is only supported as a source choice collection expression");
@@ -640,6 +644,7 @@ public:
             if ((member.Text != "Add" && member.Text != "Spend" && member.Text != "SetCount") || call.Args.size() != 1) {
                 Fail("Resource supports Count(), Add(count), Spend(count), and SetCount(count)");
             }
+            if (preflightProbe_) throw TPreflightBoundary{};
             if (!effects) Fail("resource mutation is not allowed in a pure expression");
             if (!owner.Persistent || owner.Guard.empty() || owner.OwnerGuard.empty() || !owner.Field) {
                 Fail("resource mutation requires a stable persistent field");
@@ -654,6 +659,7 @@ public:
             if (const auto variant = variants_.find(owner.ElementType); variant != variants_.end()) {
                 if (member.Text == "set" || member.Text == "erase") {
                     if (call.Args.size() != 1) Fail("variant set mutation expects one argument");
+                    if (preflightProbe_) throw TPreflightBoundary{};
                     if (!effects) Fail("variant set mutation is not allowed in a pure expression");
                     if (!owner.Persistent || owner.Guard.empty() || owner.OwnerGuard.empty() || !owner.Field) {
                         Fail("variant set mutation requires a stable persistent field");
@@ -728,6 +734,7 @@ public:
             std::unordered_set<std::string> visiting;
             QueryDependencies(*method, visiting);
         }
+        if (!method->Query && preflightProbe_) throw TPreflightBoundary{};
         if (!method->Query && !effects) Fail("mutating method '" + member.Text + "' is not allowed in a pure expression");
         if (!method->Query && owner.Guard.empty()) Fail("mutating methods require a stable persistent receiver");
         std::string args;
@@ -1108,12 +1115,10 @@ private:
 
     std::vector<std::string> CompileActionRequirement(const TAbilityDecl& declaration, std::size_t first,
                                                      const TTriggerDecl* trigger = nullptr) {
-        const bool leadingChoice = first < declaration.Body.size() && declaration.Body[first].Kind == TStatement::EKind::Choose;
         bool hasRequirements = false;
         for (std::size_t i = 0; i < first; ++i) {
             hasRequirements = hasRequirements || declaration.Body[i].Kind == TStatement::EKind::Requires;
         }
-        if (!leadingChoice && !hasRequirements && declaration.SourceType.empty()) return {};
         TCompiler compiler(self_, loaded_);
         TMethod method;
         method.Name = declaration.Name + ".requires";
@@ -1143,8 +1148,23 @@ private:
             compiler.Match(value, "bool");
             result.push_back("if (!(" + value.Code + ")) { return false; }");
         }
+        std::vector<std::string> prefix;
+        auto candidateIndex = first;
+        compiler.preflightProbe_ = true;
+        while (candidateIndex < declaration.Body.size() && declaration.Body[candidateIndex].Kind == TStatement::EKind::Let) {
+            try {
+                compiler.Statements({declaration.Body[candidateIndex]}, prefix, "");
+            } catch (const TPreflightBoundary&) {
+                break;
+            }
+            ++candidateIndex;
+        }
+        compiler.preflightProbe_ = false;
+        const bool leadingChoice = candidateIndex < declaration.Body.size() && declaration.Body[candidateIndex].Kind == TStatement::EKind::Choose;
+        if (!leadingChoice && !hasRequirements && declaration.SourceType.empty()) return {};
         if (leadingChoice) {
-            const auto& choice = declaration.Body[first];
+            result.insert(result.end(), prefix.begin(), prefix.end());
+            const auto& choice = declaration.Body[candidateIndex];
             const bool entity = compiler.CheckChoiceType(choice);
             const auto candidates = compiler.ChoiceCandidates(choice, entity);
             auto local = entity ? compiler.EntityBinding(choice.TypeName, "candidate", false) :
@@ -1756,7 +1776,7 @@ private:
                     if (value.Type == "void") Fail("cannot bind void result");
                     const auto local = NewLocalName(statement.Name);
                     if (sourceInputAudit_ && value.SourceDerived) auditedSourceLocals_.insert(local);
-                    if ((action_ || hook_) && !value.Binding.empty()) {
+                    if ((action_ || hook_ || preflight_) && !value.Binding.empty()) {
                         line("[[maybe_unused]] auto " + local + " = " + value.Binding + ";");
                         locals_[statement.Name] = EntityBinding(value.Type, local, !value.Guard.empty());
                         break;
@@ -1921,6 +1941,7 @@ private:
     bool action_ = false;
     bool hook_ = false;
     bool preflight_ = false;
+    bool preflightProbe_ = false;
     std::size_t loop_ = 0;
     std::unordered_map<std::string, std::size_t> frameSlots_;
     std::unordered_set<std::string> generatedLocals_;

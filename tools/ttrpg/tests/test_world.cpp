@@ -90,7 +90,7 @@ TEST(WorldCompilerTest, SeparatesPreconditionsAndLeadingChoiceFromActionEffects)
 }
 
 TEST(WorldCompilerTest, DoesNotSpeculatePastExecutableStatements) {
-    for (const auto& before : {std::string("let Reach = 2;"), std::string("require @self.IsAlive();"),
+    for (const auto& before : {std::string("let Reach = roll(1, 6);"), std::string("require @self.IsAlive();"),
                               std::string("@self.Health.Heal(1);")}) {
         const auto loaded = Rules("action A for TActor { cost @self.Effort = 1; " + before + " choose TActor Target; }");
         EXPECT_TRUE(CompileAction(loaded.Primary.Abilities.front(), loaded).Requirement.empty());
@@ -98,7 +98,7 @@ TEST(WorldCompilerTest, DoesNotSpeculatePastExecutableStatements) {
     const auto loaded = Rules("action A for TActor { requires @self.Level > 0; let Reach = 2; choose TActor Target; }");
     const auto requirement = Join(CompileAction(loaded.Primary.Abilities.front(), loaded).Requirement);
     EXPECT_NE(requirement.find("Level()"), std::string::npos);
-    EXPECT_EQ(requirement.find("Entities"), std::string::npos);
+    EXPECT_NE(requirement.find("Entities"), std::string::npos);
     const auto leading = Rules("action A for TActor { choose TObject Target; }");
     EXPECT_NE(Join(CompileAction(leading.Primary.Abilities.front(), leading).Requirement).find("world.Entities<::TObject>()"), std::string::npos);
 }
@@ -218,4 +218,80 @@ TEST(WorldCompilerTest, ReservesWorldBuiltinNamesForExpressions) {
     for (const auto& name : {"entities", "grid_distance", "same_team", "has_line_of_effect", "position_x", "position_y"}) {
         Rejects("event int " + std::string(name) + " for TActor();", "conflicts with existing symbol");
     }
+}
+
+TEST(WorldCompilerTest, PureLeadingLocalsExtendChoicePreflightWithoutSharingExecutionState) {
+    const auto loaded = Rules(R"(
+        class TMovementRules { query bool Allowed(int Distance) { return Distance == 1; } }
+        action Step for TActor {
+            cost @self.Effort = 1;
+            let Actor = @self;
+            let Origin = position(Actor);
+            let Rules = TMovementRules {};
+            let Destinations = adjacent_positions(Origin);
+            choose Position Next from Destinations where can_occupy(Actor, Next)
+                && Rules.Allowed(max(Next.X - Origin.X, Next.Y - Origin.Y));
+            move(@self, Origin, Next);
+        }
+    )");
+    const auto compiled = CompileAction(loaded.Primary.Abilities.front(), loaded);
+    const auto requirement = Join(compiled.Requirement);
+    const auto body = Join(compiled.Body);
+    EXPECT_NE(requirement.find("auto local_Actor = action_self;"), std::string::npos);
+    EXPECT_NE(requirement.find("world.Position(local_Actor.View())"), std::string::npos);
+    EXPECT_NE(requirement.find("world.AdjacentPositions(local_Origin)"), std::string::npos);
+    EXPECT_NE(requirement.find("candidate : local_Destinations"), std::string::npos);
+    EXPECT_NE(requirement.find("return false;"), std::string::npos);
+    EXPECT_EQ(requirement.find("MoveActionEntity("), std::string::npos);
+    EXPECT_EQ(requirement.find(".Guard()"), std::string::npos);
+    EXPECT_EQ(requirement.find("SelectAction"), std::string::npos);
+    EXPECT_EQ(requirement.find("Context"), std::string::npos);
+    EXPECT_NE(body.find("world.Position(local_Actor.View())"), std::string::npos);
+    EXPECT_NE(body.find("frame.slot_1"), std::string::npos);
+    EXPECT_NE(body.find("MoveActionEntity("), std::string::npos);
+    EXPECT_EQ(compiled.Costs.size(), 1u);
+}
+
+TEST(WorldCompilerTest, PrefixStopsAtEffectsWindowsActivitiesAndEventDispatch) {
+    const auto shared = R"(
+        activity int Calculation for TActor() { return 2; }
+        trigger int Opening(int Pending);
+        event int Modifier for TActor();
+        class TCounter { int Value; method int Increment() { @self.Value += 1; return @self.Value; } }
+        GameEntity TCounterActor { TCounter Counter; }
+    )";
+    for (const auto& expression : {"roll(1, 6)", "Calculation()", "Opening(0)", "Modifier(@self)"}) {
+        const auto loaded = Rules(std::string(shared) + "action A for TActor { requires @self.Level > 0; let Pure = 1 / @self.Level; let Value = " + expression + "; choose TActor Target; }");
+        const auto requirement = Join(CompileAction(loaded.Primary.Abilities.front(), loaded).Requirement);
+        EXPECT_NE(requirement.find("Level()"), std::string::npos);
+        EXPECT_EQ(requirement.find("local_Pure"), std::string::npos);
+        EXPECT_EQ(requirement.find("Entities"), std::string::npos);
+        EXPECT_EQ(requirement.find("Context"), std::string::npos);
+    }
+    const auto effectful = Rules(std::string(shared) + "action A for TCounterActor { let Value = @self.Counter.Increment(); choose TActor Target; }");
+    EXPECT_TRUE(CompileAction(effectful.Primary.Abilities.front(), effectful).Requirement.empty());
+    const auto withoutChoice = Rules("action A for TActor { let Value = 1 / @self.Level; @self.Health.Heal(Value); }");
+    EXPECT_TRUE(CompileAction(withoutChoice.Primary.Abilities.front(), withoutChoice).Requirement.empty());
+}
+
+TEST(WorldCompilerTest, PurePrefixPreservesSourceAndReactionParameterReads) {
+    const auto loaded = Rules(R"(
+        trigger int Opening(int Pending, TActor Subject);
+        reaction Reply for TActor using TItem Item on Opening {
+            cost @self.Effort = 1;
+            let Other = Subject;
+            let Reach = Item.Reach;
+            let Amount = Pending;
+            choose TActor Target where Target != Other && grid_distance(Other, Target) <= Reach;
+            return Amount;
+        }
+    )");
+    const auto compiled = CompileReaction(loaded.Primary.Abilities.front(), loaded);
+    const auto requirement = Join(compiled.Execution.Requirement);
+    EXPECT_NE(requirement.find("auto local_Other = std::get<0>(arguments)"), std::string::npos);
+    EXPECT_NE(requirement.find("source_value->Value"), std::string::npos);
+    EXPECT_NE(requirement.find("local_Reach"), std::string::npos);
+    EXPECT_NE(requirement.find("local_Amount = pending"), std::string::npos);
+    EXPECT_EQ(requirement.find(".Guard()"), std::string::npos);
+    EXPECT_NO_THROW(Implementation(loaded));
 }
