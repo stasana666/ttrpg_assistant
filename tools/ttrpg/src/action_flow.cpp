@@ -53,10 +53,10 @@ std::vector<std::string> RenderActionFlow(const TCompiledActionFlow& flow) {
                             } else if (block.Exit == E::Choose) {
                                 const auto& choice = block.Choice;
                                 const auto slot = "slot_" + std::to_string(choice.Slot);
-                                const auto helper = std::string(choice.Entity ? "SelectActionEntity<" : "SelectActionValue<") + choice.Type + ">";
+                                const auto helper = std::string(choice.Source ? "SelectActionSource<" : choice.Entity ? "SelectActionEntity<" : "SelectActionValue<") + choice.Type + ">";
                                 writer.Line("frame." + slot + ".emplace(" + helper + "(Context, " + choice.Candidates + ",");
                                 writer.Indented([&] {
-                                    writer.Block("[Context, action_self, frame]([[maybe_unused]] const " + choice.CppType + "& " + choice.Local + ") {", "},", [&] {
+                                    writer.Block("[Context, action_self, frame]([[maybe_unused]] const " + (choice.PredicateCppType.empty() ? choice.CppType : choice.PredicateCppType) + "& " + choice.Local + ") {", "},", [&] {
                                         for (const auto& line : flow.Environment) writer.Line(line);
                                         aliases(block);
                                         for (const auto& line : choice.Predicate) writer.Line(line);
@@ -71,7 +71,16 @@ std::vector<std::string> RenderActionFlow(const TCompiledActionFlow& flow) {
                                 writer.Line("continue;");
                             } else {
                                 const auto& invocation = block.Invocation;
-                                std::string call = invocation.FunctionName + "(Context";
+                                std::string context = "Context";
+                                if (!invocation.InputValidators.empty()) {
+                                    context = "ForkActionInputs(Context, {";
+                                    for (std::size_t i = 0; i < invocation.InputValidators.size(); ++i) {
+                                        if (i) context += ", ";
+                                        context += invocation.InputValidators[i];
+                                    }
+                                    context += "})";
+                                }
+                                std::string call = invocation.FunctionName + "(" + context;
                                 for (const auto& argument : invocation.Arguments) call += ", " + argument;
                                 call += ",";
                                 if (invocation.Slot) call = "frame.slot_" + std::to_string(*invocation.Slot) + ".emplace(" + call;

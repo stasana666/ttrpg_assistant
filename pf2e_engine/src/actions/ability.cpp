@@ -202,6 +202,7 @@ EAbilityExecutionResult ExecuteAbility(
         throw std::invalid_argument("ability execution requires a context");
     }
     ctx->generated_source.reset();
+    ctx->input_validators.reset();
     ctx->owned_action = execution.Action;
     ctx->source_weapon = std::move(bindings.SourceWeapon);
     ctx->trigger_actor = bindings.TriggerActor;
@@ -216,7 +217,11 @@ EAbilityExecutionResult ExecuteAbility(
 
 void ValidateAbilitySource(const std::shared_ptr<TActionContext>& ctx)
 {
+    if (!ctx) {
+        throw std::invalid_argument("ability source requires an execution context");
+    }
     if (ctx->validate_ability && !ctx->validate_ability()) {
         throw TAbilityUnavailable();
     }
+    ValidateActionInputs(ctx);
 }

@@ -91,7 +91,7 @@ TEST(SourceCompilerTest, BindsTypedSnapshotsAndValidatesUnusedSourcesAfterChoice
     EXPECT_NE(body.find("TFlow::Run(Context, action_self, std::move(next)"), std::string::npos);
     const auto callback = body.rfind("auto source_Item = ActionSource<::TActor, ::TItem>(Context)");
     ASSERT_NE(callback, std::string::npos);
-    EXPECT_NE(body.find("source_Item.Validate();", callback), std::string::npos);
+    EXPECT_NE(body.find("source_Item.Validate(Context);", callback), std::string::npos);
     EXPECT_EQ(body.find("source_Item.Guard()"), std::string::npos);
     EXPECT_EQ(body.find("source_Item.Read().Id()"), std::string::npos);
     const auto implementation = Implementation(loaded);

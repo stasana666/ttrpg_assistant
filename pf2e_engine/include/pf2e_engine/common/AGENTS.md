@@ -156,6 +156,34 @@ Snapshot validators capture the owner, rules catalog and previous validator rath
 than their owning context, avoiding an ownership cycle. Their battle and entities
 must remain alive for the binding's lifetime.
 
+## Selected action sources (`actions/generated_source.h`)
+
+`SourceCandidates` enumerates stable collection entry IDs through a generated
+const getter. Each candidate retains an owner binding and exact getter/entry
+locator, never a borrowed collection element. A missing entry cannot resolve to
+an ancestor or another provider. The getter must return a reference to a stored
+collection, and its generated path must describe that collection. No ability
+grant on the selected value is required. Union enumeration preserves the first
+candidate for each owner/type/path key.
+
+Candidate predicates read current values at offer and receive. `SelectActionSource`
+creates the immutable value snapshot only after selection passes its current
+predicate; subsequent attribute changes affect future selections. Its result
+still validates owner identity, current-world membership and exact entry presence.
+The continuation runs only for suspended choices, and each replay creates its own
+selected snapshot. Labels are supplied by generated display getters and duplicate
+labels are disambiguated without using them as source identities.
+
+`ForkActionInputs` copies the parent's execution context and adds an immutable
+list of input validators while sharing its actor, services and journal. Validators
+capture bindings, never the child context. They use the leaf
+`ValidateActionEntityMembership` plus exact lookup; calling full actor/source
+validation from an input validator would recursively enter the same chain.
+`ValidateAbilitySource` checks both the granting source and these inputs. The
+child callable uses the fork, while its return channel resumes the parent context,
+so input constraints do not outlive their lexical caller scope. Starting a new
+top-level ability clears any earlier input constraints on a reused context.
+
 ## Typed feature events (`common/feature_event.h`, `actions/feature_event.h`)
 
 `TAbilityRules::Events` stores immutable handlers by event identity and feature

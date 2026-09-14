@@ -8,6 +8,12 @@ Canonical project instructions. CLAUDE.md redirects here.
 ## Key Files
 - `test_lib/mock_dice_roller.h`: deterministic RNG expectations for reproducible tests.
 - `test_lib/mock_interaction_system.h`: scripted player choices and optional state checks.
+- `test_lifecycle.cpp` builds as `test_lifecycle` and verifies generated round/turn
+  methods, separate Flourish and reaction reset boundaries, initial reaction policy,
+  scheduler ordering, resource validation and exact JSON/AST rollback. Task removal
+  and repeated Undo preserve callback order; malformed task restoration leaves the
+  scheduler unchanged. Battle tests cover three independent participants and
+  restoration across a whole round.
 - `actions/`: combat/action pipeline tests using real data.
 - `actions/test_generated_strike.cpp` builds as `test_generated_strike` and loads
   the production compiled Strike through the real factory catalog. It covers
@@ -16,6 +22,9 @@ Canonical project instructions. CLAUDE.md redirects here.
   target preflight, source snapshots, and suspended execution with rollback.
   Its temporary actor definitions reuse historical JSON profiles; they are not
   complete Remaster fighter/wolf declarations.
+  Vicious Swing cases load a declared class feature through the real factory,
+  choose equipment without weapon grants, and check same-name source identity,
+  level thresholds, MAP, shared Flourish payment, source snapshots and replay.
 - `actions/fixtures/generated_actions.ttrpg` and `actions/test_generated_actions.cpp`
   compile actions into `test_generated_actions` and execute them through battle
   grants. They cover chosen entities, dice, arbitrary declared resource fields,
@@ -78,6 +87,15 @@ Canonical project instructions. CLAUDE.md redirects here.
   foreign or readonly entity arguments before effects and retain the original
   actor across context changes. Failed activities preserve completed effects
   until the caller undoes their shared journal.
+- `actions/fixtures/generated_source_choices.ttrpg` and
+  `actions/test_generated_source_choices.cpp` build as `test_generated_source_choices`.
+  They cover equipment/natural-source unions without action grants, exact entry
+  identity, pure target preflight, receive-time predicates and snapshots, nested
+  activity input validation, source removal and restore, parent scope cleanup,
+  current-world membership, context ownership, repeated resume and bounded stack
+  depth for immediate choices. Collection replacements retain no prior child
+  field mutation records; attribute edits and whole-collection edits use separate
+  scenarios and explicitly reversible journals.
 - `inventory/`: generated schema type and JSON loading tests.
 - `inventory/fixtures/rule_entities.ttrpg` and `inventory/test_rule_entities.cpp`:
   compile generated entities into `test_inventory` and verify named factories,

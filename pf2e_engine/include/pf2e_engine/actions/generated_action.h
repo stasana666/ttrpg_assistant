@@ -24,6 +24,11 @@ void ValidateActionActorBinding(const std::shared_ptr<TActionContext>& ctx,
                                 const TGeneratedEntityView& actor);
 void ValidateActionEntity(const std::shared_ptr<TActionContext>& ctx,
                           const TGeneratedEntityView& entity);
+void ValidateActionEntityMembership(const std::shared_ptr<TActionContext>& ctx,
+                                    const TGeneratedEntityView& entity);
+void ValidateActionInputs(const std::shared_ptr<TActionContext>& ctx);
+std::shared_ptr<TActionContext> ForkActionInputs(
+    const std::shared_ptr<TActionContext>& ctx, std::vector<FActionInputValidator> validators);
 const TAbilityRules& GeneratedActionRules(const std::shared_ptr<TActionContext>& ctx);
 std::vector<TGeneratedEntityView> GeneratedActionEntities(const std::shared_ptr<TActionContext>& ctx,
                                                         std::type_index type);
@@ -56,6 +61,8 @@ private:
     friend class TGeneratedEntityBinding;
     friend TGeneratedEntityView BindGeneratedActionEntity(const TPlayer&, const TBattle*);
     friend TGeneratedEntityView BindGeneratedActionEntity(TPlayer&, const TBattle*);
+    friend void ValidateActionEntityMembership(const std::shared_ptr<TActionContext>&,
+                                               const TGeneratedEntityView&);
 
     std::type_index type_ = typeid(void);
     TEntityId id_;

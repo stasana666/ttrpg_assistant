@@ -19,6 +19,8 @@ struct TActionFlowChoice {
     std::vector<std::string> Predicate{};
     std::size_t Slot = 0;
     bool Entity = false;
+    bool Source = false;
+    std::string PredicateCppType;
 };
 
 struct TActionFlowBlock {
@@ -35,6 +37,7 @@ struct TActionFlowBlock {
         std::string ResultType;
         std::vector<std::string> Arguments;
         std::optional<std::size_t> Slot;
+        std::vector<std::string> InputValidators;
     } Invocation;
     std::string ReturnValue;
 };

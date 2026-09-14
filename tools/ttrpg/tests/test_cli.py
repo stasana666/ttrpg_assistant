@@ -84,6 +84,18 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("::RunLibraryIncrement(Context", self.source.read_text())
         self.assertIn("library.h", self.header.read_text())
 
+    def test_source_choice_imports_and_escape_diagnostics(self):
+        self.write("items.ttrpg", "class TItem { int Size = 2; query TItem Identity() { return @self; } } GameEntity TActor { collection<TItem> Items; }")
+        self.schema.write_text('import "items.ttrpg"; action Use for TActor { choose TItem Item from @self.Items; let Value = Item.Size; }')
+        self.command([CODEGEN, "--schema", self.schema, "--check"])
+        self.generate()
+        self.assertIn("SelectActionSource<::TItem>", self.source.read_text())
+        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
+        self.schema.write_text('import "items.ttrpg"; action Use for TActor { choose TItem Item from @self.Items; let Copy = Item.Identity(); }')
+        result = self.generate(success=False)
+        self.assertIn("cannot be materialized", result.stderr)
+        self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
+
     def test_recursive_activities_preserve_generated_outputs(self):
         self.generate()
         before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]

@@ -65,7 +65,7 @@ void ValidateActivityDefinitions(const TLoadedSchemas& loaded) {
     const std::unordered_set<std::string> builtins{
         "void", "int", "bool", "string", "Resource", "BoundedQuantity", "Feature", "Position",
         "roll", "min", "max", "entities", "grid_distance", "same_team", "has_line_of_effect",
-        "position_x", "position_y", "position", "adjacent_positions", "contains_position", "can_occupy", "move"
+        "sources", "position_x", "position_y", "position", "adjacent_positions", "contains_position", "can_occupy", "move"
     };
     for (const auto& [stem, module] : Modules(loaded)) {
         names.insert(AbilityRegistrationFunction(stem));
@@ -147,4 +147,42 @@ void ValidateActivityDefinitions(const TLoadedSchemas& loaded) {
         marks[name] = 2;
     };
     for (const auto& [name, info] : activities) visit(name);
+}
+
+std::string ActivityClassResultDependency(const std::string& name, const TLoadedSchemas& loaded) {
+    const auto activities = ActivitySymbols(loaded);
+    std::unordered_set<std::string> classes;
+    for (const auto& [stem, module] : Modules(loaded)) {
+        for (const auto& type : module->Classes) if (!type.GameEntity) classes.insert(type.Name);
+    }
+    std::unordered_set<std::string> visited;
+    std::function<std::string(const std::string&)> visit;
+    visit = [&](const std::string& current) -> std::string {
+        if (!visited.insert(current).second) return {};
+        const auto& activity = *activities.at(current).Declaration;
+        if (classes.contains(activity.ReturnType)) return current;
+        std::string result;
+        std::function<void(const expr::TExprNode&)> expression;
+        expression = [&](const expr::TExprNode& node) {
+            if (!result.empty()) return;
+            if (node.Kind == expr::ENodeKind::Call && !node.Lhs && activities.contains(node.Text)) result = visit(node.Text);
+            if (node.Lhs) expression(*node.Lhs);
+            if (node.Rhs) expression(*node.Rhs);
+            for (const auto& argument : node.Args) expression(argument);
+            for (const auto& field : node.Fields) expression(field.Value);
+        };
+        std::function<void(const std::vector<TClassDecl::TStatement>&)> statements;
+        statements = [&](const auto& body) {
+            for (const auto& statement : body) {
+                if (statement.Value) expression(*statement.Value);
+                if (statement.Target) expression(*statement.Target);
+                if (statement.Candidates) expression(*statement.Candidates);
+                statements(statement.Body);
+                statements(statement.ElseBody);
+            }
+        };
+        statements(activity.Body);
+        return result;
+    };
+    return visit(name);
 }

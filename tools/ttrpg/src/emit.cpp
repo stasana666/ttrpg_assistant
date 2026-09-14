@@ -902,7 +902,7 @@ void EmitImpl(std::ostream& os,
         w.Include("pf2e_engine/actions/generated_movement.h");
         w.Include("pf2e_engine/actions/feature_event.h");
     }
-    if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.SourceType.empty(); })) {
+    if (!mod.Activities.empty() || std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty(); })) {
         w.Include("pf2e_engine/actions/generated_source.h");
     }
     w.Include("pf2e_engine/dsl/property_registry.h");

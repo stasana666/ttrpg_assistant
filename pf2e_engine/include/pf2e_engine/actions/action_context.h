@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
 class IActionBlock;
 class TBattle;
@@ -17,6 +18,9 @@ class TAction;
 class TWeapon;
 class TPlayer;
 class TGeneratedSourceView;
+struct TActionContext;
+
+using FActionInputValidator = std::function<void(const std::shared_ptr<TActionContext>&)>;
 
 struct TActionContext {
     TBattle* battle;
@@ -33,4 +37,5 @@ struct TActionContext {
     TPlayer* trigger_actor = nullptr;
     TAbilitySourcePath ability_source = {};
     std::function<bool()> validate_ability = {};
+    std::shared_ptr<const std::vector<FActionInputValidator>> input_validators = {};
 };

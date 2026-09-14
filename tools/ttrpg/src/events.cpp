@@ -65,7 +65,7 @@ void ValidateEventDefinitions(const TLoadedSchemas& loaded) {
             name == "grid_distance" || name == "same_team" || name == "has_line_of_effect" ||
             name == "position_x" || name == "position_y" || name == "Position" ||
             name == "position" || name == "adjacent_positions" || name == "contains_position" ||
-            name == "can_occupy" || name == "move") {
+            name == "can_occupy" || name == "move" || name == "sources") {
             throw std::runtime_error("event name conflicts with existing symbol '" + name + "'");
         }
         if (loaded.SymbolTable.contains(EventTagName(event))) {

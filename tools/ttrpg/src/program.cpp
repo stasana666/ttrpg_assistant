@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <limits>
 #include <map>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -112,7 +113,13 @@ std::string Operator(expr::EBinaryOp op) {
     throw std::runtime_error("unknown binary operator");
 }
 
-enum class ESequenceKind { None, Contribution, Entity, Value };
+enum class ESequenceKind { None, Contribution, Entity, Value, Source };
+
+struct TStoredOrigin {
+    std::string OwnerType;
+    std::string OwnerBinding;
+    std::vector<std::string> Fields;
+};
 
 struct TValue {
     std::string Type{};
@@ -132,6 +139,9 @@ struct TValue {
     std::string SourceBinding{};
     std::string VariantAlternative{};
     ESequenceKind SequenceKind = ESequenceKind::None;
+    std::optional<TStoredOrigin> Origin{};
+    bool SelectedSource = false;
+    bool SourceDerived = false;
 };
 
 class TCompiler {
@@ -165,6 +175,30 @@ public:
         if (value.Type != expected) Fail("expected '" + expected + "', got '" + value.Type + "'");
     }
 
+    bool CarriesSourceClass(const TValue& value) const {
+        std::unordered_set<std::string> visited;
+        std::function<bool(const std::string&)> contains = [&](const std::string& type) {
+            if (classes_.contains(type)) return true;
+            if (!visited.insert(type).second) return false;
+            const auto fields = [&](const auto& values) {
+                for (const auto& field : values) {
+                    if (contains(field.Container == EContainer::Map ? field.ValueTypeName : field.TypeName)) return true;
+                }
+                return false;
+            };
+            if (const auto variant = variants_.find(type); variant != variants_.end()) {
+                for (const auto& alternative : variant->second->Alternatives) if (fields(alternative.Fields)) return true;
+            }
+            const auto payload = payloads_.find(type);
+            return payload != payloads_.end() && fields(payload->second->Fields);
+        };
+        return contains(!value.SequenceElement.empty() ? value.SequenceElement : value.Container == EContainer::None ? value.Type : value.ElementType);
+    }
+
+    void RequireMaterializable(const TValue& value) const {
+        if (value.SourceDerived && !sourceInputAudit_) Fail("class values derived from a selected source cannot be materialized or escape its binding");
+    }
+
     TValue Read(const expr::TExprNode& expression, const std::string& expected = "", bool effects = false) {
         using K = expr::ENodeKind;
         const auto& e = expression;
@@ -195,7 +229,11 @@ public:
                     return {.Type = "int", .Code = DefaultExprToCpp(e.Text, "int")};
                 }
                 const auto local = locals_.find(e.Text);
-                if (local != locals_.end()) return local->second;
+                if (local != locals_.end()) {
+                    auto value = local->second;
+                    if (sourceInputAudit_ && auditedSourceLocals_.contains(value.LocalCode)) value.SourceDerived = true;
+                    return value;
+                }
                 if (Field(self_, e.Text)) {
                     expr::TExprNode base;
                     base.Kind = K::ContextVar;
@@ -239,10 +277,12 @@ public:
                     const TFieldDecl* field = nullptr;
                     for (const auto& candidate : payload->second->Fields) if (candidate.Name == e.Text) field = &candidate;
                     if (!field) Fail("unknown variant payload field '" + e.Text + "'");
-                    return {.Type = field->Container == EContainer::None ? field->TypeName : CppMemberType(*field, loaded_.SymbolTable),
+                    TValue result{.Type = field->Container == EContainer::None ? field->TypeName : CppMemberType(*field, loaded_.SymbolTable),
                         .Code = "(" + owner.Code + ")." + e.Text, .Field = field,
                         .Container = field->Container, .KeyType = field->Container == EContainer::Map ? field->TypeName : "",
                         .ElementType = field->Container == EContainer::Map ? field->ValueTypeName : field->TypeName};
+                    result.SourceDerived = (owner.SelectedSource || owner.SourceDerived) && CarriesSourceClass(result);
+                    return result;
                 }
                 auto cls = classes_.find(owner.Type);
                 if (cls == classes_.end()) Fail("type '" + owner.Type + "' has no fields");
@@ -268,6 +308,11 @@ public:
                     result.Guard = "ctx.Project(" + owner.Guard + ", [](auto& value) { return value." + e.Text + "(); })";
                 }
                 result.OwnerGuard = owner.Guard;
+                result.SourceDerived = (owner.SelectedSource || owner.SourceDerived) && CarriesSourceClass(result);
+                if (owner.Origin && !field->Derived && owner.Container == EContainer::None) {
+                    result.Origin = owner.Origin;
+                    result.Origin->Fields.push_back(field->Name);
+                }
                 return result;
             }
             case K::Binary: {
@@ -340,12 +385,14 @@ public:
                     Fail("creating entities inside methods requires transactional entity allocation, which is not supported yet");
                 }
                 std::unordered_map<std::string, std::string> values;
+                bool sourceDerived = false;
                 for (const auto& initializer : e.Fields) {
                     const auto* field = Field(*cls->second, initializer.Name);
                     if (!field) Fail("unknown initializer field '" + type + "." + initializer.Name + "'");
                     if (field->Derived) Fail("cannot initialize derived field '" + initializer.Name + "'");
                     if (values.contains(initializer.Name)) Fail("duplicate initializer field '" + initializer.Name + "'");
                     auto value = ReadInitializer(initializer.Value, *field);
+                    sourceDerived = sourceDerived || value.SelectedSource || value.SourceDerived;
                     values.emplace(initializer.Name, value.Code);
                 }
                 ValidateConstructionDefaults(*cls->second, values);
@@ -358,7 +405,7 @@ public:
                     first = false;
                     code += "." + field.Name + " = " + it->second;
                 }
-                return {.Type = type, .Code = code + "})"};
+                return {.Type = type, .Code = code + "})", .SourceDerived = sourceDerived};
             }
             case K::Index: Fail("indexing rule collections requires stable element addressing and is not implemented");
             case K::ListLiteral: {
@@ -396,6 +443,7 @@ public:
         }
         const std::string type = CppMemberType(field, loaded_.SymbolTable);
         std::string code = "([&] { " + CppRuleType(type) + " values; ";
+        bool sourceDerived = false;
         if (field.Container == EContainer::Map) {
             if (expression.Kind != expr::ENodeKind::ObjectInit || !expression.Text.empty()) Fail("map initialization requires a contextual { Key = Value; } literal");
             std::unordered_set<std::string> keys;
@@ -410,10 +458,11 @@ public:
                     Fail("unknown map key '" + element.Name + "' for enum '" + field.TypeName + "'");
                 }
                 auto value = ReadInitializer(element.Value, valueField);
+                sourceDerived = sourceDerived || value.SelectedSource || value.SourceDerived;
                 code += "values.emplace(" + CppRuleType(field.TypeName) + "::" + element.Name + ", " + value.Code + "); ";
             }
             return {.Type = type, .Code = code + "return values; }())", .Container = EContainer::Map,
-                .KeyType = field.TypeName, .ElementType = field.ValueTypeName};
+                .KeyType = field.TypeName, .ElementType = field.ValueTypeName, .SourceDerived = sourceDerived};
         }
         if (expression.Kind != expr::ENodeKind::ListLiteral) Fail("container initialization requires a list literal");
         std::unordered_set<std::string> alternatives;
@@ -421,6 +470,7 @@ public:
         for (const auto& element : expression.Args) {
             auto value = Read(element, field.TypeName);
             Match(value, field.TypeName);
+            sourceDerived = sourceDerived || value.SelectedSource || value.SourceDerived;
             if (field.Container == EContainer::Set && variants_.contains(field.TypeName)) {
                 if (!value.VariantAlternative.empty() && !alternatives.insert(value.VariantAlternative).second) Fail("duplicate variant alternative '" + value.VariantAlternative + "'");
                 const auto local = "element_" + std::to_string(elementIndex++);
@@ -432,12 +482,13 @@ public:
             }
         }
         code += "return values; }())";
-        return {.Type = type, .Code = code, .Container = field.Container, .ElementType = field.TypeName};
+        return {.Type = type, .Code = code, .Container = field.Container, .ElementType = field.TypeName, .SourceDerived = sourceDerived};
     }
 
     TValue Call(const expr::TExprNode& call, bool effects) {
         if (!call.Lhs) {
             if (activities_.contains(call.Text)) Fail("activity calls require a standalone action or activity let/call statement");
+            if (call.Text == "sources") Fail("sources(...) is only supported as a source choice collection expression");
             if (call.Text == "position" || call.Text == "adjacent_positions" ||
                 call.Text == "contains_position" || call.Text == "can_occupy" || call.Text == "move") {
                 RequireWorldScope();
@@ -511,10 +562,12 @@ public:
                 if (owner.Binding.empty()) Fail("event owner requires a checked entity binding");
                 const auto tag = CppRuleType(EventTagName(declaration));
                 std::string code = "DispatchFeatureEvent<" + tag + ">(Context, " + owner.Binding + ", " + tag + "::TArguments{";
+                bool sourceDerived = false;
                 for (std::size_t i = 0; i < declaration.Parameters.size(); ++i) {
                     const auto& parameter = declaration.Parameters[i];
                     auto value = Read(call.Args[i + 1], parameter.TypeName);
                     Match(value, parameter.TypeName);
+                    sourceDerived = sourceDerived || value.SelectedSource || value.SourceDerived;
                     if (i != 0) code += ", ";
                     const auto cls = classes_.find(parameter.TypeName);
                     if (cls != classes_.end() && cls->second->GameEntity) {
@@ -524,8 +577,10 @@ public:
                         code += value.Code;
                     }
                 }
-                return {.Type = "list<" + declaration.ReturnType + ">", .Code = code + "})",
+                TValue result{.Type = "list<" + declaration.ReturnType + ">", .Code = code + "})",
                     .SequenceElement = declaration.ReturnType, .SequenceKind = ESequenceKind::Contribution};
+                result.SourceDerived = sourceDerived && CarriesSourceClass(result);
+                return result;
             }
             if (call.Text == "roll") {
                 if (!action_ || !effects) Fail("roll is allowed only as an effectful action expression");
@@ -594,9 +649,11 @@ public:
                 const auto payloadType = PayloadStructName(variant->first, alternative.Name);
                 auto fallback = Read(call.Args[1], payloadType);
                 Match(fallback, payloadType);
-                return {.Type = payloadType, .Code = "([](const auto& rule_set, " + CppRuleType(payloadType) +
+                TValue result{.Type = payloadType, .Code = "([](const auto& rule_set, " + CppRuleType(payloadType) +
                     " fallback) { const auto* value = rule_set.template Get<" + CppRuleType(payloadType) +
                     ">(); if (value == nullptr) { return fallback; } return *value; }(" + owner.Code + ", " + fallback.Code + "))"};
+                result.SourceDerived = (owner.SourceDerived || fallback.SourceDerived) && CarriesSourceClass(result);
+                return result;
             }
             if (member.Text != "has" || call.Args.size() != 1) Fail("enum sets support only 'has' with one argument");
             auto key = Read(call.Args.front(), owner.ElementType);
@@ -615,7 +672,9 @@ public:
                 " rule_key, " + value_type + " rule_fallback) -> " + value_type +
                 " { const auto rule_entry = rule_map.find(rule_key); if (rule_entry == rule_map.end()) { return rule_fallback; } "
                 "return rule_entry->second; }(" + owner.Code + ", " + key.Code + ", " + fallback.Code + "))";
-            return {.Type = owner.ElementType, .Code = code};
+            TValue result{.Type = owner.ElementType, .Code = code};
+            result.SourceDerived = (owner.SourceDerived || fallback.SelectedSource || fallback.SourceDerived) && CarriesSourceClass(result);
+            return result;
         }
         const auto cls = classes_.find(owner.Type);
         if (cls == classes_.end()) Fail("method receiver must be a class");
@@ -630,9 +689,14 @@ public:
         if (!method->Query && !effects) Fail("mutating method '" + member.Text + "' is not allowed in a pure expression");
         if (!method->Query && owner.Guard.empty()) Fail("mutating methods require a stable persistent receiver");
         std::string args;
+        bool sourceDerived = owner.SelectedSource || owner.SourceDerived;
         for (std::size_t i = 0; i < call.Args.size(); ++i) {
             auto value = Read(call.Args[i], method->Parameters[i].TypeName);
             Match(value, method->Parameters[i].TypeName);
+            if (!method->Query && (value.SelectedSource || value.SourceDerived)) {
+                Fail("selected source class values cannot be passed to mutating methods");
+            }
+            sourceDerived = sourceDerived || value.SelectedSource || value.SourceDerived;
             if (i) args += ", ";
             args += value.Code;
         }
@@ -645,7 +709,9 @@ public:
             if (!args.empty()) code += ", " + args;
             code += ")";
         }
-        return {.Type = method->ReturnType, .Code = code, .Effect = !method->Query};
+        TValue result{.Type = method->ReturnType, .Code = code, .Effect = !method->Query};
+        result.SourceDerived = sourceDerived && CarriesSourceClass(result);
+        return result;
     }
 
     TCompiledClass Compile() {
@@ -776,10 +842,13 @@ public:
         ConfigureFlow(result.Flow);
         result.Flow.Activity = true;
         result.Flow.ResultType = result.ResultType;
+        std::size_t parameterIndex = 0;
         for (const auto& parameter : declaration.Parameters) {
             const auto found = classes_.find(parameter.TypeName);
             const bool entity = found != classes_.end() && found->second->GameEntity;
-            const auto value = entity ? EntityBinding(parameter.TypeName, "parameter") : TValue{.Type = parameter.TypeName};
+            auto value = entity ? EntityBinding(parameter.TypeName, "parameter") : TValue{.Type = parameter.TypeName};
+            if (sourceInputAudit_ && parameterIndex < sourceInputParameters_.size()) value.SourceDerived = sourceInputParameters_[parameterIndex];
+            ++parameterIndex;
             const auto slot = AddFrameLocal(result.Flow, parameter.Name, value, "arg_");
             const auto& local = result.Flow.Slots[slot];
             result.Parameters.push_back({local.CppType, local.Local});
@@ -917,6 +986,7 @@ private:
             const bool entity = compiler.CheckChoiceType(choice);
             const auto candidates = compiler.ChoiceCandidates(choice, entity);
             auto local = entity ? compiler.EntityBinding(choice.TypeName, "candidate", false) :
+                candidates.SequenceKind == ESequenceKind::Source ? compiler.SourceValue(choice.TypeName, "candidate", true) :
                 TValue{.Type = choice.TypeName, .Code = "candidate", .LocalCode = "candidate"};
             if (!compiler.locals_.emplace(choice.Name, std::move(local)).second) {
                 Fail("duplicate local '" + choice.Name + "'");
@@ -1012,7 +1082,9 @@ private:
             const TFieldDecl* field = nullptr;
             for (const auto& candidate : alternative.Fields) if (candidate.Name == initializer.Name) field = &candidate;
             if (!field) Fail("unknown variant initializer field '" + initializer.Name + "'");
-            if (!values.emplace(initializer.Name, ReadInitializer(initializer.Value, *field).Code).second) {
+            const auto value = ReadInitializer(initializer.Value, *field);
+            if (value.SelectedSource || value.SourceDerived) Fail("selected source class values cannot be captured in variant payloads");
+            if (!values.emplace(initializer.Name, value.Code).second) {
                 Fail("duplicate variant initializer field '" + initializer.Name + "'");
             }
         }
@@ -1045,12 +1117,26 @@ private:
         for (const auto& [name, value] : locals_) {
             if (!value.SourceBinding.empty()) sources.insert(value.SourceBinding);
         }
-        for (const auto& source : sources) output.push_back(indent + source + ".Validate();");
+        for (const auto& source : sources) output.push_back(indent + source + ".Validate(Context);");
     }
 
     TValue EntityBinding(const std::string& type, const std::string& name, bool writable = true) const {
         return {.Type = type, .Code = name + ".Read()", .Persistent = true,
-            .Guard = writable ? name + ".Guard()" : "", .Binding = name, .LocalCode = name};
+            .Guard = writable ? name + ".Guard()" : "", .Binding = name, .LocalCode = name,
+            .Origin = TStoredOrigin{type, name, {}}};
+    }
+
+    TValue SourceValue(const std::string& type, const std::string& name, bool selected) const {
+        return {.Type = type, .Code = name + ".Read()", .LocalCode = name, .SourceBinding = name,
+            .SelectedSource = selected};
+    }
+
+    std::vector<std::string> SelectedInputValidators() const {
+        std::set<std::string> bindings;
+        for (const auto& [name, value] : locals_) {
+            if (value.SelectedSource) bindings.insert(value.SourceBinding + ".InputValidator()");
+        }
+        return {bindings.begin(), bindings.end()};
     }
 
     std::int64_t ConstantInteger(const expr::TExprNode& value) const {
@@ -1133,11 +1219,45 @@ private:
     bool CheckChoiceType(const TStatement& statement) const {
         const auto type = classes_.find(statement.TypeName);
         const bool entity = type != classes_.end() && type->second->GameEntity;
-        if (!entity && !IsBuiltinPrimitive(statement.TypeName) && !enums_.contains(statement.TypeName) && statement.TypeName != "Position") {
-            Fail("choose requires a GameEntity, primitive, enum, or Position type");
+        if (type == classes_.end() && !IsBuiltinPrimitive(statement.TypeName) && !enums_.contains(statement.TypeName) && statement.TypeName != "Position") {
+            Fail("choose requires a GameEntity, ordinary class source, primitive, enum, or Position type");
         }
         if (!entity && !statement.Candidates) Fail("value choose requires a from sequence");
         return entity;
+    }
+
+    std::string SourceCandidates(const expr::TExprNode& expression, const std::string& type) {
+        if (expression.Kind == expr::ENodeKind::Call && !expression.Lhs && expression.Text == "sources") {
+            if (expression.Args.empty()) Fail("sources requires at least one stored collection");
+            std::string result = "MergeSourceCandidates<" + CppRuleType(type) + ">({";
+            for (std::size_t i = 0; i < expression.Args.size(); ++i) {
+                if (i) result += ", ";
+                result += SourceCandidates(expression.Args[i], type);
+            }
+            return result + "})";
+        }
+        const auto collection = Read(expression);
+        if (collection.Container != EContainer::Collection || collection.ElementType != type) {
+            Fail("source choice requires a stored collection of '" + type + "'");
+        }
+        if (!collection.Origin || collection.Origin->Fields.empty()) {
+            Fail("source choice requires a stored collection path rooted at a GameEntity binding");
+        }
+        const auto& origin = *collection.Origin;
+        std::string path = "TAbilitySourcePath{}";
+        std::string getter = "owner";
+        for (const auto& field : origin.Fields) {
+            path += ".Field(" + CppStringLiteral(PascalToSnake(field)) + ")";
+            getter += "." + field + "()";
+        }
+        std::string result = "SourceCandidates<" + CppRuleType(origin.OwnerType) + ", " + CppRuleType(type) + ">(" +
+            origin.OwnerBinding + ", " + path + ", [](const " + CppRuleType(origin.OwnerType) + "& owner) -> const TIdCollection<" +
+            CppRuleType(type) + ">& { return " + getter + "; }";
+        const auto* name = Field(*classes_.at(type), "Name");
+        if (name && name->Container == EContainer::None && name->TypeName == "string") {
+            result += ", [](const " + CppRuleType(type) + "& value) { return value.Name(); }";
+        }
+        return result + ")";
     }
 
     TValue ChoiceCandidates(const TStatement& statement, bool entity) {
@@ -1145,6 +1265,10 @@ private:
             return {.Type = "list<" + statement.TypeName + ">",
                 .Code = (preflight_ ? "world.Entities<" : "ActionEntities<") + CppRuleType(statement.TypeName) + (preflight_ ? ">()" : ">(Context)"),
                 .SequenceElement = statement.TypeName, .SequenceKind = ESequenceKind::Entity};
+        }
+        if (!entity && classes_.contains(statement.TypeName)) {
+            return {.Type = "list<" + statement.TypeName + ">", .Code = SourceCandidates(*statement.Candidates, statement.TypeName),
+                .SequenceElement = statement.TypeName, .SequenceKind = ESequenceKind::Source};
         }
         auto candidates = Read(*statement.Candidates, "list<" + statement.TypeName + ">");
         if (candidates.SequenceElement != statement.TypeName ||
@@ -1156,6 +1280,7 @@ private:
 
     std::string FrameCppType(const TValue& value) const {
         if (!value.Binding.empty()) return CppRuleType("TGeneratedEntityBinding<" + value.Type + ">");
+        if (!value.SourceBinding.empty()) return CppRuleType("TGeneratedSourceBinding<" + value.Type + ">");
         if (!value.SequenceElement.empty()) {
             auto element = CppTypeFor(value.SequenceElement);
             if (value.SequenceKind == ESequenceKind::Entity) element = "TGeneratedEntityBinding<" + element + ">";
@@ -1181,8 +1306,11 @@ private:
         const auto local = NewLocalName(name, prefix);
         flow.Slots.push_back({FrameCppType(value), local});
         frameSlots_.emplace(local, slot);
+        if (sourceInputAudit_ && value.SourceDerived) auditedSourceLocals_.insert(local);
         if (!value.Binding.empty()) {
             locals_[name] = EntityBinding(value.Type, local, !value.Guard.empty());
+        } else if (!value.SourceBinding.empty()) {
+            locals_[name] = SourceValue(value.Type, local, value.SelectedSource);
         } else {
             locals_[name] = {.Type = value.Type, .Code = local,
                 .Container = value.Container, .KeyType = value.KeyType, .ElementType = value.ElementType,
@@ -1190,6 +1318,17 @@ private:
                 .SequenceKind = value.SequenceKind};
         }
         return slot;
+    }
+
+    void AuditActivitySourceInputs(const TActivityDecl& declaration, const std::vector<bool>& parameters) {
+        std::string key = declaration.Name + ":";
+        for (const bool parameter : parameters) key += parameter ? '1' : '0';
+        if (!sourceInputAudits_->insert(key).second) return;
+        TCompiler audit(*classes_.at(declaration.OwnerType), loaded_);
+        audit.sourceInputAudit_ = true;
+        audit.sourceInputParameters_ = parameters;
+        audit.sourceInputAudits_ = sourceInputAudits_;
+        (void)audit.CompileActivityBody(declaration);
     }
 
     void SetFlowScope(TActionFlowBlock& block) const {
@@ -1230,15 +1369,24 @@ private:
                 TActionFlowBlock::TInvocation call;
                 call.FunctionName = "::" + ActivityFunctionName(info.OwnerStem, declaration);
                 call.ResultType = CppRuleType(CppTypeFor(declaration.ReturnType));
+                call.InputValidators = SelectedInputValidators();
+                if (sourceInputAudit_ || !call.InputValidators.empty()) {
+                    const auto dependency = ActivityClassResultDependency(declaration.Name, loaded_);
+                    if (!dependency.empty()) Fail("selected source inputs cannot invoke class-valued activity '" + dependency + "', including inherited activity inputs");
+                }
+                std::vector<bool> selectedParameters;
                 for (std::size_t i = 0; i < declaration.Parameters.size(); ++i) {
                     const auto& parameter = declaration.Parameters[i];
                     const auto value = Read(statement.Value->Args[i], parameter.TypeName, false);
                     Match(value, parameter.TypeName);
+                    RequireMaterializable(value);
+                    selectedParameters.push_back(value.SelectedSource || value.SourceDerived);
                     const auto type = classes_.find(parameter.TypeName);
                     const bool entity = type != classes_.end() && type->second->GameEntity;
                     if (entity && (value.Binding.empty() || value.Guard.empty())) Fail("activity entity arguments require mutable entity bindings");
                     call.Arguments.push_back(entity ? value.Binding : value.Code);
                 }
+                if (sourceInputAudit_ || !call.InputValidators.empty()) AuditActivitySourceInputs(declaration, selectedParameters);
                 if (statement.Kind == K::Let) {
                     if (declaration.ReturnType == "void") Fail("cannot bind void activity result");
                     call.Slot = AddFrameLocal(flow, statement.Name, TValue{.Type = declaration.ReturnType});
@@ -1248,21 +1396,25 @@ private:
             } else if (statement.Kind == K::Let) {
                 ValidateActionStep(flow.Blocks[current].Body, "");
                 auto value = Read(*statement.Value, "", true);
+                RequireMaterializable(value);
                 if (value.Type == "void") Fail("cannot bind void result");
                 const auto slot = AddFrameLocal(flow, statement.Name, value);
                 flow.Blocks[current].Body.push_back("frame.slot_" + std::to_string(slot) + ".emplace(" +
-                    (value.Binding.empty() ? value.Code : value.Binding) + ");");
+                    (!value.Binding.empty() ? value.Binding : !value.SourceBinding.empty() ? value.SourceBinding : value.Code) + ");");
             } else if (statement.Kind == K::Choose) {
                 ValidateActionStep(flow.Blocks[current].Body, "");
                 const bool entity = CheckChoiceType(statement);
                 const auto candidates = ChoiceCandidates(statement, entity);
-                auto value = entity ? EntityBinding(statement.TypeName, "selected") : TValue{.Type = statement.TypeName};
-                const auto slot = AddFrameLocal(flow, statement.Name, value, entity ? "bound_" : "local_");
+                const bool source = candidates.SequenceKind == ESequenceKind::Source;
+                auto value = entity ? EntityBinding(statement.TypeName, "selected") :
+                    source ? SourceValue(statement.TypeName, "selected", true) : TValue{.Type = statement.TypeName};
+                const auto slot = AddFrameLocal(flow, statement.Name, value, entity || source ? "bound_" : "local_");
                 const auto& local = locals_.at(statement.Name);
                 auto& choice = flow.Blocks[current].Choice;
                 choice = {.Type = CppRuleType(entity ? statement.TypeName : CppTypeFor(statement.TypeName)),
                     .CppType = flow.Slots[slot].CppType, .Local = local.LocalCode,
-                    .Candidates = candidates.Code, .Slot = slot, .Entity = entity};
+                    .Candidates = candidates.Code, .Slot = slot, .Entity = entity, .Source = source,
+                    .PredicateCppType = source ? CppRuleType("TGeneratedSourceCandidate<" + statement.TypeName + ">") : ""};
                 ValidateActionStep(choice.Predicate, "");
                 std::string predicate = "true";
                 if (statement.Value) {
@@ -1295,6 +1447,8 @@ private:
                 if (statement.Value) {
                     const auto value = Read(*statement.Value, method_->ReturnType, true);
                     Match(value, method_->ReturnType);
+                    RequireMaterializable(value);
+                    if (value.SelectedSource) Fail("selected source bindings cannot be returned from an activity");
                     if (value.Type == "void") flow.Blocks[current].Body.push_back("(void)" + value.Code + ";");
                     else flow.Blocks[current].ReturnValue = value.Code;
                 } else if (method_->ReturnType != "void") {
@@ -1406,11 +1560,18 @@ private:
                 case K::Let: {
                     if (locals_.contains(statement.Name)) Fail("duplicate local '" + statement.Name + "'");
                     auto value = Read(*statement.Value, "", effects);
+                    RequireMaterializable(value);
                     if (value.Type == "void") Fail("cannot bind void result");
                     const auto local = NewLocalName(statement.Name);
+                    if (sourceInputAudit_ && value.SourceDerived) auditedSourceLocals_.insert(local);
                     if ((action_ || hook_) && !value.Binding.empty()) {
                         line("[[maybe_unused]] auto " + local + " = " + value.Binding + ";");
                         locals_[statement.Name] = EntityBinding(value.Type, local, !value.Guard.empty());
+                        break;
+                    }
+                    if (action_ && !value.SourceBinding.empty()) {
+                        line("[[maybe_unused]] auto " + local + " = " + value.SourceBinding + ";");
+                        locals_[statement.Name] = SourceValue(value.Type, local, value.SelectedSource);
                         break;
                     }
                     line("[[maybe_unused]] auto " + local + " = " + value.Code + ";");
@@ -1433,6 +1594,11 @@ private:
                     auto target = Read(*statement.Target);
                     auto value = Read(*statement.Value, target.Type, effects);
                     Match(value, target.Type);
+                    RequireMaterializable(value);
+                    if (sourceInputAudit_ && value.SourceDerived && CarriesSourceClass(value)) {
+                        Fail("selected source-derived class values cannot be assigned during activity input validation");
+                    }
+                    if (value.SelectedSource || !target.SourceBinding.empty()) Fail("source bindings cannot be rebound or assigned to ordinary value storage");
                     if (value.SequenceKind != target.SequenceKind) Fail("assignment requires matching sequence kinds");
                     if (statement.Kind != K::Assign) {
                         Match(target, "int");
@@ -1467,6 +1633,8 @@ private:
                     if (statement.Value) {
                         auto value = Read(*statement.Value, method_->ReturnType, effects);
                         Match(value, method_->ReturnType);
+                        RequireMaterializable(value);
+                        if (value.SelectedSource) Fail("selected source bindings cannot be returned from an activity");
                         if (value.Type == "void") {
                             line(value.Code + ";");
                             if (!method_->Query && !action_) line("transaction.Commit();");
@@ -1505,6 +1673,7 @@ private:
                 case K::ForEach: {
                     if (locals_.contains(statement.Name)) Fail("duplicate local '" + statement.Name + "'");
                     auto sequence = Read(*statement.Value);
+                    RequireMaterializable(sequence);
                     const bool collection = sequence.Container == EContainer::Collection;
                     if (sequence.SequenceElement.empty() && !collection) Fail("for requires an event contribution sequence, entity sequence, or read-only collection");
                     const auto elementType = collection ? sequence.ElementType : sequence.SequenceElement;
@@ -1512,6 +1681,7 @@ private:
                     const auto snapshot = "event_values_" + number;
                     const auto entry = "event_value_" + number;
                     const auto local = NewLocalName(statement.Name);
+                    if (sourceInputAudit_ && sequence.SourceDerived) auditedSourceLocals_.insert(local);
                     auto saved = locals_;
                     const bool borrowed = collection && method_->Query && !action_ && !hook_ && !preflight_ &&
                         sequence.Storage.starts_with("self.") && sequence.Field && !sequence.Field->Derived;
@@ -1546,6 +1716,10 @@ private:
     std::unordered_map<std::string, TValue> locals_;
     std::unordered_set<std::string> dependencies_;
     const TMethod* method_ = nullptr;
+    bool sourceInputAudit_ = false;
+    std::vector<bool> sourceInputParameters_;
+    std::unordered_set<std::string> auditedSourceLocals_;
+    std::shared_ptr<std::unordered_set<std::string>> sourceInputAudits_ = std::make_shared<std::unordered_set<std::string>>();
     bool action_ = false;
     bool hook_ = false;
     bool preflight_ = false;

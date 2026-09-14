@@ -36,7 +36,12 @@ class TStrikeChoiceIo final : public IInteractionSystem {
 public:
     void ExpectTarget(std::string name, bool suspend = false)
     {
-        expected_.push_back({std::move(name), suspend});
+        Expect("target", std::move(name), suspend);
+    }
+
+    void Expect(std::string kind, std::string name, bool suspend = false)
+    {
+        expected_.push_back({std::move(kind), std::move(name), suspend});
     }
 
     void RequestChoice(int player_id, TAlternatives alternatives, TState state,
@@ -64,12 +69,12 @@ protected:
     size_t ChooseAlternativeIndex(int player_id, const TAlternatives& alternatives) override
     {
         EXPECT_EQ(player_id, 0);
-        EXPECT_EQ(alternatives.Kind(), "target");
         if (expected_.empty()) {
             throw std::logic_error("unexpected compiled strike alternative");
         }
         const auto expected = expected_.front();
         expected_.pop_front();
+        EXPECT_EQ(alternatives.Kind(), expected.Kind);
         candidates_.clear();
         std::optional<size_t> result;
         for (size_t index = 0; index < alternatives.Size(); ++index) {
@@ -86,6 +91,7 @@ protected:
 
 private:
     struct TExpected {
+        std::string Kind;
         std::string Name;
         bool Suspend;
     };
@@ -117,6 +123,18 @@ protected:
                 factory_.AddSource(entry.path());
             }
         }
+        const auto class_path = directory_ / "vicious_fighter_class.json";
+        std::ofstream class_output(class_path);
+        class_output.exceptions(std::ios::failbit | std::ios::badbit);
+        class_output << nlohmann::json{
+            {"name", "vicious_fighter_class"}, {"type", "pf2e_class"},
+            {"pf2e_class", {
+                {"hitpoints", 10},
+                {"features", nlohmann::json::array({"abilities.ViciousSwing"})}
+            }}
+        };
+        class_output.close();
+        factory_.AddSource(class_path);
         nlohmann::json map = {{"x_size", 8}, {"y_size", 8}};
         auto rules = std::make_shared<TAbilityRules>(*factory_.AbilityRules());
         RegisterGeneratedStrikeActivitiesRules(*rules);
@@ -228,6 +246,25 @@ protected:
             throw std::logic_error("missing compiled strike option");
         }
         return *found;
+    }
+
+    TAbilityOption ViciousSwing(TPlayer& actor) const
+    {
+        const auto options = battle_->AvailableActions(actor);
+        const auto found = std::ranges::find_if(options, [](const TAbilityOption& option) {
+            return option.DefinitionId == "abilities.UseViciousSwing";
+        });
+        if (found == options.end()) {
+            throw std::logic_error("missing Vicious Swing option");
+        }
+        return *found;
+    }
+
+    static nlohmann::json ViciousFighter(nlohmann::json weapons = nlohmann::json::array({StrikeWeapon()}))
+    {
+        auto result = Armed(std::move(weapons));
+        result["pf2e_creature"]["creature_data"]["class"] = "vicious_fighter_class";
+        return result;
     }
 
     EAbilityExecutionResult ExecuteJournal(TPlayer& actor, const TAbilityOption& option)
@@ -643,6 +680,179 @@ TEST_F(TGeneratedStrikeTest, ActivityCanIgnoreMapWithoutIncreasingItOrChargingAn
     EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 3);
     EXPECT_EQ(actor.GetCreature()->Reactions()->Count(), 0);
     EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 1);
+    journal_->Undo(initial);
+    EXPECT_EQ(Snapshot(), before);
+}
+
+TEST_F(TGeneratedStrikeTest, ClassFeatChoosesIndependentSameNameWeaponsAndNaturalAttacks)
+{
+    auto light = StrikeWeapon(4);
+    auto heavy = StrikeWeapon(12);
+    auto jaws = StrikeWeapon();
+    light["features"] = heavy["features"] = jaws["features"] = nlohmann::json::array();
+    jaws["name"] = "Jaws";
+    auto definition = ViciousFighter(nlohmann::json::array({light, heavy}));
+    definition["pf2e_creature"]["creature_data"]["natural_weapons"] = nlohmann::json::array({jaws});
+    auto& actor = Add(std::move(definition), "Fighter", {0, 0}, 0);
+    auto& target = Add(Target(), "Target", {1, 0});
+    ASSERT_EQ(battle_->AvailableActions(actor).size(), 1u);
+    const auto option = ViciousSwing(actor);
+    EXPECT_TRUE(option.Source.StartsWith(TAbilitySourcePath{}.Field("class")));
+    const auto before = Snapshot();
+    const auto initial = journal_->CurrentState();
+
+    io_.ExpectTarget("Target");
+    io_.Expect("source", "Blade (2)");
+    rng_.ExpectCall(20, 6);
+    rng_.ExpectCall(12, 7);
+    rng_.ExpectCall(12, 8);
+    EXPECT_EQ(ExecuteJournal(actor, option), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(io_.Candidates(), (std::vector<std::string>{"Blade (1)", "Blade (2)", "Jaws"}));
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 81);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 1);
+    EXPECT_EQ(actor.GetCreature()->Flourishes()->Count(), 0);
+    EXPECT_EQ(actor.GetCreature()->AttacksMade().Get(), 2);
+    journal_->Undo(initial);
+    EXPECT_EQ(Snapshot(), before);
+
+    io_.ExpectTarget("Target");
+    io_.Expect("source", "Jaws");
+    rng_.ExpectCall(20, 6);
+    rng_.ExpectCall(6, 3);
+    rng_.ExpectCall(6, 4);
+    EXPECT_EQ(ExecuteJournal(actor, option), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 89);
+    journal_->Undo(initial);
+    EXPECT_EQ(Snapshot(), before);
+}
+
+TEST_F(TGeneratedStrikeTest, ViciousSwingAppliesExistingMapAndCountsTwoAttacksEvenOnMiss)
+{
+    auto definition = ViciousFighter();
+    definition["pf2e_creature"]["creature_data"]["attacks_made"] = 1;
+    auto& actor = Add(std::move(definition), "Fighter", {0, 0}, 0);
+    auto& target = Add(Target(20), "Target", {1, 0});
+    const auto before = Snapshot();
+    const auto initial = journal_->CurrentState();
+    io_.ExpectTarget("Target");
+    io_.Expect("source", "Blade");
+    rng_.ExpectCall(20, 15);
+    EXPECT_EQ(ExecuteJournal(actor, ViciousSwing(actor)), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 100);
+    EXPECT_EQ(actor.GetCreature()->AttacksMade().Get(), 3);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 1);
+    EXPECT_EQ(actor.GetCreature()->Flourishes()->Count(), 0);
+    journal_->Undo(initial);
+    EXPECT_EQ(Snapshot(), before);
+}
+
+TEST_F(TGeneratedStrikeTest, ViciousSwingExtraWeaponDiceScaleAtTenthAndEighteenthLevel)
+{
+    auto weapon = StrikeWeapon();
+    weapon["attack_bonus_baseline"] = {{"is_fixed", true}, {"value", 9}};
+    auto& actor = Add(ViciousFighter(nlohmann::json::array({weapon})), "Fighter", {0, 0}, 0);
+    auto& target = Add(Target(), "Target", {1, 0});
+    auto context = journal_->ExecutionContext();
+    const auto initial = context.GetState();
+    const auto before = Snapshot();
+    for (const auto& [level, extra] :
+         std::vector<std::pair<int, int>>{{1, 1}, {9, 1}, {10, 2}, {17, 2}, {18, 3}}) {
+        SCOPED_TRACE(level);
+        context.AssignGuarded(actor.GetCreature()->Level(), level,
+                              TGuarded<TCreature>(*actor.GetCreature()), "level");
+        io_.ExpectTarget("Target");
+        io_.Expect("source", "Blade");
+        rng_.ExpectCall(20, 6);
+        for (int count = 0; count < extra + 1; ++count) {
+            rng_.ExpectCall(6, 3);
+        }
+        EXPECT_EQ(ExecuteJournal(actor, ViciousSwing(actor)), EAbilityExecutionResult::Applied);
+        EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 100 - 3 * (extra + 1) - 4);
+        EXPECT_EQ(actor.GetCreature()->AttacksMade().Get(), 2);
+        context.Undo(initial);
+        EXPECT_EQ(Snapshot(), before);
+    }
+}
+
+TEST_F(TGeneratedStrikeTest, ViciousSwingUsesOneFlourishPerRoundAndRejectsStaleCostsBeforePayment)
+{
+    auto& actor = Add(ViciousFighter(), "Fighter", {0, 0}, 0);
+    auto& target = Add(Target(), "Target", {1, 0});
+    const auto option = ViciousSwing(actor);
+    auto context = journal_->ExecutionContext();
+    const auto initial = context.GetState();
+    const auto before = Snapshot();
+    context.SetResourceCount(actor.GetCreature()->Flourishes(), 0,
+                             TGuarded<TCreature>(*actor.GetCreature()), "flourishes");
+    const auto unavailable = Snapshot();
+    EXPECT_EQ(ExecuteJournal(actor, option), EAbilityExecutionResult::Unavailable);
+    EXPECT_EQ(Snapshot(), unavailable);
+    context.Invoke(TGuarded<TCreature>(*actor.GetCreature()), &TCreature::BeginTurn);
+    EXPECT_EQ(actor.GetCreature()->Flourishes()->Count(), 0);
+    EXPECT_EQ(ExecuteJournal(actor, option), EAbilityExecutionResult::Unavailable);
+    context.Invoke(TGuarded<TCreature>(*actor.GetCreature()), &TCreature::BeginRound);
+    EXPECT_EQ(actor.GetCreature()->Flourishes()->Count(), 1);
+
+    io_.ExpectTarget("Target");
+    io_.Expect("source", "Blade");
+    rng_.ExpectCall(20, 1);
+    EXPECT_EQ(ExecuteJournal(actor, option), EAbilityExecutionResult::Applied);
+    context.SetResourceCount(actor.GetCreature()->Actions(), 3,
+                             TGuarded<TCreature>(*actor.GetCreature()), "actions");
+    const auto spent = Snapshot();
+    EXPECT_EQ(ExecuteJournal(actor, option), EAbilityExecutionResult::Unavailable);
+    EXPECT_EQ(Snapshot(), spent);
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 100);
+    context.Undo(initial);
+    EXPECT_EQ(Snapshot(), before);
+
+    journal_->MovePlayer(&target, {5, 5});
+    const auto distant = Snapshot();
+    EXPECT_EQ(ExecuteJournal(actor, option), EAbilityExecutionResult::Unavailable);
+    EXPECT_EQ(Snapshot(), distant);
+    context.Undo(initial);
+    context.SetResourceCount(actor.GetCreature()->Actions(), 1,
+                             TGuarded<TCreature>(*actor.GetCreature()), "actions");
+    const auto insufficient = Snapshot();
+    EXPECT_EQ(ExecuteJournal(actor, option), EAbilityExecutionResult::Unavailable);
+    EXPECT_EQ(Snapshot(), insufficient);
+    context.Undo(initial);
+    EXPECT_EQ(Snapshot(), before);
+}
+
+TEST_F(TGeneratedStrikeTest, ViciousSwingSelectsLiveWeaponAfterPauseAndReplaysWithoutDoublePayment)
+{
+    auto& actor = Add(ViciousFighter(), "Fighter", {0, 0}, 0);
+    auto& target = Add(Target(), "Target", {1, 0});
+    const auto option = ViciousSwing(actor);
+    const auto before = Snapshot();
+    const auto initial = journal_->CurrentState();
+    io_.ExpectTarget("Target");
+    io_.Expect("source", "Blade", true);
+    const auto point = Suspend([&]() { ExecuteJournal(actor, option); });
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 1);
+    EXPECT_EQ(actor.GetCreature()->Flourishes()->Count(), 0);
+    EXPECT_EQ(actor.GetCreature()->AttacksMade().Get(), 0);
+    TTransformator editor(io_);
+    auto context = editor.ExecutionContext();
+    const auto edit_start = context.GetState();
+    auto weapon = context.Project(actor.GetCreature()->Weapons(), [](TIdCollection<TWeapon>& values) {
+        return TGuarded<TWeapon>(*values.Find(TId<TWeapon>{0}));
+    });
+    auto die = context.Project(weapon, [](TWeapon& value) { return value.BaseDiceSize(); });
+    context.AssignGuarded(die, 12, weapon, "base_dice_size");
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        rng_.ExpectCall(20, 6);
+        rng_.ExpectCall(12, 7);
+        rng_.ExpectCall(12, 8);
+        point.Resume();
+        EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 81);
+        EXPECT_EQ(actor.GetCreature()->AttacksMade().Get(), 2);
+        EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 1);
+        EXPECT_EQ(actor.GetCreature()->Flourishes()->Count(), 0);
+        point.Revert(*journal_);
+    }
+    context.Undo(edit_start);
     journal_->Undo(initial);
     EXPECT_EQ(Snapshot(), before);
 }

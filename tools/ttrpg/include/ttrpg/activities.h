@@ -14,3 +14,5 @@ std::unordered_map<std::string, TActivityInfo> ActivitySymbols(const TLoadedSche
 TActivityInfo ResolveActivity(const std::string& name, const std::string& callerStem, const TLoadedSchemas& loaded);
 std::string ActivityFunctionName(const std::string& ownerStem, const TActivityDecl& declaration);
 void ValidateActivityDefinitions(const TLoadedSchemas& loaded);
+
+std::string ActivityClassResultDependency(const std::string& name, const TLoadedSchemas& loaded);

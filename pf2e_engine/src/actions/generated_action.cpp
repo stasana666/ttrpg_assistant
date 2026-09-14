@@ -122,11 +122,55 @@ void ValidateActionEntity(const std::shared_ptr<TActionContext>& ctx,
                           const TGeneratedEntityView& entity)
 {
     RequireContext(ctx);
-    const auto* player = &entity.Player();
+    ValidateActionEntityMembership(ctx, entity);
+}
+
+void ValidateActionEntityMembership(const std::shared_ptr<TActionContext>& ctx,
+                                    const TGeneratedEntityView& entity)
+{
+    if (!ctx || ctx->transformator == nullptr) {
+        throw std::invalid_argument("entity membership requires an execution context");
+    }
+    const auto* player = entity.player_;
     if (ctx->battle == nullptr ||
         ctx->battle->GetPlayer([player](const TPlayer* current) { return current == player; }) == nullptr) {
         throw TAbilityUnavailable();
     }
+    entity.Validate();
+}
+
+void ValidateActionInputs(const std::shared_ptr<TActionContext>& ctx)
+{
+    if (!ctx) {
+        throw std::invalid_argument("action inputs require an execution context");
+    }
+    if (ctx->input_validators) {
+        for (const auto& validate : *ctx->input_validators) {
+            if (!validate) {
+                throw std::invalid_argument("action input validator must not be empty");
+            }
+            validate(ctx);
+        }
+    }
+}
+
+std::shared_ptr<TActionContext> ForkActionInputs(
+    const std::shared_ptr<TActionContext>& ctx, std::vector<FActionInputValidator> validators)
+{
+    ValidateActionActor(ctx);
+    auto inputs = ctx->input_validators ? *ctx->input_validators
+                                       : std::vector<FActionInputValidator>{};
+    for (auto& validator : validators) {
+        if (!validator) {
+            throw std::invalid_argument("action input validator must not be empty");
+        }
+        inputs.push_back(std::move(validator));
+    }
+    auto child = std::make_shared<TActionContext>(*ctx);
+    child->input_validators =
+        std::make_shared<const std::vector<FActionInputValidator>>(std::move(inputs));
+    ValidateActionActor(child);
+    return child;
 }
 
 const TAbilityRules& GeneratedActionRules(const std::shared_ptr<TActionContext>& ctx)
