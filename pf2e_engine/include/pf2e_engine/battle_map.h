@@ -15,6 +15,7 @@ public:
 
     int GetXSize() const;
     int GetYSize() const;
+    bool Contains(TPosition position) const;
 
     bool HasLine(TPosition src, TPosition dst) const;
     bool HasLine(TPosition src, TPosition dst, int max_length) const;

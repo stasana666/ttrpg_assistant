@@ -87,16 +87,15 @@ TEST(SourceCompilerTest, BindsTypedSnapshotsAndValidatesUnusedSourcesAfterChoice
     EXPECT_EQ(action.SourceType, "TItem");
     EXPECT_EQ(action.SourceName, "Item");
     const auto body = Join(CompileAction(action, loaded).Body);
-    EXPECT_NE(body.find("auto source_Item = ActionSource<TActor, TItem>(Context)"), std::string::npos);
-    EXPECT_NE(body.find("captured_Item = source_Item"), std::string::npos);
-    EXPECT_NE(body.find("auto source_Item = captured_Item"), std::string::npos);
-    const auto callback = body.rfind("auto source_Item = captured_Item");
+    EXPECT_NE(body.find("auto source_Item = ActionSource<::TActor, ::TItem>(Context)"), std::string::npos);
+    EXPECT_NE(body.find("TFlow::Run(Context, std::move(next)"), std::string::npos);
+    const auto callback = body.rfind("auto source_Item = ActionSource<::TActor, ::TItem>(Context)");
     ASSERT_NE(callback, std::string::npos);
     EXPECT_NE(body.find("source_Item.Validate();", callback), std::string::npos);
     EXPECT_EQ(body.find("source_Item.Guard()"), std::string::npos);
     EXPECT_EQ(body.find("source_Item.Read().Id()"), std::string::npos);
     const auto implementation = Implementation(loaded);
-    EXPECT_NE(implementation.find("FindAbilitySource<TItem>(action_self.Read(), source)"), std::string::npos);
+    EXPECT_NE(implementation.find("FindAbilitySource<::TItem>(action_self.Read(), source)"), std::string::npos);
     EXPECT_NE(implementation.find("PrepareActionSource<TActor, TItem>(Context, actor, grant)"), std::string::npos);
     EXPECT_NE(implementation.find("static const auto execution_Probe = std::make_shared<const TAbilityExecution>"), std::string::npos);
     EXPECT_NE(implementation.find("rules.Executions.Register(\"sources.Probe\", execution_Probe)"), std::string::npos);
@@ -253,7 +252,7 @@ TEST(SourceCompilerTest, RejectsInvalidSourcesAndCollectionMutation) {
     Rejects("action A for TActor using TActor Item {}", "ordinary class type");
     Rejects("action A for TActor using TItem Item { Item.Grow(1); }", "stable persistent receiver");
     Rejects("action A for TActor using TItem Item { Item.Size = 1; }", "assignment target");
-    Rejects("action A for TActor { for Item in @self.Inventory { choose TActor Target; } }", "only at the top level");
+    Rejects("action A for TActor { for Item in @self.Inventory { choose TActor Target; } }", "synchronous scope");
     Rejects("action A for TActor { for Item in @self.Inventory { Item.Grow(1); } }", "stable persistent receiver");
 }
 

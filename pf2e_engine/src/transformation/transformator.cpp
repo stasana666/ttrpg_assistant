@@ -100,7 +100,8 @@ void TTransformator::ChangeRound(TInitiativeOrder* order, size_t new_round)
 
 void TTransformator::MovePlayer(TPlayer* player, TPosition new_position)
 {
-    transformations_.emplace_back(TMovePlayer(player, new_position));
+    static_assert(std::is_nothrow_move_constructible_v<TTransformation>);
+    transformations_.emplace_back(std::in_place_type<TMovePlayer>, player, new_position);
 }
 
 void TTransformator::Undo(TState state)

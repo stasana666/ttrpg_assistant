@@ -267,7 +267,8 @@ private:
         return f;
     }
 
-    expr::TExprNode ReadExpression(ETok end, bool assignment = false, const std::string& prefix = "", bool aggregate = false) {
+    expr::TExprNode ReadExpression(ETok end, bool assignment = false, const std::string& prefix = "", bool aggregate = false,
+                                   const std::string& endKeyword = "") {
         std::string source = prefix;
         int braces = 0;
         int parens = 0;
@@ -276,7 +277,7 @@ private:
         while (ts_.Peek().kind != ETok::End) {
             const auto& token = ts_.Peek();
             if (braces == 0 && parens == 0 && brackets == 0 &&
-                (token.kind == end ||
+                (token.kind == end || (!endKeyword.empty() && token.text == endKeyword) ||
                  (assignment && (token.text == "=" || token.text == "+=" || token.text == "-=")))) {
                 break;
             }
@@ -355,8 +356,12 @@ private:
             } else if (ts_.Peek().text == "choose") {
                 ts_.Advance();
                 statement.Kind = K::Choose;
-                statement.TypeName = ExpectIdent("chosen entity type");
-                statement.Name = ExpectIdent("chosen entity name");
+                statement.TypeName = ExpectIdent("chosen type");
+                statement.Name = ExpectIdent("chosen name");
+                if (ts_.Peek().text == "from") {
+                    ts_.Advance();
+                    statement.Candidates = ReadExpression(ETok::Semi, false, "", false, "where");
+                }
                 if (ts_.Peek().text == "where") {
                     ts_.Advance();
                     statement.Value = ReadExpression(ETok::Semi);
@@ -390,6 +395,15 @@ private:
                     ts_.Advance();
                     statement.ElseBody = ParseBody();
                 }
+                body.push_back(std::move(statement));
+                continue;
+            } else if (ts_.Peek().text == "while") {
+                ts_.Advance();
+                statement.Kind = K::While;
+                ts_.Expect(ETok::LParen, "'(' after while");
+                statement.Value = ReadExpression(ETok::RParen);
+                ts_.Expect(ETok::RParen, "')'");
+                statement.Body = ParseBody();
                 body.push_back(std::move(statement));
                 continue;
             } else if (ts_.Peek().text == "for") {

@@ -83,11 +83,11 @@ TEST(ActionCompilerTest, ParsesTypedBodiesAlongsideAbilityDeclarations) {
     ASSERT_TRUE(action.Body[1].Value.has_value());
     const auto compiled = CompileAction(action, loaded);
     const auto body = Body(compiled);
-    EXPECT_NE(body.find("ActionSelf<TActor>(Context)"), std::string::npos);
-    EXPECT_NE(body.find("ChooseActionEntity<TActor>"), std::string::npos);
+    EXPECT_NE(body.find("ActionSelf<::TActor>(Context)"), std::string::npos);
+    EXPECT_NE(body.find("SelectActionEntity<::TActor>"), std::string::npos);
     EXPECT_NE(body.find("RollActionDice(Context, 1, 6)"), std::string::npos);
     EXPECT_NE(body.find("ctx.Invoke(ctx.Project(bound_Target.Guard()"), std::string::npos);
-    EXPECT_NE(body.find("&THealth::Heal, local_Amount"), std::string::npos);
+    EXPECT_NE(body.find("&::THealth::Heal, local_Amount"), std::string::npos);
     EXPECT_EQ(body.find("Health_"), std::string::npos);
     EXPECT_EQ(body.find("ParseDsl"), std::string::npos);
     EXPECT_EQ(body.find("transaction"), std::string::npos);
@@ -128,12 +128,10 @@ TEST(ActionCompilerTest, CapturesValuesBeforeEachChoiceAndRecreatesContinuationL
         }
     )");
     const auto body = Body(CompileAction(loaded.Primary.Abilities.front(), loaded));
-    EXPECT_NE(body.find("captured_Amount = local_Amount"), std::string::npos);
-    EXPECT_NE(body.find("auto local_Amount = captured_Amount;"), std::string::npos);
-    EXPECT_NE(body.find("captured_First = bound_First"), std::string::npos);
-    EXPECT_NE(body.find("captured_Alias = local_Alias"), std::string::npos);
-    EXPECT_NE(body.find("auto bound_First = captured_First;"), std::string::npos);
-    EXPECT_NE(body.find("auto local_Alias = bound_First;"), std::string::npos);
+    EXPECT_NE(body.find("std::optional<int> slot_0"), std::string::npos);
+    EXPECT_NE(body.find("auto& local_Amount = frame.slot_0.value()"), std::string::npos);
+    EXPECT_NE(body.find("auto next = frame;"), std::string::npos);
+    EXPECT_NE(body.find("frame.slot_2.emplace(bound_First)"), std::string::npos);
     EXPECT_NE(body.find("bound_Second.Read().Id() != local_Alias.Read().Id()"), std::string::npos);
     EXPECT_NE(body.find("ValidateActionActor(Context);"), std::string::npos);
     EXPECT_NE(body.find("bound_First.View().Validate();"), std::string::npos);
@@ -152,7 +150,7 @@ TEST(ActionCompilerTest, SupportsOtherEntityTypesAndGuardedScalarWrites) {
         }
     )");
     const auto body = Body(CompileAction(loaded.Primary.Abilities.front(), loaded));
-    EXPECT_NE(body.find("ChooseActionEntity<TDevice>"), std::string::npos);
+    EXPECT_NE(body.find("SelectActionEntity<::TDevice>"), std::string::npos);
     EXPECT_NE(body.find("ctx.AssignGuarded(ctx.Project(bound_Target.Guard()"), std::string::npos);
     EXPECT_NE(body.find("ctx.AssignGuarded(ctx.Project(action_self.Guard()"), std::string::npos);
     EXPECT_EQ(body.find("this"), std::string::npos);
@@ -179,8 +177,7 @@ TEST(ActionCompilerTest, RejectsInvalidOwnersAndSuspensionInSynchronousScopes) {
     Rejects("action A for THealth {}", "owner must be a GameEntity");
     Rejects("reaction A for TActor {}", "support action declarations only");
     Rejects("action A for TActor { choose THealth Target; }", "choose requires a GameEntity");
-    Rejects("action A for TActor { if (true) { choose TActor Target; } }", "only at the top level");
-    Rejects("class TBad { method void F() { choose TActor Target; } }", "only at the top level");
+    Rejects("class TBad { method void F() { choose TActor Target; } }", "synchronous scope");
     Rejects("action A for TActor { choose TActor Target; choose TActor Target; }", "duplicate local");
     Rejects("action A for TActor { return; choose TActor Target; }", "unreachable");
 }

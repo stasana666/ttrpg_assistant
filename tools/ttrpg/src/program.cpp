@@ -111,7 +111,7 @@ std::string Operator(expr::EBinaryOp op) {
     throw std::runtime_error("unknown binary operator");
 }
 
-enum class ESequenceKind { None, Contribution, Entity };
+enum class ESequenceKind { None, Contribution, Entity, Value };
 
 struct TValue {
     std::string Type{};
@@ -186,7 +186,7 @@ public:
                     return EntityBinding(self_.Name, "action_self", action_);
                 }
                 return {.Type = self_.Name, .Code = "std::as_const(self)", .Persistent = true,
-                        .Guard = "TGuarded<" + self_.Name + ">(self)", .Storage = "self"};
+                        .Guard = "TGuarded<" + CppRuleType(self_.Name) + ">(self)", .Storage = "self"};
             case K::Var: {
                 if (e.HasDollar) Fail("use '@' for rule context variables");
                 if (e.Text == "true" || e.Text == "false") return {.Type = "bool", .Code = e.Text};
@@ -222,7 +222,7 @@ public:
                     if (literal_type) Fail("ambiguous enum value '" + e.Text + "'; a typed context is required");
                     literal_type = enumeration;
                 }
-                if (literal_type) return {.Type = literal_type->Name, .Code = literal_type->Name + "::" + e.Text};
+                if (literal_type) return {.Type = literal_type->Name, .Code = CppRuleType(literal_type->Name) + "::" + e.Text};
                 if (const auto instance = instances_.find(e.Text); instance != instances_.end()) {
                     return ReadNamedValue(*instance->second);
                 }
@@ -230,6 +230,10 @@ public:
             }
             case K::Member: {
                 auto owner = Read(*e.Lhs);
+                if (IsBuiltinPosition(owner.Type)) {
+                    if (e.Text != "X" && e.Text != "Y") Fail("Position has only X and Y coordinates");
+                    return {.Type = "int", .Code = "(" + owner.Code + ")." + (e.Text == "X" ? "x" : "y")};
+                }
                 if (const auto payload = payloads_.find(owner.Type); payload != payloads_.end()) {
                     const TFieldDecl* field = nullptr;
                     for (const auto& candidate : payload->second->Fields) if (candidate.Name == e.Text) field = &candidate;
@@ -249,7 +253,7 @@ public:
                 result.Type = CppMemberType(*field, loaded_.SymbolTable);
                 if (field->Container == EContainer::None) result.Type = field->TypeName;
                 const std::string receiver = owner.Persistent ? owner.Code :
-                    "static_cast<const " + owner.Type + "&>(" + owner.Code + ")";
+                    "static_cast<const " + CppRuleType(owner.Type) + "&>(" + owner.Code + ")";
                 result.Code = "(" + receiver + ")." + e.Text + "()";
                 result.Persistent = owner.Persistent;
                 result.Field = field;
@@ -284,7 +288,7 @@ public:
                     if (!left.Binding.empty() && !right.Binding.empty()) {
                         left.Code += ".Id()";
                         right.Code += ".Id()";
-                    } else if (!IsBuiltinPrimitive(left.Type) && !enums_.contains(left.Type)) {
+                    } else if (!IsBuiltinPrimitive(left.Type) && !IsBuiltinPosition(left.Type) && !enums_.contains(left.Type)) {
                         Fail("equality requires primitive values or values of the same enum type");
                     }
                     type = "bool";
@@ -309,6 +313,18 @@ public:
             }
             case K::Call: return Call(e, effects);
             case K::ObjectInit: {
+                if (IsBuiltinPosition(e.Text.empty() ? expected : e.Text)) {
+                    RequireWorldScope();
+                    std::map<std::string, std::string> coordinates;
+                    for (const auto& field : e.Fields) {
+                        if (field.Name != "X" && field.Name != "Y") Fail("Position has only X and Y coordinates");
+                        const auto value = Read(field.Value, "int");
+                        Match(value, "int");
+                        if (!coordinates.emplace(field.Name, value.Code).second) Fail("duplicate Position coordinate");
+                    }
+                    if (coordinates.size() != 2) Fail("Position requires both X and Y coordinates");
+                    return {.Type = "Position", .Code = "TPosition{" + coordinates.at("X") + ", " + coordinates.at("Y") + "}"};
+                }
                 if (const auto payload = payloads_.find(expected); payload != payloads_.end()) {
                     if (!e.Text.empty() && e.Text != payload->second->Name) Fail("fallback must construct the requested variant payload");
                     return {.Type = expected, .Code = ReadPayload(e, *payload->second, expected)};
@@ -332,7 +348,7 @@ public:
                     values.emplace(initializer.Name, value.Code);
                 }
                 ValidateConstructionDefaults(*cls->second, values);
-                std::string code = type + "::Create({";
+                std::string code = CppRuleType(type) + "::Create({";
                 bool first = true;
                 for (const auto& field : cls->second->Fields) {
                     auto it = values.find(field.Name);
@@ -344,7 +360,25 @@ public:
                 return {.Type = type, .Code = code + "})"};
             }
             case K::Index: Fail("indexing rule collections requires stable element addressing and is not implemented");
-            case K::ListLiteral: Fail("list literals require a collection field initializer");
+            case K::ListLiteral: {
+                if (!expected.starts_with("list<") || !expected.ends_with('>')) Fail("list literals require a collection field initializer or typed choice source");
+                const auto element = expected.substr(5, expected.size() - 6);
+                const auto cls = classes_.find(element);
+                const bool entity = cls != classes_.end() && cls->second->GameEntity;
+                if (!IsBuiltinPrimitive(element) && !IsBuiltinPosition(element) && !enums_.contains(element) && !entity) {
+                    Fail("choice lists require primitive, enum, Position, or GameEntity values");
+                }
+                std::string code = "std::vector<" + CppRuleType(entity ? "TGeneratedEntityBinding<" + element + ">" : CppTypeFor(element)) + ">{";
+                for (std::size_t i = 0; i < e.Args.size(); ++i) {
+                    const auto value = Read(e.Args[i], element);
+                    Match(value, element);
+                    if (i) code += ", ";
+                    if (entity && value.Binding.empty()) Fail("entity choice values require checked bindings");
+                    code += entity ? value.Binding : value.Code;
+                }
+                return {.Type = expected, .Code = code + "}", .SequenceElement = element,
+                    .SequenceKind = entity ? ESequenceKind::Entity : ESequenceKind::Value};
+            }
         }
         Fail("unsupported expression");
     }
@@ -360,7 +394,7 @@ public:
             return value;
         }
         const std::string type = CppMemberType(field, loaded_.SymbolTable);
-        std::string code = "([&] { " + type + " values; ";
+        std::string code = "([&] { " + CppRuleType(type) + " values; ";
         if (field.Container == EContainer::Map) {
             if (expression.Kind != expr::ENodeKind::ObjectInit || !expression.Text.empty()) Fail("map initialization requires a contextual { Key = Value; } literal");
             std::unordered_set<std::string> keys;
@@ -375,7 +409,7 @@ public:
                     Fail("unknown map key '" + element.Name + "' for enum '" + field.TypeName + "'");
                 }
                 auto value = ReadInitializer(element.Value, valueField);
-                code += "values.emplace(" + field.TypeName + "::" + element.Name + ", " + value.Code + "); ";
+                code += "values.emplace(" + CppRuleType(field.TypeName) + "::" + element.Name + ", " + value.Code + "); ";
             }
             return {.Type = type, .Code = code + "return values; }())", .Container = EContainer::Map,
                 .KeyType = field.TypeName, .ElementType = field.ValueTypeName};
@@ -402,6 +436,38 @@ public:
 
     TValue Call(const expr::TExprNode& call, bool effects) {
         if (!call.Lhs) {
+            if (call.Text == "position" || call.Text == "adjacent_positions" ||
+                call.Text == "contains_position" || call.Text == "can_occupy" || call.Text == "move") {
+                RequireWorldScope();
+                const bool moving = call.Text == "move";
+                const auto count = call.Args.size();
+                if (count != (call.Text == "can_occupy" || moving ? 2u : 1u) && !(moving && count == 3)) {
+                    Fail("wrong argument count for position operation '" + call.Text + "'");
+                }
+                if (call.Text == "adjacent_positions" || call.Text == "contains_position") {
+                    const auto from = Read(call.Args.front(), "Position");
+                    Match(from, "Position");
+                    if (call.Text == "contains_position") return {.Type = "bool", .Code = "world.Contains(" + from.Code + ")"};
+                    return {.Type = "list<Position>", .Code = "world.AdjacentPositions(" + from.Code + ")",
+                        .SequenceElement = "Position", .SequenceKind = ESequenceKind::Value};
+                }
+                const auto entity = Read(call.Args.front());
+                if (entity.Binding.empty()) Fail("position operations require checked GameEntity bindings");
+                const auto view = entity.Binding + ".View()";
+                if (call.Text == "position") return {.Type = "Position", .Code = "world.Position(" + view + ")"};
+                const auto destination = Read(call.Args.back(), "Position");
+                Match(destination, "Position");
+                if (!moving) return {.Type = "bool", .Code = "world.CanOccupy(" + view + ", " + destination.Code + ")"};
+                if (!action_ || !effects) Fail("move is allowed only as an effectful action expression");
+                if (entity.Guard.empty()) Fail("move requires a mutable selected entity or action actor");
+                std::string origin = "world.Position(" + view + ")";
+                if (count == 3) {
+                    const auto from = Read(call.Args[1], "Position");
+                    Match(from, "Position");
+                    origin = from.Code;
+                }
+                return {.Type = "void", .Code = "MoveActionEntity(Context, " + view + ", " + origin + ", " + destination.Code + ")", .Effect = true};
+            }
             if (call.Text == "entities") {
                 RequireWorldScope();
                 if (call.Args.size() != 1 || call.Args.front().Kind != expr::ENodeKind::Var || call.Args.front().HasDollar) {
@@ -410,7 +476,7 @@ public:
                 const auto& type = call.Args.front().Text;
                 const auto found = classes_.find(type);
                 if (found == classes_.end() || !found->second->GameEntity) Fail("entities expects a declared GameEntity type");
-                return {.Type = "list<" + type + ">", .Code = "world.Entities<" + type + ">()",
+                return {.Type = "list<" + type + ">", .Code = "world.Entities<" + CppRuleType(type) + ">()",
                     .SequenceElement = type, .SequenceKind = ESequenceKind::Entity};
             }
             static const std::unordered_map<std::string, std::string> worldCalls{
@@ -441,7 +507,7 @@ public:
                 auto owner = Read(call.Args[0], declaration.OwnerType);
                 Match(owner, declaration.OwnerType);
                 if (owner.Binding.empty()) Fail("event owner requires a checked entity binding");
-                const auto tag = EventTagName(declaration);
+                const auto tag = CppRuleType(EventTagName(declaration));
                 std::string code = "DispatchFeatureEvent<" + tag + ">(Context, " + owner.Binding + ", " + tag + "::TArguments{";
                 for (std::size_t i = 0; i < declaration.Parameters.size(); ++i) {
                     const auto& parameter = declaration.Parameters[i];
@@ -479,24 +545,55 @@ public:
         const auto& member = *call.Lhs;
         auto owner = Read(*member.Lhs);
         if (owner.Container == EContainer::None && IsBuiltinResource(owner.Type)) {
-            if (member.Text != "Count" || !call.Args.empty()) Fail("Resource supports only the pure Count() query");
-            return {.Type = "int", .Code = "(" + owner.Code + ").Count()"};
+            if (member.Text == "Count" && call.Args.empty()) return {.Type = "int", .Code = "(" + owner.Code + ").Count()"};
+            if ((member.Text != "Add" && member.Text != "Spend" && member.Text != "SetCount") || call.Args.size() != 1) {
+                Fail("Resource supports Count(), Add(count), Spend(count), and SetCount(count)");
+            }
+            if (!effects) Fail("resource mutation is not allowed in a pure expression");
+            if (!owner.Persistent || owner.Guard.empty() || owner.OwnerGuard.empty() || !owner.Field) {
+                Fail("resource mutation requires a stable persistent field");
+            }
+            const auto count = Read(call.Args.front(), "int");
+            Match(count, "int");
+            const auto operation = member.Text == "SetCount" ? "SetResourceCount" : member.Text + "Resource";
+            return {.Type = "void", .Code = "ctx." + operation + "(" + owner.Guard + ", " + count.Code +
+                ", " + owner.OwnerGuard + ", " + CppStringLiteral(PascalToSnake(owner.Field->Name)) + ")", .Effect = true};
         }
         if (owner.Container == EContainer::Set) {
             if (const auto variant = variants_.find(owner.ElementType); variant != variants_.end()) {
+                if (member.Text == "set" || member.Text == "erase") {
+                    if (call.Args.size() != 1) Fail("variant set mutation expects one argument");
+                    if (!effects) Fail("variant set mutation is not allowed in a pure expression");
+                    if (!owner.Persistent || owner.Guard.empty() || owner.OwnerGuard.empty() || !owner.Field) {
+                        Fail("variant set mutation requires a stable persistent field");
+                    }
+                    std::string value;
+                    if (member.Text == "set") {
+                        const auto replacement = Read(call.Args.front(), owner.ElementType);
+                        Match(replacement, owner.ElementType);
+                        value = replacement.Code;
+                    } else {
+                        const auto& key = call.Args.front();
+                        if (key.Kind != expr::ENodeKind::Var || key.HasDollar) Fail("variant erase requires an alternative name");
+                        value = CppRuleType(VariantKindEnum(variant->first)) + "::" + Alternative(*variant->second, key.Text).Name;
+                    }
+                    return {.Type = "void", .Code = std::string("ctx.") + (member.Text == "set" ? "SetVariant" : "EraseVariant") +
+                        "(" + owner.Guard + ", " + value + ", " + owner.OwnerGuard + ", " +
+                        CppStringLiteral(PascalToSnake(owner.Field->Name)) + ")", .Effect = true};
+                }
                 if (member.Text != "has" && member.Text != "get") Fail("variant sets support only 'has' and 'get'");
                 if (call.Args.size() != (member.Text == "has" ? 1u : 2u)) Fail("wrong argument count for variant set lookup");
                 const auto& key = call.Args.front();
                 if (key.Kind != expr::ENodeKind::Var || key.HasDollar) Fail("variant lookup requires an alternative name");
                 const auto& alternative = Alternative(*variant->second, key.Text);
                 if (member.Text == "has") {
-                    return {.Type = "bool", .Code = "(" + owner.Code + ").Has(" + VariantKindEnum(variant->first) + "::" + alternative.Name + ")"};
+                    return {.Type = "bool", .Code = "(" + owner.Code + ").Has(" + CppRuleType(VariantKindEnum(variant->first)) + "::" + alternative.Name + ")"};
                 }
                 const auto payloadType = PayloadStructName(variant->first, alternative.Name);
                 auto fallback = Read(call.Args[1], payloadType);
                 Match(fallback, payloadType);
-                return {.Type = payloadType, .Code = "([](const auto& rule_set, " + payloadType +
-                    " fallback) { const auto* value = rule_set.template Get<" + payloadType +
+                return {.Type = payloadType, .Code = "([](const auto& rule_set, " + CppRuleType(payloadType) +
+                    " fallback) { const auto* value = rule_set.template Get<" + CppRuleType(payloadType) +
                     ">(); if (value == nullptr) { return fallback; } return *value; }(" + owner.Code + ", " + fallback.Code + "))"};
             }
             if (member.Text != "has" || call.Args.size() != 1) Fail("enum sets support only 'has' with one argument");
@@ -511,8 +608,8 @@ public:
             auto fallback = Read(call.Args[1], owner.ElementType);
             Match(key, owner.KeyType);
             Match(fallback, owner.ElementType);
-            const auto value_type = CppTypeFor(owner.ElementType);
-            const std::string code = "([](const auto& rule_map, " + CppTypeFor(owner.KeyType) +
+            const auto value_type = CppRuleType(CppTypeFor(owner.ElementType));
+            const std::string code = "([](const auto& rule_map, " + CppRuleType(CppTypeFor(owner.KeyType)) +
                 " rule_key, " + value_type + " rule_fallback) -> " + value_type +
                 " { const auto rule_entry = rule_map.find(rule_key); if (rule_entry == rule_map.end()) { return rule_fallback; } "
                 "return rule_entry->second; }(" + owner.Code + ", " + key.Code + ", " + fallback.Code + "))";
@@ -542,7 +639,7 @@ public:
             ValidateQueryConstruction(*cls->second, *method);
             code = "(" + owner.Code + ")." + method->Name + "(" + args + ")";
         } else {
-            code = "ctx.Invoke(" + owner.Guard + ", &" + owner.Type + "::" + method->Name;
+            code = "ctx.Invoke(" + owner.Guard + ", &" + CppRuleType(owner.Type) + "::" + method->Name;
             if (!args.empty()) code += ", " + args;
             code += ")";
         }
@@ -638,6 +735,16 @@ public:
         body_method.ReturnType = "void";
         method_ = &body_method;
         TCompiledAction result;
+        auto occupied = RuleCppTypes();
+        const auto flowName = [&](const std::string& base) {
+            auto name = base;
+            std::size_t suffix = 0;
+            while (!occupied.insert(name).second) name = base + "_" + std::to_string(++suffix);
+            return name;
+        };
+        result.Flow.FlowType = flowName("TFlow");
+        result.Flow.FrameType = flowName("TFrame");
+        result.Flow.RunName = flowName("Run");
         std::size_t first = 0;
         while (first < declaration.Body.size() &&
                (declaration.Body[first].Kind == TStatement::EKind::Cost || declaration.Body[first].Kind == TStatement::EKind::Requires)) {
@@ -646,19 +753,21 @@ public:
             }
             ++first;
         }
-        result.Body.push_back("[[maybe_unused]] const auto world = GeneratedActionWorld(Context);");
-        result.Body.push_back("[[maybe_unused]] auto action_self = ActionSelf<" + self_.Name + ">(Context);");
-        result.Body.push_back("[[maybe_unused]] auto ctx = Context->transformator->ExecutionContext();");
+        result.Flow.Environment.push_back("[[maybe_unused]] const auto world = GeneratedActionWorld(Context);");
+        result.Flow.Environment.push_back("[[maybe_unused]] auto action_self = ActionSelf<" + CppRuleType(self_.Name) + ">(Context);");
+        result.Flow.Environment.push_back("[[maybe_unused]] auto ctx = Context->transformator->ExecutionContext();");
         if (!declaration.SourceType.empty()) {
             const auto source = classes_.find(declaration.SourceType);
             if (source == classes_.end() || source->second->GameEntity) Fail("action source requires an ordinary class type");
             const auto binding = "source_" + declaration.SourceName;
-            result.Body.push_back("[[maybe_unused]] auto " + binding + " = ActionSource<" + self_.Name + ", " + declaration.SourceType + ">(Context);");
+            result.Flow.Environment.push_back("[[maybe_unused]] auto " + binding + " = ActionSource<" + CppRuleType(self_.Name) + ", " + CppRuleType(declaration.SourceType) + ">(Context);");
             locals_.emplace(declaration.SourceName, TValue{.Type = declaration.SourceType, .Code = binding + ".Read()",
                 .LocalCode = binding, .SourceBinding = binding});
         }
         result.Requirement = CompileActionRequirement(declaration, first);
-        ActionStatements(declaration.Body, first, result.Body, "");
+        result.Flow.Blocks.resize(2);
+        ActionFlowStatements(declaration.Body, first, result.Flow, 0, 1);
+        result.Body = RenderActionFlow(result.Flow);
         method_ = nullptr;
         return result;
     }
@@ -694,6 +803,42 @@ public:
     }
 
 private:
+    const std::unordered_set<std::string>& RuleCppTypes() const {
+        if (ruleCppTypes_.empty()) {
+            for (const auto& [name, declaration] : classes_) ruleCppTypes_.insert(name);
+            for (const auto& [name, declaration] : enums_) ruleCppTypes_.insert(name);
+            for (const auto& [name, declaration] : variants_) {
+                ruleCppTypes_.insert(name);
+                ruleCppTypes_.insert(VariantKindEnum(name));
+            }
+            for (const auto& [name, declaration] : payloads_) ruleCppTypes_.insert(name);
+            for (const auto& [name, declaration] : events_) ruleCppTypes_.insert(EventTagName(*declaration.Declaration));
+        }
+        return ruleCppTypes_;
+    }
+
+    std::string CppRuleType(const std::string& type) const {
+        if (!action_ && !preflight_) return type;
+        const auto& names = RuleCppTypes();
+        std::string result;
+        const auto identifier = [](char value) {
+            return (value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||
+                (value >= '0' && value <= '9') || value == '_';
+        };
+        for (std::size_t index = 0; index < type.size();) {
+            if (!identifier(type[index])) {
+                result += type[index++];
+                continue;
+            }
+            const auto first = index;
+            while (index < type.size() && identifier(type[index])) ++index;
+            const auto token = type.substr(first, index - first);
+            if (names.contains(token) && (first < 2 || type.substr(first - 2, 2) != "::")) result += "::";
+            result += token;
+        }
+        return result;
+    }
+
     void RequireWorldScope() const {
         if (!action_ && !hook_ && !preflight_) Fail("world queries require an action, feature hook, or action precondition");
     }
@@ -713,9 +858,9 @@ private:
         compiler.method_ = &method;
         compiler.preflight_ = true;
         std::vector<std::string> result;
-        result.push_back("[[maybe_unused]] const auto action_self = world.Bind<" + self_.Name + ">(actor);");
+        result.push_back("[[maybe_unused]] const auto action_self = world.Bind<" + compiler.CppRuleType(self_.Name) + ">(actor);");
         if (!declaration.SourceType.empty()) {
-            result.push_back("const auto source_value = FindAbilitySource<" + declaration.SourceType + ">(action_self.Read(), source);");
+            result.push_back("const auto source_value = FindAbilitySource<" + compiler.CppRuleType(declaration.SourceType) + ">(action_self.Read(), source);");
             result.push_back("if (!source_value) { return false; }");
             compiler.locals_.emplace(declaration.SourceName, TValue{.Type = declaration.SourceType, .Code = "(*source_value->Value)"});
         }
@@ -727,9 +872,11 @@ private:
         }
         if (leadingChoice) {
             const auto& choice = declaration.Body[first];
-            const auto type = classes_.find(choice.TypeName);
-            if (type == classes_.end() || !type->second->GameEntity) Fail("choose requires a GameEntity type");
-            if (!compiler.locals_.emplace(choice.Name, compiler.EntityBinding(choice.TypeName, "candidate", false)).second) {
+            const bool entity = compiler.CheckChoiceType(choice);
+            const auto candidates = compiler.ChoiceCandidates(choice, entity);
+            auto local = entity ? compiler.EntityBinding(choice.TypeName, "candidate", false) :
+                TValue{.Type = choice.TypeName, .Code = "candidate", .LocalCode = "candidate"};
+            if (!compiler.locals_.emplace(choice.Name, std::move(local)).second) {
                 Fail("duplicate local '" + choice.Name + "'");
             }
             std::string predicate = "true";
@@ -738,7 +885,7 @@ private:
                 compiler.Match(value, "bool");
                 predicate = value.Code;
             }
-            result.push_back("for ([[maybe_unused]] const auto& candidate : world.Entities<" + choice.TypeName + ">()) {");
+            result.push_back("for ([[maybe_unused]] const auto& candidate : " + candidates.Code + ") {");
             result.push_back("    if (" + predicate + ") { return true; }");
             result.push_back("}");
             result.push_back("return false;");
@@ -827,7 +974,7 @@ private:
                 Fail("duplicate variant initializer field '" + initializer.Name + "'");
             }
         }
-        std::string code = type + "{";
+        std::string code = CppRuleType(type) + "{";
         bool first = true;
         for (const auto& field : alternative.Fields) {
             if (const auto value = values.find(field.Name); value != values.end()) {
@@ -841,7 +988,7 @@ private:
 
     TValue ReadVariant(const expr::TExprNode& expression, const TVariantDecl& variant, const TVariantAlt& alternative) {
         return {.Type = variant.Name,
-            .Code = variant.Name + "(" + ReadPayload(expression, alternative, PayloadStructName(variant.Name, alternative.Name)) + ")",
+            .Code = CppRuleType(variant.Name) + "(" + ReadPayload(expression, alternative, PayloadStructName(variant.Name, alternative.Name)) + ")",
             .VariantAlternative = alternative.Name};
     }
 
@@ -942,53 +1089,167 @@ private:
         return result;
     }
 
-    void ActionStatements(const std::vector<TStatement>& body, std::size_t first,
-                          std::vector<std::string>& output, const std::string& indent) {
-        for (std::size_t i = first; i < body.size(); ++i) {
-            const auto& statement = body[i];
-            if (statement.Kind != TStatement::EKind::Choose) {
-                if (Statements({statement}, output, indent)) {
-                    if (i + 1 != body.size()) Fail("unreachable statement after return");
-                    return;
-                }
-                continue;
-            }
-            ValidateActionStep(output, indent);
-            const auto type = classes_.find(statement.TypeName);
-            if (type == classes_.end() || !type->second->GameEntity) Fail("choose requires a GameEntity type");
-            if (locals_.contains(statement.Name)) Fail("duplicate local '" + statement.Name + "'");
-            std::map<std::string, std::string> captured;
-            for (const auto& [name, value] : locals_) captured.emplace(name, value.LocalCode);
-            std::string captures = "Context, action_self, world";
-            for (const auto& [name, code] : captured) captures += ", captured_" + name + " = " + code;
-            const auto binding_type = "TGeneratedEntityBinding<" + statement.TypeName + ">";
-            const auto binding_name = "bound_" + statement.Name;
-            locals_.emplace(statement.Name, EntityBinding(statement.TypeName, binding_name));
-            std::string predicate = "true";
-            if (statement.Value) {
-                auto value = Read(*statement.Value);
-                Match(value, "bool");
-                predicate = value.Code;
-            }
-            output.push_back(indent + "ChooseActionEntity<" + statement.TypeName + ">(Context, ActionEntities<" + statement.TypeName + ">(Context),");
-            output.push_back(indent + "    [" + captures + "]([[maybe_unused]] const " + binding_type + "& " + binding_name + ") {");
-            output.push_back(indent + "        (void)Context;");
-            output.push_back(indent + "        (void)action_self;");
-            output.push_back(indent + "        (void)world;");
-            for (const auto& [name, code] : captured) output.push_back(indent + "        [[maybe_unused]] auto " + code + " = captured_" + name + ";");
-            ValidateActionStep(output, indent + "        ");
-            output.push_back(indent + "        return " + predicate + ";");
-            output.push_back(indent + "    },");
-            output.push_back(indent + "    [" + captures + "]([[maybe_unused]] " + binding_type + " " + binding_name + ") {");
-            output.push_back(indent + "        [[maybe_unused]] auto ctx = Context->transformator->ExecutionContext();");
-            output.push_back(indent + "        (void)action_self;");
-            output.push_back(indent + "        (void)world;");
-            for (const auto& [name, code] : captured) output.push_back(indent + "        [[maybe_unused]] auto " + code + " = captured_" + name + ";");
-            ValidateActionStep(output, indent + "        ");
-            ActionStatements(body, i + 1, output, indent + "        ");
-            output.push_back(indent + "    });");
-            return;
+    bool CheckChoiceType(const TStatement& statement) const {
+        const auto type = classes_.find(statement.TypeName);
+        const bool entity = type != classes_.end() && type->second->GameEntity;
+        if (!entity && !IsBuiltinPrimitive(statement.TypeName) && !enums_.contains(statement.TypeName) && statement.TypeName != "Position") {
+            Fail("choose requires a GameEntity, primitive, enum, or Position type");
         }
+        if (!entity && !statement.Candidates) Fail("value choose requires a from sequence");
+        return entity;
+    }
+
+    TValue ChoiceCandidates(const TStatement& statement, bool entity) {
+        if (!statement.Candidates) {
+            return {.Type = "list<" + statement.TypeName + ">",
+                .Code = (preflight_ ? "world.Entities<" : "ActionEntities<") + CppRuleType(statement.TypeName) + (preflight_ ? ">()" : ">(Context)"),
+                .SequenceElement = statement.TypeName, .SequenceKind = ESequenceKind::Entity};
+        }
+        auto candidates = Read(*statement.Candidates, "list<" + statement.TypeName + ">");
+        if (candidates.SequenceElement != statement.TypeName ||
+            (entity ? candidates.SequenceKind != ESequenceKind::Entity : candidates.SequenceKind != ESequenceKind::Value)) {
+            Fail("choice from requires a sequence of '" + statement.TypeName + "' values");
+        }
+        return candidates;
+    }
+
+    std::string FrameCppType(const TValue& value) const {
+        if (!value.Binding.empty()) return CppRuleType("TGeneratedEntityBinding<" + value.Type + ">");
+        if (!value.SequenceElement.empty()) {
+            auto element = CppTypeFor(value.SequenceElement);
+            if (value.SequenceKind == ESequenceKind::Entity) element = "TGeneratedEntityBinding<" + element + ">";
+            if (value.SequenceKind == ESequenceKind::Contribution) element = "TFeatureEventContribution<" + element + ">";
+            return CppRuleType("std::vector<" + element + ">");
+        }
+        return CppRuleType(CppTypeFor(value.Type));
+    }
+
+    std::string NewLocalName(const std::string& name, const std::string& prefix = "local_") {
+        const auto base = prefix + name;
+        if (!action_) return base;
+        auto local = base;
+        std::size_t suffix = 0;
+        while (!generatedLocals_.insert(local).second) local = base + "_" + std::to_string(++suffix);
+        return local;
+    }
+
+    std::size_t AddFrameLocal(TCompiledActionFlow& flow, const std::string& name, const TValue& value,
+                             const std::string& prefix = "local_") {
+        if (locals_.contains(name)) Fail("duplicate local '" + name + "'");
+        const auto slot = flow.Slots.size();
+        const auto local = NewLocalName(name, prefix);
+        flow.Slots.push_back({FrameCppType(value), local});
+        frameSlots_.emplace(local, slot);
+        if (!value.Binding.empty()) {
+            locals_[name] = EntityBinding(value.Type, local, !value.Guard.empty());
+        } else {
+            locals_[name] = {.Type = value.Type, .Code = local,
+                .Container = value.Container, .KeyType = value.KeyType, .ElementType = value.ElementType,
+                .LocalCode = local, .SequenceElement = value.SequenceElement,
+                .SequenceKind = value.SequenceKind};
+        }
+        return slot;
+    }
+
+    void SetFlowScope(TActionFlowBlock& block) const {
+        for (const auto& [name, value] : locals_) {
+            if (const auto slot = frameSlots_.find(value.LocalCode); slot != frameSlots_.end()) block.LiveSlots.push_back(slot->second);
+        }
+        std::sort(block.LiveSlots.begin(), block.LiveSlots.end());
+    }
+
+    std::size_t NewFlowBlock(TCompiledActionFlow& flow) const {
+        const auto result = flow.Blocks.size();
+        flow.Blocks.emplace_back();
+        return result;
+    }
+
+    bool ActionFlowStatements(const std::vector<TStatement>& body, std::size_t first,
+                              TCompiledActionFlow& flow, std::size_t entry, std::size_t exit) {
+        using K = TStatement::EKind;
+        using E = TActionFlowBlock::EExit;
+        const auto outer = locals_;
+        auto current = entry;
+        bool returns = false;
+        for (std::size_t index = first; index < body.size(); ++index) {
+            if (returns) Fail("unreachable statement after return");
+            const auto& statement = body[index];
+            const auto next = NewFlowBlock(flow);
+            SetFlowScope(flow.Blocks[current]);
+            flow.Blocks[current].Next = next;
+            flow.Blocks[current].Exit = E::Jump;
+            if (statement.Kind == K::Let) {
+                ValidateActionStep(flow.Blocks[current].Body, "");
+                auto value = Read(*statement.Value, "", true);
+                if (value.Type == "void") Fail("cannot bind void result");
+                const auto slot = AddFrameLocal(flow, statement.Name, value);
+                flow.Blocks[current].Body.push_back("frame.slot_" + std::to_string(slot) + ".emplace(" +
+                    (value.Binding.empty() ? value.Code : value.Binding) + ");");
+            } else if (statement.Kind == K::Choose) {
+                ValidateActionStep(flow.Blocks[current].Body, "");
+                const bool entity = CheckChoiceType(statement);
+                const auto candidates = ChoiceCandidates(statement, entity);
+                auto value = entity ? EntityBinding(statement.TypeName, "selected") : TValue{.Type = statement.TypeName};
+                const auto slot = AddFrameLocal(flow, statement.Name, value, entity ? "bound_" : "local_");
+                const auto& local = locals_.at(statement.Name);
+                auto& choice = flow.Blocks[current].Choice;
+                choice = {.Type = CppRuleType(entity ? statement.TypeName : CppTypeFor(statement.TypeName)),
+                    .CppType = flow.Slots[slot].CppType, .Local = local.LocalCode,
+                    .Candidates = candidates.Code, .Slot = slot, .Entity = entity};
+                ValidateActionStep(choice.Predicate, "");
+                std::string predicate = "true";
+                if (statement.Value) {
+                    const auto condition = Read(*statement.Value);
+                    Match(condition, "bool");
+                    predicate = condition.Code;
+                }
+                choice.Predicate.push_back("return " + predicate + ";");
+                flow.Blocks[current].Exit = E::Choose;
+            } else if (statement.Kind == K::If || statement.Kind == K::While) {
+                ValidateActionStep(flow.Blocks[current].Body, "");
+                const auto condition = Read(*statement.Value);
+                Match(condition, "bool");
+                const auto yes = NewFlowBlock(flow);
+                flow.Blocks[current].Condition = condition.Code;
+                flow.Blocks[current].Exit = E::Branch;
+                flow.Blocks[current].Next = yes;
+                if (statement.Kind == K::While) {
+                    flow.Blocks[current].Otherwise = next;
+                    ActionFlowStatements(statement.Body, 0, flow, yes, current);
+                } else {
+                    const auto no = NewFlowBlock(flow);
+                    flow.Blocks[current].Otherwise = no;
+                    const bool yesReturns = ActionFlowStatements(statement.Body, 0, flow, yes, next);
+                    const bool noReturns = ActionFlowStatements(statement.ElseBody, 0, flow, no, next);
+                    returns = yesReturns && noReturns;
+                }
+            } else if (statement.Kind == K::Return) {
+                ValidateActionStep(flow.Blocks[current].Body, "");
+                if (statement.Value) {
+                    const auto value = Read(*statement.Value, "void", true);
+                    Match(value, "void");
+                    flow.Blocks[current].Body.push_back("(void)" + value.Code + ";");
+                }
+                flow.Blocks[current].Exit = E::Return;
+                returns = true;
+            } else {
+                Statements({statement}, flow.Blocks[current].Body, "");
+            }
+            current = next;
+        }
+        if (!returns) {
+            for (const auto& [name, value] : locals_) {
+                if (outer.contains(name)) continue;
+                if (const auto slot = frameSlots_.find(value.LocalCode); slot != frameSlots_.end()) {
+                    flow.Blocks[current].Body.push_back("frame.slot_" + std::to_string(slot->second) + ".reset();");
+                }
+            }
+            std::sort(flow.Blocks[current].Body.begin(), flow.Blocks[current].Body.end());
+            flow.Blocks[current].Exit = E::Jump;
+            flow.Blocks[current].Next = exit;
+        }
+        locals_ = outer;
+        return returns;
     }
 
     bool UnboundName(const expr::TExprNode& value) const {
@@ -1076,15 +1337,16 @@ private:
                     if (locals_.contains(statement.Name)) Fail("duplicate local '" + statement.Name + "'");
                     auto value = Read(*statement.Value, "", effects);
                     if (value.Type == "void") Fail("cannot bind void result");
+                    const auto local = NewLocalName(statement.Name);
                     if ((action_ || hook_) && !value.Binding.empty()) {
-                        line("[[maybe_unused]] auto local_" + statement.Name + " = " + value.Binding + ";");
-                        locals_[statement.Name] = EntityBinding(value.Type, "local_" + statement.Name, !value.Guard.empty());
+                        line("[[maybe_unused]] auto " + local + " = " + value.Binding + ";");
+                        locals_[statement.Name] = EntityBinding(value.Type, local, !value.Guard.empty());
                         break;
                     }
-                    line("[[maybe_unused]] auto local_" + statement.Name + " = " + value.Code + ";");
-                    locals_[statement.Name] = {.Type = value.Type, .Code = "local_" + statement.Name,
+                    line("[[maybe_unused]] auto " + local + " = " + value.Code + ";");
+                    locals_[statement.Name] = {.Type = value.Type, .Code = local,
                         .Container = value.Container, .KeyType = value.KeyType, .ElementType = value.ElementType,
-                        .LocalCode = "local_" + statement.Name, .SequenceElement = value.SequenceElement,
+                        .LocalCode = local, .SequenceElement = value.SequenceElement,
                         .SequenceKind = value.SequenceKind};
                     break;
                 }
@@ -1101,6 +1363,7 @@ private:
                     auto target = Read(*statement.Target);
                     auto value = Read(*statement.Value, target.Type, effects);
                     Match(value, target.Type);
+                    if (value.SequenceKind != target.SequenceKind) Fail("assignment requires matching sequence kinds");
                     if (statement.Kind != K::Assign) {
                         Match(target, "int");
                         value.Code = "TRuleInteger::" + std::string(statement.Kind == K::AddAssign ? "Add" : "Subtract") + "(" + target.Code + ", " + value.Code + ")";
@@ -1165,7 +1428,8 @@ private:
                     returns = yes && no;
                     break;
                 }
-                case K::Choose: Fail("choose is supported only at the top level of an action body");
+                case K::Choose: Fail("choose requires resumable action control flow and cannot appear in a synchronous scope");
+                case K::While: Fail("while requires resumable action control flow and cannot appear in a synchronous scope");
                 case K::Cost: Fail("cost declarations must precede all statements in an action body");
                 case K::Requires: Fail("requires declarations must be in the initial action prefix");
                 case K::ForEach: {
@@ -1177,7 +1441,7 @@ private:
                     const auto number = std::to_string(loop_++);
                     const auto snapshot = "event_values_" + number;
                     const auto entry = "event_value_" + number;
-                    const auto local = "local_" + statement.Name;
+                    const auto local = NewLocalName(statement.Name);
                     auto saved = locals_;
                     const bool borrowed = collection && method_->Query && !action_ && !hook_ && !preflight_ &&
                         sequence.Storage.starts_with("self.") && sequence.Field && !sequence.Field->Derived;
@@ -1185,7 +1449,7 @@ private:
                     line("    const auto" + std::string(borrowed ? "& " : " ") + snapshot + " = " + sequence.Code + ";");
                     line("    for (const auto& " + entry + " : " + snapshot + ") {");
                     const bool entities = sequence.SequenceKind == ESequenceKind::Entity;
-                    line("        [[maybe_unused]] auto " + local + " = " + (collection ? "*" + entry : entities ? entry : entry + ".Value") + ";");
+                    line("        [[maybe_unused]] auto " + local + " = " + (collection ? "*" + entry : sequence.SequenceKind == ESequenceKind::Contribution ? entry + ".Value" : entry) + ";");
                     locals_[statement.Name] = entities ? EntityBinding(elementType, local, false) :
                         TValue{.Type = elementType, .Code = local, .LocalCode = local};
                     Statements(statement.Body, output, indent + "        ");
@@ -1215,6 +1479,9 @@ private:
     bool hook_ = false;
     bool preflight_ = false;
     std::size_t loop_ = 0;
+    std::unordered_map<std::string, std::size_t> frameSlots_;
+    std::unordered_set<std::string> generatedLocals_;
+    mutable std::unordered_set<std::string> ruleCppTypes_;
 };
 
 }

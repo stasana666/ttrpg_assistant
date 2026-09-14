@@ -76,9 +76,9 @@ TEST(WorldCompilerTest, SeparatesPreconditionsAndLeadingChoiceFromActionEffects)
     EXPECT_EQ(compiled.Costs.front().Count, 1);
     const auto requirement = Join(compiled.Requirement);
     const auto body = Join(compiled.Body);
-    EXPECT_NE(requirement.find("world.Bind<TActor>(actor)"), std::string::npos);
-    EXPECT_NE(requirement.find("FindAbilitySource<TItem>"), std::string::npos);
-    EXPECT_NE(requirement.find("world.Entities<TActor>()"), std::string::npos);
+    EXPECT_NE(requirement.find("world.Bind<::TActor>(actor)"), std::string::npos);
+    EXPECT_NE(requirement.find("FindAbilitySource<::TItem>"), std::string::npos);
+    EXPECT_NE(requirement.find("world.Entities<::TActor>()"), std::string::npos);
     EXPECT_NE(requirement.find("source_value->Value"), std::string::npos);
     EXPECT_NE(body.find("source_Item.Read()"), std::string::npos);
     EXPECT_NE(body.find("require failed"), std::string::npos);
@@ -100,7 +100,7 @@ TEST(WorldCompilerTest, DoesNotSpeculatePastExecutableStatements) {
     EXPECT_NE(requirement.find("Level()"), std::string::npos);
     EXPECT_EQ(requirement.find("Entities"), std::string::npos);
     const auto leading = Rules("action A for TActor { choose TObject Target; }");
-    EXPECT_NE(Join(CompileAction(leading.Primary.Abilities.front(), leading).Requirement).find("world.Entities<TObject>()"), std::string::npos);
+    EXPECT_NE(Join(CompileAction(leading.Primary.Abilities.front(), leading).Requirement).find("world.Entities<::TObject>()"), std::string::npos);
 }
 
 TEST(WorldCompilerTest, ReadsResourceBudgetsOnlyInPreflightWhenDeclaredAsRequirements) {
@@ -115,8 +115,8 @@ TEST(WorldCompilerTest, ReadsResourceBudgetsOnlyInPreflightWhenDeclaredAsRequire
     const auto compiled = CompileAction(loaded.Primary.Abilities.front(), loaded);
     EXPECT_NE(Join(compiled.Requirement).find(".Count() >= 3"), std::string::npos);
     EXPECT_EQ(Join(compiled.Body).find(".Count()"), std::string::npos);
-    Rejects("action A for TActor { requires @self.Effort.Count(1) > 0; }", "pure Count() query");
-    Rejects("action A for TActor { @self.Effort.Increase(1); }", "pure Count() query");
+    Rejects("action A for TActor { requires @self.Effort.Count(1) > 0; }", "Resource supports Count()");
+    Rejects("action A for TActor { @self.Effort.Increase(1); }", "Resource supports Count()");
     Rejects("action A for TActor { let Count = @self.Level.Count(); }", "method receiver must be a class");
 }
 
@@ -163,9 +163,9 @@ TEST(WorldCompilerTest, CapturesWorldAndReadonlyEntitySequencesAcrossChoices) {
         }
     )");
     const auto body = Join(CompileAction(loaded.Primary.Abilities.front(), loaded).Body);
-    EXPECT_NE(body.find("Context, action_self, world"), std::string::npos);
-    EXPECT_NE(body.find("captured_Others = local_Others"), std::string::npos);
-    EXPECT_NE(body.find("auto local_Others = captured_Others"), std::string::npos);
+    EXPECT_NE(body.find("[Context, frame]"), std::string::npos);
+    EXPECT_NE(body.find("std::optional<std::vector<TGeneratedEntityBinding<::TActor>>> slot_0"), std::string::npos);
+    EXPECT_NE(body.find("auto& local_Others = frame.slot_0.value()"), std::string::npos);
     EXPECT_NE(body.find("local_Alias.View().Validate()"), std::string::npos);
     EXPECT_NE(body.find("bound_Target.Guard()"), std::string::npos);
     EXPECT_NE(body.find("action_self.Guard()"), std::string::npos);

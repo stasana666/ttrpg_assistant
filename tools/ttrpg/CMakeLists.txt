@@ -8,6 +8,7 @@ add_library(ttrpg STATIC
     src/conventions.cpp
     src/analyze.cpp
     src/program.cpp
+    src/action_flow.cpp
     src/abilities.cpp
     src/events.cpp
     src/cpp_writer.cpp

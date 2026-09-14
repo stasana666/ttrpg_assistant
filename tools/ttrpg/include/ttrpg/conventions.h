@@ -19,6 +19,7 @@ bool IsBuiltinPrimitive(const std::string& t);
 bool IsBuiltinBoundedQuantity(const std::string& t);
 bool IsBuiltinResource(const std::string& t);
 bool IsBuiltinFeature(const std::string& t);
+bool IsBuiltinPosition(const std::string& t);
 
 std::string CppTypeFor(const std::string& schemaType);
 

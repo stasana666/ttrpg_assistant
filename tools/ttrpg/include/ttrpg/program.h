@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ttrpg/module.h>
+#include <ttrpg/action_flow.h>
 
 #include <string>
 #include <vector>
@@ -43,6 +44,7 @@ struct TCompiledAction {
     std::vector<TCompiledActionCost> Costs;
     std::vector<std::string> Body;
     std::vector<std::string> Requirement;
+    TCompiledActionFlow Flow;
 };
 
 bool UsesRuleSyntax(const TClassDecl& declaration, const TLoadedSchemas& loaded);

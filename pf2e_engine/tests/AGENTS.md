@@ -57,6 +57,19 @@ Canonical project instructions. CLAUDE.md redirects here.
   Trip and opportunity pipelines against the same creature state. It checks the
   current weapon's MAP, shared attack counts on hits and misses, non-Agile Trip,
   reaction exemption, generated base damage inputs, turn resets and joint undo.
+- `actions/fixtures/generated_flow.ttrpg` and `actions/test_generated_flow.cpp`
+  compile into `test_generated_flow`. They exercise nested entity/value choices,
+  branches, while-loop locals and early returns, repeated suspension and replay,
+  and thousands of immediate choices without callback-stack growth. Position
+  choices check live occupancy and an explicitly captured movement origin;
+  generated variant/resource mutations share the rollback journal and reject
+  invalid spends, negative counts and overflow before the failing write. The
+  two-step traversal is a generic language fixture, not the PF2e Stride rule.
+- `actions/test_movement_runtime.cpp` builds as `test_movement_runtime` and checks
+  adjacent position enumeration, map bounds, occupancy, mutable entity capabilities,
+  stale origins and grants, failed movement/insertion, and replay with map rollback.
+  The generic movement primitive has no resource cost or implicit reaction window;
+  legacy `MovePlayer` retains support for movement beyond adjacent cells.
 - `inventory/`: generated schema type and JSON loading tests.
 - `inventory/fixtures/rule_entities.ttrpg` and `inventory/test_rule_entities.cpp`:
   compile generated entities into `test_inventory` and verify named factories,

@@ -3,6 +3,8 @@
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/guarded.h>
 #include <pf2e_engine/common/id_collection.h>
+#include <pf2e_engine/common/resource.h>
+#include <pf2e_engine/common/rule_integer.h>
 #include <pf2e_engine/common/variant_map.h>
 #include <pf2e_engine/transformation/state.h>
 
@@ -145,11 +147,66 @@ public:
         Assign(target.Mutable(), std::move(value), &owner.Get(), field);
     }
 
+    template <class Kind, class Variant, class Owner>
+    void SetVariant(TGuarded<TVariantMap<Kind, Variant>> target, Variant value,
+                     TGuarded<Owner> owner, std::string_view field)
+    {
+        auto changed = target.Get();
+        changed.Set(std::move(value));
+        AssignGuarded(target, std::move(changed), owner, field);
+    }
+
+    template <class Kind, class Variant, class Owner>
+    void EraseVariant(TGuarded<TVariantMap<Kind, Variant>> target, Kind kind,
+                       TGuarded<Owner> owner, std::string_view field)
+    {
+        auto changed = target.Get();
+        changed.Erase(kind);
+        AssignGuarded(target, std::move(changed), owner, field);
+    }
+
+    template <class Owner>
+    void AddResource(TGuarded<TResource> target, int count,
+                      TGuarded<Owner> owner, std::string_view field)
+    {
+        RequireResourceCount(target.Get().Count());
+        RequireResourceCount(count);
+        AssignGuarded(target, TResource(TRuleInteger::Add(target.Get().Count(), count)), owner, field);
+    }
+
+    template <class Owner>
+    void SpendResource(TGuarded<TResource> target, int count,
+                        TGuarded<Owner> owner, std::string_view field)
+    {
+        RequireResourceCount(target.Get().Count());
+        RequireResourceCount(count);
+        if (target.Get().Count() < count) {
+            throw std::invalid_argument("insufficient resource count");
+        }
+        AssignGuarded(target, TResource(target.Get().Count() - count), owner, field);
+    }
+
+    template <class Owner>
+    void SetResourceCount(TGuarded<TResource> target, int count,
+                           TGuarded<Owner> owner, std::string_view field)
+    {
+        RequireResourceCount(target.Get().Count());
+        RequireResourceCount(count);
+        AssignGuarded(target, TResource(count), owner, field);
+    }
+
     TState GetState() const;
     void Undo(TState state) const;
     [[nodiscard]] TGeneratedTransaction Atomic() const;
 
 private:
+    static void RequireResourceCount(int count)
+    {
+        if (count < 0) {
+            throw std::invalid_argument("resource count cannot be negative");
+        }
+    }
+
     template <class T>
     static TGuarded<T> RequireGuarded(TGuarded<T> value)
     {

@@ -174,8 +174,12 @@ void TChangeRound::Undo()
 
 TMovePlayer::TMovePlayer(TPlayer* player, TPosition new_position)
     : player_(player)
-    , prev_position_(player->GetPosition())
+    , prev_position_{}
 {
+    if (player_ == nullptr) {
+        throw std::invalid_argument("movement requires a player");
+    }
+    prev_position_ = player_->GetPosition();
     player_->SetPosition(new_position);
 }
 

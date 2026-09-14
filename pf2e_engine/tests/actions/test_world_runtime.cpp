@@ -14,11 +14,52 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <tuple>
 #include <utility>
 
 namespace {
+
+class TIndexChoiceIo final : public IInteractionSystem {
+public:
+    enum class EMode { Immediate, Deferred, Failed, Missing, Twice };
+    EMode Mode = EMode::Immediate;
+    std::size_t Index = 0;
+    std::function<void(std::size_t)> Receiver;
+    std::function<void()> BeforeReturn;
+
+    void RequestChoice(int, TAlternatives, TState state,
+                       std::function<void(std::size_t)> receive) override
+    {
+        Receiver = std::move(receive);
+        if (Mode == EMode::Deferred) {
+            throw TSavepointStackUnwind(state, [saved = Receiver, index = Index] { saved(index); });
+        }
+        if (Mode == EMode::Failed) {
+            throw std::runtime_error("failed choice request");
+        }
+        if (Mode != EMode::Missing) {
+            Receiver(Index);
+            if (Mode == EMode::Twice) {
+                Receiver(Index);
+            }
+        }
+        if (BeforeReturn) {
+            BeforeReturn();
+        }
+    }
+
+    void HandleReactionTrigger(const TTriggerContext&, const TState&) override {}
+    std::ostream& GameLog() override { return output_; }
+    std::ostream& DevLog() override { return output_; }
+
+protected:
+    std::size_t ChooseAlternativeIndex(int, const TAlternatives&) override { return Index; }
+
+private:
+    std::ostringstream output_;
+};
 
 struct TWorldBonus {
     using TOwner = TCreature;
@@ -141,6 +182,134 @@ protected:
     std::unique_ptr<TTransformator> journal_;
 };
 
+}
+
+TEST_F(TWorldRuntimeTest, ValueChoiceReturnsSynchronouslyWithoutCallingContinuation)
+{
+    Start();
+    auto& actor = Add({1, 1});
+    auto context = Context(&actor);
+    TIndexChoiceIo interaction;
+    context->io_system = &interaction;
+    int resumed = 0;
+    const auto value = SelectActionValue<int>(context, {3, 7},
+        [](const int& candidate) { return candidate > 4; },
+        [&](int) { ++resumed; });
+    EXPECT_EQ(value, 7);
+    EXPECT_EQ(resumed, 0);
+    EXPECT_THROW(interaction.Receiver(0), std::logic_error);
+    EXPECT_EQ(resumed, 0);
+    interaction.Receiver = {};
+    std::weak_ptr<TActionContext> weak = context;
+    context.reset();
+    EXPECT_TRUE(weak.expired());
+}
+
+TEST_F(TWorldRuntimeTest, DeferredValueChoiceRechecksPredicateAndCanReplayItsSavedContinuation)
+{
+    Start();
+    auto& actor = Add({1, 1});
+    auto context = Context(&actor);
+    TIndexChoiceIo interaction;
+    interaction.Mode = TIndexChoiceIo::EMode::Deferred;
+    context->io_system = &interaction;
+    bool eligible = true;
+    int resumed = 0;
+    std::optional<TSavepointStackUnwind> point;
+    try {
+        SelectActionValue<int>(context, {7}, [&](const int&) { return eligible; },
+            [&](int value) { EXPECT_EQ(value, 7); ++resumed; });
+        FAIL() << "expected suspended choice";
+    } catch (const TSavepointStackUnwind& saved) {
+        point = saved;
+    }
+    ASSERT_TRUE(point);
+    EXPECT_EQ(resumed, 0);
+    eligible = false;
+    EXPECT_THROW(point->Resume(), TAbilityUnavailable);
+    EXPECT_EQ(resumed, 0);
+    eligible = true;
+    point->Resume();
+    point->Resume();
+    EXPECT_EQ(resumed, 2);
+}
+
+TEST_F(TWorldRuntimeTest, ExplicitEntityChoiceCanSelectReadonlyWorldCandidatesWithoutChangingAliases)
+{
+    Start();
+    auto& actor = Add({1, 1});
+    auto& target = Add({2, 1});
+    auto context = Context(&actor);
+    TIndexChoiceIo interaction;
+    context->io_system = &interaction;
+    const auto candidates = TGeneratedWorldView(battle_.get()).Entities<TCreature>();
+    const auto chosen = SelectActionEntity<TCreature>(context, candidates,
+        [&target](const auto& candidate) { return candidate.Read().Id() == target.GetCreature()->Id(); },
+        [](auto) { FAIL() << "synchronous choice called continuation"; });
+    EXPECT_EQ(&chosen.Guard().Get(), target.GetCreature());
+    for (const auto& candidate : candidates) {
+        EXPECT_THROW(candidate.Guard(), std::logic_error);
+    }
+    auto execution = journal_->ExecutionContext();
+    const auto state = execution.GetState();
+    execution.Invoke(chosen.Guard(), &TCreature::ReceiveDamage, EDamageType::Fire, 3);
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 7);
+    execution.Undo(state);
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 10);
+}
+
+TEST_F(TWorldRuntimeTest, ChoiceRetainsOriginalActorAcrossInlineReturnAndDeferredReplay)
+{
+    Start();
+    auto& actor = Add({1, 1});
+    auto& other = Add({2, 1});
+    auto context = Context(&actor);
+    const auto original = context->game_object_registry;
+    const auto replacement = Context(&other)->game_object_registry;
+    TIndexChoiceIo interaction;
+    context->io_system = &interaction;
+    int resumed = 0;
+    interaction.BeforeReturn = [&] { context->game_object_registry = replacement; };
+    EXPECT_THROW(SelectActionValue<int>(context, {1}, {}, [&](int) { ++resumed; }), TAbilityUnavailable);
+    context->game_object_registry = original;
+    EXPECT_THROW(interaction.Receiver(0), std::logic_error);
+    interaction.BeforeReturn = {};
+    interaction.Mode = TIndexChoiceIo::EMode::Deferred;
+    std::optional<TSavepointStackUnwind> point;
+    try {
+        SelectActionValue<int>(context, {1}, {}, [&](int) { ++resumed; });
+        FAIL() << "expected suspended choice";
+    } catch (const TSavepointStackUnwind& saved) {
+        point = saved;
+    }
+    ASSERT_TRUE(point);
+    context->game_object_registry = replacement;
+    EXPECT_THROW(point->Resume(), TAbilityUnavailable);
+    EXPECT_EQ(resumed, 0);
+    context->game_object_registry = original;
+    point->Resume();
+    EXPECT_EQ(resumed, 1);
+}
+
+TEST_F(TWorldRuntimeTest, FailedMissingDuplicateAndInvalidChoicesCannotResume)
+{
+    Start();
+    auto& actor = Add({1, 1});
+    auto context = Context(&actor);
+    TIndexChoiceIo interaction;
+    context->io_system = &interaction;
+    int resumed = 0;
+    for (const auto mode : {TIndexChoiceIo::EMode::Failed, TIndexChoiceIo::EMode::Missing,
+                           TIndexChoiceIo::EMode::Twice}) {
+        interaction.Mode = mode;
+        EXPECT_THROW(SelectActionValue<int>(context, {1}, {}, [&](int) { ++resumed; }), std::exception);
+        EXPECT_THROW(interaction.Receiver(0), std::logic_error);
+    }
+    interaction.Mode = TIndexChoiceIo::EMode::Immediate;
+    interaction.Index = 2;
+    EXPECT_THROW(SelectActionValue<int>(context, {1}, {}, [&](int) { ++resumed; }), std::out_of_range);
+    EXPECT_THROW(interaction.Receiver(0), std::logic_error);
+    EXPECT_EQ(resumed, 0);
 }
 
 TEST_F(TWorldRuntimeTest, ReadsArePureAndEnumeratedBindingsAreReadonlyWithoutAliveFiltering)

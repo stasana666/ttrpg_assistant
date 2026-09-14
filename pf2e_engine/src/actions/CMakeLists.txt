@@ -7,6 +7,7 @@ target_sources(pf2e_engine
         generated_action.cpp
         generated_source.cpp
         generated_world.cpp
+        generated_movement.cpp
         feature_event.cpp
         reaction.cpp
         save_point.cpp

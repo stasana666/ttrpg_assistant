@@ -55,8 +55,12 @@ bool IsBuiltinPrimitive(const std::string& t) {
 bool IsBuiltinBoundedQuantity(const std::string& t) { return t == "BoundedQuantity"; }
 bool IsBuiltinResource(const std::string& t) { return t == "Resource"; }
 bool IsBuiltinFeature(const std::string& t) { return t == "Feature"; }
+bool IsBuiltinPosition(const std::string& t) { return t == "Position"; }
 
 std::string CppTypeFor(const std::string& schemaType) {
+    if (schemaType == "Position") {
+        return "TPosition";
+    }
     if (schemaType == "Feature") {
         return "TFeatureSelection";
     }
@@ -75,6 +79,9 @@ std::string CppTypeFor(const std::string& schemaType) {
 EFieldKind FieldKindOf(const TFieldDecl& f,
                        const std::unordered_map<std::string, TTypeInfo>& symbols)
 {
+    if (IsBuiltinPosition(f.TypeName)) {
+        throw std::runtime_error("Position is currently an action/world value, not a stored field type");
+    }
     if (IsBuiltinPrimitive(f.TypeName)) {
         return EFieldKind::Primitive;
     }

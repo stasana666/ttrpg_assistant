@@ -16,6 +16,9 @@ public:
     bool IsBound() const;
     void Validate(const TGeneratedEntityView& entity) const;
     TPosition Position(const TGeneratedEntityView& entity) const;
+    bool Contains(TPosition position) const;
+    std::vector<TPosition> AdjacentPositions(TPosition from) const;
+    bool CanOccupy(const TGeneratedEntityView& entity, TPosition position) const;
     int PositionX(const TGeneratedEntityView& entity) const;
     int PositionY(const TGeneratedEntityView& entity) const;
     int Team(const TGeneratedEntityView& entity) const;

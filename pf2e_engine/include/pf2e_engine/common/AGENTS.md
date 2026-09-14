@@ -89,15 +89,40 @@ HP field names or resource categories. Future native entity kinds need adapters.
 
 `IInteractionSystem::RequestChoice` either invokes its receiver synchronously or
 suspends through `TSavepointStackUnwind` with an owned callback. It must not return
-without delivering a choice or suspending. Generated callbacks capture earlier
-locals by value and create fresh locals on every invocation so an old savepoint
-can be replayed after rollback. The selected entity and its predicate are checked
-again on resume; the enclosing execution also rechecks the granting source.
+without delivering a choice or suspending. Generated actions execute a compiled
+block graph with a typed frame. Ordinary block transitions are iterative; each
+suspended choice captures a frame value and creates a fresh copy on every resume.
+Lexical slots are cleared when their scope ends. Branches and `while` loops retain
+changes to outer locals without sharing mutable continuation state.
+
+`SelectActionValue` and `SelectActionEntity` return immediate choices directly;
+their continuation runs only when a saved prompt resumes. This prevents a long
+sequence of immediate choices from growing the C++ call stack. A completed or
+failed prompt cannot be invoked later as a continuation. A suspended prompt can
+be replayed, and validates its original actor, candidate identity, predicate and
+granting source each time. An explicit entity choice may select from readonly
+world bindings and obtains a new mutable binding; existing aliases stay readonly.
 
 A yielding action is not enclosed in a synchronous method transaction. A failed
 body leaves its paid costs and completed mutations in the caller's journal until
 that caller undoes them. Empty choices and failed requirements follow this same
-policy. Whole-action cancellation and target preflight remain separate work.
+policy. A leading choice has target-existence preflight; choices after effects or
+inside control flow do not. Whole-action cancellation remains separate work.
+
+## Generated movement (`actions/generated_movement.h`)
+
+`Position` action values lower to `TPosition`. World adjacency returns in-bounds
+eight-neighbor values in row-major order, excluding the origin; it does not retain
+cell pointers. `Contains` checks map bounds, and `CanOccupy` validates the participant
+and permits its current cell or an empty destination.
+
+`MoveActionEntity` validates actor/source, participant membership, mutable access,
+the expected origin, a single adjacent step, bounds and occupancy before journaling
+movement. It has no implicit resource cost, PF2e distance formula or reaction window.
+An explicit origin retained across a prompt rejects a step after forced movement.
+Legacy `MovePlayer` remains usable for nonadjacent relocation. Map cell access and
+participant binding check bounds, and journal capacity is secured before the move
+constructor changes state. Existing journal entries relocate without throwing.
 
 ## Typed action sources (`common/ability_source.h`, `actions/generated_source.h`)
 
@@ -196,6 +221,14 @@ For fixed nested fields, `ctx.Project(owner_guard, getter)` produces another
 guarded reference, and `ctx.AssignGuarded(field_guard, value, owner_guard, name)`
 records the same controlled assignment. Projection requires a guarded result and
 does not expose the underlying mutable reference to callers.
+
+Stored variant sets support journaled `SetVariant` and `EraseVariant` operations.
+They prepare a replacement before changing the fixed container field. Variant
+payload reads remain copies, so these operations do not expose mutable entries.
+`AddResource`, `SpendResource` and `SetResourceCount` similarly assign a checked
+replacement. Counts must be nonnegative; spending requires enough resources and
+addition checks integer overflow. Generated rule syntax exposes `.set`/`.erase`
+and `Resource.Add`/`Spend`/`SetCount`, with implicit context and guarded ownership.
 
 Assignments stage the replacement and append a journal record before a noexcept
 swap changes the field. Value types must be copy constructible and nothrow

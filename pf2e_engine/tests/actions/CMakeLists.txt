@@ -162,3 +162,35 @@ target_link_libraries(test_world_runtime
 )
 
 gtest_discover_tests(test_world_runtime)
+
+add_executable(test_generated_flow
+    test_generated_flow.cpp
+)
+
+set(GENERATED_FLOW_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/generated_flow.h)
+set(GENERATED_FLOW_SOURCE ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/generated_flow.cpp)
+ttrpg_generate(
+    TARGET test_generated_flow
+    SCHEMA ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/generated_flow.ttrpg
+    HEADER ${GENERATED_FLOW_HEADER}
+    SOURCE ${GENERATED_FLOW_SOURCE}
+)
+target_sources(test_generated_flow PRIVATE ${GENERATED_FLOW_HEADER} ${GENERATED_FLOW_SOURCE})
+
+target_link_libraries(test_generated_flow
+    gtest_main
+    pf2e_engine
+)
+
+gtest_discover_tests(test_generated_flow)
+
+add_executable(test_movement_runtime
+    test_movement_runtime.cpp
+)
+
+target_link_libraries(test_movement_runtime
+    gtest_main
+    pf2e_engine
+)
+
+gtest_discover_tests(test_movement_runtime)

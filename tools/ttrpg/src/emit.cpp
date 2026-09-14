@@ -71,6 +71,7 @@ std::vector<const TClassDecl*> OrderedClasses(const TLoadedSchemas& loaded) {
 }
 
 void ValidateRules(const TLoadedSchemas& loaded) {
+    if (loaded.SymbolTable.contains("Position")) throw std::runtime_error("Position is a reserved builtin type");
     if (HasJsonIntegerFields(loaded.Primary) && loaded.SymbolTable.contains("ReadGeneratedRuleInteger")) {
         throw std::runtime_error("type name 'ReadGeneratedRuleInteger' is reserved for generated JSON parsing");
     }
@@ -886,6 +887,7 @@ void EmitImpl(std::ostream& os,
     if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty() || !ability.Hooks.empty(); })) {
         w.Include("pf2e_engine/actions/generated_action.h");
         w.Include("pf2e_engine/actions/generated_world.h");
+        w.Include("pf2e_engine/actions/generated_movement.h");
         w.Include("pf2e_engine/actions/feature_event.h");
     }
     if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.SourceType.empty(); })) {

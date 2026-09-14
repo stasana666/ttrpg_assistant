@@ -2,6 +2,7 @@
 
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/actions/action_context.h>
+#include <pf2e_engine/alternatives.h>
 #include <pf2e_engine/common/entity_id.h>
 #include <pf2e_engine/common/generated_execution.h>
 #include <pf2e_engine/transformation/transformator.h>
@@ -10,6 +11,7 @@
 #include <memory>
 #include <stdexcept>
 #include <typeindex>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -27,6 +29,12 @@ void RequestActionEntity(const std::shared_ptr<TActionContext>& ctx,
                          std::vector<TGeneratedEntityView> candidates,
                          std::function<void(TGeneratedEntityView)> receive);
 int RollActionDice(const std::shared_ptr<TActionContext>& ctx, int count, int size);
+std::size_t SelectActionIndex(const std::shared_ptr<TActionContext>& ctx,
+                              TAlternatives alternatives,
+                              std::function<void(std::size_t)> on_resume);
+TGeneratedEntityView MutableSelectedActionEntity(const std::shared_ptr<TActionContext>& ctx,
+                                                 const TGeneratedEntityView& selected);
+std::string DescribeActionEntity(const TGeneratedEntityView& entity);
 
 class TGeneratedEntityView {
 public:
@@ -164,4 +172,95 @@ void ChooseActionEntity(const std::shared_ptr<TActionContext>& ctx,
             }
             receive(std::move(selected));
         });
+}
+
+template <class T>
+T SelectActionValue(const std::shared_ptr<TActionContext>& ctx, std::vector<T> candidates,
+                     std::function<bool(const T&)> predicate, std::function<void(T)> on_resume)
+{
+    ValidateActionActor(ctx);
+    if (!on_resume) {
+        throw std::invalid_argument("value choice requires a continuation");
+    }
+    std::vector<T> eligible;
+    for (const auto& candidate : candidates) {
+        if (!predicate || predicate(candidate)) {
+            eligible.push_back(candidate);
+        }
+    }
+    auto values = std::make_shared<const std::vector<T>>(std::move(eligible));
+    auto alternatives = TAlternatives::Create<T>(
+        std::is_same_v<T, TPosition> ? "move to position" : "choice");
+    for (const auto& value : *values) {
+        std::string description;
+        if constexpr (std::is_same_v<T, TPosition>) {
+            description = std::to_string(value.x) + " " + std::to_string(value.y);
+        } else if constexpr (std::is_same_v<T, std::string>) {
+            description = value;
+        } else if constexpr (std::is_same_v<T, bool>) {
+            description = value ? "true" : "false";
+        } else if constexpr (std::is_integral_v<T>) {
+            description = std::to_string(value);
+        } else {
+            description = ToString(value);
+        }
+        alternatives.AddAlternative(std::move(description), T(value));
+    }
+    auto selected = [ctx, values, predicate = std::move(predicate)](std::size_t index) -> T {
+        ValidateActionActor(ctx);
+        if (index >= values->size()) {
+            throw std::out_of_range("selected value is outside the alternatives");
+        }
+        T value = (*values)[index];
+        if (predicate && !predicate(value)) {
+            throw TAbilityUnavailable();
+        }
+        return value;
+    };
+    const auto index = SelectActionIndex(ctx, std::move(alternatives),
+        [selected, on_resume = std::move(on_resume)](std::size_t choice) {
+            on_resume(selected(choice));
+        });
+    return selected(index);
+}
+
+template <class T>
+TGeneratedEntityBinding<T> SelectActionEntity(
+    const std::shared_ptr<TActionContext>& ctx, std::vector<TGeneratedEntityBinding<T>> candidates,
+    std::function<bool(const TGeneratedEntityBinding<T>&)> predicate,
+    std::function<void(TGeneratedEntityBinding<T>)> on_resume)
+{
+    ValidateActionActor(ctx);
+    if (!on_resume) {
+        throw std::invalid_argument("entity choice requires a continuation");
+    }
+    std::vector<TGeneratedEntityBinding<T>> eligible;
+    auto alternatives = TAlternatives::Create<TPlayer*>("target");
+    for (const auto& candidate : candidates) {
+        ValidateActionEntity(ctx, candidate.View());
+        if (!predicate || predicate(candidate)) {
+            const auto mutable_view = MutableSelectedActionEntity(ctx, candidate.View());
+            alternatives.AddAlternative(DescribeActionEntity(mutable_view),
+                                         &mutable_view.MutablePlayer());
+            eligible.push_back(candidate.ReadOnly());
+        }
+    }
+    auto values = std::make_shared<const std::vector<TGeneratedEntityBinding<T>>>(std::move(eligible));
+    auto selected = [ctx, values, predicate = std::move(predicate)](std::size_t index) {
+        ValidateActionActor(ctx);
+        if (index >= values->size()) {
+            throw std::out_of_range("selected entity is outside the alternatives");
+        }
+        const auto& value = (*values)[index];
+        ValidateActionEntity(ctx, value.View());
+        if (predicate && !predicate(value)) {
+            throw TAbilityUnavailable();
+        }
+        return TGeneratedEntityBinding<T>(MutableSelectedActionEntity(ctx, value.View()));
+    };
+    const auto index = SelectActionIndex(ctx, std::move(alternatives),
+        [selected, on_resume = std::move(on_resume)](std::size_t choice) {
+            on_resume(selected(choice));
+        });
+    return selected(index);
 }

@@ -136,13 +136,13 @@ TEST(FeatureEventCompilerTest, CopiesContributionValuesAndPreservesOuterLocalsAc
         }
     )");
     const auto body = Join(CompileAction(loaded.Primary.Abilities.front(), loaded).Body);
-    EXPECT_NE(body.find("DispatchFeatureEvent<TEventHealingBonus>(Context, action_self, TEventHealingBonus::TArguments{bound_First, local_Amount})"), std::string::npos);
+    EXPECT_NE(body.find("DispatchFeatureEvent<::TEventHealingBonus>(Context, action_self, ::TEventHealingBonus::TArguments{bound_First, local_Amount})"), std::string::npos);
     EXPECT_NE(body.find("const auto event_values_0 = local_Bonuses;"), std::string::npos);
     EXPECT_NE(body.find("auto local_Bonus = event_value_0.Value;"), std::string::npos);
     EXPECT_NE(body.find("local_Amount = TRuleInteger::Add(local_Amount, local_Bonus)"), std::string::npos);
-    EXPECT_NE(body.find("captured_Amount = local_Amount"), std::string::npos);
-    EXPECT_NE(body.find("captured_Bonuses = local_Bonuses"), std::string::npos);
-    EXPECT_EQ(body.find("captured_Bonus ="), std::string::npos);
+    EXPECT_NE(body.find("auto& local_Amount = frame.slot_1.value()"), std::string::npos);
+    EXPECT_NE(body.find("std::optional<std::vector<TFeatureEventContribution<int>>> slot_2"), std::string::npos);
+    EXPECT_EQ(body.find("auto& local_Bonus = frame."), std::string::npos);
     EXPECT_NE(body.find("const auto event_values_1 = local_Bonuses;"), std::string::npos);
 }
 
@@ -162,7 +162,7 @@ TEST(FeatureEventCompilerTest, RollsClassContributionsExactlyOncePerLoopIteratio
     const auto roll = body.find("RollActionDice(");
     ASSERT_NE(roll, std::string::npos);
     EXPECT_EQ(body.find("RollActionDice(", roll + 1), std::string::npos);
-    EXPECT_NE(body.find("(static_cast<const TDice&>(local_Dice)).Count()"), std::string::npos);
+    EXPECT_NE(body.find("(static_cast<const ::TDice&>(local_Dice)).Count()"), std::string::npos);
     EXPECT_NE(body.find("local_Amount = TRuleInteger::Add(local_Amount, RollActionDice("), std::string::npos);
 }
 
@@ -177,7 +177,7 @@ TEST(FeatureEventCompilerTest, SupportsPrimitiveEnumAndOrdinaryClassEventArgumen
         }
     )");
     const auto implementation = Implementation(loaded);
-    EXPECT_NE(implementation.find("TEventPickMode::TArguments{std::string(\"test\"), true, TValue::Create({.Amount = 1})}"), std::string::npos);
+    EXPECT_NE(implementation.find("TEventPickMode::TArguments{std::string(\"test\"), true, ::TValue::Create({.Amount = 1})}"), std::string::npos);
     EXPECT_NE(Header(loaded).find("using TResult = EMode;"), std::string::npos);
 }
 
@@ -213,7 +213,7 @@ TEST(FeatureEventCompilerTest, RejectsImpureOrIncompleteHandlers) {
     Rejects(prefix + "Target.Improve(2); return 1; } }", "pure expression");
     Rejects(prefix + "return roll(1, 6); } }", "effectful action expression");
     Rejects(prefix + "let Values = Bonus(@self, Target); return 1; } }", "not allowed inside a feature hook");
-    Rejects(prefix + "choose TActor Other; return 1; } }", "only at the top level");
+    Rejects(prefix + "choose TActor Other; return 1; } }", "synchronous scope");
     Rejects(prefix + "if (Target.IsAlive()) { return 1; } } }", "every path");
     Rejects(prefix + "return true; } }", "expected 'int'");
 }
@@ -225,7 +225,7 @@ TEST(FeatureEventCompilerTest, RejectsBadInvocationAndLoopScopes) {
     Rejects(prefix + "choose TDevice Target; let Values = Bonus(@self, Target, 2); }", "expected 'TActor'");
     Rejects(prefix + "for Value in Bonus(@self, @self, true) {} }", "expected 'int'");
     Rejects(prefix + "for Value in 2 {} }", "contribution sequence");
-    Rejects(prefix + "for Value in Bonus(@self, @self, 2) { choose TActor Target; } }", "only at the top level");
+    Rejects(prefix + "for Value in Bonus(@self, @self, 2) { choose TActor Target; } }", "synchronous scope");
     Rejects(prefix + "let Value = 2; for Value in Bonus(@self, @self, 2) {} }", "duplicate local");
     Rejects(prefix + "for Value in Bonus(@self, @self, 2) {} @self.Improve(Value); }", "unknown name");
     Rejects("event int Bonus for TActor(); class TBad { query int Value() { let Values = Bonus(@self); return 1; } }", "action context");
@@ -241,5 +241,5 @@ TEST(FeatureEventCompilerTest, LoopReturnDoesNotHideStatementsAfterAnEmptySequen
     )");
     const auto body = Join(CompileAction(loaded.Primary.Abilities.front(), loaded).Body);
     EXPECT_NE(body.find("return;"), std::string::npos);
-    EXPECT_NE(body.find("&TActor::Improve, 2"), std::string::npos);
+    EXPECT_NE(body.find("&::TActor::Improve, 2"), std::string::npos);
 }

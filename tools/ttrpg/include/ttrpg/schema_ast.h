@@ -44,7 +44,7 @@ struct TClassDecl {
         std::string Name;
     };
     struct TStatement {
-        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If, Cost, Choose, ForEach, Requires };
+        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If, Cost, Choose, ForEach, Requires, While };
         EKind Kind = EKind::Call;
         std::string Name;
         std::optional<expr::TExprNode> Target;
@@ -53,6 +53,7 @@ struct TClassDecl {
         std::vector<TStatement> ElseBody;
         parse::TSourceLocation Location;
         std::string TypeName;
+        std::optional<expr::TExprNode> Candidates;
     };
     struct TMethod {
         std::string ReturnType;

@@ -43,6 +43,43 @@ TPosition TGeneratedWorldView::Position(const TGeneratedEntityView& entity) cons
     return entity.Player().GetPosition();
 }
 
+bool TGeneratedWorldView::Contains(TPosition position) const
+{
+    RequireWorld();
+    return battle_->BattleMap()->Contains(position);
+}
+
+std::vector<TPosition> TGeneratedWorldView::AdjacentPositions(TPosition from) const
+{
+    RequireWorld();
+    const auto map = battle_->BattleMap();
+    if (!map->Contains(from)) {
+        throw std::out_of_range("adjacent positions require an origin inside the map");
+    }
+    std::vector<TPosition> positions;
+    positions.reserve(8);
+    for (int offset_y = -1; offset_y <= 1; ++offset_y) {
+        for (int offset_x = -1; offset_x <= 1; ++offset_x) {
+            const TPosition next{from.x + offset_x, from.y + offset_y};
+            if (next != from && map->Contains(next)) {
+                positions.push_back(next);
+            }
+        }
+    }
+    return positions;
+}
+
+bool TGeneratedWorldView::CanOccupy(const TGeneratedEntityView& entity, TPosition position) const
+{
+    Validate(entity);
+    const auto map = battle_->BattleMap();
+    if (!map->Contains(position)) {
+        return false;
+    }
+    const auto* occupant = map->GetCell(position.x, position.y).player;
+    return occupant == nullptr || occupant == &entity.Player();
+}
+
 int TGeneratedWorldView::PositionX(const TGeneratedEntityView& entity) const
 {
     return Position(entity).x;

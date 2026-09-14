@@ -7,13 +7,12 @@
 
 #include <stdexcept>
 
-using TCell = TBattleMap::TCell;
-
 TPlayer::TPlayer(TCreature* creature, TPlayerTeam team, TPlayerId id,
     std::string name, std::filesystem::path image_path)
     : creature_(creature)
     , team_(team)
     , id_(id)
+    , position_{}
     , name_(name)
     , image_path_(image_path)
     , battle_map_(nullptr)
@@ -47,20 +46,28 @@ TPosition TPlayer::GetPosition() const
 
 void TPlayer::SetPosition(TPosition new_position)
 {
-    assert(battle_map_ != nullptr);
+    if (battle_map_ == nullptr) {
+        throw std::logic_error("movement requires a bound player");
+    }
+    const auto snapshot = battle_map_->Get();
+    if (!snapshot->Contains(new_position)) {
+        throw std::out_of_range("player destination is outside the map");
+    }
+    if (!snapshot->Contains(position_)
+        || snapshot->GetCell(position_.x, position_.y).player != this) {
+        throw std::logic_error("player position does not match its occupied cell");
+    }
     if (new_position == position_) {
         return;
     }
-    auto copy = battle_map_->Copy();
-    TCell& new_cell = copy->GetCell(new_position.x, new_position.y);
-    if (new_cell.player != nullptr) {
+    if (snapshot->GetCell(new_position.x, new_position.y).player != nullptr) {
         throw std::runtime_error("two creatures in one cell is not supported by rules");
     }
-    TCell& old_cell = copy->GetCell(position_.x, position_.y);
-    new_cell.player = old_cell.player;
-    old_cell.player = nullptr;
+    auto copy = std::make_shared<TBattleMap>(*snapshot);
+    copy->GetCell(new_position.x, new_position.y).player = this;
+    copy->GetCell(position_.x, position_.y).player = nullptr;
+    battle_map_->Set(std::move(copy));
     position_ = new_position;
-    battle_map_->Set(copy);
 }
 
 std::string_view TPlayer::GetName() const
@@ -75,16 +82,21 @@ const std::filesystem::path& TPlayer::GetImagePath() const
 
 void TPlayer::BindWith(THolder<TBattleMap>& battle_map, const TPosition position)
 {
-    assert(battle_map_ == nullptr);
-    auto copy = battle_map.Copy();
-    TBattleMap::TCell& cell = copy->GetCell(position.x, position.y);
-    if (cell.player != nullptr) {
-        throw std::runtime_error("two creature in one cell is not supported by rules");
+    if (battle_map_ != nullptr) {
+        throw std::logic_error("player is already bound to a battle map");
     }
-    cell.player = this;
+    const auto snapshot = battle_map.Get();
+    if (!snapshot->Contains(position)) {
+        throw std::out_of_range("player position is outside the map");
+    }
+    if (snapshot->GetCell(position.x, position.y).player != nullptr) {
+        throw std::runtime_error("two creatures in one cell is not supported by rules");
+    }
+    auto copy = std::make_shared<TBattleMap>(*snapshot);
+    copy->GetCell(position.x, position.y).player = this;
+    battle_map.Set(std::move(copy));
     position_ = position;
     battle_map_ = &battle_map;
-    battle_map_->Set(copy);
 }
 
 void TPlayer::Unbind()
