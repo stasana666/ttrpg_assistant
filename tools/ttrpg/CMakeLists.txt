@@ -13,6 +13,9 @@ add_library(ttrpg STATIC
     src/action_flow.cpp
     src/abilities.cpp
     src/activities.cpp
+    src/triggers.cpp
+    src/callable_graph.cpp
+    src/emit_reaction.cpp
     src/events.cpp
     src/cpp_writer.cpp
     src/emit.cpp

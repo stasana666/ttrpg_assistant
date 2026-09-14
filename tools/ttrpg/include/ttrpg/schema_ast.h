@@ -82,6 +82,15 @@ struct TAbilityDecl {
     std::vector<THook> Hooks;
     std::string SourceType;
     std::string SourceName;
+    std::vector<std::string> Triggers;
+};
+
+struct TTriggerDecl {
+    std::string Name;
+    std::string ReturnType;
+    std::vector<TClassDecl::TParameter> Parameters;
+    bool OncePerActivity = false;
+    parse::TSourceLocation Location;
 };
 
 struct TEventDecl {
@@ -136,4 +145,5 @@ struct TSchemaModule {
     std::vector<TAbilityDecl> Abilities;
     std::vector<TEventDecl> Events;
     std::vector<TActivityDecl> Activities;
+    std::vector<TTriggerDecl> Triggers;
 };

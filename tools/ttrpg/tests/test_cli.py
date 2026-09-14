@@ -104,6 +104,31 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("recursive activity calls", result.stderr)
         self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
 
+    def test_imported_reaction_triggers_and_subscriber_cycles(self):
+        self.write("types.ttrpg", "GameEntity TActor { Resource Reactions = 1; }")
+        library = self.write("windows.ttrpg", 'import "types.ttrpg"; trigger int Opening(int Pending, TActor Subject) once per activity; activity int Open for TActor(TActor Subject) { let Result = Opening(1, Subject); return Result; }')
+        (self.root / "alias_windows.ttrpg").symlink_to(library)
+        self.schema.write_text('import "alias_windows.ttrpg"; reaction Counter for TActor on Opening { cost @self.Reactions = 1; return Pending + 1; } action Use for TActor { let Result = Open(@self); }')
+        self.command([CODEGEN, "--schema", self.schema, "--check"])
+        self.generate()
+        self.assertIn('windows.h', self.header.read_text())
+        self.assertIn('TTriggerOpening', self.source.read_text())
+        self.assertIn('"windows.Opening"', self.source.read_text())
+        self.assertIn('RunRootCounter', self.header.read_text())
+        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
+        self.schema.write_text('import "alias_windows.ttrpg"; reaction Counter for TActor on Opening { let Result = Open(Subject); return Result; }')
+        result = self.generate(success=False)
+        self.assertIn("recursive activity calls or reaction windows", result.stderr)
+        self.assertIn("reaction Counter", result.stderr)
+        self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
+
+    def test_check_rejects_invalid_imported_reaction_signature(self):
+        self.write("invalid.ttrpg", "GameEntity TActor {} trigger int First(int Pending); trigger int Second(int Different); reaction Counter for TActor on First, Second { return Pending; }")
+        self.schema.write_text('import "invalid.ttrpg";')
+        result = self.command([CODEGEN, "--schema", self.schema, "--check"], success=False)
+        self.assertIn("identical types and parameter names", result.stderr)
+        self.assertFalse(self.header.exists())
+
     def test_parameterized_factories_import_types_and_preserve_outputs_on_errors(self):
         self.write("items.ttrpg", "class TItem { int Amount = 2; } feature First; feature Second; GameEntity TActor { collection<TItem> Items; collection<Feature> Features; }")
         self.schema.write_text('import "items.ttrpg"; TActor Fighter(collection<TItem> Equipment = [TItem {}], choice Feature Feat from [First, Second] = First) { Items = Equipment; Features = [Feat]; }')

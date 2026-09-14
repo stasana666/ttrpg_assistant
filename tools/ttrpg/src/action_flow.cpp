@@ -25,6 +25,7 @@ std::vector<std::string> RenderActionFlow(const TCompiledActionFlow& flow) {
     };
     writer.Struct(flow.FlowType, [&] {
         writer.Struct(flow.FrameType, [&] {
+            if (flow.HasReactionScope) writer.Line("::TReactionScope reaction_scope;");
             for (std::size_t index = 0; index < flow.Slots.size(); ++index) {
                 writer.Line("std::optional<" + flow.Slots[index].CppType + "> slot_" + std::to_string(index) + "{};");
             }
@@ -67,6 +68,27 @@ std::vector<std::string> RenderActionFlow(const TCompiledActionFlow& flow) {
                                         resume(block.Next);
                                     });
                                 });
+                                writer.Line("pc = " + std::to_string(block.Next) + ";");
+                                writer.Line("continue;");
+                            } else if (block.Exit == E::Window) {
+                                const auto& window = block.Window;
+                                std::string call = "auto completed = ::OpenReactionWindow<" + window.Tag +
+                                    ">(Context, frame.reaction_scope, " + window.Arguments.front() + ", " + window.Tag + "::TArguments{";
+                                for (std::size_t i = 1; i < window.Arguments.size(); ++i) {
+                                    if (i != 1) call += ", ";
+                                    call += window.Arguments[i];
+                                }
+                                writer.Line(call + "},");
+                                writer.Indented([&] {
+                                    writer.Block("[Context, action_self, frame, on_resume](::TReactionWindowResult<" + window.StateType + "> result) {", "});", [&] {
+                                        writer.Line("auto next = frame;");
+                                        writer.Line("next.reaction_scope = std::move(result.Scope);");
+                                        if (window.Slot) writer.Line("next.slot_" + std::to_string(*window.Slot) + ".emplace(std::move(result.Value));");
+                                        resume(block.Next);
+                                    });
+                                });
+                                writer.Line("frame.reaction_scope = std::move(completed.Scope);");
+                                if (window.Slot) writer.Line("frame.slot_" + std::to_string(*window.Slot) + ".emplace(std::move(completed.Value));");
                                 writer.Line("pc = " + std::to_string(block.Next) + ";");
                                 writer.Line("continue;");
                             } else {

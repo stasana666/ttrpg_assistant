@@ -57,7 +57,9 @@ public:
             if (t.kind != ETok::Ident) {
                 ts_.Throw("expected 'enum' or 'class'");
             }
-            if (t.text == "enum") {
+            if (t.text == "trigger") {
+                mod.Triggers.push_back(ParseTrigger());
+            } else if (t.text == "enum") {
                 mod.Enums.push_back(ParseEnum());
             } else if (t.text == "variant") {
                 mod.Variants.push_back(ParseVariant());
@@ -96,8 +98,8 @@ private:
             keyword == "reaction" ? EAbilityDeclarationKind::Reaction : EAbilityDeclarationKind::Feature;
         declaration.Name = ExpectIdent("ability name");
         if (ts_.Peek().text == "for") {
-            if (declaration.Kind != EAbilityDeclarationKind::Action) {
-                ts_.Throw("compiled bodies currently support action declarations only");
+            if (declaration.Kind == EAbilityDeclarationKind::Feature) {
+                ts_.Throw("features cannot have compiled action bodies");
             }
             ts_.Advance();
             declaration.OwnerType = ExpectIdent("action owner type");
@@ -105,6 +107,12 @@ private:
                 ts_.Advance();
                 declaration.SourceType = ExpectIdent("action source type");
                 declaration.SourceName = ExpectIdent("action source name");
+            }
+            if (declaration.Kind == EAbilityDeclarationKind::Reaction) {
+                ExpectIdentText("on");
+                do {
+                    declaration.Triggers.push_back(ExpectIdent("reaction trigger"));
+                } while (ts_.Match(ETok::Comma));
             }
             declaration.Body = ParseBody();
             ts_.Match(ETok::Semi);
@@ -149,6 +157,32 @@ private:
         }
         ts_.Expect(ETok::RParen, "')'");
         ts_.Expect(ETok::Semi, "';' after event declaration");
+        return declaration;
+    }
+
+    TTriggerDecl ParseTrigger() {
+        TTriggerDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        ExpectIdentText("trigger");
+        declaration.ReturnType = ExpectIdent("trigger state type");
+        declaration.Name = ExpectIdent("trigger name");
+        ts_.Expect(ETok::LParen, "'('");
+        if (ts_.Peek().kind != ETok::RParen) {
+            do {
+                TClassDecl::TParameter parameter;
+                parameter.TypeName = ExpectIdent("trigger parameter type");
+                parameter.Name = ExpectIdent("trigger parameter name");
+                declaration.Parameters.push_back(std::move(parameter));
+            } while (ts_.Match(ETok::Comma));
+        }
+        ts_.Expect(ETok::RParen, "')'");
+        if (ts_.Peek().text == "once") {
+            ExpectIdentText("once");
+            ExpectIdentText("per");
+            ExpectIdentText("activity");
+            declaration.OncePerActivity = true;
+        }
+        ts_.Expect(ETok::Semi, "';' after trigger declaration");
         return declaration;
     }
 

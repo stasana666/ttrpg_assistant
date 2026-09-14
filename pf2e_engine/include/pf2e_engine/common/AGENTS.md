@@ -196,8 +196,8 @@ matching action, legacy reaction or typed reaction backend. Legacy `ETrigger`
 enumeration intentionally skips validated typed reactions through its rules-aware
 overload; the two protocols remain separate.
 
-This stage exposes native typed windows only. It does not add `.ttrpg` reaction
-bodies or window syntax. `TReactionExecution<Tag>` carries an owner type, pure
+Typed `.ttrpg` triggers and reaction bodies compile to these windows.
+`TReactionExecution<Tag>` carries an owner type, pure
 requirement, optional source preparation, bound resource payment and a yielding
 body. The body's state and argument types come from the trigger tag. Entity
 arguments keep their supplied capabilities; requirements receive readonly aliases.
@@ -211,7 +211,10 @@ and resources before preparation and atomic payment. `TResourcePayment` is also
 used by `TAction`, preserving alias aggregation and read/write identity checks.
 A nonempty `LimitKey` records the reactor in a copied `TReactionScope` after payment;
 passing the returned scope through several windows restricts the same reaction
-across different source grants during one composed activity. Declining records no
+across different source grants during one composed activity. Generated `once per activity`
+triggers use their canonical trigger ID as the key, sharing the limit across all
+subscribing reaction definitions for each reactor. Each invoked activity gets a fresh
+scope; windows inside its loops reuse the returned scope. Declining records no
 use. Ordering and one offer per participant are the current native protocol, not a
 complete PF2e simultaneous-trigger policy.
 

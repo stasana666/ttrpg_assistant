@@ -61,9 +61,18 @@ Canonical project instructions. CLAUDE.md redirects here.
   pending values across nested suspension/replay, per-actor scope across equipment
   sources, independent offer/execution contexts, late callback rejection, trigger
   cycle guards, bounded immediate stack use and completion after parent death or
-  grant removal. These are native runtime tests; reaction DSL syntax is not yet
-  implemented. Existing `test_abilities` payment tests cover the extracted shared
+  grant removal. These tests exercise the native runtime directly. Existing
+  `test_abilities` payment tests cover the extracted shared
   payment implementation, including aliases and atomic rollback.
+- `actions/fixtures/generated_reactions.ttrpg` and `actions/test_generated_reactions.cpp`
+  build as `test_generated_reactions`. They cover compiled typed pending values,
+  explicit decline, live requirements before payment, source snapshots and removal,
+  nested reaction windows, repeated suspension and exact journal replay. Activity
+  scopes share limits across cells and reaction definitions while separate child
+  activity calls receive fresh scopes. Tests also check multiple subscriptions,
+  independent reaction completion after parent death or grant removal, and native
+  body entry capability and current-world validation. These are generic language
+  fixtures, not complete PF2e Reactive Strike or Shield Block implementations.
 - `actions/test_feature_event_runtime.cpp` builds as `test_feature_events` and
   checks typed immutable handler registration, readonly argument capabilities,
   source deduplication and provenance, snapshot results, context membership,

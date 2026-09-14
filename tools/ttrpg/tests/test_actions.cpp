@@ -176,7 +176,7 @@ TEST(ActionCompilerTest, RegistersStableExecutorsAndImportedRules) {
 TEST(ActionCompilerTest, RejectsInvalidOwnersAndSuspensionInSynchronousScopes) {
     Rejects("action A for Missing {}", "unknown action owner");
     Rejects("action A for THealth {}", "owner must be a GameEntity");
-    Rejects("reaction A for TActor {}", "support action declarations only");
+    Rejects("reaction A for TActor {}", "expected 'on'");
     Rejects("action A for TActor { choose THealth Target; }", "requires a from sequence");
     Rejects("class TBad { method void F() { choose TActor Target; } }", "synchronous scope");
     Rejects("action A for TActor { choose TActor Target; choose TActor Target; }", "duplicate local");

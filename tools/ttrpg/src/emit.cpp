@@ -7,6 +7,8 @@
 #include <ttrpg/events.h>
 #include <ttrpg/emit_source.h>
 #include <ttrpg/emit_instance.h>
+#include <ttrpg/emit_reaction.h>
+#include <ttrpg/triggers.h>
 
 #include <ttrpg/analyze.h>
 #include <ttrpg/conventions.h>
@@ -81,6 +83,7 @@ void ValidateRules(const TLoadedSchemas& loaded) {
     }
     ValidateAbilityDefinitions(loaded);
     ValidateEventDefinitions(loaded);
+    ValidateTriggerDefinitions(loaded);
     ValidateActivityDefinitions(loaded);
     ValidateConstructorNames(loaded);
     std::unordered_set<std::string> variantNames;
@@ -102,7 +105,10 @@ void ValidateRules(const TLoadedSchemas& loaded) {
         (void)CompileClass(c, loaded);
     }
     for (const auto& ability : loaded.Primary.Abilities) {
-        if (!ability.OwnerType.empty()) (void)CompileAction(ability, loaded);
+        if (!ability.OwnerType.empty()) {
+            if (ability.Kind == EAbilityDeclarationKind::Reaction) (void)CompileReaction(ability, loaded);
+            else (void)CompileAction(ability, loaded);
+        }
         for (const auto& hook : ability.Hooks) (void)CompileFeatureHook(ability, hook, loaded);
     }
     for (const auto& activity : loaded.Primary.Activities) (void)CompileActivity(activity, loaded);
@@ -312,6 +318,14 @@ void EmitHeader(std::ostream& os,
         w.Include("tuple");
         w.Include("string_view");
     }
+    const bool reactions = std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.Triggers.empty(); });
+    if (!mod.Triggers.empty() || reactions) {
+        w.Include("functional");
+        w.Include("memory");
+        w.Include("tuple");
+        w.Include("string_view");
+        w.Include("pf2e_engine/position.h");
+    }
     if (!mod.Classes.empty()) {
         w.Include("utility");
         w.Include("optional");
@@ -461,6 +475,14 @@ void EmitHeader(std::ostream& os,
         inspectField(field, "instance '" + instance.Name + "'");
         for (const auto& parameter : instance.Parameters) inspectField(parameter.Field, "constructor parameter '" + parameter.Field.Name + "'");
     }
+    for (const auto& trigger : mod.Triggers) {
+        for (const auto& parameter : trigger.Parameters) {
+            if (IsBuiltinPosition(parameter.TypeName)) continue;
+            TFieldDecl field;
+            field.TypeName = parameter.TypeName;
+            inspectField(field, "trigger '" + trigger.Name + "'");
+        }
+    }
     if (std::any_of(mod.Instances.begin(), mod.Instances.end(), [](const auto& instance) { return instance.Parameterized; })) {
         w.Include("pf2e_engine/common/construction.h");
         w.Include("pf2e_engine/common/rule_integer.h");
@@ -533,6 +555,7 @@ void EmitHeader(std::ostream& os,
     }
     EmitEventDeclarations(w, loaded);
     EmitActivityDeclarations(w, loaded);
+    EmitReactionDeclarations(w, loaded);
     w.Line("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog);");
     w.Line("struct TAbilityRules;");
     w.Line("void " + RulesRegistrationFunction(loaded.PrimaryStem) + "(TAbilityRules& rules);");
@@ -908,6 +931,7 @@ void EmitImpl(std::ostream& os,
         w.Include("pf2e_engine/actions/generated_action.h");
         w.Include("pf2e_engine/actions/generated_world.h");
         w.Include("pf2e_engine/actions/generated_movement.h");
+        w.Include("pf2e_engine/actions/reaction_window.h");
         w.Include("pf2e_engine/actions/feature_event.h");
     }
     if (!mod.Activities.empty() || std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty(); })) {
@@ -972,5 +996,6 @@ void EmitImpl(std::ostream& os,
     });
     w.EmptyLine();
     EmitActivityImplementations(w, loaded);
+    EmitReactionImplementations(w, loaded);
     EmitActionRegistration(w, loaded);
 }

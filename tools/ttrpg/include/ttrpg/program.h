@@ -60,10 +60,18 @@ struct TCompiledActivity {
     std::vector<std::string> Body;
 };
 
+struct TCompiledReaction {
+    std::string FunctionName;
+    std::string StateType;
+    std::string ArgumentsType;
+    TCompiledAction Execution;
+};
+
 bool UsesRuleSyntax(const TClassDecl& declaration, const TLoadedSchemas& loaded);
 TCompiledClass CompileClass(const TClassDecl& declaration, const TLoadedSchemas& loaded);
 std::string CompileInstance(const TInstanceDecl& declaration, const TLoadedSchemas& loaded);
 TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded);
 TCompiledActivity CompileActivity(const TActivityDecl& declaration, const TLoadedSchemas& loaded);
+TCompiledReaction CompileReaction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded);
 std::vector<std::string> CompileFeatureHook(const TAbilityDecl& feature, const TAbilityDecl::THook& hook,
                                           const TLoadedSchemas& loaded);

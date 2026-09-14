@@ -4,6 +4,7 @@
 #include <ttrpg/conventions.h>
 #include <ttrpg/program.h>
 #include <ttrpg/events.h>
+#include <ttrpg/emit_reaction.h>
 
 void EmitEventDeclarations(TCppWriter& writer, const TLoadedSchemas& loaded) {
     if (!loaded.Primary.Events.empty()) {
@@ -52,6 +53,10 @@ void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
                 writer.Line("rules.Events.Register<" + tag + ">(" + CppStringLiteral(AbilityId(ability.Name, loaded)) + ", " + variable + ");");
             }
             if (ability.OwnerType.empty()) continue;
+            if (ability.Kind == EAbilityDeclarationKind::Reaction) {
+                EmitReactionRegistration(writer, ability, loaded);
+                continue;
+            }
             const auto compiled = CompileAction(ability, loaded);
             writer.Line("static const auto action_" + ability.Name + " = std::make_shared<const TAction>(");
             writer.Indented([&] {

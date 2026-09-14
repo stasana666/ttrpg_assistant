@@ -3,6 +3,7 @@
 #include <ttrpg/abilities.h>
 #include <ttrpg/conventions.h>
 #include <ttrpg/events.h>
+#include <ttrpg/callable_graph.h>
 
 #include <functional>
 #include <map>
@@ -108,45 +109,7 @@ void ValidateActivityDefinitions(const TLoadedSchemas& loaded) {
             throw std::runtime_error("generated activity function name collision '" + function + "'");
         }
     }
-    std::unordered_map<std::string, int> marks;
-    std::vector<std::string> path;
-    std::function<void(const std::string&)> visit;
-    visit = [&](const std::string& name) {
-        if (marks[name] == 2) return;
-        if (marks[name] == 1) {
-            std::string cycle;
-            for (const auto& step : path) cycle += step + " -> ";
-            throw std::runtime_error("recursive activity calls: " + cycle + name);
-        }
-        marks[name] = 1;
-        path.push_back(name);
-        const auto& info = activities.at(name);
-        std::function<void(const expr::TExprNode&)> expression;
-        expression = [&](const expr::TExprNode& node) {
-            if (node.Kind == expr::ENodeKind::Call && !node.Lhs && activities.contains(node.Text)) {
-                ResolveActivity(node.Text, info.OwnerStem, loaded);
-                visit(node.Text);
-            }
-            if (node.Lhs) expression(*node.Lhs);
-            if (node.Rhs) expression(*node.Rhs);
-            for (const auto& argument : node.Args) expression(argument);
-            for (const auto& field : node.Fields) expression(field.Value);
-        };
-        std::function<void(const std::vector<TClassDecl::TStatement>&)> statements;
-        statements = [&](const auto& body) {
-            for (const auto& statement : body) {
-                if (statement.Value) expression(*statement.Value);
-                if (statement.Target) expression(*statement.Target);
-                if (statement.Candidates) expression(*statement.Candidates);
-                statements(statement.Body);
-                statements(statement.ElseBody);
-            }
-        };
-        statements(info.Declaration->Body);
-        path.pop_back();
-        marks[name] = 2;
-    };
-    for (const auto& [name, info] : activities) visit(name);
+    ValidateCallableGraph(loaded);
 }
 
 std::string ActivityClassResultDependency(const std::string& name, const TLoadedSchemas& loaded) {

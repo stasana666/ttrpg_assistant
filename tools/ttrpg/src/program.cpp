@@ -5,6 +5,7 @@
 #include <ttrpg/activities.h>
 #include <ttrpg/events.h>
 #include <ttrpg/constructors.h>
+#include <ttrpg/triggers.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -150,7 +151,7 @@ public:
     TCompiler(const TClassDecl& self, const TLoadedSchemas& loaded,
               std::shared_ptr<std::vector<std::string>> construction = std::make_shared<std::vector<std::string>>())
         : self_(self), loaded_(loaded), classes_(ClassTable(loaded)), enums_(EnumTable(loaded)),
-          variants_(VariantTable(loaded)), events_(EventSymbols(loaded)), activities_(ActivitySymbols(loaded)), instances_(InstanceTable(loaded)),
+          variants_(VariantTable(loaded)), events_(EventSymbols(loaded)), activities_(ActivitySymbols(loaded)), triggers_(TriggerSymbols(loaded)), instances_(InstanceTable(loaded)),
           construction_(std::move(construction)) {
         classes_[self.Name] = &self;
         for (const auto& [name, variant] : variants_) {
@@ -519,6 +520,7 @@ public:
 
     TValue Call(const expr::TExprNode& call, bool effects) {
         if (!call.Lhs) {
+            if (triggers_.contains(call.Text)) Fail("reaction windows require a standalone action, activity, or reaction let/call statement");
             if (activities_.contains(call.Text)) Fail("activity calls require a standalone action or activity let/call statement");
             if (call.Text == "sources") Fail("sources(...) is only supported as a source choice collection expression");
             if (call.Text == "position" || call.Text == "adjacent_positions" ||
@@ -967,6 +969,55 @@ public:
         return result;
     }
 
+    TCompiledReaction CompileReactionBody(const TAbilityDecl& declaration) {
+        action_ = true;
+        callableStem_ = ResolveAbility(declaration.Name, loaded_).OwnerStem;
+        const auto& trigger = *ResolveTrigger(declaration.Triggers.front(), callableStem_, loaded_).Declaration;
+        TMethod method;
+        method.Name = declaration.Name;
+        method.ReturnType = trigger.ReturnType;
+        method_ = &method;
+        TCompiledReaction result;
+        result.FunctionName = ReactionFunctionName(callableStem_, declaration);
+        result.StateType = CppRuleType(CppTypeFor(trigger.ReturnType));
+        result.ArgumentsType = TriggerArgumentsCppType(trigger, loaded_);
+        auto& compiled = result.Execution;
+        ConfigureFlow(compiled.Flow);
+        compiled.Flow.Activity = true;
+        compiled.Flow.ResultType = result.StateType;
+        for (std::size_t i = 0; i < trigger.Parameters.size(); ++i) {
+            const auto& parameter = trigger.Parameters[i];
+            const bool entity = classes_.contains(parameter.TypeName) && classes_.at(parameter.TypeName)->GameEntity;
+            auto value = entity ? EntityBinding(parameter.TypeName, "parameter") : TValue{.Type = parameter.TypeName};
+            const auto slot = AddFrameLocal(compiled.Flow, parameter.Name, value, "arg_");
+            const auto input = i == 0 ? "pending" : "std::get<" + std::to_string(i - 1) + ">(arguments)";
+            compiled.Flow.Initializers.emplace_back(slot, input);
+            if (entity) {
+                compiled.Flow.EntryChecks.push_back("ValidateActionEntity(Context, " + input + ".View());");
+                compiled.Flow.EntryChecks.push_back("(void)" + input + ".Guard();");
+            }
+        }
+        std::size_t first = 0;
+        while (first < declaration.Body.size() && (declaration.Body[first].Kind == TStatement::EKind::Cost ||
+               declaration.Body[first].Kind == TStatement::EKind::Requires)) {
+            if (declaration.Body[first].Kind == TStatement::EKind::Cost) compiled.Costs.push_back(ActionCost(declaration.Body[first]));
+            ++first;
+        }
+        if (!declaration.SourceType.empty()) {
+            const auto source = classes_.find(declaration.SourceType);
+            if (source == classes_.end() || source->second->GameEntity) Fail("reaction source requires an ordinary class type");
+            const auto binding = "source_" + declaration.SourceName;
+            compiled.Flow.Environment.push_back("[[maybe_unused]] auto " + binding + " = ActionSource<" + CppRuleType(self_.Name) + ", " + CppRuleType(declaration.SourceType) + ">(Context);");
+            if (!locals_.emplace(declaration.SourceName, SourceValue(declaration.SourceType, binding, false)).second) Fail("duplicate reaction source name");
+        }
+        compiled.Requirement = CompileActionRequirement(declaration, first, &trigger);
+        compiled.Flow.Blocks.resize(2);
+        if (!ActionFlowStatements(declaration.Body, first, compiled.Flow, 0, 1)) Fail("reaction must return a value on every path");
+        compiled.Body = RenderActionFlow(compiled.Flow);
+        method_ = nullptr;
+        return result;
+    }
+
     std::vector<std::string> CompileHookBody(const TAbilityDecl& feature, const TAbilityDecl::THook& hook) {
         hook_ = true;
         const auto found = events_.find(hook.EventName);
@@ -1024,6 +1075,7 @@ private:
             }
             for (const auto& [name, declaration] : payloads_) ruleCppTypes_.insert(name);
             for (const auto& [name, declaration] : events_) ruleCppTypes_.insert(EventTagName(*declaration.Declaration));
+            for (const auto& [name, declaration] : triggers_) ruleCppTypes_.insert(TriggerTagName(*declaration.Declaration));
         }
         return ruleCppTypes_;
     }
@@ -1054,7 +1106,8 @@ private:
         if (!action_ && !hook_ && !preflight_) Fail("world queries require an action, feature hook, or action precondition");
     }
 
-    std::vector<std::string> CompileActionRequirement(const TAbilityDecl& declaration, std::size_t first) {
+    std::vector<std::string> CompileActionRequirement(const TAbilityDecl& declaration, std::size_t first,
+                                                     const TTriggerDecl* trigger = nullptr) {
         const bool leadingChoice = first < declaration.Body.size() && declaration.Body[first].Kind == TStatement::EKind::Choose;
         bool hasRequirements = false;
         for (std::size_t i = 0; i < first; ++i) {
@@ -1070,6 +1123,15 @@ private:
         compiler.preflight_ = true;
         std::vector<std::string> result;
         result.push_back("[[maybe_unused]] const auto action_self = world.Bind<" + compiler.CppRuleType(self_.Name) + ">(actor);");
+        if (trigger) {
+            for (std::size_t i = 0; i < trigger->Parameters.size(); ++i) {
+                const auto& parameter = trigger->Parameters[i];
+                const auto input = i == 0 ? "pending" : "std::get<" + std::to_string(i - 1) + ">(arguments)";
+                const bool entity = classes_.contains(parameter.TypeName) && classes_.at(parameter.TypeName)->GameEntity;
+                compiler.locals_.emplace(parameter.Name, entity ? compiler.EntityBinding(parameter.TypeName, input, false) :
+                    TValue{.Type = parameter.TypeName, .Code = input});
+            }
+        }
         if (!declaration.SourceType.empty()) {
             result.push_back("const auto source_value = FindAbilitySource<" + compiler.CppRuleType(declaration.SourceType) + ">(action_self.Read(), source);");
             result.push_back("if (!source_value) { return false; }");
@@ -1467,7 +1529,30 @@ private:
             flow.Blocks[current].Exit = E::Jump;
             const bool invocation = (statement.Kind == K::Let || statement.Kind == K::Call) && statement.Value &&
                 statement.Value->Kind == expr::ENodeKind::Call && !statement.Value->Lhs && activities_.contains(statement.Value->Text);
-            if (invocation) {
+            const bool window = (statement.Kind == K::Let || statement.Kind == K::Call) && statement.Value &&
+                statement.Value->Kind == expr::ENodeKind::Call && !statement.Value->Lhs && triggers_.contains(statement.Value->Text);
+            if (window) {
+                ValidateActionStep(flow.Blocks[current].Body, "");
+                const auto info = ResolveTrigger(statement.Value->Text, callableStem_.empty() ? loaded_.PrimaryStem : callableStem_, loaded_);
+                const auto& declaration = *info.Declaration;
+                if (statement.Value->Args.size() != declaration.Parameters.size()) Fail("trigger argument count mismatch");
+                TActionFlowBlock::TWindow call;
+                call.Tag = CppRuleType(TriggerTagName(declaration));
+                call.StateType = CppRuleType(CppTypeFor(declaration.ReturnType));
+                for (std::size_t i = 0; i < declaration.Parameters.size(); ++i) {
+                    const auto& type = declaration.Parameters[i].TypeName;
+                    const auto value = Read(statement.Value->Args[i], type, false);
+                    Match(value, type);
+                    if (value.SelectedSource || value.SourceDerived) Fail("selected source class values cannot be captured in reaction window payloads");
+                    const bool entity = classes_.contains(type) && classes_.at(type)->GameEntity;
+                    if (entity && (value.Binding.empty() || value.Guard.empty())) Fail("trigger entity arguments require mutable entity bindings");
+                    call.Arguments.push_back(entity ? value.Binding : value.Code);
+                }
+                if (statement.Kind == K::Let) call.Slot = AddFrameLocal(flow, statement.Name, TValue{.Type = declaration.ReturnType});
+                flow.HasReactionScope = true;
+                flow.Blocks[current].Window = std::move(call);
+                flow.Blocks[current].Exit = E::Window;
+            } else if (invocation) {
                 ValidateActionStep(flow.Blocks[current].Body, "");
                 const auto info = ResolveActivity(statement.Value->Text, callableStem_.empty() ? loaded_.PrimaryStem : callableStem_, loaded_);
                 const auto& declaration = *info.Declaration;
@@ -1818,6 +1903,7 @@ private:
     std::unordered_map<std::string, const TVariantAlt*> payloads_;
     std::unordered_map<std::string, TEventInfo> events_;
     std::unordered_map<std::string, TActivityInfo> activities_;
+    std::unordered_map<std::string, TTriggerInfo> triggers_;
     TInstances instances_;
     std::shared_ptr<std::vector<std::string>> construction_;
     bool constructorScope_ = false;
@@ -1904,6 +1990,16 @@ TCompiledActivity CompileActivity(const TActivityDecl& declaration, const TLoade
     const auto owner = classes.find(declaration.OwnerType);
     if (owner == classes.end()) throw std::runtime_error("unknown activity owner type '" + declaration.OwnerType + "'");
     return TCompiler(*owner->second, loaded).CompileActivityBody(declaration);
+}
+
+TCompiledReaction CompileReaction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded) {
+    ValidateTriggerDefinitions(loaded);
+    ValidateActivityDefinitions(loaded);
+    const auto classes = ClassTable(loaded);
+    if (declaration.Kind != EAbilityDeclarationKind::Reaction || declaration.OwnerType.empty() || declaration.Triggers.empty()) {
+        throw std::runtime_error("compiled reaction requires a trigger and owner");
+    }
+    return TCompiler(*classes.at(declaration.OwnerType), loaded).CompileReactionBody(declaration);
 }
 
 std::vector<std::string> CompileFeatureHook(const TAbilityDecl& feature, const TAbilityDecl::THook& hook,

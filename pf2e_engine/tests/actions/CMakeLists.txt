@@ -251,3 +251,17 @@ gtest_discover_tests(test_generated_source_choices)
 add_executable(test_reaction_runtime test_reaction_runtime.cpp)
 target_link_libraries(test_reaction_runtime gtest_main pf2e_engine)
 gtest_discover_tests(test_reaction_runtime)
+
+add_executable(test_generated_reactions test_generated_reactions.cpp)
+
+set(GENERATED_REACTIONS_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/generated_reactions.h)
+set(GENERATED_REACTIONS_SOURCE ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/generated_reactions.cpp)
+ttrpg_generate(
+    TARGET test_generated_reactions
+    SCHEMA ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/generated_reactions.ttrpg
+    HEADER ${GENERATED_REACTIONS_HEADER}
+    SOURCE ${GENERATED_REACTIONS_SOURCE}
+)
+target_sources(test_generated_reactions PRIVATE ${GENERATED_REACTIONS_HEADER} ${GENERATED_REACTIONS_SOURCE})
+target_link_libraries(test_generated_reactions gtest_main pf2e_engine)
+gtest_discover_tests(test_generated_reactions)
