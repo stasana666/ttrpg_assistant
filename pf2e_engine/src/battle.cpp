@@ -8,7 +8,6 @@
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/transformation/transformator.h>
 #include <pf2e_engine/scheduler.h>
-#include <pf2e_engine/mechanics/creature.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/ast/ast_layout_assert.h>
@@ -21,12 +20,9 @@
 #include <stdexcept>
 #include "reaction.h"
 #include "save_point.h"
-#include <pf2e_engine/condition.h>
 #include <pf2e_engine/actions/generated_world.h>
 
 namespace {
-constexpr int kActionsPerTurn = 3;
-
 const TWeapon* SourceWeapon(const TCreature& creature, const TAbilitySourcePath& source)
 {
     for (const auto& [field, weapons] : {
@@ -145,6 +141,10 @@ void TBattle::StartRound()
 {
     assert(initiative_order_.CurrentPlayer() == nullptr);
     initiative_order_.Next(transformator_);
+    auto execution = transformator_.ExecutionContext();
+    for (auto& player : players_) {
+        execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::BeginRound);
+    }
     io_system_.GameLog() << "Start round " << initiative_order_.CurrentRound() << " round" << std::endl;
 }
 
@@ -159,11 +159,9 @@ void TBattle::StartTurn()
     TPlayer& player = *initiative_order_.CurrentPlayer();
     io_system_.GameLog() << "Start turn: player " << player.GetName() << std::endl;
 
-    auto execution = transformator_.ExecutionContext();
-    execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::ResetAttacks);
-    GiveStartResource(player);
-
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnStart, .context = TEventContext{.player = &player}}, transformator_);
+    auto execution = transformator_.ExecutionContext();
+    execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::BeginTurn);
 }
 
 void TBattle::MakeTurn()
@@ -198,12 +196,11 @@ void TBattle::EndTurn()
     assert(initiative_order_.CurrentPlayer() != nullptr);
     TPlayer& player = *initiative_order_.CurrentPlayer();
 
-    initiative_order_.Next(transformator_);
-
     io_system_.GameLog() << "End turn: player " << player.GetName() << std::endl;
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{.player = &player}}, transformator_);
     auto execution = transformator_.ExecutionContext();
-    execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::ResetAttacks);
+    execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::EndTurn);
+    initiative_order_.Next(transformator_);
 }
 
 std::vector<int> TBattle::LivingTeams() const
@@ -234,24 +231,6 @@ bool TBattle::IsBattleEnd() const
 bool TBattle::IsRoundEnd() const
 {
     return initiative_order_.CurrentPlayer() == nullptr;
-}
-
-void TBattle::GiveStartResource(TPlayer& player)
-{
-    assert(!ResourceFor(*player.GetCreature(), EResourceKind::Action)->Count());
-    transformator_.AddResource(ResourceFor(*player.GetCreature(), EResourceKind::Action),
-                               kActionsPerTurn);
-
-    transformator_.AddTask(&scheduler_, TTask{
-        .events_before_call = {TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{&player}}},
-        .callback = [&player, this]() {
-            int resource_count =
-                ResourceFor(*player.GetCreature(), EResourceKind::Action)->Count();
-            transformator_.ReduceResource(
-                ResourceFor(*player.GetCreature(), EResourceKind::Action), resource_count);
-            return false;
-        },
-    });
 }
 
 std::shared_ptr<TActionContext> TBattle::MakeActionContext()

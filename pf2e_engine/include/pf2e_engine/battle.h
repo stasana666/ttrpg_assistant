@@ -53,8 +53,6 @@ private:
     bool IsBattleEnd() const;
     bool IsRoundEnd() const;
 
-    void GiveStartResource(TPlayer&);
-
     std::shared_ptr<TActionContext> MakeActionContext();
 
     THolder<TBattleMap> battle_map_;

@@ -62,6 +62,7 @@ GameEntity TCreature {
     int AttacksMade = 0;
     Resource Actions = 0;
     Resource Reactions = 0;
+    Resource Flourishes = 1;
     Resource Hands = 0;
     map<ESpellSlotRank, Resource> SpellSlots;
 
@@ -310,6 +311,21 @@ GameEntity TCreature {
 
     method void ResetAttacks() {
         @self.AttacksMade = 0;
+    }
+
+    method void BeginRound() {
+        @self.Flourishes.SetCount(1);
+    }
+
+    method void BeginTurn() {
+        @self.ResetAttacks();
+        @self.Actions.SetCount(3);
+        @self.Reactions.SetCount(1);
+    }
+
+    method void EndTurn() {
+        @self.Actions.SetCount(0);
+        @self.ResetAttacks();
     }
 
     method TDamageResult ReceiveDamage(EDamageType Type, int Amount) {

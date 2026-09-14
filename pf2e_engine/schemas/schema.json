@@ -387,6 +387,12 @@
                     "type": "integer",
                     "default": 0
                 },
+                "flourishes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647,
+                    "default": 1
+                },
                 "hands": {
                     "type": "integer",
                     "default": 0

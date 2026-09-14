@@ -19,6 +19,10 @@ target_include_directories(test_pf2_engine
 include(GoogleTest)
 gtest_discover_tests(test_pf2_engine)
 
+add_executable(test_lifecycle test_lifecycle.cpp)
+target_link_libraries(test_lifecycle gtest_main pf2e_engine nlohmann_json)
+gtest_discover_tests(test_lifecycle)
+
 add_subdirectory(actions)
 add_subdirectory(ast)
 add_subdirectory(dsl)
