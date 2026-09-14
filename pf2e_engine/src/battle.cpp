@@ -61,6 +61,7 @@ TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller,
     , transformator_(io_system)
     , ability_rules_(ability_rules ? std::move(ability_rules) : std::make_shared<const TAbilityRules>())
 {
+    ability_rules_->Time.Validate();
 }
 
 void TBattle::AddPlayer(TPlayer&& player, TPosition position, const TInitiativeOptions& options)
@@ -99,6 +100,43 @@ const TPlayer* TBattle::CurrentTurnPlayer() const
 const TActionHistory& TBattle::History() const
 {
     return history_;
+}
+
+const TTimedRelationStore& TBattle::Relations() const
+{
+    return relations_;
+}
+
+std::uint64_t TBattle::ElapsedSeconds() const
+{
+    return clock_.ElapsedSeconds();
+}
+
+void TBattle::AdvanceTime(TGameDuration duration, TTransformator& journal)
+{
+    clock_.Advance(duration, journal);
+}
+
+void TBattle::SetTimedRelation(TRelationAddress address, std::shared_ptr<const IRelationValue> value,
+                               std::optional<TGameDuration> duration, TTransformator& journal)
+{
+    const TGeneratedWorldView world(this);
+    (void)world.ResolveRecordEntity(address.Owner);
+    (void)world.ResolveRecordEntity(address.Key);
+    if (!value) {
+        throw std::invalid_argument("relation write requires a typed value");
+    }
+    ability_rules_->Relations.Require(address.Definition, value->Type(), address.Owner.Type, address.Key.Type);
+    const auto deadline = duration ? std::optional(GameDeadline(ElapsedSeconds(), *duration)) : std::nullopt;
+    relations_.Set(std::move(address), deadline, std::move(value), journal);
+}
+
+void TBattle::EraseTimedRelation(const TRelationAddress& address, TTransformator& journal)
+{
+    const TGeneratedWorldView world(this);
+    (void)world.ResolveRecordEntity(address.Owner);
+    (void)world.ResolveRecordEntity(address.Key);
+    relations_.Erase(address, journal);
 }
 
 TActionTicket TBattle::AcceptActionHistory(TPlayer& actor, EActionHistoryKind kind,
@@ -196,6 +234,9 @@ void TBattle::StartRound()
 
 void TBattle::EndRound()
 {
+    if (IsRoundEnd()) {
+        AdvanceTime(GameSeconds(ability_rules_->Time.RoundDurationSeconds), transformator_);
+    }
     io_system_.GameLog() << "End round" << std::endl;
 }
 
@@ -412,7 +453,7 @@ std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& t
 
 TAstNode TBattle::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 520;
+    static constexpr size_t kExpectedSize = 592;
     AST_ASSERT_LAYOUT(TBattle, kExpectedSize);
 
     ctx.RegisterIdentity(&initiative_order_, "battle.initiative_order");
@@ -421,6 +462,8 @@ TAstNode TBattle::GetAst(TAstContext& ctx) const
     ctx.RegisterIdentity(&transformator_,    "battle.transformator");
     ctx.RegisterIdentity(&battle_map_,       "battle.map_holder");
     ctx.RegisterIdentity(&history_,          "battle.action_history");
+    ctx.RegisterIdentity(&clock_,            "battle.clock");
+    ctx.RegisterIdentity(&relations_,        "battle.relations");
     for (const auto& player : players_) {
         ctx.RegisterIdentity(&player, "player#" + std::to_string(player.GetId()));
     }
@@ -433,6 +476,8 @@ TAstNode TBattle::GetAst(TAstContext& ctx) const
     AddOwnedObject(node, "scheduler", scheduler_, ctx);
     AddOwnedObject(node, "effect_manager", effect_manager_, ctx);
     AddOwnedObject(node, "action_history", history_, ctx);
+    AddOwnedObject(node, "clock", clock_, ctx);
+    AddOwnedObject(node, "relations", relations_, ctx);
 
     TAstNode players_node = TAstNode::MakeObject("players");
     for (const auto& player : players_) {

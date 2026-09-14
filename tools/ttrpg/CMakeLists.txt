@@ -16,6 +16,8 @@ add_library(ttrpg STATIC
     src/triggers.cpp
     src/records.cpp
     src/emit_record.cpp
+    src/relations.cpp
+    src/emit_relation.cpp
     src/callable_graph.cpp
     src/emit_reaction.cpp
     src/events.cpp

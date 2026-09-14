@@ -5,6 +5,39 @@ Canonical project instructions. CLAUDE.md redirects here.
 Shared low-level building blocks used across the engine. These utilities carry
 non-obvious design constraints worth knowing before changing them.
 
+## Logical time and entity-pair relations (`game_time.h`, `actions/generated_relation.h`)
+
+`TGameDuration` is an ephemeral unsigned duration. `GameSeconds` and `GameMinutes`
+accept rule integers, reject negatives and widen before conversion. Zero duration
+is valid. The battle clock starts at zero and advances through a checked journal
+assignment; deadline addition rejects overflow before storing a relation. The
+factory copies the generated `CombatTiming.RoundSeconds` value into immutable
+`TAbilityRules::Time.RoundDurationSeconds`. Native rules default to zero, without a
+system-specific constant. `EndRound` advances once only after a complete initiative
+cycle; it also runs after early victory, which must not advance a partial round.
+
+Relation tags define one owner entity type, one entity key type, a copied value type
+and a canonical declaration ID. Registration rejects conflicting tag/type mappings.
+Pure `HasRelation` and `GetRelation` validate both participants in a bound world;
+false payloads are still present and Get requires an eager fallback. Set and Erase
+validate the execution actor once, then check leaf membership and the owner's
+writable capability. The key may be readonly. Stored state contains detached entity
+locators and an immutable typed payload, with no context or grant callbacks.
+
+Timed Set stores `now + duration`; indefinite Set stores no deadline. A timed entry
+is active exactly while `now < deadline`. Reads never prune expired entries or
+change the journal. Overwrite and Erase are explicit journaled changes, including
+removing an expired entry. Death or loss of a source feature does not erase a
+relation; entity replacement or a foreign participant cannot retarget its locator.
+No scheduler tasks, allocator IDs, RNG or wall-clock timers participate.
+
+Clock and relation AST include elapsed seconds, canonical tags, normalized entity
+references and identity validity, payloads and optional deadlines. Expired entries
+remain in snapshots and Undo restores their original values and deadlines. This is
+encounter-only state: creating another battle, even from restored creatures, starts
+with an empty relation table and zero time. Cross-encounter duration persistence and
+full battle restore are separate work.
+
 ## Completed-action records (`actions/action_history.h`, `actions/generated_history.h`)
 
 The battle owns a `TActionHistory` sidecar; immutable rules own the typed record

@@ -50,6 +50,32 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("root.ttrpg", self.depfile.read_text())
         self.assertFalse(list(self.root.rglob("*.ttrpg-*")))
 
+    def test_relations_import_types_and_use_canonical_registration(self):
+        self.write("types.ttrpg", "GameEntity TActor { int Value=1; } GameEntity TObject {} class TValue { int Amount=0; }")
+        relation = self.write("relations.ttrpg", 'import "types.ttrpg"; relation TValue Detail for TActor(TObject Source);')
+        (self.root / "alias_relations.ttrpg").symlink_to(relation)
+        self.schema.write_text('import "alias_relations.ttrpg"; action Remember for TActor { let Delay=minutes(10); choose TObject Target; Detail.set(@self,Target,{Amount=3;},Delay); }')
+        self.command([CODEGEN, "--schema", self.schema, "--check"])
+        self.generate()
+        self.assertIn("relations.h", self.header.read_text())
+        self.assertIn("RegisterRelationsRules(rules)", self.source.read_text())
+        self.assertIn("::SetRelation<::TRelationDetail>", self.source.read_text())
+        self.assertIn("std::optional<::TGameDuration>", self.source.read_text())
+        self.command([CODEGEN, "--schema", relation, "--out-h", self.root / "relations.h",
+                      "--out-cpp", self.root / "relations.cpp"])
+        self.assertIn("types.h", (self.root / "relations.h").read_text())
+        self.assertIn('kId = "relations.Detail"', (self.root / "relations.h").read_text())
+        self.assertIn("rules.Relations.Register<::TRelationDetail>()", (self.root / "relations.cpp").read_text())
+
+    def test_invalid_relation_writes_preserve_generated_outputs(self):
+        self.schema.write_text("GameEntity TActor {} relation bool Mark for TActor(TActor Source); action A for TActor { Mark.set(@self,@self,true); }")
+        self.generate()
+        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
+        self.schema.write_text("GameEntity TActor {} relation bool Mark for TActor(TActor Source); action A for TActor { for Target in entities(TActor) { let Alias=Target; Mark.set(Alias,@self,true); } }")
+        result = self.generate(success=False)
+        self.assertIn("mutable owner", result.stderr)
+        self.assertEqual(before, [path.read_bytes() for path in (self.header, self.source, self.depfile)])
+
     def test_check_has_no_filesystem_side_effects(self):
         before = set(self.root.rglob("*"))
         self.command([CODEGEN, "--schema", self.schema, "--check"])

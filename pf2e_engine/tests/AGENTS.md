@@ -43,6 +43,22 @@ Canonical project instructions. CLAUDE.md redirects here.
   preserve health state. Unconscious creatures regain turn resources but cannot
   use them, while dead creatures do not regain actions or reactions.
 - `actions/`: combat/action pipeline tests using real data.
+- `actions/test_time_relations.cpp` builds as `test_time_relations` and tests ordered
+  entity pairs, false and ordinary-class payloads, readonly capabilities, exact
+  deadlines, permanent entries, overflow and expired-state purity. It verifies
+  context release, source death and feature removal, registry failures, normalized
+  AST equality, new-encounter boundaries and suspended write replay. A real
+  three-participant round advances the authored clock once and restores both time
+  and relations through initiative rollback; partial-round victory leaves time
+  unchanged. No scheduler is involved.
+- `actions/fixtures/generated_relations.ttrpg` and `actions/test_generated_relations.cpp`
+  build as `test_generated_relations`. They execute typed class, Position, string,
+  enum and false-valued relation payloads through generated actions. Two suspensions
+  retain the original value and duration; stored lookup copies survive replacement.
+  Generated pure hooks read current pairs and expiration without journal writes.
+  A selected-source child activity reads relations under its input validators, and
+  a yielded reaction writes the reactor's pair before resuming the parent. Exact
+  snapshots and Undo cover the combined costs, relation state and continuations.
 - `actions/test_action_history.cpp` builds as `test_action_history`. It checks
   detached typed results, readonly enumeration and mutable prepared inputs,
   payment rejection versus accepted body failure, source-owner validation,
@@ -225,3 +241,8 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Some combat tests intentionally stop long battle loops by expecting `TTooManyCallsError`.
 - Keep expected RNG rolls and interaction choices in exact sequence.
 - When adding data-dependent tests, add only minimal fixture data or reuse existing JSON sources.
+
+- `test_lib/generated_combat_fixture.h` is a shared fixture for executing individual
+  generated actions with the real factory rules. Its IO scripts asynchronous choice
+  requests and optional savepoints; full StartBattle tests need a separate synchronous
+  next-action policy. Creature storage uses a deque to keep player references stable.

@@ -57,7 +57,9 @@ public:
             if (t.kind != ETok::Ident) {
                 ts_.Throw("expected 'enum' or 'class'");
             }
-            if (t.text == "record") {
+            if (t.text == "relation") {
+                mod.Relations.push_back(ParseRelation());
+            } else if (t.text == "record") {
                 mod.Records.push_back(ParseRecord());
             } else if (t.text == "trigger") {
                 mod.Triggers.push_back(ParseTrigger());
@@ -83,6 +85,28 @@ public:
     }
 
 private:
+    TRelationDecl ParseRelation() {
+        TRelationDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        ExpectIdentText("relation");
+        declaration.ValueType = ExpectIdent("relation value type");
+        declaration.Name = ExpectIdent("relation name");
+        ExpectIdentText("for");
+        declaration.OwnerType = ExpectIdent("relation owner type");
+        ts_.Expect(ETok::LParen, "'('");
+        if (ts_.Peek().kind != ETok::RParen) {
+            do {
+                TClassDecl::TParameter parameter;
+                parameter.TypeName = ExpectIdent("relation key type");
+                parameter.Name = ExpectIdent("relation key name");
+                declaration.Parameters.push_back(std::move(parameter));
+            } while (ts_.Match(ETok::Comma));
+        }
+        ts_.Expect(ETok::RParen, "')'");
+        ts_.Expect(ETok::Semi, "';' after relation declaration");
+        return declaration;
+    }
+
     TGrantDecl ParseGrant() {
         TGrantDecl grant;
         grant.Location = ts_.Peek().loc;

@@ -24,6 +24,24 @@ const TActionHistory* TGeneratedWorldView::History() const
     return battle_ == nullptr ? nullptr : &battle_->History();
 }
 
+const TRelationRegistry& TGeneratedWorldView::RelationRules() const
+{
+    RequireWorld();
+    return battle_->AbilityRules().Relations;
+}
+
+const TTimedRelationStore& TGeneratedWorldView::Relations() const
+{
+    RequireWorld();
+    return battle_->Relations();
+}
+
+std::uint64_t TGeneratedWorldView::ElapsedSeconds() const
+{
+    RequireWorld();
+    return battle_->ElapsedSeconds();
+}
+
 TGeneratedEntityView TGeneratedWorldView::ResolveRecordEntity(const TRecordedEntityKey& entity) const
 {
     RequireWorld();

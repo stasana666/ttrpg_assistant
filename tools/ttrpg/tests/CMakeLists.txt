@@ -11,6 +11,7 @@ add_executable(test_ttrpg
     test_events.cpp
     test_reactions.cpp
     test_records.cpp
+    test_relations.cpp
     test_sources.cpp
     test_source_choices.cpp
     test_world.cpp

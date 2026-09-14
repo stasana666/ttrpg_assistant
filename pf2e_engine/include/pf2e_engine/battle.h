@@ -42,6 +42,12 @@ public:
     EAbilityExecutionResult Execute(const TAbilityOption& option);
     const TAbilityRules& AbilityRules() const;
     const TActionHistory& History() const;
+    const TTimedRelationStore& Relations() const;
+    std::uint64_t ElapsedSeconds() const;
+    void AdvanceTime(TGameDuration duration, TTransformator& journal);
+    void SetTimedRelation(TRelationAddress address, std::shared_ptr<const IRelationValue> value,
+                          std::optional<TGameDuration> duration, TTransformator& journal);
+    void EraseTimedRelation(const TRelationAddress& address, TTransformator& journal);
     TActionTicket AcceptActionHistory(TPlayer& actor, EActionHistoryKind kind,
                                       std::string definition, TTransformator& journal);
     void PublishActionHistory(const TPlayer& actor, const TActionTicket& ticket,
@@ -72,6 +78,8 @@ private:
     std::shared_ptr<const TAbilityRules> ability_rules_;
     std::deque<TPlayer> players_;
     TActionHistory history_;
+    TGameClock clock_;
+    TTimedRelationStore relations_;
     [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
 

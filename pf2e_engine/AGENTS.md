@@ -29,6 +29,12 @@ Canonical project instructions. CLAUDE.md redirects here.
   Immutable version stamps protect saved options and terminal publication across
   intervening reactions and divergent rollback branches. Turn boundaries add no
   implicit expiration policy.
+- `TGameClock` and `TTimedRelationStore` keep encounter time and declared entity-pair
+  relations in the battle journal. The factory reads round duration from the named
+  `.ttrpg` combat timing value; native code supplies no PF2e duration. A completed
+  initiative round advances time once, while setup and partial-round victory do not.
+  Timed relations expire during pure reads; permanent values have no deadline.
+  Neither clock nor relation state is copied by creature snapshots or new battles.
 - `.ttrpg` action bodies compile directly to C++ with resource costs, entity choices, dice, and journaled field writes/method calls. `Register<Module>Rules` binds their executors and pure typed feature-event handlers alongside the catalog. Production melee Strike and Pack Attack use this path; other PF2e actions still use JSON pipelines during migration. Typed trigger declarations and reaction bodies compile to replayable windows; the author declares pending values, subscriptions, requirements and costs while the generator owns continuation frames and activity scopes. Production movement opens predeparture Reactive Strike windows; generated attack damage opens the Shield Block window after defenses and before temporary HP.
 - Typed `.ttrpg` activities compose action behavior and return values across nested choices. They inherit the caller's actor, source validation and transformation journal; only the outer action pays its declared cost. Immediate calls return directly and suspended calls resume through copied continuation frames.
 - Source choices select readonly snapshots from current stored collections, independently of the feature granting the action. Production Vicious Swing uses this mechanism with equipment and natural weapons, the shared melee activity and the declared Flourishes cost. Nested activities preserve source validity through scoped child contexts.

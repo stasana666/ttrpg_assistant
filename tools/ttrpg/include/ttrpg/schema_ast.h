@@ -96,6 +96,14 @@ struct TRecordDecl {
     parse::TSourceLocation Location;
 };
 
+struct TRelationDecl {
+    std::string Name;
+    std::string OwnerType;
+    std::string ValueType;
+    std::vector<TClassDecl::TParameter> Parameters;
+    parse::TSourceLocation Location;
+};
+
 struct TTriggerDecl {
     std::string Name;
     std::string ReturnType;
@@ -158,4 +166,5 @@ struct TSchemaModule {
     std::vector<TActivityDecl> Activities;
     std::vector<TTriggerDecl> Triggers;
     std::vector<TRecordDecl> Records;
+    std::vector<TRelationDecl> Relations;
 };

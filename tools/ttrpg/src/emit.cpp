@@ -10,6 +10,8 @@
 #include <ttrpg/emit_reaction.h>
 #include <ttrpg/triggers.h>
 #include <ttrpg/records.h>
+#include <ttrpg/relations.h>
+#include <ttrpg/emit_relation.h>
 #include <ttrpg/emit_record.h>
 
 #include <ttrpg/analyze.h>
@@ -85,6 +87,7 @@ void ValidateRules(const TLoadedSchemas& loaded) {
     }
     ValidateAbilityDefinitions(loaded);
     ValidateRecordDefinitions(loaded);
+    ValidateRelationDefinitions(loaded);
     ValidateEventDefinitions(loaded);
     ValidateTriggerDefinitions(loaded);
     ValidateActivityDefinitions(loaded);
@@ -314,6 +317,10 @@ void EmitHeader(std::ostream& os,
         w.Include("tuple");
         w.Include("string_view");
     }
+    if (!mod.Relations.empty()) {
+        w.Include("pf2e_engine/actions/generated_relation.h");
+        w.Include("string_view");
+    }
     if (!mod.Activities.empty()) {
         w.Include("functional");
         w.Include("memory");
@@ -502,6 +509,14 @@ void EmitHeader(std::ostream& os,
             inspectField(field, "record '" + record.Name + "'");
         }
     }
+    for (const auto& relation : mod.Relations) {
+        for (const auto& type : {relation.OwnerType, relation.Parameters.front().TypeName, relation.ValueType}) {
+            if (IsBuiltinPosition(type)) continue;
+            TFieldDecl field;
+            field.TypeName = type;
+            inspectField(field, "relation '" + relation.Name + "'");
+        }
+    }
     if (std::any_of(mod.Instances.begin(), mod.Instances.end(), [](const auto& instance) { return instance.Parameterized; })) {
         w.Include("pf2e_engine/common/construction.h");
         w.Include("pf2e_engine/common/rule_integer.h");
@@ -574,6 +589,7 @@ void EmitHeader(std::ostream& os,
     }
     EmitEventDeclarations(w, loaded);
     EmitRecordDeclarations(w, loaded);
+    EmitRelationDeclarations(w, loaded);
     EmitActivityDeclarations(w, loaded);
     EmitReactionDeclarations(w, loaded);
     w.Line("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog);");
@@ -947,6 +963,8 @@ void EmitImpl(std::ostream& os,
     w.Include("pf2e_engine/common/ast/ast_helpers.h");
     if (HasJsonIntegerFields(mod)) w.Include("pf2e_engine/common/rule_integer.h");
     w.Include("pf2e_engine/actions/ability.h");
+    if (!RelationSymbols(loaded).empty()) w.Include("pf2e_engine/actions/generated_relation.h");
+    if (UsesDurationSyntax(mod)) w.Include("pf2e_engine/common/game_time.h");
     if (!mod.Activities.empty() || std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty() || !ability.Hooks.empty(); })) {
         w.Include("pf2e_engine/actions/generated_action.h");
         w.Include("pf2e_engine/actions/generated_world.h");
@@ -1019,6 +1037,7 @@ void EmitImpl(std::ostream& os,
     w.EmptyLine();
     EmitActivityImplementations(w, loaded);
     EmitRecordImplementations(w, loaded);
+    EmitRelationImplementations(w, loaded);
     EmitReactionImplementations(w, loaded);
     EmitActionRegistration(w, loaded);
 }

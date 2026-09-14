@@ -291,3 +291,21 @@ ttrpg_generate(
 target_sources(test_generated_records PRIVATE ${GENERATED_RECORDS_HEADER} ${GENERATED_RECORDS_SOURCE})
 target_link_libraries(test_generated_records gtest_main pf2e_engine)
 gtest_discover_tests(test_generated_records)
+
+add_executable(test_time_relations test_time_relations.cpp)
+target_link_libraries(test_time_relations gtest_main pf2e_engine)
+gtest_discover_tests(test_time_relations)
+
+add_executable(test_generated_relations test_generated_relations.cpp)
+
+set(GENERATED_RELATIONS_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/generated_relations.h)
+set(GENERATED_RELATIONS_SOURCE ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/generated_relations.cpp)
+ttrpg_generate(
+    TARGET test_generated_relations
+    SCHEMA ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/generated_relations.ttrpg
+    HEADER ${GENERATED_RELATIONS_HEADER}
+    SOURCE ${GENERATED_RELATIONS_SOURCE}
+)
+target_sources(test_generated_relations PRIVATE ${GENERATED_RELATIONS_HEADER} ${GENERATED_RELATIONS_SOURCE})
+target_link_libraries(test_generated_relations gtest_main pf2e_engine)
+gtest_discover_tests(test_generated_relations)

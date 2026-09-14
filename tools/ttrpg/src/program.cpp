@@ -7,6 +7,7 @@
 #include <ttrpg/constructors.h>
 #include <ttrpg/triggers.h>
 #include <ttrpg/records.h>
+#include <ttrpg/relations.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -539,6 +540,13 @@ public:
 
     TValue Call(const expr::TExprNode& call, bool effects) {
         if (!call.Lhs) {
+            if (call.Text == "seconds" || call.Text == "minutes") {
+                if (call.Args.size() != 1) Fail(call.Text + " expects one integer argument");
+                const auto count = Read(call.Args.front(), "int");
+                Match(count, "int");
+                return {.Type = "Duration", .Code = std::string(call.Text == "seconds" ? "::GameSeconds(" : "::GameMinutes(") + count.Code + ")"};
+            }
+            if (RelationSymbols(loaded_).contains(call.Text)) Fail("relations require has, get, set, or erase");
             if (RecordSymbols(loaded_).contains(call.Text)) Fail("completed record construction requires terminal publish in a root action");
             if (call.Text == "same_source") {
                 if (call.Args.size() != 2) Fail("same_source expects two bound sources");
@@ -674,6 +682,45 @@ public:
         }
         if (call.Lhs->Kind != expr::ENodeKind::Member) Fail("only named methods can be called");
         const auto& member = *call.Lhs;
+        if (member.Lhs && member.Lhs->Kind == expr::ENodeKind::Var && !member.Lhs->HasDollar &&
+            !locals_.contains(member.Lhs->Text) && RelationSymbols(loaded_).contains(member.Lhs->Text)) {
+            RequireWorldScope();
+            const auto& declaration = *ResolveRelation(member.Lhs->Text,
+                callableStem_.empty() ? loaded_.PrimaryStem : callableStem_, loaded_).Declaration;
+            const bool has = member.Text == "has";
+            const bool get = member.Text == "get";
+            const bool set = member.Text == "set";
+            const bool erase = member.Text == "erase";
+            if (!has && !get && !set && !erase) Fail("relations support has, get, set, and erase");
+            const auto count = call.Args.size();
+            if ((has || erase) ? count != 2 : get ? count != 3 : count != 3 && count != 4) {
+                Fail("wrong argument count for relation '" + declaration.Name + "." + member.Text + "'");
+            }
+            if ((set || erase) && preflightProbe_) throw TPreflightBoundary{};
+            if ((set || erase) && (!action_ || !effects)) Fail("relation mutation requires an effectful action, activity, or reaction body");
+            const auto owner = Read(call.Args[0], declaration.OwnerType);
+            Match(owner, declaration.OwnerType);
+            const auto key = Read(call.Args[1], declaration.Parameters.front().TypeName);
+            Match(key, declaration.Parameters.front().TypeName);
+            if (owner.Binding.empty() || key.Binding.empty()) Fail("relation owner and key require checked GameEntity bindings");
+            if ((set || erase) && owner.Guard.empty()) Fail("relation mutation requires a mutable owner binding");
+            const std::string operation = has ? "HasRelation" : get ? "GetRelation" : set ? "SetRelation" : "EraseRelation";
+            std::string code = "::" + operation + "<::" + RelationTagName(declaration) + ">(" +
+                (set || erase ? "Context" : "world") + ", " + owner.Binding + ", " + key.Binding;
+            if (set || get) {
+                const auto value = Read(call.Args[2], declaration.ValueType);
+                Match(value, declaration.ValueType);
+                RequireMaterializable(value);
+                if (value.SelectedSource || value.SourceDerived) Fail("selected source class values cannot be stored or detached through relations");
+                code += ", " + value.Code;
+            }
+            if (set && count == 4) {
+                const auto duration = Read(call.Args[3], "Duration");
+                Match(duration, "Duration");
+                code += ", " + duration.Code;
+            }
+            return {.Type = has ? "bool" : get ? declaration.ValueType : "void", .Code = code + ")", .Effect = set || erase};
+        }
         auto owner = Read(*member.Lhs);
         if (owner.Container == EContainer::None && IsBuiltinResource(owner.Type)) {
             if (member.Text == "Count" && call.Args.empty()) return {.Type = "int", .Code = "(" + owner.Code + ").Count()"};
@@ -1071,6 +1118,7 @@ public:
 
     std::vector<std::string> CompileHookBody(const TAbilityDecl& feature, const TAbilityDecl::THook& hook) {
         hook_ = true;
+        callableStem_ = ResolveAbility(feature.Name, loaded_).OwnerStem;
         const auto found = events_.find(hook.EventName);
         if (found == events_.end()) Fail("unknown hook event '" + hook.EventName + "'");
         const auto& event = *found->second.Declaration;
@@ -1128,6 +1176,7 @@ private:
             for (const auto& [name, declaration] : events_) ruleCppTypes_.insert(EventTagName(*declaration.Declaration));
             for (const auto& [name, declaration] : triggers_) ruleCppTypes_.insert(TriggerTagName(*declaration.Declaration));
             for (const auto& [name, declaration] : RecordSymbols(loaded_)) ruleCppTypes_.insert(RecordTagName(*declaration.Declaration));
+            for (const auto& [name, declaration] : RelationSymbols(loaded_)) ruleCppTypes_.insert(RelationTagName(*declaration.Declaration));
         }
         return ruleCppTypes_;
     }
@@ -2090,6 +2139,7 @@ TCompiledConstructor CompileConstructor(const TInstanceDecl& declaration, const 
 
 TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded) {
     ValidateRecordDefinitions(loaded);
+    ValidateRelationDefinitions(loaded);
     if (declaration.Kind != EAbilityDeclarationKind::Action || declaration.OwnerType.empty()) {
         throw std::runtime_error("compiled action requires an owner type");
     }
@@ -2101,6 +2151,7 @@ TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSche
 
 TCompiledActivity CompileActivity(const TActivityDecl& declaration, const TLoadedSchemas& loaded) {
     ValidateActivityDefinitions(loaded);
+    ValidateRelationDefinitions(loaded);
     const auto classes = ClassTable(loaded);
     const auto owner = classes.find(declaration.OwnerType);
     if (owner == classes.end()) throw std::runtime_error("unknown activity owner type '" + declaration.OwnerType + "'");
@@ -2108,6 +2159,7 @@ TCompiledActivity CompileActivity(const TActivityDecl& declaration, const TLoade
 }
 
 TCompiledReaction CompileReaction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded) {
+    ValidateRelationDefinitions(loaded);
     ValidateTriggerDefinitions(loaded);
     ValidateActivityDefinitions(loaded);
     const auto classes = ClassTable(loaded);
@@ -2119,6 +2171,7 @@ TCompiledReaction CompileReaction(const TAbilityDecl& declaration, const TLoaded
 
 std::vector<std::string> CompileFeatureHook(const TAbilityDecl& feature, const TAbilityDecl::THook& hook,
                                           const TLoadedSchemas& loaded) {
+    ValidateRelationDefinitions(loaded);
     const auto events = EventSymbols(loaded);
     const auto event = events.find(hook.EventName);
     if (event == events.end()) throw std::runtime_error("unknown hook event '" + hook.EventName + "'");

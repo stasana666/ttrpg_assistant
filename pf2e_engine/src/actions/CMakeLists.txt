@@ -14,6 +14,8 @@ target_sources(pf2e_engine
         generated_initiative.cpp
         action_history.cpp
         generated_history.cpp
+        timed_relation.cpp
+        generated_relation.cpp
         feature_event.cpp
         reaction.cpp
         save_point.cpp

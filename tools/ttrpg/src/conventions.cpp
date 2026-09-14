@@ -79,6 +79,9 @@ bool IsBuiltinFeature(const std::string& t) { return t == "Feature"; }
 bool IsBuiltinPosition(const std::string& t) { return t == "Position"; }
 
 std::string CppTypeFor(const std::string& schemaType) {
+    if (schemaType == "Duration") {
+        return "::TGameDuration";
+    }
     if (schemaType == "Position") {
         return "TPosition";
     }

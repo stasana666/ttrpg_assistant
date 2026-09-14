@@ -6,6 +6,7 @@
 #include <ttrpg/events.h>
 #include <ttrpg/emit_reaction.h>
 #include <ttrpg/records.h>
+#include <ttrpg/relations.h>
 
 void EmitEventDeclarations(TCppWriter& writer, const TLoadedSchemas& loaded) {
     if (!loaded.Primary.Events.empty()) {
@@ -38,6 +39,9 @@ void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
         }
         for (const auto& record : loaded.Primary.Records) {
             writer.Line("rules.Records.Register<::" + RecordTagName(record) + ">();");
+        }
+        for (const auto& relation : loaded.Primary.Relations) {
+            writer.Line("rules.Relations.Register<::" + RelationTagName(relation) + ">();");
         }
         std::size_t hookIndex = 0;
         for (const auto& ability : loaded.Primary.Abilities) {

@@ -15,6 +15,9 @@ public:
 
     bool IsBound() const;
     const TActionHistory* History() const;
+    const TRelationRegistry& RelationRules() const;
+    const TTimedRelationStore& Relations() const;
+    std::uint64_t ElapsedSeconds() const;
     TGeneratedEntityView ResolveRecordEntity(const TRecordedEntityKey& entity) const;
     void Validate(const TGeneratedEntityView& entity) const;
     TPosition Position(const TGeneratedEntityView& entity) const;

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <pf2e_engine/actions/timed_relation.h>
+#include <pf2e_engine/common/game_time.h>
+
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/reaction.h>
 #include <pf2e_engine/actions/reaction_execution.h>
@@ -56,6 +59,8 @@ struct TAbilityRules {
     TLifecycleExecutions Lifecycle;
     TFeatureEventRegistry Events;
     TActionRecordRegistry Records;
+    TRelationRegistry Relations;
+    TGameTimeRules Time;
     std::map<std::string, std::shared_ptr<const TCreatureFeat>, std::less<>> FeatureHooks;
 };
 
