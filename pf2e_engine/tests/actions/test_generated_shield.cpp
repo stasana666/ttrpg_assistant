@@ -166,7 +166,7 @@ protected:
         initial.Weapons = std::move(weapons);
         if (shield) {
             initial.Shield = Shield(raised, shield_hitpoints);
-            initial.Features = Features({"shield_actions.BaseActions", "shield_actions.ShieldBlockTraining"});
+            initial.Features = Features({"shield_actions.ShieldActions", "shield_actions.ShieldBlockTraining"});
         }
         if (resistance != 0) {
             initial.Resistances = {{EDamageType::Slashing, resistance}};

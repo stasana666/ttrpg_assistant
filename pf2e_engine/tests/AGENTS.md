@@ -246,3 +246,18 @@ Canonical project instructions. CLAUDE.md redirects here.
   generated actions with the real factory rules. Its IO scripts asynchronous choice
   requests and optional savepoints; full StartBattle tests need a separate synchronous
   next-action policy. Creature storage uses a deque to keep player references stable.
+
+## Production Trip and Strike Follow-Ups
+- `actions/test_generated_trip.cpp` builds as `test_generated_trip`. It checks four
+  Trip outcomes, non-Agile shared MAP, free hands, size, body reach and the ten-foot
+  diagonal exception before payment. Critical Trip uses the attack damage window,
+  defenses, shield Hardness, temporary HP and critical knockout context.
+- Production bound and selected-weapon Strikes publish the same result; Knockdown
+  retains exact source/target identity, historical eligibility and its no-MAP rule.
+  Cases distinguish failed attacks, newer receipts, source replacement, other
+  actors, own intervening actions and subordinate Vicious Swing. Consumed inputs
+  remain valid through a shield suspension and source restoration with exact Undo.
+- Versatile tests choose base and alternate types before RNG, exercise different
+  defenses, recheck a moved target, preserve selected source values and replay
+  downstream shield windows without rerolling. These cases do not implement Weapon
+  Trip, creature footprints or full obstacle visibility.

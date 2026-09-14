@@ -148,7 +148,7 @@ action UseSuddenCharge for TCreature {
     }
 }
 
-feature BaseActions {
+feature MovementActions {
     grant UseStride;
     grant UseStep;
     grant UseStand;

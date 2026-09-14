@@ -29,6 +29,7 @@ class TWeapon {
     EDamageType DamageType;
     EWeaponCategory Category;
     int Reach = 1;
+    int HandsRequired = 1;
     set<TWeaponTrait> Traits;
     collection<Feature> Features;
 

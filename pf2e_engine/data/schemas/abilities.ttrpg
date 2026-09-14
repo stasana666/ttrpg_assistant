@@ -20,6 +20,8 @@ event int RecoveryDCAdjustment for TCreature();
 
 trigger TPendingAttackDamage BeforeAttackDamage(TPendingAttackDamage Pending, TCreature Target) once per activity;
 
+record StrikeResult for TCreature using TWeapon Weapon(TCreature Target, ECheckOutcome Outcome);
+
 activity void ExpireCreatureTurnStart for TCreature() {
     @self.ExpireTurnStartEffects();
 }
@@ -47,7 +49,23 @@ action Strike for TCreature using TWeapon Weapon {
     choose TCreature Target where Target != @self && Target.IsAlive()
         && grid_distance(@self, Target) <= Weapon.Reach
         && has_line_of_effect(@self, Target);
-    ResolveMeleeStrike(Weapon, Target, 0, 1, true);
+    let Outcome = ResolveMeleeStrike(Weapon, Target, 0, 1, true);
+    publish StrikeResult(Weapon, Target, Outcome);
+}
+
+action UseStrike for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target != @self && Target.IsAlive()
+        && grid_distance(@self, Target) <= @self.MaxWeaponReach()
+        && has_line_of_effect(@self, Target);
+    choose TWeapon Weapon from sources(@self.Weapons, @self.NaturalWeapons)
+        where Weapon.Reach > 0 && grid_distance(@self, Target) <= Weapon.Reach;
+    let Outcome = ResolveMeleeStrike(Weapon, Target, 0, 1, true);
+    publish StrikeResult(Weapon, Target, Outcome);
+}
+
+feature BasicStrike {
+    grant UseStrike;
 }
 
 action UseViciousSwing for TCreature {
@@ -77,6 +95,17 @@ activity ECheckOutcome ResolveMeleeStrike for TCreature(
     TWeapon Weapon, TCreature Target, int ExtraWeaponDice, int AttackCount, bool ApplyMAP
 ) {
     require ExtraWeaponDice >= 0 && AttackCount >= 0;
+    require Target != @self && Target.IsAlive()
+        && grid_distance(@self, Target) <= Weapon.Reach
+        && has_line_of_effect(@self, Target);
+    let DamageType = Weapon.DamageType;
+    if (Weapon.Traits.has(Versatile)) {
+        let Alternative = Weapon.Traits.get(Versatile, { Type = Weapon.DamageType; }).Type;
+        if (Alternative != DamageType) {
+            choose EDamageType SelectedType from [DamageType, Alternative];
+            DamageType = SelectedType;
+        }
+    }
     require Target != @self && Target.IsAlive()
         && grid_distance(@self, Target) <= Weapon.Reach
         && has_line_of_effect(@self, Target);
@@ -115,7 +144,7 @@ activity ECheckOutcome ResolveMeleeStrike for TCreature(
                 Amount += Extra;
             }
         }
-        ApplyAttackDamage(Target, Weapon.DamageType, Amount, TDamageContext {
+        ApplyAttackDamage(Target, DamageType, Amount, TDamageContext {
             Critical = Outcome == CriticalSuccess;
             Nonlethal = Weapon.Traits.has(Nonlethal);
         });

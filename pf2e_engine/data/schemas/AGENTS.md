@@ -90,7 +90,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 
 ## Compiled Land Movement
 - `movement.ttrpg` imports the combat abilities module and declares `UseStride`,
-  `UseStep`, `UseStand` and `UseSuddenCharge`. `BaseActions` grants the first three;
+  `UseStep`, `UseStand` and `UseSuddenCharge`. `MovementActions` grants the first three;
   `SuddenCharge` and `ReactiveStrikeTraining` are independent selectable features.
   Legacy `abilities.Stride` and `abilities.Stand` keep their existing JSON bindings.
 - `StrideMovement(Budget)` is a free activity. Its loop opens `MovementOpening`
@@ -186,7 +186,7 @@ Canonical project instructions. CLAUDE.md redirects here.
   A broken or destroyed shield cannot be raised, block damage or grant AC.
   Steel shield statistics follow [Player Core](https://2e.aonprd.com/Shields.aspx?ID=19);
   loss of function follows [Broken](https://2e.aonprd.com/Conditions.aspx?ID=60).
-- `shield_actions.BaseActions` grants `RaiseShield` independently of class feats.
+- `shield_actions.ShieldActions` grants `RaiseShield` independently of class feats.
   `ShieldBlockTraining` grants `UseShieldBlock`. Raise costs one action; Block
   costs one reaction and is offered only to the target of a physical attack
   while its shield is raised. The declaration mutates only shield HP and returns
@@ -216,3 +216,39 @@ Canonical project instructions. CLAUDE.md redirects here.
   shield window. Legacy mixed-type `FDealDamage` currently delivers an aggregated
   amount; integrating its attacks requires retaining one typed packet per hit so
   Hardness is not applied separately to each component.
+
+## Compiled Trip and Monster Knockdown
+- `trip.TripActions` grants `UseTrip`. Ordinary Trip requires a free hand, uses
+  `TCreature.BodyReach` independently of equipped weapon reach, limits the target
+  to one size larger, and rolls Athletics against Reflex DC. It uses non-Agile MAP
+  and records the attempt even on a miss. Success applies Prone; critical success
+  also deals one d6 bludgeoning attack damage without doubling that die; critical
+  failure applies Prone to the actor. Free hands are rechecked after a suspended
+  target choice. [Trip](https://2e.aonprd.com/Actions.aspx?ID=2382) defines the rule.
+- `TTripRules.InReach` measures ordinary alternating grid distance and includes the
+  special second diagonal for ten-foot reach. This remains a single-position,
+  unobstructed-grid model; creature footprints and actual line-of-effect obstacles
+  are not implemented. [Reach](https://2e.aonprd.com/Rules.aspx?ID=2379) supplies the
+  ten-foot exception. Weapon Trip, its item bonus and optional critical-failure
+  weapon drop, Titan Wrestler, flying targets and alternate maneuver methods are
+  outside this slice.
+- Bound `abilities.Strike` and the actor-granted `abilities.UseStrike` publish the
+  same declared `StrikeResult` only after the melee activity, damage and reaction
+  windows complete. `BasicStrike` grants the latter; it chooses a readied weapon or
+  natural attack independently of weapon ability grants. Subordinate melee calls
+  from Vicious Swing, Sudden Charge or Reactive Strike do not publish this record.
+  Legacy JSON attacks also do not publish it.
+- A natural attack selects `trip.Knockdown` directly in its Features to mark that
+  damage entry and grant `UseKnockdown`; this is an ability marker, not a weapon
+  trait. The follow-up requires the same exact source, a successful previous Strike,
+  its historical marker, and the same living target within current reach and size
+  limits. It pays one Action, attempts Trip without a free-hand requirement, and
+  neither applies nor increases MAP. A failed follow-up still consumes its receipt.
+  [Monster Knockdown](https://2e.aonprd.com/MonsterAbilities.aspx?ID=46) supplies this
+  natural-attack follow-up; ordinary free-hand Trip remains separate.
+- Accepted own actions or reactions invalidate the prior receipt; another actor's
+  action does not. Saved follow-up options retain their receipt version and cannot
+  silently switch to a newer Strike target. Source replacement, target relocation
+  and feature removal are checked before acceptance or resume. Undo restores the
+  receipt and source identity; accepted follow-ups retain their prepared inputs
+  after consuming the receipt. Turn boundaries add no implicit expiration.

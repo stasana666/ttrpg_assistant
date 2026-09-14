@@ -43,6 +43,7 @@ GameEntity TCreature {
     collection<TSense> Senses;
     int Level;
     ECreatureSize Size;
+    int BodyReach = 1;
     TRace Race;
     TClass Class;
     TAbilityScores Characteristic;

@@ -1,0 +1,87 @@
+import "abilities.ttrpg";
+
+class TTripRules {
+    query int SizeRank(ECreatureSize Size) {
+        if (Size == Tiny) { return 0; }
+        if (Size == Small) { return 1; }
+        if (Size == Medium) { return 2; }
+        if (Size == Large) { return 3; }
+        if (Size == Huge) { return 4; }
+        require Size == Gargantuan;
+        return 5;
+    }
+
+    query bool AllowsSize(ECreatureSize ActorSize, ECreatureSize TargetSize) {
+        return @self.SizeRank(TargetSize) <= @self.SizeRank(ActorSize) + 1;
+    }
+
+    query bool InReach(int X, int Y, int TargetX, int TargetY, int Reach) {
+        require Reach >= 0;
+        let Dx = max(X, TargetX) - min(X, TargetX);
+        let Dy = max(Y, TargetY) - min(Y, TargetY);
+        if (Reach == 2) {
+            return max(Dx, Dy) <= 2;
+        }
+        return max(Dx, Dy) + min(Dx, Dy) / 2 <= Reach;
+    }
+}
+
+activity ECheckOutcome ResolveTrip for TCreature(
+    TCreature Target, int AttackCount, bool ApplyMAP
+) {
+    require AttackCount >= 0;
+    require Target != @self && Target.IsAlive();
+    let Bonus = @self.SkillBonusWithModifiers(Athletics, TCheckModifiers {});
+    if (ApplyMAP) {
+        Bonus -= @self.AttackCountPenalty(false);
+    }
+    let Natural = roll(1, 20);
+    let Outcome = TCheckRules {}.Resolve(Natural, Bonus, Target.SaveDC(Reflex));
+    if (AttackCount > 0) {
+        @self.RecordAttack(AttackCount);
+    }
+    if (Outcome == Success || Outcome == CriticalSuccess) {
+        Target.Conditions.set(Prone);
+        if (Outcome == CriticalSuccess) {
+            let Amount = roll(1, 6);
+            ApplyAttackDamage(Target, Bludgeoning, Amount, TDamageContext { Critical = true; });
+        }
+    } else {
+        if (Outcome == CriticalFailure) {
+            @self.Conditions.set(Prone);
+        }
+    }
+    return Outcome;
+}
+
+action UseTrip for TCreature {
+    cost @self.Actions = 1;
+    requires @self.Hands.Count() >= 1;
+    let Rules = TTripRules {};
+    choose TCreature Target where Target != @self && Target.IsAlive()
+        && Rules.AllowsSize(@self.Size, Target.Size)
+        && Rules.InReach(position_x(@self), position_y(@self), position_x(Target), position_y(Target), @self.BodyReach)
+        && has_line_of_effect(@self, Target);
+    require @self.Hands.Count() >= 1;
+    ResolveTrip(Target, 1, true);
+}
+
+action UseKnockdown for TCreature using TWeapon Weapon after StrikeResult Previous {
+    cost @self.Actions = 1;
+    requires same_source(Weapon, Previous.Weapon)
+        && Previous.Weapon.Features.has(Knockdown)
+        && (Previous.Outcome == Success || Previous.Outcome == CriticalSuccess)
+        && Previous.Target.IsAlive();
+    requires TTripRules {}.AllowsSize(@self.Size, Previous.Target.Size)
+        && TTripRules {}.InReach(position_x(@self), position_y(@self), position_x(Previous.Target), position_y(Previous.Target), Weapon.Reach)
+        && has_line_of_effect(@self, Previous.Target);
+    ResolveTrip(Previous.Target, 0, false);
+}
+
+feature TripActions {
+    grant UseTrip;
+}
+
+feature Knockdown {
+    grant UseKnockdown;
+}

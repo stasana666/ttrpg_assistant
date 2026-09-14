@@ -271,7 +271,7 @@ protected:
 
 TEST_F(TGeneratedMovementTest, DiagonalCostsPersistAcrossStridesAndResetAtOwnTurnEnd)
 {
-    Add({1, 1}, {"movement.BaseActions"});
+    Add({1, 1}, {"movement.MovementActions"});
     const auto before = Snapshot();
     const auto initial = journal_->CurrentState();
     Next({2, 2});
@@ -297,7 +297,7 @@ TEST_F(TGeneratedMovementTest, DiagonalCostsPersistAcrossStridesAndResetAtOwnTur
 
 TEST_F(TGeneratedMovementTest, StepDoesNotProvokeAndItsDiagonalCountsForLaterMovement)
 {
-    Add({1, 1}, {"movement.BaseActions"});
+    Add({1, 1}, {"movement.MovementActions"});
     Add({1, 2}, {}, 3, 1, true, 3);
     io_.ExpectValue(0, TPosition{2, 2});
     EXPECT_EQ(Execute("movement.UseStep"), EAbilityExecutionResult::Applied);
@@ -317,7 +317,7 @@ TEST_F(TGeneratedMovementTest, StepDoesNotProvokeAndItsDiagonalCountsForLaterMov
 
 TEST_F(TGeneratedMovementTest, StepWithoutLegalDestinationFailsBeforePayment)
 {
-    Add({0, 0}, {"movement.BaseActions"});
+    Add({0, 0}, {"movement.MovementActions"});
     const auto option = Option("movement.UseStep");
     Add({1, 0});
     Add({0, 1});
@@ -332,8 +332,8 @@ TEST_F(TGeneratedMovementTest, StepWithoutLegalDestinationFailsBeforePayment)
 
 TEST_F(TGeneratedMovementTest, SlowOrProneCreaturesCannotStepBeforePayment)
 {
-    Add({0, 0}, {"movement.BaseActions"}, 1);
-    Add({2, 0}, {"movement.BaseActions"}, 3, 1, false, 1, true);
+    Add({0, 0}, {"movement.MovementActions"}, 1);
+    Add({2, 0}, {"movement.MovementActions"}, 3, 1, false, 1, true);
     EXPECT_FALSE(Available("movement.UseStep"));
     EXPECT_FALSE(Available("movement.UseStep", 1));
     EXPECT_FALSE(Available("movement.UseStride", 1));
@@ -343,7 +343,7 @@ TEST_F(TGeneratedMovementTest, SlowOrProneCreaturesCannotStepBeforePayment)
 
 TEST_F(TGeneratedMovementTest, ClassGrantedReactionOccursBeforeDepartureWithoutMapOrDisruption)
 {
-    Add({0, 0}, {"movement.BaseActions"}, 4);
+    Add({0, 0}, {"movement.MovementActions"}, 4);
     Add({0, 1}, {}, 3, 1, true, 4);
     auto execution = journal_->ExecutionContext();
     execution.Invoke(TGuarded<TCreature>(Creature(1)), &TCreature::RecordAttack, 2);
@@ -371,7 +371,7 @@ TEST_F(TGeneratedMovementTest, ClassGrantedReactionOccursBeforeDepartureWithoutM
 
 TEST_F(TGeneratedMovementTest, MerelyEnteringReachDoesNotOpenAReactionWindow)
 {
-    Add({0, 0}, {"movement.BaseActions"}, 1);
+    Add({0, 0}, {"movement.MovementActions"}, 1);
     Add({2, 0}, {}, 3, 1, true);
     Next({1, 0});
     EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
@@ -382,7 +382,7 @@ TEST_F(TGeneratedMovementTest, MerelyEnteringReachDoesNotOpenAReactionWindow)
 
 TEST_F(TGeneratedMovementTest, ACriticalReactiveStrikeDoesNotDisruptDeparture)
 {
-    Add({0, 0}, {"movement.BaseActions"}, 1);
+    Add({0, 0}, {"movement.MovementActions"}, 1);
     Add({0, 1}, {}, 3, 1, true);
     Next({1, 0});
     React(20);
@@ -394,7 +394,7 @@ TEST_F(TGeneratedMovementTest, ACriticalReactiveStrikeDoesNotDisruptDeparture)
 
 TEST_F(TGeneratedMovementTest, AStrideStoppedWithoutLeavingItsSquareTriggersAtTheEnd)
 {
-    Add({0, 0}, {"movement.BaseActions"});
+    Add({0, 0}, {"movement.MovementActions"});
     Add({0, 1}, {}, 3, 1, true);
     Stop();
     React(1);
@@ -406,7 +406,7 @@ TEST_F(TGeneratedMovementTest, AStrideStoppedWithoutLeavingItsSquareTriggersAtTh
 
 TEST_F(TGeneratedMovementTest, ACompletelyBlockedStrideStillOpensItsEndingWindow)
 {
-    Add({0, 0}, {"movement.BaseActions"});
+    Add({0, 0}, {"movement.MovementActions"});
     Add({0, 1}, {}, 3, 1, true);
     Add({1, 0});
     Add({1, 1});
@@ -419,7 +419,7 @@ TEST_F(TGeneratedMovementTest, ACompletelyBlockedStrideStillOpensItsEndingWindow
 
 TEST_F(TGeneratedMovementTest, StandRemovesProneBeforeItsCriticalMovementReaction)
 {
-    Add({0, 0}, {"movement.BaseActions"}, 3, 0, false, 1, true);
+    Add({0, 0}, {"movement.MovementActions"}, 3, 0, false, 1, true);
     Add({0, 1}, {}, 3, 1, true);
     const auto before = Snapshot();
     const auto initial = journal_->CurrentState();
@@ -441,7 +441,7 @@ TEST_F(TGeneratedMovementTest, StandRemovesProneBeforeItsCriticalMovementReactio
 
 TEST_F(TGeneratedMovementTest, ReactiveStrikeMayBeAcceptedAgainstAnAlliedCreature)
 {
-    Add({0, 0}, {"movement.BaseActions"}, 1, 0);
+    Add({0, 0}, {"movement.MovementActions"}, 1, 0);
     Add({0, 1}, {}, 3, 0, true);
     Next({1, 0});
     React();
@@ -452,7 +452,7 @@ TEST_F(TGeneratedMovementTest, ReactiveStrikeMayBeAcceptedAgainstAnAlliedCreatur
 
 TEST_F(TGeneratedMovementTest, DecliningAnEarlySquareLeavesTheSameStrideReactionAvailable)
 {
-    Add({0, 0}, {"movement.BaseActions"}, 2);
+    Add({0, 0}, {"movement.MovementActions"}, 2);
     Add({0, 1}, {}, 3, 1, true, 3);
     Next({1, 0});
     io_.ExpectName(1, "reaction", "Decline");
@@ -557,7 +557,7 @@ TEST_F(TGeneratedMovementTest, SuddenChargeAndViciousSwingSpendTheSameFlourishPo
 
 TEST_F(TGeneratedMovementTest, StepRechecksOccupancyAndOriginalPositionAcrossRepeatedResume)
 {
-    Add({1, 1}, {"movement.BaseActions"});
+    Add({1, 1}, {"movement.MovementActions"});
     Add({4, 4});
     const auto before = Snapshot();
     const auto initial = journal_->CurrentState();
@@ -585,7 +585,7 @@ TEST_F(TGeneratedMovementTest, StepRechecksOccupancyAndOriginalPositionAcrossRep
 
 TEST_F(TGeneratedMovementTest, RemovingAReactionGrantDuringWeaponChoiceStopsItsEffectsUntilRestore)
 {
-    Add({0, 0}, {"movement.BaseActions"}, 2);
+    Add({0, 0}, {"movement.MovementActions"}, 2);
     Add({0, 1}, {}, 3, 1, true, 3);
     const auto before = Snapshot();
     const auto initial = journal_->CurrentState();
