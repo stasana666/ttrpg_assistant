@@ -290,3 +290,19 @@ Canonical project instructions. CLAUDE.md redirects here.
   the complete battle AST, and StartBattle replays every remaining turn to the same
   winner and exact final AST. Suspended generated reaction choices are drained by
   the real MakeTurn loop; observer counters are outside the compared game state.
+
+## Contextual Flanking
+- `actions/test_generated_flanking.cpp` builds as `test_generated_flanking`. It
+  tests the declared closed-edge, single-square geometry convention and the ten-foot
+  diagonal reach exception. Small/Medium profiles participate; unsupported creature
+  footprints do not acquire inferred flanking geometry.
+- Real fighter/wolf profiles exercise a Strike that succeeds only against the
+  contextual off-guard AC. Two wolves provide flanking without activating Pack
+  Attack. No persistent target AC or condition is changed; shield, frightened and
+  Prone combine with the event contribution by their modifier types.
+- Ally eligibility uses current ability to act and held/natural melee reach, with
+  no action/reaction resource gate or BodyReach fallback. The tests move a flanker
+  while Versatile selection is suspended and verify the fresh modifier, then Undo
+  and replay the same choice with restored positions and exact AST comparison.
+  Fifteen-foot reach rejects the third diagonal before payment; ten-foot reach
+  retains its special second-diagonal Strike.

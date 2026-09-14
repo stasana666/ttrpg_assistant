@@ -2,6 +2,7 @@ import "movement.ttrpg";
 import "trip.ttrpg";
 import "shield_actions.ttrpg";
 import "intimidation.ttrpg";
+import "flanking.ttrpg";
 
 feature NaturalAmbition;
 feature GeneralTraining;
@@ -13,6 +14,7 @@ feature CombatBasics {
     grant TripActions;
     grant ShieldActions;
     grant IntimidationActions;
+    grant Flanking;
 }
 
 class TFeaturePool {

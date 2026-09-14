@@ -15,6 +15,7 @@
 
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/abilities.h>
+#include <pf2e_engine/inventory/flanking.h>
 #include <pf2e_engine/inventory/movement.h>
 #include <pf2e_engine/inventory/shield_actions.h>
 #include <pf2e_engine/inventory/combat_timing.h>
@@ -423,6 +424,7 @@ std::shared_ptr<const TAbilityRules> TGameObjectFactory::AbilityRules() const
     auto rules = std::make_shared<TAbilityRules>();
     rules->Time.RoundDurationSeconds = CreateCombatTiming().RoundSeconds();
     RegisterAbilitiesRules(*rules);
+    RegisterFlankingRules(*rules);
     RegisterMovementRules(*rules);
     RegisterShieldActionsRules(*rules);
     RegisterIntimidationRules(*rules);

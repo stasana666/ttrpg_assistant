@@ -40,8 +40,8 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Source choices select readonly snapshots from current stored collections, independently of the feature granting the action. Production Vicious Swing uses this mechanism with equipment and natural weapons, the shared melee activity and the declared Flourishes cost. Nested activities preserve source validity through scoped child contexts.
 - Generated creature methods own round/turn resource replenishment, attack-counter resets and shield expiration. A generic turn-start expiration phase precedes scheduled start-turn effects. Optional `TAbilityRules::Lifecycle` hooks replace the synchronous boundary methods with generated activities; the factory binds turn start to `StartCreatureTurn` for recovery and feature contributions before replenishment. System execution permits automatic transitions of inactive actors while retaining identity and membership checks. Ordinary actions and reactions require `CanAct()`; encounter completion uses `IsDefeated()`. Flourish uses a shared per-round resource.
 - `data/schemas/proficiency.ttrpg` generates proficiency storage and rank/fixed-bonus rules. `TCreature` owns `Proficiency`; its queries pass the creature's current `Level`, so no separate proficiency level is stored. The remaining C++ `ProficiencyBonus` overloads only route calculator requests to these generated queries.
-- `TCreature` is a generated `GameEntity` with no handwritten subclass. Legacy `TCreatureFeat` pipeline hooks remain an import adapter for Pack Attack; they are immutable ruleset definitions selected through generated features. Remaining native resource/condition/reach adapters live in `mechanics/creature.h`; remaining action rules and automatic contextual feature evaluation continue the migration. Production configurable fighter and wolf declarations live in remaster_profiles.ttrpg.
-- Combat calculators delegate AC, attack bonuses, attack counting, check outcomes, damage defenses, Perception, saves and skills to `.ttrpg` rules. Generated Lore and Class DC profiles support independent proficiency and complete-statistic baselines. Explicit typed modifier inputs merge with conditions in the noncombat statistic queries; the native initiative adapter uses the generated Perception query; automatic feature evaluation remains separate work. Generated and legacy attacks share `AttacksMade`; the current weapon determines its MAP. Historical JSON attack names remain available as migration adapters.
+- `TCreature` is a generated `GameEntity` with no handwritten subclass. Legacy `TCreatureFeat` pipeline hooks remain an import adapter for Pack Attack; they are immutable ruleset definitions selected through generated features. Remaining native resource/condition/reach adapters live in `mechanics/creature.h`; remaining action rules and contextual feature evaluation outside melee AC continue the migration. Production configurable fighter and wolf declarations live in remaster_profiles.ttrpg.
+- Combat calculators delegate AC, attack bonuses, attack counting, check outcomes, damage defenses, Perception, saves and skills to `.ttrpg` rules. Generated Lore and Class DC profiles support independent proficiency and complete-statistic baselines. Explicit typed modifier inputs merge with conditions in the noncombat statistic queries; the native initiative adapter uses the generated Perception query; automatic feature evaluation for other statistic families remains separate work. The generated melee activity collects contextual AC contributions, including flanking, before rolling. Generated and legacy attacks share `AttacksMade`; the current weapon determines its MAP. Historical JSON attack names remain available as migration adapters.
 
 ## Build/Test
 - Build engine: `cmake --build build --target pf2e_engine`.
@@ -60,3 +60,19 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Data-loading tests depend on generated `cpp_config.h` and `kRootDirPath`; avoid hard-coded absolute paths.
 - Mutations that bypass `TTransformator` can survive rollback and should be caught by AST tests.
 - Use local docs under `data/`, `data/schemas/`, `src/dsl/`, `include/pf2e_engine/common/`, and `tests/` before loading unrelated engine context.
+
+## Declared Encounter Entry Points
+- Production declarations are `data/schemas/remaster_profiles.ttrpg`: generated
+  `CreateHumanFighter1(THumanFighter1Options)` and `CreateWolf(TWolfOptions)` create
+  independent entities. Factory `AbilityRules()` registers their imported rule
+  modules; `TBattle` enumerates current grants and runs generated actions.
+- The headless acceptance scenario is available through
+  `./build/analyzer/analyzer --scenario fighter-wolves --iterations 10`.
+  Full encounter tests exercise both victory outcomes and exact round-boundary
+  Undo/replay. The supported profile uses readied melee weapons on an open grid;
+  remaining equipment, terrain, perception and catalogue boundaries are recorded
+  in `data/schemas/AGENTS.md`.
+- Production frightened writes use generated creature methods and declared turn
+  decay. Direct legacy `TEffectManager::AddEffect(Frightened)` remains only in
+  compatibility transformation tests; do not mix its private canceler state with
+  generated fear methods or new battle rules.

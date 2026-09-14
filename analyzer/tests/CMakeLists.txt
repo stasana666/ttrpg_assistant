@@ -1,0 +1,5 @@
+add_executable(test_analyzer_strategy test_aggressive_melee_strategy.cpp)
+target_link_libraries(test_analyzer_strategy PRIVATE gtest_main analyzer_lib)
+
+include(GoogleTest)
+gtest_discover_tests(test_analyzer_strategy)

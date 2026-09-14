@@ -52,7 +52,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Completed: readonly world queries in actions and feature hooks, `requires` preconditions, `Resource.Count()`, and target-existence preflight for a leading `choose`. `tests/actions/fixtures/generated_world.ttrpg` covers live positions and teams, readonly entity sequences, source snapshots and prepayment-only requirements.
 - Completed: production compiled melee Strike, typed Pack Attack, PC combat formulas, explicit complete NPC baselines, check outcomes, damage defenses, and shared attack counting across generated and legacy attacks. Native calculators delegate these formulas to generated methods.
 - Completed: action branch/loop continuations, value and Position choices, checked movement primitives, and journaled variant-set/resource operations. `tests/actions/fixtures/generated_flow.ttrpg` exercises these generic mechanisms; its Traverse action is not the PF2e Stride rule.
-- Completed: generated Perception, initiative, save, skill, Lore and Class DC formulas, independent complete-statistic baselines, and explicit typed modifier aggregation. Native check/DC calculators delegate to these rules; automatic feature-event evaluation remains separate work.
+- Completed: generated Perception, initiative, save, skill, Lore and Class DC formulas, independent complete-statistic baselines, and explicit typed modifier aggregation. Native check/DC calculators delegate to these rules; automatic feature-event evaluation for other statistic families remains separate work.
 - Completed: typed reusable `activity` bodies with synchronous results and replayable nested choices. Production Strike calls `ResolveMeleeStrike`; its parameters control extra weapon dice, attacks counted and whether MAP applies. Activities share their caller's actor, source and journal, and do not declare or pay a separate action cost.
 - Completed: generated round and turn resource rules. `TCreature.BeginRound` replenishes the shared Flourishes resource; `BeginTurn` restores three actions and one reaction and resets attack counting; `EndTurn` clears actions and attack counting. Native battle boundaries invoke these journaled methods.
 - Completed: readonly choices from stored source collections, unions through `sources(...)`, and scoped source validation through nested activities. `UseViciousSwing` is granted by the selected Vicious Swing feature and chooses equipment independently of that granting source.
@@ -64,9 +64,11 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Completed: generic journaled initiative relocation and its declared trigger on a new nonfatal knockout. Generated and legacy battle damage share the same activity.
 - Completed: declared health policies, critical/nonlethal damage context, unconsciousness, dying/wounded, healing, recovery and death. Turn-start recovery executes a generated activity with feature contributions through generic lifecycle hooks. Legacy damage delivery uses the same generated health methods.
 - Completed: generated descriptive creature fields, typed senses, arbitrary named languages and the Advanced weapon category. These fields describe a statblock; they do not implement perception or visibility mechanics.
-- Next: remaining PF2e actions, authored character prerequisites, production reaction timing and declarative replacements for PF2e action pipelines. JSON pipelines remain a migration adapter until those replacements exist. Whole-action cancellation/refund policy still needs explicit rule/runtime support.
-- Then: contextual feature evaluation, complete fighter/wolf definitions, and reusable encounter construction with selected weapons and class/ancestry features.
-- Final acceptance: construct one human fighter and two independent wolves from declarations, equip different declared weapons and features, enumerate and execute their actions and reactions, and verify selection, resource use, effects, and rollback in combat. The existence of generated entity and grant plumbing alone does not complete this sequence.
+- Completed: typed terminal action records and historical follow-up inputs, with exact source/target identity and receipt version checks. Production Trip and monster Knockdown use the shared attack counter and resolved Strike outcome.
+- Completed: generic typed entity-pair relations, permanent or timed values, and a journaled game clock configured by declared round timing. Demoralize and Intimidating Glare use actor-specific immunity and generated target-end-turn frightened decay.
+- Completed: production Remaster fighter/wolf factories with legal declared feat choices, independent statblocks, arbitrary declared readied melee equipment and generated grants. The analyzer runs one fighter against two wolves; full encounter tests check both winners and replay from a round boundary.
+- Completed: contextual melee AC modifiers and single-cell flanking, including consistent melee reach across actions and feature events.
+- Further extensions: additional PF2e actions and feat catalogues, ranged/grip/equipment rules, multi-cell footprints, terrain and perception, contextual modifiers for other check families, cross-encounter persistence, and an explicit whole-action cancellation/refund policy. JSON pipelines remain compatibility adapters for unmigrated content.
 
 ## Remaining Integration Boundaries
 - `abilities.ttrpg` imports creature types. Creature, ancestry/class and weapon modules depend only on the built-in `Feature`, without importing the action catalog. The factory explicitly calls `RegisterAbilitiesRules`, so production action bodies can use creature types without an import cycle.
@@ -87,6 +89,41 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Source choices retain an exact owner/field/entry locator until selection, then an immutable snapshot plus live presence checks. Aliases preserve the binding; child activities inherit scoped input checks without changing their parent's context. Class-valued results that could discard selected-source provenance are conservatively restricted; see the compiler documentation for these temporary authoring boundaries.
 - This Strike represents a melee profile. It passes critical and Nonlethal weapon-trait metadata to the declared health rules. Versatile offers the base and alternate damage types before the attack roll, then repeats target validation before rolling. A suspended source retains its values, and the selected damage type continues through defenses and Shield Block. A redundant alternate type adds no prompt. Thrown range/mode, TwoHand grip and ranged ammunition remain subsequent work.
 - Historical JSON creatures, weapons and legacy Pack Attack hooks retain their previous data. The compiled Strike tests use separate fixtures with explicit baselines; production Remaster declarations are separately covered by the profile and encounter tests.
+
+## Contextual Melee Defense
+- `combat_geometry.ttrpg` defines pure `TCombatGeometry.InReach` and `Flanks`
+  queries in grid cells. Reach uses `max(dx, dy) + min(dx, dy) / 2`, except that
+  ten-foot reach includes the second diagonal. Strike, Vicious Swing, Sudden
+  Charge, Reactive Strike and Pack Attack use this helper; `TTripRules.InReach`
+  delegates to it for ordinary Trip and historical Knockdown. Movement costs and
+  non-melee range checks retain their separate policies.
+  [Reach](https://2e.aonprd.com/Rules.aspx?ID=2379) defines the exception.
+- `flanking.Flanking`, granted by `CombatBasics`, contributes a two-point
+  circumstance penalty through `MeleeTargetModifiers(Target)`. The melee activity
+  checks its actual weapon snapshot and target, then collects these modifiers
+  after all target/damage-type choices and before rolling. The target's ordinary
+  AC query and stored conditions are unchanged; `ArmorClassWithModifiers` merges
+  flanking with prone/unconscious off-guard, frightened and raised-shield bonuses.
+- A flanking ally must be on the attacker's team, able to act, have a readied
+  weapon or natural attack reaching the target, and pass the line-of-effect
+  adapter. Free hands, remaining Actions and Reactions do not determine this
+  eligibility. `BodyReach` is not a substitute for a declared melee profile.
+  This hook assumes its caller already validated the attacking weapon's reach;
+  it does not replace that snapshot with current equipment statistics.
+- Flanking currently covers Small/Medium attackers, allies and targets occupying
+  one cell. Relative to the target center, let `A` and `B` be the flanker centers,
+  `D = B - A`, and `C = Ax*By - Ay*Bx`. Opposite vertical edges qualify when the
+  x coordinates have opposite signs and `2*abs(C) + abs(Dy) <= abs(Dx)`; horizontal
+  edges use the exchanged axes. This includes opposite corners and off-center
+  crossings. The implementation treats square edges as closed: a corner counts
+  as belonging to both adjacent edges. The source rule does not separately resolve
+  the corner-to-opposite-edge boundary, so this is an explicit geometry convention.
+  Integer operations are checked and ally reach is tested before cross-products.
+  [Flanking](https://2e.aonprd.com/Rules.aspx?ID=2375) supplies the eligibility and
+  opposite-side/corner rule; larger footprints, three-dimensional positioning,
+  attack-preventing conditions beyond `CanAct`, and flanking immunity need further
+  modeling. Two wolves can flank, but cannot meet Pack Attack's two-other-allies
+  requirement.
 
 ## Compiled Land Movement
 - `movement.ttrpg` imports the combat abilities module and declares `UseStride`,
@@ -129,7 +166,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Creature Perception, save and skill baselines hold complete totals, including zero and negative values. Proficiency rank remains independent for rule eligibility; a fixed NPC total does not imply untrained proficiency. Legacy integer proficiency overrides retain their meaning as contributions.
 - `Base` queries exclude conditions. `Bonus`/`DC` queries and their `WithModifiers` companions merge generated condition modifiers with the supplied `TCheckModifiers`. Each of Item, Status and Circumstance keeps its strongest bonus and strongest penalty independently; untyped penalties accumulate. Frightened enters the same Status aggregation and is not subtracted twice.
 - Queries read current level, attributes and conditions without modifying stored state. Complete baselines skip attribute and proficiency additions; absent skill/save map entries use the existing untrained fallback without insertion. Lore specializations retain their own ranks and baselines.
-- Extra modifier values are explicit inputs at this stage. Queries do not implicitly dispatch feature events or access battle rules. AC and attack modifiers retain their earlier implementation. Initiative defaults to the generated Perception query; a scenario can explicitly choose a skill and modifiers. The Remaster statistic tests construct separate profiles; they do not replace production creature definitions.
+- Extra modifier values are explicit query inputs. Queries do not implicitly dispatch feature events or access battle rules. The melee activity collects `MeleeTargetModifiers` from active features and passes the merged value to `ArmorClassWithModifiers`; attack bonus queries retain their separate condition and MAP rules. Initiative defaults to the generated Perception query; a scenario can explicitly choose a skill and modifiers. The Remaster statistic tests construct separate profiles; they do not replace production creature definitions.
 - Initiative sorts by descending total. Explicit `TInitiativeOptions.TieOrder` resolves equal totals, with smaller values first and stable insertion for remaining ties; the bonus does not break ties. Encounter setup must specify PC/enemy tie priority when needed. Natural 1 and 20 are ordinary initiative roll values, and later statistic changes do not reroll or reorder an existing initiative result.
 
 ## Configurable Named Factories
@@ -225,7 +262,7 @@ Canonical project instructions. CLAUDE.md redirects here.
   also deals one d6 bludgeoning attack damage without doubling that die; critical
   failure applies Prone to the actor. Free hands are rechecked after a suspended
   target choice. [Trip](https://2e.aonprd.com/Actions.aspx?ID=2382) defines the rule.
-- `TTripRules.InReach` measures ordinary alternating grid distance and includes the
+- `TTripRules.InReach` delegates to `TCombatGeometry.InReach`, including the
   special second diagonal for ten-foot reach. This remains a single-position,
   unobstructed-grid model; creature footprints and actual line-of-effect obstacles
   are not implemented. [Reach](https://2e.aonprd.com/Rules.aspx?ID=2379) supplies the
@@ -286,7 +323,8 @@ Canonical project instructions. CLAUDE.md redirects here.
   `ShieldActions`, `TripActions`, `IntimidationActions`, and `BasicStrike`.
   Imported ability names currently share a compiler namespace; using `BaseActions`
   for every module prevented importing the modules together. Their native feature
-  IDs still include the module stem. `CombatBasics` grants the five groups.
+  IDs still include the module stem. `CombatBasics` grants the five action groups
+  and the contextual `Flanking` feature.
 
 ## Intimidation and Observation
 - `intimidation.ttrpg` declares ordinary auditory Demoralize and the optional visual

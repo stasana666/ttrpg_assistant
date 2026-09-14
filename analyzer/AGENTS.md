@@ -4,8 +4,8 @@ Canonical project instructions. CLAUDE.md redirects here.
 
 Runs many automated battles on top of the headless engine and reports win/death
 probabilities (`analyzer_lib` library + `analyzer` executable; links only
-`pf2e_engine`). It supplies the automated `IInteractionSystem` — see the root
-[AGENTS.md](../AGENTS.md) "Interaction System" section for the engine-side
+`pf2e_engine`). It supplies the automated `IInteractionSystem` — see the engine
+[AGENTS.md](../pf2e_engine/AGENTS.md) "Key Concepts" section for the engine-side
 contract. Keep analyzer code independent of assistant GUI/audio.
 
 ## Layout
@@ -15,12 +15,12 @@ contract. Keep analyzer code independent of assistant GUI/audio.
   `TAlternatives` by inspecting its `Kind()`. Add new strategies (defensive,
   random, …) by implementing this interface.
 - [src/aggressive_melee_strategy.cpp](src/aggressive_melee_strategy.cpp) —
-  `TAggressiveMeleeStrategy`: always picks the weapon-attack action and an enemy
-  target.
+  `TAggressiveMeleeStrategy`: selects melee attacks, movement, defensive actions
+  and enemy targets using the current battle.
 - [include/analyzer/automated_interaction_system.h](include/analyzer/automated_interaction_system.h) —
   `TAutomatedInteractionSystem`: delegates every choice to an `IDecisionStrategy`,
-  discards log output, and acknowledges reaction notifications without selecting
-  or executing a reaction.
+  discards log output, and ignores legacy reaction notifications. Generated
+  reaction windows request ordinary choices through the decision strategy.
 - [src/combat_analyzer.cpp](src/combat_analyzer.cpp) — `TCombatAnalyzer`: builds
   the `TGameObjectFactory` once, then loops a fresh `TBattle` + seeded
   `TRandomGenerator` per run, aggregating per-team win rate and per-creature death
@@ -31,8 +31,9 @@ contract. Keep analyzer code independent of assistant GUI/audio.
 
 - Build: `cmake --build build --target analyzer`.
 - Run: `./build/analyzer/analyzer --iterations 1000`.
-- No dedicated analyzer tests; verify combat behavior via the relevant
-  `pf2e_engine/tests` targets.
+- `test_analyzer_strategy` checks declared melee reach, source-specific enemy
+  targeting, stale choices, and conservative reaction selection. Engine rule
+  behavior remains covered by the relevant `pf2e_engine/tests` targets.
 
 ## Pitfalls
 
@@ -58,6 +59,12 @@ contract. Keep analyzer code independent of assistant GUI/audio.
   that subject as an enemy. Other reaction definitions default to decline. This is a simple
   deterministic tactical policy, not optimal-play evidence; it does not evaluate
   Demoralize, weapon damage-type defenses or every feat strategy.
+- Attack and movement-stop decisions use generated `TCombatGeometry.InReach`
+  and the world's line-of-effect policy. Source-bound Strike checks that its
+  particular weapon reaches a conscious enemy; aggregate UseStrike takes
+  precedence when available. Without an applicable attack the policy tries
+  movement, and without conscious enemies it ends the turn. Position scoring
+  remains a local distance heuristic, without obstacle pathfinding.
 - Generated encounter reports retain an entry per creature; both wolves receive
   their team's win result, while each death counter uses that creature's IsDead.
   An unconscious surviving fighter can lose without dying. Historical two-warrior

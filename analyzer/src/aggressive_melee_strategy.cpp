@@ -4,6 +4,7 @@
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/actions/generated_source.h>
+#include <pf2e_engine/inventory/combat_geometry.h>
 #include <pf2e_engine/inventory/movement.h>
 
 #include <algorithm>
@@ -44,12 +45,55 @@ int EnemyDistance(const TBattle* battle, const TPlayer* actor, TPosition positio
     return distance;
 }
 
+bool HasEnemyInReach(const TBattle* battle, const TPlayer* actor, int reach)
+{
+    if (battle == nullptr || actor == nullptr || reach <= 0) {
+        return false;
+    }
+    const auto geometry = TCombatGeometry::Create({});
+    const auto origin = actor->GetPosition();
+    const TGeneratedWorldView world(battle);
+    const auto actor_view = BindGeneratedActionEntity(*actor, battle);
+    for (const auto* enemy : battle->GetIfPlayers([actor](const TPlayer* player) {
+        return player->GetTeam() != actor->GetTeam() && player->GetCreature()->CanAct();
+    })) {
+        const auto position = enemy->GetPosition();
+        if (geometry.InReach(origin.x, origin.y, position.x, position.y, reach)
+            && world.HasLineOfEffect(actor_view, BindGeneratedActionEntity(*enemy, battle))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool CanAttackEnemy(const TAbilityOption& option, const TBattle* battle, const TPlayer* actor)
+{
+    if (option.DefinitionId != "abilities.UseStrike" && option.DefinitionId != "abilities.Strike"
+        && option.DefinitionId != "abilities.AttackWithWeapon") {
+        return false;
+    }
+    if (actor == nullptr) {
+        return true;
+    }
+    const auto& creature = *actor->GetCreature();
+    if (option.DefinitionId == "abilities.Strike") {
+        const auto weapon = FindAbilitySource<TWeapon>(creature, option.Source);
+        return weapon && HasEnemyInReach(battle, actor, weapon->Value->Reach());
+    }
+    return HasEnemyInReach(battle, actor, creature.MaxWeaponReach());
+}
+
 size_t ChooseAction(const TAlternatives& alternatives, const TBattle* battle, const TPlayer* actor)
 {
     size_t selected = 0;
     int best = -1;
-    const bool reachable = actor == nullptr
-        || EnemyDistance(battle, actor, actor->GetPosition()) <= actor->GetCreature()->MaxWeaponReach();
+    const bool has_enemy = actor != nullptr
+        && EnemyDistance(battle, actor, actor->GetPosition()) != std::numeric_limits<int>::max();
+    bool can_attack = false;
+    for (size_t i = 0; i < alternatives.Size(); ++i) {
+        const auto option = alternatives[i].Get<std::optional<TAbilityOption>>();
+        can_attack = can_attack || (option && CanAttackEnemy(*option, battle, actor));
+    }
     for (size_t i = 0; i < alternatives.Size(); ++i) {
         const auto option = alternatives[i].Get<std::optional<TAbilityOption>>();
         int priority = -1;
@@ -57,19 +101,18 @@ size_t ChooseAction(const TAlternatives& alternatives, const TBattle* battle, co
             priority = 0;
         } else if (option->DefinitionId == "movement.UseStand") {
             priority = 100;
-        } else if (option->DefinitionId == "trip.UseKnockdown" && reachable) {
+        } else if (option->DefinitionId == "trip.UseKnockdown" && actor != nullptr
+                   && HasEnemyInReach(battle, actor, actor->GetCreature()->MaxWeaponReach())) {
             priority = 90;
         } else if (option->DefinitionId == "shield_actions.RaiseShield" && actor != nullptr
                    && !actor->GetCreature()->Shield().IsRaised()
                    && actor->GetCreature()->Actions().Count() == 1) {
             priority = 80;
-        } else if (reachable && (option->DefinitionId == "abilities.AttackWithWeapon"
-                   || option->DefinitionId == "abilities.Strike"
-                   || option->DefinitionId == "abilities.UseStrike")) {
-            priority = 70;
-        } else if (!reachable && option->DefinitionId == "movement.UseSuddenCharge") {
+        } else if (CanAttackEnemy(*option, battle, actor)) {
+            priority = option->DefinitionId == "abilities.UseStrike" ? 71 : 70;
+        } else if (has_enemy && !can_attack && option->DefinitionId == "movement.UseSuddenCharge") {
             priority = 60;
-        } else if (!reachable && option->DefinitionId == "movement.UseStride") {
+        } else if (has_enemy && !can_attack && option->DefinitionId == "movement.UseStride") {
             priority = 50;
         }
         if (priority > best) {
@@ -156,12 +199,12 @@ size_t TAggressiveMeleeStrategy::Decide(int player_id, const TAlternatives& alte
         return selected;
     }
     if (kind == "choice" && actor != nullptr) {
-        const bool reachable = EnemyDistance(battle_, actor, actor->GetPosition())
-            <= actor->GetCreature()->MaxWeaponReach();
+        const bool stop = HasEnemyInReach(battle_, actor, actor->GetCreature()->MaxWeaponReach())
+            || EnemyDistance(battle_, actor, actor->GetPosition()) == std::numeric_limits<int>::max();
         for (size_t i = 0; i < alternatives.Size(); ++i) {
             const auto* choice = std::any_cast<EMovementChoice>(&alternatives[i].value);
-            if (choice != nullptr && *choice == (reachable ? EMovementChoice::FinishMovement
-                                                           : EMovementChoice::ContinueMovement)) {
+            if (choice != nullptr && *choice == (stop ? EMovementChoice::FinishMovement
+                                                      : EMovementChoice::ContinueMovement)) {
                 return i;
             }
         }

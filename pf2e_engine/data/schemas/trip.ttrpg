@@ -16,13 +16,7 @@ class TTripRules {
     }
 
     query bool InReach(int X, int Y, int TargetX, int TargetY, int Reach) {
-        require Reach >= 0;
-        let Dx = max(X, TargetX) - min(X, TargetX);
-        let Dy = max(Y, TargetY) - min(Y, TargetY);
-        if (Reach == 2) {
-            return max(Dx, Dy) <= 2;
-        }
-        return max(Dx, Dy) + min(Dx, Dy) / 2 <= Reach;
+        return TCombatGeometry {}.InReach(X, Y, TargetX, TargetY, Reach);
     }
 }
 

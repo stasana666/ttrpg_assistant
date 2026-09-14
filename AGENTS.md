@@ -70,4 +70,4 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Schema/codegen changes: build `test_ttrpg` and `pf2e_engine_generated_headers`, then relevant engine/data tests.
 - JSON data changes: run `tools/data_validation.py` and tests that load data recursively.
 - Assistant has no dedicated test target; verify engine-facing behavior via engine tests and manually test GUI/audio changes when needed.
-- Analyzer has no dedicated test target; verify combat behavior through relevant engine tests.
+- Analyzer strategy has the `test_analyzer_strategy` target; verify combat rules and complete encounters through the relevant engine tests.

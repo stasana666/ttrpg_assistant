@@ -321,3 +321,7 @@ ttrpg_generate(
 target_sources(test_generated_relations PRIVATE ${GENERATED_RELATIONS_HEADER} ${GENERATED_RELATIONS_SOURCE})
 target_link_libraries(test_generated_relations gtest_main pf2e_engine)
 gtest_discover_tests(test_generated_relations)
+
+add_executable(test_generated_flanking test_generated_flanking.cpp)
+target_link_libraries(test_generated_flanking gtest_main pf2e_engine)
+gtest_discover_tests(test_generated_flanking)

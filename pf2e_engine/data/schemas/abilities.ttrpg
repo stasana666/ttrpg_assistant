@@ -1,5 +1,6 @@
 import "creature.ttrpg";
 import "combat_checks.ttrpg";
+import "combat_geometry.ttrpg";
 
 action AttackWithWeapon;
 action Stride;
@@ -15,6 +16,8 @@ class TStrikeDamageDice {
 }
 
 event TStrikeDamageDice StrikeDamageBonus for TCreature(TCreature Target, TWeapon Weapon);
+
+event TCheckModifiers MeleeTargetModifiers for TCreature(TCreature Target);
 
 event int RecoveryDCAdjustment for TCreature();
 
@@ -46,8 +49,9 @@ activity void StartCreatureTurn for TCreature() {
 
 action Strike for TCreature using TWeapon Weapon {
     cost @self.Actions = 1;
-    choose TCreature Target where Target != @self && Target.IsAlive()
-        && grid_distance(@self, Target) <= Weapon.Reach
+    choose TCreature Target where Weapon.Reach > 0 && Target != @self && Target.IsAlive()
+        && TCombatGeometry {}.InReach(position_x(@self), position_y(@self),
+            position_x(Target), position_y(Target), Weapon.Reach)
         && has_line_of_effect(@self, Target);
     let Outcome = ResolveMeleeStrike(Weapon, Target, 0, 1, true);
     publish StrikeResult(Weapon, Target, Outcome);
@@ -56,10 +60,12 @@ action Strike for TCreature using TWeapon Weapon {
 action UseStrike for TCreature {
     cost @self.Actions = 1;
     choose TCreature Target where Target != @self && Target.IsAlive()
-        && grid_distance(@self, Target) <= @self.MaxWeaponReach()
+        && TCombatGeometry {}.InReach(position_x(@self), position_y(@self),
+            position_x(Target), position_y(Target), @self.MaxWeaponReach())
         && has_line_of_effect(@self, Target);
     choose TWeapon Weapon from sources(@self.Weapons, @self.NaturalWeapons)
-        where Weapon.Reach > 0 && grid_distance(@self, Target) <= Weapon.Reach;
+        where Weapon.Reach > 0 && TCombatGeometry {}.InReach(position_x(@self), position_y(@self),
+            position_x(Target), position_y(Target), Weapon.Reach);
     let Outcome = ResolveMeleeStrike(Weapon, Target, 0, 1, true);
     publish StrikeResult(Weapon, Target, Outcome);
 }
@@ -72,10 +78,12 @@ action UseViciousSwing for TCreature {
     cost @self.Actions = 2;
     cost @self.Flourishes = 1;
     choose TCreature Target where Target != @self && Target.IsAlive()
-        && grid_distance(@self, Target) <= @self.MaxWeaponReach()
+        && TCombatGeometry {}.InReach(position_x(@self), position_y(@self),
+            position_x(Target), position_y(Target), @self.MaxWeaponReach())
         && has_line_of_effect(@self, Target);
     choose TWeapon Weapon from sources(@self.Weapons, @self.NaturalWeapons)
-        where Weapon.Reach > 0 && grid_distance(@self, Target) <= Weapon.Reach;
+        where Weapon.Reach > 0 && TCombatGeometry {}.InReach(position_x(@self), position_y(@self),
+            position_x(Target), position_y(Target), Weapon.Reach);
     let ExtraDice = 1;
     if (@self.Level >= 18) {
         ExtraDice = 3;
@@ -95,8 +103,9 @@ activity ECheckOutcome ResolveMeleeStrike for TCreature(
     TWeapon Weapon, TCreature Target, int ExtraWeaponDice, int AttackCount, bool ApplyMAP
 ) {
     require ExtraWeaponDice >= 0 && AttackCount >= 0;
-    require Target != @self && Target.IsAlive()
-        && grid_distance(@self, Target) <= Weapon.Reach
+    require Weapon.Reach > 0 && Target != @self && Target.IsAlive()
+        && TCombatGeometry {}.InReach(position_x(@self), position_y(@self),
+            position_x(Target), position_y(Target), Weapon.Reach)
         && has_line_of_effect(@self, Target);
     let DamageType = Weapon.DamageType;
     if (Weapon.Traits.has(Versatile)) {
@@ -106,16 +115,22 @@ activity ECheckOutcome ResolveMeleeStrike for TCreature(
             DamageType = SelectedType;
         }
     }
-    require Target != @self && Target.IsAlive()
-        && grid_distance(@self, Target) <= Weapon.Reach
+    require Weapon.Reach > 0 && Target != @self && Target.IsAlive()
+        && TCombatGeometry {}.InReach(position_x(@self), position_y(@self),
+            position_x(Target), position_y(Target), Weapon.Reach)
         && has_line_of_effect(@self, Target);
     let Checks = TCheckRules {};
     let AttackBonus = @self.AttackBonus(Weapon);
     if (ApplyMAP) {
         AttackBonus -= @self.MultipleAttackPenalty(Weapon);
     }
+    let TargetModifiers = TCheckModifiers {};
+    for Modifier in MeleeTargetModifiers(@self, Target) {
+        TargetModifiers = TargetModifiers.Merge(Modifier);
+    }
+    let TargetDC = Target.ArmorClassWithModifiers(TargetModifiers);
     let Natural = roll(1, 20);
-    let Outcome = Checks.Resolve(Natural, AttackBonus, Target.ArmorClass());
+    let Outcome = Checks.Resolve(Natural, AttackBonus, TargetDC);
     if (AttackCount > 0) {
         @self.RecordAttack(AttackCount);
     }
@@ -186,7 +201,8 @@ feature PackAttack {
         for Ally in entities(TCreature) {
             if (Ally != @self && Ally != Target && Ally.IsAlive()
                 && same_team(@self, Ally)
-                && grid_distance(Ally, Target) <= Ally.MaxWeaponReach()
+                && TCombatGeometry {}.InReach(position_x(Ally), position_y(Ally),
+                    position_x(Target), position_y(Target), Ally.MaxWeaponReach())
                 && has_line_of_effect(Ally, Target)) {
                 Allies += 1;
             }
