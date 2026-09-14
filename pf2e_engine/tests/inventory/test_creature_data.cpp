@@ -5,7 +5,6 @@
 #include <pf2e_engine/combat_calculator.h>
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/expressions/number_expression.h>
-#include <pf2e_engine/inventory/creature_data.h>
 #include <pf2e_engine/inventory/creature_parts.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/weapon.h>
@@ -55,7 +54,7 @@ TEST(CreatureDataTest, WarriorDataLoads) {
     TGameObjectFactory factory = MakeFactoryWithRefs();
     factory.AddSource(kRootDirPath + "/pf2e_engine/data/creatures/warrior_data.json");
 
-    const TCreatureData data = factory.Create<TCreatureData>(NameId("warrior_data"));
+    const TCreature data = factory.Create<TCreature>(NameId("warrior_data"));
 
     EXPECT_EQ(data.Level(), 1);
     EXPECT_EQ(data.Size(), ECreatureSize::Medium);
@@ -99,7 +98,7 @@ nlohmann::json WarriorJson() {
 
 TEST(CreatureDataTest, ComputedHitpointsFallback) {
     TGameObjectFactory factory = MakeFactoryWithRefs();
-    const TCreatureData data = TCreatureData::FromJson(WarriorJson(), factory);
+    const TCreature data = TCreature::FromJson(WarriorJson(), factory);
 
     EXPECT_EQ(data.Level(), 3);
     EXPECT_EQ(data.Movement(), 0);
@@ -112,7 +111,7 @@ TEST(CreatureDataTest, ComputedHitpointsJsonOverride) {
     nlohmann::json j = WarriorJson();
     j["hitpoints"] = {{"maximum", {{"base", 40}}}, {"current", 5}, {"temporary", 0}};
 
-    const TCreatureData data = TCreatureData::FromJson(j, factory);
+    const TCreature data = TCreature::FromJson(j, factory);
 
     EXPECT_EQ(data.Hitpoints().Current(), 5);
     EXPECT_EQ(data.Hitpoints().Maximum().Value(), 40);
@@ -130,8 +129,8 @@ TEST(CreatureDataTest, DamageDataLoadsAndIsAvailableOnCreature) {
         {"Piercing", 7},
     };
 
-    TCreatureData data = TCreatureData::FromJson(j, factory);
-    const TCreatureData& data_view = data;
+    TCreature data = TCreature::FromJson(j, factory);
+    const TCreature& data_view = data;
 
     EXPECT_TRUE(data_view.Immunities().contains(EDamageType::Fire));
     EXPECT_EQ(data_view.Resistances().at(EDamageType::Fire), 10);

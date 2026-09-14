@@ -1,3 +1,5 @@
+#include <pf2e_engine/mechanics/creature.h>
+
 #include "ast_test_fixture.h"
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
@@ -75,7 +77,7 @@ TEST(AstState, MutationVisibleInAst_Resource)
         [](const TPlayer* p) { return p->GetId() == 0; });
     ASSERT_FALSE(players.empty());
     TTransformator transformator(fixture->io);
-    transformator.AddResource(players[0]->GetCreature()->ResourceFor(EResourceKind::Action), 1);
+    transformator.AddResource(ResourceFor(*players[0]->GetCreature(), EResourceKind::Action), 1);
 
     auto after = Snapshot(*fixture->battle);
     EXPECT_NE(before, after);
@@ -122,7 +124,7 @@ TEST(AstState, RollbackRestoresIdenticalAst_MultipleTransformations)
     transformator.DealDamage(players[0], 3);
     transformator.DealDamage(players[1], 7);
     transformator.ChangeCondition(players[0]->GetCreature(), EConditionKind::Prone, 1);
-    transformator.AddResource(players[0]->GetCreature()->ResourceFor(EResourceKind::Action), 2);
+    transformator.AddResource(ResourceFor(*players[0]->GetCreature(), EResourceKind::Action), 2);
 
     auto mid = Snapshot(*fixture->battle);
     EXPECT_NE(before, mid);
@@ -177,12 +179,12 @@ TEST(AstState, ContainerDeterminism_ResourceMutationOrder)
     ASSERT_EQ(pb.size(), 2);
 
     TTransformator ta(a->io);
-    ta.AddResource(pa[0]->GetCreature()->ResourceFor(EResourceKind::Action), 1);
-    ta.AddResource(pa[0]->GetCreature()->ResourceFor(EResourceKind::Reaction), 2);
+    ta.AddResource(ResourceFor(*pa[0]->GetCreature(), EResourceKind::Action), 1);
+    ta.AddResource(ResourceFor(*pa[0]->GetCreature(), EResourceKind::Reaction), 2);
 
     TTransformator tb(b->io);
-    tb.AddResource(pb[0]->GetCreature()->ResourceFor(EResourceKind::Reaction), 2);
-    tb.AddResource(pb[0]->GetCreature()->ResourceFor(EResourceKind::Action), 1);
+    tb.AddResource(ResourceFor(*pb[0]->GetCreature(), EResourceKind::Reaction), 2);
+    tb.AddResource(ResourceFor(*pb[0]->GetCreature(), EResourceKind::Action), 1);
 
     auto ast_a = Snapshot(*a->battle);
     auto ast_b = Snapshot(*b->battle);

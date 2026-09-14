@@ -1,3 +1,5 @@
+#include <pf2e_engine/mechanics/creature.h>
+
 #include <pf2e_engine/action_blocks/add_condition.h>
 
 #include <pf2e_engine/condition.h>
@@ -50,7 +52,7 @@ void FAddCondition::MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> 
 {
     TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
 
-    int current = attacker.GetCreature()->Get(EConditionKind::MultipleAttackPenalty);
+    int current = ConditionValue(*attacker.GetCreature(), EConditionKind::MultipleAttackPenalty);
 
     int increase = 5;
     if (input_.Has(kWeaponId)) {

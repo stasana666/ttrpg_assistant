@@ -2,6 +2,7 @@
 
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/ability.h>
+#include <pf2e_engine/battle.h>
 #include <pf2e_engine/common/errors.h>
 #include <pf2e_engine/common/continuation.h>
 #include <pf2e_engine/creature.h>
@@ -21,28 +22,90 @@
 const TGameObjectId kSuccessLevelId = TGameObjectIdManager::Instance().Register("value");
 static const TGameObjectId kSelfId = TGameObjectIdManager::Instance().Register("self");
 
+namespace {
+
+struct TBoundFeatureHook {
+    TGrantedAbility Grant;
+    std::shared_ptr<const TCreatureFeat> Definition;
+};
+
+void RunWithFeatureValidation(const std::shared_ptr<TActionContext>& ctx,
+                              const std::function<bool()>& validate,
+                              const TSavepointCallback& callback)
+{
+    const auto previous = ctx->validate_ability;
+    ctx->validate_ability = validate;
+    try {
+        ValidateAbilitySource(ctx);
+        callback();
+    } catch (TSavepointStackUnwind& save_point) {
+        ctx->validate_ability = previous;
+        save_point.AddCallFunctionLevel([ctx, validate](TSavepointCallback resume) {
+            RunWithFeatureValidation(ctx, validate, resume);
+        });
+        throw;
+    } catch (...) {
+        ctx->validate_ability = previous;
+        throw;
+    }
+    ctx->validate_ability = previous;
+}
+
+void RunFeatureHook(std::shared_ptr<TActionContext> ctx, const TBoundFeatureHook& hook)
+{
+    TPlayer* self = &ctx->game_object_registry->Get<TPlayer>(kSelfId);
+    const auto validate = [previous = ctx->validate_ability, self, battle = ctx->battle,
+                           definition = hook.Grant.DefinitionId, source = hook.Grant.Source]() {
+        if (previous && !previous()) {
+            return false;
+        }
+        const auto abilities = CollectAbilities(*self->GetCreature(), battle->AbilityRules().Catalog);
+        return std::ranges::any_of(abilities.Features(), [&](const TGrantedAbility& feature) {
+            return feature.DefinitionId == definition && feature.Source == source;
+        });
+    };
+    RunWithFeatureValidation(ctx, validate, [ctx, definition = hook.Definition]() {
+        RunSubPipeline(ctx, definition->pipeline.front().get());
+    });
+}
+
+}
+
 void IActionBlock::Run(std::shared_ptr<TActionContext> ctx)
 {
     ValidateAbilitySource(ctx);
+    if (ctx->battle == nullptr) {
+        throw std::invalid_argument("action feature hooks require a battle context");
+    }
     TPlayer& self = ctx->game_object_registry->Get<TPlayer>(kSelfId);
     std::string name = GetName();
 
-    std::vector<IActionBlock*> feat_entries;
-    for (const auto& feat : self.GetCreature()->Feats()) {
+    const auto& rules = ctx->battle->AbilityRules();
+    const auto abilities = CollectAbilities(*self.GetCreature(), rules.Catalog);
+    std::vector<TBoundFeatureHook> feat_entries;
+    for (const auto& feature : abilities.Features()) {
+        const auto found = rules.FeatureHooks.find(feature.DefinitionId);
+        if (found == rules.FeatureHooks.end()) {
+            continue;
+        }
+        const auto& feat = found->second;
+        if (!feat) {
+            throw std::invalid_argument("null legacy feature hook definition");
+        }
         if (feat->pipeline.empty()) {
             continue;
         }
         bool matches = std::find(feat->blocks.begin(), feat->blocks.end(), name)
             != feat->blocks.end();
         if (matches) {
-            feat_entries.push_back(feat->pipeline.begin()->get());
+            feat_entries.push_back(TBoundFeatureHook{feature, feat});
         }
     }
 
     continuation::Then(
         [ctx, feat_entries]() {
-            continuation::ForEachOwned(feat_entries, [ctx](IActionBlock* first) {
-                RunSubPipeline(ctx, first);
+            continuation::ForEachOwned(feat_entries, [ctx](const TBoundFeatureHook& hook) {
+                RunFeatureHook(ctx, hook);
             });
         },
         [this, ctx]() {

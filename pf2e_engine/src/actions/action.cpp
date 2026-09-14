@@ -6,6 +6,7 @@
 #include <pf2e_engine/common/continuation.h>
 #include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/mechanics/creature.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/transformation/transformator.h>
 
@@ -104,14 +105,14 @@ void TAction::Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player) cons
     }
     for (const auto& resource : consume_) {
         ctx->transformator->ReduceResource(
-            player.GetCreature()->ResourceFor(resource.kind), resource.count);
+            ResourceFor(*player.GetCreature(), resource.kind), resource.count);
     }
 }
 
 bool TAction::Check(const TPlayer& player) const
 {
     for (const auto& resource : consume_) {
-        if (!player.GetCreature()->ResourceFor(resource.kind).Has(resource.count)) {
+        if (!ResourceFor(*player.GetCreature(), resource.kind).Has(resource.count)) {
             return false;
         }
     }

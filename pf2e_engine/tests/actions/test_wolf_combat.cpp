@@ -63,7 +63,7 @@ TEST_F(WolfCombatTest, NaturalAttackHitsWithoutPack) {
     TPlayer warrior_player(&warrior, TPlayerTeam{1}, TPlayerId{1}, "Warrior", "");
 
     TBattleMap battle_map = MakeMap();
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(wolf_player), TPosition{0, 0});
@@ -98,7 +98,7 @@ TEST_F(WolfCombatTest, PackAttackAddsBonusDamage) {
     TPlayer warrior_player(&warrior, TPlayerTeam{1}, TPlayerId{3}, "Warrior", "");
 
     TBattleMap battle_map = MakeMap();
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});
@@ -138,7 +138,7 @@ TEST_F(WolfCombatTest, PackAttackGatedByAllyCount) {
     TPlayer warrior_player(&warrior, TPlayerTeam{1}, TPlayerId{3}, "Warrior", "");
 
     TBattleMap battle_map = MakeMap();
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});
@@ -177,7 +177,7 @@ TEST_F(WolfCombatTest, PackAttackCriticalDoublesBonus) {
     TPlayer warrior_player(&warrior, TPlayerTeam{1}, TPlayerId{3}, "Warrior", "");
 
     TBattleMap battle_map = MakeMap();
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});

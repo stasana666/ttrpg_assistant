@@ -1,3 +1,5 @@
+#include <pf2e_engine/mechanics/creature.h>
+
 #include <roll_against_difficulty_class.h>
 
 #include <pf2e_engine/condition.h>
@@ -100,5 +102,5 @@ int FRollAgainstDifficultyClass::MultipleAttackPenaltyFor(const TPlayer& attacke
     if (input_.GetNumber(kAppliesMultipleAttackPenaltyId) == 0) {
         return 0;
     }
-    return attacker.GetCreature()->Get(EConditionKind::MultipleAttackPenalty);
+    return ConditionValue(*attacker.GetCreature(), EConditionKind::MultipleAttackPenalty);
 }

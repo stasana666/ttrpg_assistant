@@ -1,3 +1,5 @@
+#include <pf2e_engine/mechanics/creature.h>
+
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
@@ -52,7 +54,7 @@ protected:
             }
         }
         battle_ = std::make_unique<TBattle>(factory_.Create<TBattleMap>(
-            TGameObjectIdManager::Instance().Register("simple_battle_map")), &rng_, io_);
+            TGameObjectIdManager::Instance().Register("simple_battle_map")), &rng_, io_, factory_.AbilityRules());
     }
 
     void TearDown() override
@@ -98,7 +100,7 @@ protected:
     void GiveActions(TPlayer& player, int count = 3)
     {
         TTransformator transformator(io_);
-        transformator.AddResource(player.GetCreature()->ResourceFor(EResourceKind::Action), count);
+        transformator.AddResource(ResourceFor(*player.GetCreature(), EResourceKind::Action), count);
     }
 
     TGameObjectFactory factory_;
@@ -175,10 +177,10 @@ TEST_F(TGrantedCombatTest, SourceBoundStrikeUsesChosenWeaponAndOnlyPromptsForTar
 
     EXPECT_EQ(first_wolf.GetCreature()->Hitpoints()->Current(), first_hp - 11);
     EXPECT_EQ(second_wolf.GetCreature()->Hitpoints()->Current(), second_hp);
-    EXPECT_EQ(fighter.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 2);
-    EXPECT_EQ(fighter.GetCreature()->Get(EConditionKind::MultipleAttackPenalty), 5);
-    EXPECT_EQ(first_wolf.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 0);
-    EXPECT_EQ(second_wolf.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 0);
+    EXPECT_EQ(ResourceFor(*fighter.GetCreature(), EResourceKind::Action)->Count(), 2);
+    EXPECT_EQ(ConditionValue(*fighter.GetCreature(), EConditionKind::MultipleAttackPenalty), 5);
+    EXPECT_EQ(ResourceFor(*first_wolf.GetCreature(), EResourceKind::Action)->Count(), 0);
+    EXPECT_EQ(ResourceFor(*second_wolf.GetCreature(), EResourceKind::Action)->Count(), 0);
 }
 
 TEST_F(TGrantedCombatTest, ChangingClassSelectionRejectsStaleOptionBeforeCostAndUndoRestoresIt)
@@ -214,8 +216,8 @@ TEST_F(TGrantedCombatTest, ChangingClassSelectionRejectsStaleOptionBeforeCostAnd
     EXPECT_TRUE(battle_->AvailableActions(first).empty());
     EXPECT_EQ(battle_->AvailableActions(second).size(), 5u);
     EXPECT_EQ(battle_->Execute(saved), EAbilityExecutionResult::Unavailable);
-    EXPECT_EQ(first.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 3);
-    EXPECT_EQ(second.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 3);
+    EXPECT_EQ(ResourceFor(*first.GetCreature(), EResourceKind::Action)->Count(), 3);
+    EXPECT_EQ(ResourceFor(*second.GetCreature(), EResourceKind::Action)->Count(), 3);
 
     ctx.Undo(initial);
     const auto restored = Matching(battle_->AvailableActions(first), "abilities.Stride");
@@ -234,7 +236,7 @@ TEST_F(TGrantedCombatTest, WeaponRequiredAbilityIsUnavailableFromCreatureFeature
     TPlayer& fighter = Add(Create("granted_unbound_fighter"), 0, 0, "Fighter", {0, 0});
     Add(Create("wolf"), 1, 1, "Wolf", {1, 0});
     GiveActions(fighter);
-    const auto generated = fighter.GetCreature()->CollectAbilities();
+    const auto generated = CollectAbilities(*fighter.GetCreature(), battle_->AbilityRules().Catalog);
     ASSERT_EQ(generated.Grants().size(), 1u);
     EXPECT_EQ(generated.Grants().front().DefinitionId, "abilities.Strike");
     EXPECT_TRUE(battle_->AvailableActions(fighter).empty());
@@ -245,11 +247,11 @@ TEST_F(TGrantedCombatTest, WeaponRequiredAbilityIsUnavailableFromCreatureFeature
         .DefinitionId = grant.DefinitionId,
         .Source = grant.Source,
         .Provenance = grant.Provenance,
-        .Action = fighter.GetCreature()->AbilityRules().Executions.Require(grant.DefinitionId).Action,
+        .Action = battle_->AbilityRules().Executions.Require(grant.DefinitionId).Action,
         .Trigger = {},
     };
     EXPECT_EQ(battle_->Execute(forged), EAbilityExecutionResult::Unavailable);
-    EXPECT_EQ(fighter.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 3);
+    EXPECT_EQ(ResourceFor(*fighter.GetCreature(), EResourceKind::Action)->Count(), 3);
 }
 
 }

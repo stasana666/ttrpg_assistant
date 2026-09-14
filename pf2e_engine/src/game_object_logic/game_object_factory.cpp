@@ -20,7 +20,7 @@
 #include "game_object_id.h"
 #include "proficiency.h"
 #include <pf2e_engine/inventory/weapon.h>
-#include <pf2e_engine/inventory/creature_data.h>
+#include <pf2e_engine/creature.h>
 
 #include <pf2e_engine/actions/action_reader.h>
 #include <pf2e_engine/feat.h>
@@ -263,62 +263,83 @@ TGameObjectId TGameObjectFactory::ReadGameObjectName(nlohmann::json& json_game_o
 
 void TGameObjectFactory::ReadArmor(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    armors_.insert({id, [this, json_game_object]() {
-        return TArmor::FromJson(json_game_object, *this);
+    armors_.insert({id, [json_game_object](const TGameObjectFactory& factory) {
+        return TArmor::FromJson(json_game_object, factory);
     }});
 }
 
 void TGameObjectFactory::ReadMaterial(nlohmann::json& json_game_object, TGameObjectId id)
 {
     TMaterial result = TMaterial::FromJson(json_game_object, *this);
-    materials_.insert({id, [result]() { return result; }});
+    materials_.insert({id, [result]([[maybe_unused]] const TGameObjectFactory& factory) { return result; }});
 }
 
 
 void TGameObjectFactory::ReadWeapon(nlohmann::json& json_game_object, TGameObjectId id)
 {
     TWeapon result = TWeapon::FromJson(json_game_object, *this);
-    weapons_.insert({id, [result]() { return result; }});
+    weapons_.insert({id, [result]([[maybe_unused]] const TGameObjectFactory& factory) { return result; }});
 }
 
 
 void TGameObjectFactory::ReadRace(nlohmann::json& json_game_object, TGameObjectId id)
 {
     TRace result = TRace::FromJson(json_game_object, *this);
-    races_.insert({id, [result]() { return result; }});
+    races_.insert({id, [result]([[maybe_unused]] const TGameObjectFactory& factory) { return result; }});
 }
 
 void TGameObjectFactory::ReadClass(nlohmann::json& json_game_object, TGameObjectId id)
 {
     TClass result = TClass::FromJson(json_game_object, *this);
-    classes_.insert({id, [result]() { return result; }});
+    classes_.insert({id, [result]([[maybe_unused]] const TGameObjectFactory& factory) { return result; }});
 }
 
 void TGameObjectFactory::ReadAbilityScore(nlohmann::json& json_game_object, TGameObjectId id)
 {
     TAbilityScore result = TAbilityScore::FromJson(json_game_object, *this);
-    ability_score_.insert({id, [result]() { return result; }});
+    ability_score_.insert({id, [result]([[maybe_unused]] const TGameObjectFactory& factory) { return result; }});
 }
 
 void TGameObjectFactory::ReadAbilityScores(nlohmann::json& json_game_object, TGameObjectId id)
 {
     TAbilityScores result = TAbilityScores::FromJson(json_game_object, *this);
-    ability_scores_.insert({id, [result]() { return result; }});
+    ability_scores_.insert({id, [result]([[maybe_unused]] const TGameObjectFactory& factory) { return result; }});
 }
 
 
 void TGameObjectFactory::ReadCreatureData(nlohmann::json& json_game_object, TGameObjectId id)
 {
-    creature_data_.insert({id, [this, json_game_object]() {
-        return TCreatureData::FromJson(json_game_object, *this);
-    }});
+    StoreCreature(json_game_object, id);
 }
 
+void TGameObjectFactory::StoreCreature(nlohmann::json data, TGameObjectId id)
+{
+    auto& definitions = generated_definitions_[typeid(TCreature)];
+    if (!definitions.emplace(id, std::make_shared<const nlohmann::json>(std::move(data))).second) {
+        throw std::invalid_argument("duplicate creature definition: " +
+            std::string(TGameObjectIdManager::Instance().Name(id)));
+    }
+}
+
+void TGameObjectFactory::ValidateCreature(const TCreature& creature) const
+{
+    const auto rules = AbilityRules();
+    const auto collector = CollectAbilities(creature, rules->Catalog);
+    for (const auto& grant : collector.Grants()) {
+        rules->Executions.Require(grant.DefinitionId);
+    }
+}
 
 void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObjectId id)
 {
+    const auto definitions = generated_definitions_.find(typeid(TCreature));
+    if (definitions != generated_definitions_.end() && definitions->second.contains(id)) {
+        throw std::invalid_argument("duplicate creature definition: " +
+            std::string(TGameObjectIdManager::Instance().Name(id)));
+    }
+    nlohmann::json data = json_game_object.at("creature_data");
     if (json_game_object.contains("actions")) {
-        auto& features = json_game_object["creature_data"]["features"];
+        auto& features = data["features"];
         if (features.is_null()) {
             features = nlohmann::json::array();
         }
@@ -328,15 +349,15 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
     }
 
     if (json_game_object.contains("proficiency")) {
-        auto& data = json_game_object.at("creature_data");
         if (data.contains("proficiency")) {
             throw std::invalid_argument("proficiency is defined in both creature data and legacy envelope");
         }
         data["proficiency"] = NormalizeLegacyProficiency(json_game_object.at("proficiency"));
     }
 
-    std::vector<std::shared_ptr<TCreatureFeat>> feats;
+    std::map<std::string, std::shared_ptr<const TCreatureFeat>, std::less<>> hooks;
     if (json_game_object.contains("feats")) {
+        std::size_t feat_index = 0;
         for (auto& feat_json : json_game_object["feats"]) {
             TPipelineReader reader;
             auto feat = std::make_shared<TCreatureFeat>();
@@ -350,25 +371,19 @@ void TGameObjectFactory::ReadCreature(nlohmann::json& json_game_object, TGameObj
                 }
             }
             feat->pipeline = reader.ReadPipeline(feat_json["pipeline"]);
-            feats.push_back(std::move(feat));
+            const std::string feature_id = "legacy_feat." +
+                std::string(TGameObjectIdManager::Instance().Name(id)) + "." + std::to_string(feat_index++);
+            hooks.emplace(feature_id, std::move(feat));
+            if (!data.contains("features")) {
+                data["features"] = nlohmann::json::array();
+            }
+            data["features"].push_back(feature_id);
         }
     }
 
-    creatures_.insert({id, [this, json_game_object, feats]() {
-        TCreatureData data = TCreatureData::FromJson(json_game_object.at("creature_data"), *this);
-        auto rules = AbilityRules();
-        TCreature creature(std::move(data), std::move(rules));
-        const auto collector = creature.CollectAbilities();
-        for (const auto& grant : collector.Grants()) {
-            creature.AbilityRules().Executions.Require(grant.DefinitionId);
-        }
-
-        for (const auto& feat : feats) {
-            creature.AddFeat(feat);
-        }
-
-        return creature;
-    }});
+    StoreCreature(std::move(data), id);
+    feature_hooks_.merge(hooks);
+    ability_rules_.reset();
 }
 
 
@@ -388,7 +403,7 @@ void TGameObjectFactory::ReadAction(nlohmann::json& json, TGameObjectId id)
     if (!source.empty() && source != "weapon") {
         throw std::invalid_argument("unsupported action source: " + source);
     }
-    actions_.emplace(id, [action]() { return action; });
+    actions_.emplace(id, [action]([[maybe_unused]] const TGameObjectFactory& factory) { return action; });
     ability_bindings_.emplace(id, TAbilityBinding{definition, trigger, source == "weapon"});
     ability_rules_.reset();
 }
@@ -399,7 +414,11 @@ std::shared_ptr<const TAbilityRules> TGameObjectFactory::AbilityRules() const
         return ability_rules_;
     }
     auto rules = std::make_shared<TAbilityRules>();
-    RegisterCreatureDataAbilities(rules->Catalog);
+    RegisterCreatureAbilities(rules->Catalog);
+    for (const auto& [id, hook] : feature_hooks_) {
+        rules->Catalog.Register({id, EAbilityKind::Feature, {}});
+        rules->FeatureHooks.emplace(id, hook);
+    }
     std::vector<TGameObjectId> ids = AllKnown<TAction>();
     std::ranges::sort(ids, {}, [](TGameObjectId id) {
         return std::string(TGameObjectIdManager::Instance().Name(id));
@@ -444,7 +463,7 @@ std::shared_ptr<const TAbilityRules> TGameObjectFactory::AbilityRules() const
 void TGameObjectFactory::ReadBattleMap(nlohmann::json& json, TGameObjectId id)
 {
     TBattleMap battle_map(json);
-    battle_maps_.insert({id, [=]() {
+    battle_maps_.insert({id, [battle_map]([[maybe_unused]] const TGameObjectFactory& factory) {
         return battle_map;
     }});
 }

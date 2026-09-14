@@ -99,7 +99,7 @@ TEST_F(ProficiencyCalculationTest, RankedBonusesReadCurrentCreatureLevelAndRollb
 
     ctx.AssignGuarded(mutable_creature.Level(), 4, TGuarded<TCreature>(mutable_creature), "level");
 
-    EXPECT_EQ(creature.GetLevel(), 4);
+    EXPECT_EQ(creature.Level(), 4);
     EXPECT_EQ(calculator_.AttackRollBonus(creature, FirstWeapon(creature)), 12);
     EXPECT_EQ(calculator_.ArmorClass(creature, creature), 17);
     EXPECT_EQ(calculator_.RollBonus(creature, ESavethrow::Fortitude), 11);
@@ -112,7 +112,7 @@ TEST_F(ProficiencyCalculationTest, RankedBonusesReadCurrentCreatureLevelAndRollb
 
     ctx.Undo(checkpoint);
 
-    EXPECT_EQ(creature.GetLevel(), 1);
+    EXPECT_EQ(creature.Level(), 1);
     EXPECT_EQ(calculator_.AttackRollBonus(creature, FirstWeapon(creature)), 9);
     EXPECT_EQ(calculator_.ArmorClass(creature, creature), 14);
     EXPECT_EQ(calculator_.RollBonus(creature, TPerceptionTag{}), 6);

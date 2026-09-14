@@ -1,3 +1,5 @@
+#include <pf2e_engine/mechanics/creature.h>
+
 #include <check_ally_adjacent.h>
 
 #include <pf2e_engine/actions/action_context.h>
@@ -28,7 +30,7 @@ void FCheckAllyAdjacent::operator()(std::shared_ptr<TActionContext> ctx) const
         {
             return false;
         }
-        int reach = player->GetCreature()->MaxWeaponReach();
+        int reach = MaxWeaponReach(*player->GetCreature());
         return battle_map->InRadius(player->GetPosition(), reach, target_pos);
     });
 

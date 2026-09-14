@@ -46,7 +46,7 @@ TAnalysisResult TCombatAnalyzer::RunTwoWarriors(size_t iterations)
         TCreature creature_a = factory_.Create<TCreature>(warrior_id);
         TCreature creature_b = factory_.Create<TCreature>(warrior_id);
 
-        TBattle battle(factory_.Create<TBattleMap>(map_id), &rng, io_system);
+        TBattle battle(factory_.Create<TBattleMap>(map_id), &rng, io_system, factory_.AbilityRules());
         battle.AddPlayer(
             TPlayer(&creature_a, TPlayerTeam{result.side_a.team}, TPlayerId{1}, result.side_a.name, "warrior.png"),
             TPosition{.x = 3, .y = 3});

@@ -15,14 +15,14 @@ Canonical project instructions. CLAUDE.md redirects here.
 - New generated types register with `TGameObjectFactory::RegisterType<T>(jsonType)` before loading by-name definitions. Inline generated classes need no registration; generic definitions are immutable JSON and resolve nested references through the factory performing `Create<T>`.
 - Action JSON pipelines are parsed by `TActionReader`; action-block functions are registered in `src/actions/action_reader.cpp`.
 - Runtime DSL expressions in action data are evaluated by `src/dsl/`; parsing comes from shared `tools/common/expr`.
-- Inventory, condition, and creature-data support types are generated from `.ttrpg` schemas into `build/generated/pf2e_engine/...`.
+- Creature, inventory, and condition types are generated from `.ttrpg` schemas into `build/generated/pf2e_engine/...`.
 - Hit-point storage and damage/healing methods are generated from `data/schemas/hitpoints.ttrpg`; `TTransformator` delegates to these methods through `TGeneratedExecutionContext`. It does not implement hit-point clipping or temporary-hit-point rules.
 - Rollback/resume behavior depends on `TTransformator`, `TSavepointStackUnwind`, continuation helpers, and AST state comparison.
-- Generated `VisitGrantedAbilities` derives ability grants from current creature, race, class, weapon, and natural-weapon feature selections. `TCreature` has no separately mutable action or reaction list; its shared `TAbilityRules` holds immutable definitions and execution bindings.
+- Generated `VisitGrantedAbilities` derives ability grants from current creature, race, class, weapon, and natural-weapon feature selections. `TCreature` has no separately mutable action or reaction list; the battle owns shared immutable `TAbilityRules` with definitions and execution bindings.
 - `TBattle::AvailableActions`, `AvailableReactions(trigger)`, and `Execute(option)` expose bound choices. Sources use generated field paths plus collection entry IDs. Execution checks the live grant and cost again; suspended actions retain their definition and weapon snapshot and revalidate their source before resuming.
 - Action/reaction declarations in `.ttrpg` currently define symbols and ownership only. Bodies, costs, weapon-source requirements, and triggers are bound through existing JSON pipelines. Reaction enumeration does not implement a reaction window or choose/execute reactions automatically.
-- `data/schemas/proficiency.ttrpg` generates proficiency storage and rank/fixed-bonus rules. `TCreatureData` owns `Proficiency`; its queries pass the creature's current `Level`, so no separate proficiency level is stored. The remaining C++ `ProficiencyBonus` overloads only route calculator requests to these generated queries.
-- Legacy `TCreatureFeat` pipeline hooks remain in use for Pack Attack. Several creature helpers, action bodies, and PF2e reaction timing still require migration before `TCreature` is fully generated.
+- `data/schemas/proficiency.ttrpg` generates proficiency storage and rank/fixed-bonus rules. `TCreature` owns `Proficiency`; its queries pass the creature's current `Level`, so no separate proficiency level is stored. The remaining C++ `ProficiencyBonus` overloads only route calculator requests to these generated queries.
+- `TCreature` is a generated `GameEntity` with no handwritten subclass. Legacy `TCreatureFeat` pipeline hooks remain an import adapter for Pack Attack; they are immutable ruleset definitions selected through generated features. Remaining native resource/condition/reach adapters live in `mechanics/creature.h`; action bodies, contextual modifiers, character choices, and PF2e reaction timing are subsequent rule-language work.
 
 ## Build/Test
 - Build engine: `cmake --build build --target pf2e_engine`.

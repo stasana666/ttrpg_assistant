@@ -9,6 +9,11 @@ Canonical project instructions. CLAUDE.md redirects here.
 - `test_lib/mock_dice_roller.h`: deterministic RNG expectations for reproducible tests.
 - `test_lib/mock_interaction_system.h`: scripted player choices and optional state checks.
 - `actions/`: combat/action pipeline tests using real data.
+- `actions/test_ability_runtime.cpp` covers grant and feature provenance, immutable
+  hook execution, source removal during suspension, replay after successful resume
+  and rollback, and battle identity/insertion failures. Hook-removal tests replace
+  a generated class value through the journal only when none of its child fields
+  have retained mutation history; they do not introduce collection mutation APIs.
 - `inventory/`: generated schema type and JSON loading tests.
 - `inventory/fixtures/rule_entities.ttrpg` and `inventory/test_rule_entities.cpp`:
   compile generated entities into `test_inventory` and verify named factories,

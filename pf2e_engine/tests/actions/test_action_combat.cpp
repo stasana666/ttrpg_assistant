@@ -43,7 +43,7 @@ TEST_F(ActionCombatTest, TwoWarriorsAttackEachOther) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
     
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
@@ -89,7 +89,7 @@ TEST_F(ActionCombatTest, AttackMiss) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
@@ -128,7 +128,7 @@ TEST_F(ActionCombatTest, AttackCriticalHit) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
@@ -168,7 +168,7 @@ TEST_F(ActionCombatTest, WarriorKillsOtherBattleEnds) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
@@ -231,7 +231,7 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
@@ -285,7 +285,7 @@ TEST_F(ActionCombatTest, WizardCastsFireball) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 0);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
@@ -336,7 +336,7 @@ TEST_F(ActionCombatTest, FireballDamagesEveryTargetInArea) {
 
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     // Wizard acts first (lowest initiative). It sits outside the blast so only
     // the two warriors are targets.
@@ -389,7 +389,7 @@ TEST_F(ActionCombatTest, ReachFilterExcludesOutOfRangeTargets) {
 
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(attacker), TPosition{0, 0});
@@ -419,7 +419,7 @@ TEST_F(ActionCombatTest, MoveResumesAfterDeferredReactionTrigger) {
 
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     // Lower initiative acts first in this engine, so Mover (id 0) goes first.
     mock_rng_.ExpectCall(20, 0);

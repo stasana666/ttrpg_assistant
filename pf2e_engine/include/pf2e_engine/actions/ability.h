@@ -16,6 +16,8 @@
 using FAbilityRequirement = std::function<bool(
     const TPlayer&, const TAbilitySourcePath&, const TTriggerContext*)>;
 
+struct TCreatureFeat;
+
 struct TAbilityExecution {
     std::shared_ptr<const TAction> Action;
     std::optional<ETrigger> Trigger;
@@ -36,6 +38,7 @@ private:
 struct TAbilityRules {
     TAbilityCatalog Catalog;
     TAbilityExecutions Executions;
+    std::map<std::string, std::shared_ptr<const TCreatureFeat>, std::less<>> FeatureHooks;
 };
 
 struct TAbilityTriggerBinding {

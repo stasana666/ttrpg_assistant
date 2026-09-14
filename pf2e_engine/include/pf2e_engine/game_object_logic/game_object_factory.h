@@ -2,13 +2,14 @@
 
 #include <pf2e_engine/actions/action_reader.h>
 #include <pf2e_engine/actions/action.h>
+#include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/battle_map.h>
+#include <pf2e_engine/creature.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/game_object_logic/game_object.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/material.h>
 #include <pf2e_engine/inventory/weapon.h>
-#include <pf2e_engine/inventory/creature_data.h>
 #include <pf2e_engine/inventory/creature_parts.h>
 
 #include <nlohmann/json_fwd.hpp>
@@ -52,7 +53,7 @@ private:
     static const std::unordered_map<std::string, FMethod> kReaderMapping;
 
     template <class T>
-    using FGameObjectFactory = std::function<T()>;
+    using FGameObjectFactory = std::function<T(const TGameObjectFactory&)>;
 
     template <class T>
     using TFactoryStorage = std::unordered_map<TGameObjectId, FGameObjectFactory<T>, TGameObjectIdHash>;
@@ -67,6 +68,8 @@ private:
     bool ReadGeneratedObject(const nlohmann::json& json);
     void RegisterGeneratedType(std::type_index type, std::string json_type);
     const nlohmann::json& GeneratedDefinition(std::type_index type, TGameObjectId id) const;
+    void ValidateCreature(const TCreature& creature) const;
+    void StoreCreature(nlohmann::json data, TGameObjectId id);
 
     void ValidateObject(nlohmann::json&) const;
     TGameObjectId ReadGameObjectName(nlohmann::json&) const;
@@ -95,8 +98,6 @@ private:
     TFactoryStorage<TClass> classes_;
     TFactoryStorage<TAbilityScore> ability_score_;
     TFactoryStorage<TAbilityScores> ability_scores_;
-    TFactoryStorage<TCreatureData> creature_data_;
-    TFactoryStorage<TCreature> creatures_;
     TFactoryStorage<std::shared_ptr<TAction>> actions_;
     struct TAbilityBinding {
         std::string Definition;
@@ -104,6 +105,7 @@ private:
         bool RequiresWeaponSource;
     };
     std::unordered_map<TGameObjectId, TAbilityBinding, TGameObjectIdHash> ability_bindings_;
+    std::map<std::string, std::shared_ptr<const TCreatureFeat>, std::less<>> feature_hooks_;
     mutable std::shared_ptr<const TAbilityRules> ability_rules_;
     TFactoryStorage<TBattleMap> battle_maps_;
     std::unordered_map<std::string, std::type_index> generated_types_;
@@ -135,12 +137,6 @@ auto TGameObjectFactory::GetFactoryStorage() const -> const TFactoryStorage<TCre
     if constexpr (std::is_same_v<T, TAbilityScores>) {
         return &ability_scores_;
     } else
-    if constexpr (std::is_same_v<T, TCreatureData>) {
-        return &creature_data_;
-    } else
-    if constexpr (std::is_same_v<T, TCreature>) {
-        return &creatures_;
-    } else
     if constexpr (std::is_same_v<T, TAction>) {
         return &actions_;
     } else
@@ -156,14 +152,18 @@ template <class T>
 auto TGameObjectFactory::Create(TGameObjectId id) const
 {
     if (const auto* storage = GetFactoryStorage<T>()) {
-        return storage->at(id)();
+        return storage->at(id)(*this);
     }
     if constexpr (requires(const nlohmann::json& json, const TGameObjectFactory& factory) {
         { T::FromJson(json, factory) } -> std::same_as<T>;
     }) {
         const auto& definition = GeneratedDefinition(typeid(T), id);
         TGeneratedConstructionGuard guard(*this, typeid(T), id);
-        return T::FromJson(definition, *this);
+        T result = T::FromJson(definition, *this);
+        if constexpr (std::is_same_v<T, TCreature>) {
+            ValidateCreature(result);
+        }
+        return result;
     } else {
         throw std::runtime_error("type has no factory or FromJson loader");
     }

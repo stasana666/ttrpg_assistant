@@ -96,21 +96,33 @@ public:
         nested.sites_ = sites_;
         nested.sites_.emplace_back(site);
         value.VisitGrantedAbilities(nested, path);
-        Merge(nested.grants_);
+        Merge(nested.grants_, nested.features_);
     }
 
     const std::vector<TGrantedAbility>& Grants() const;
+    const std::vector<TGrantedAbility>& Features() const;
 
 private:
     void Expand(std::string_view definition, const TAbilitySourcePath& path,
                 std::vector<std::string>& chain, const std::vector<std::string>& sites,
-                std::vector<TGrantedAbility>& output) const;
-    void Merge(const std::vector<TGrantedAbility>& grants);
+                std::vector<TGrantedAbility>& output,
+                std::vector<TGrantedAbility>& features) const;
+    void Merge(const std::vector<TGrantedAbility>& grants,
+               const std::vector<TGrantedAbility>& features);
 
     const TAbilityCatalog* catalog_;
     std::vector<std::string> sites_;
     std::vector<TGrantedAbility> grants_;
+    std::vector<TGrantedAbility> features_;
 };
+
+template <class T>
+TAbilityCollector CollectAbilities(const T& value, const TAbilityCatalog& catalog)
+{
+    TAbilityCollector collector(catalog);
+    value.VisitGrantedAbilities(collector);
+    return collector;
+}
 
 template <>
 struct TIsAstRecursive<TFeatureSelection> : std::true_type {};

@@ -1,19 +1,11 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/inventory/creature_parts.h>
 
 #include <array>
 #include <string_view>
 #include <string>
-
-enum class ECharacteristic {
-    Strength,
-    Dexterity,
-    Constitution,
-    Intelligence,
-    Wisdom,
-    Charisma,
-};
 
 class TCharacteristic final {
 public:
@@ -54,4 +46,3 @@ template <>
 struct TIsAstRecursive<TCharacteristicSet> : std::true_type {};
 
 ECharacteristic CharacteristicFromString(std::string_view);
-std::string ToString(ECharacteristic);

@@ -22,6 +22,12 @@ does not publish partial grants. `TFeatureSelection` snapshots store a definitio
 ID string or null for an empty default selection; a nonempty selection must
 resolve to a feature.
 
+`CollectAbilities(value, catalog)` traverses any generated provider without adding
+rules ownership to the generated value. `Grants()` contains action and reaction
+definitions; `Features()` contains every selected or recursively expanded feature,
+including features without terminal grants. Both collections preserve source and
+provenance and publish atomically after successful traversal.
+
 Paths compare field and entry segments rather than display strings. Removing a
 source affects the next traversal immediately and leaves other source instances
 intact. Gameplay collection mutation still requires the stable journal resolver
@@ -47,6 +53,25 @@ resumed continuation, including a second suspension inside an earlier resume.
 An unavailable source raises `TAbilityUnavailable`; previously spent action costs
 are not charged again or automatically refunded. This continuation-aware execution
 does not wrap a yielding action in the synchronous generated-method transaction.
+
+`TBattle` retains one immutable `TAbilityRules` snapshot supplied by the factory.
+Its `FeatureHooks` map owns legacy pipeline definitions outside creature state.
+Block hooks are selected from the current `Features()` traversal and deduplicated
+per definition and source. Each suspended hook retains its definition and a scoped
+source validator. Every resume reinstalls that validator before its inner callback,
+including replay of a previously completed savepoint after rollback. Completion,
+suspension, and failure restore the previous validation scope. Removing a hook
+source aborts that continuation with `TAbilityUnavailable`; the caller discards the
+failed action context or restores the source before replaying the savepoint.
+
+Finalize factory definitions before taking its rules snapshot. Existing battles
+retain their original snapshot if the factory later changes. Creature snapshots
+store feature IDs, not hook or action implementations, and must be restored with
+the corresponding rules catalog. Entities, players, and the battle must remain
+alive and at stable addresses while bound, journaled, or referenced by savepoints.
+Battle insertion rejects missing, moved-from, and duplicate creature identities
+and duplicate player IDs before binding map cells. A failed initiative insertion
+restores the map and player list.
 
 ## Generated method execution (`generated_execution.h`)
 

@@ -8,6 +8,7 @@
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/transformation/transformator.h>
 #include <pf2e_engine/scheduler.h>
+#include <pf2e_engine/mechanics/creature.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/ast/ast_layout_assert.h>
@@ -54,23 +55,41 @@ std::string SourceName(const TCreature& creature, const TAbilitySourcePath& sour
 }
 }
 
-TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, IInteractionSystem& io_system)
+TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller,
+                 IInteractionSystem& io_system, std::shared_ptr<const TAbilityRules> ability_rules)
     : battle_map_(std::move(battle_map))
     , dice_roller_(dice_roller)
     , initiative_order_(dice_roller_, io_system)
     , io_system_(io_system)
     , transformator_(io_system)
+    , ability_rules_(ability_rules ? std::move(ability_rules) : std::make_shared<const TAbilityRules>())
 {
 }
 
 void TBattle::AddPlayer(TPlayer&& player, TPosition position)
 {
+    const auto* creature = player.GetCreature();
+    if (creature == nullptr || creature->Id().Value == 0) {
+        throw std::invalid_argument("player must reference a creature with an identity");
+    }
+    for (const auto& existing : players_) {
+        if (existing.GetId() == player.GetId() || existing.GetCreature()->Id() == creature->Id()) {
+            throw std::invalid_argument("duplicate player or creature identity in battle");
+        }
+    }
+    const auto abilities = CollectAbilities(*creature, ability_rules_->Catalog);
+    for (const auto& grant : abilities.Grants()) {
+        ability_rules_->Executions.Require(grant.DefinitionId);
+    }
+    auto original_map = battle_map_.Copy();
     players_.push_back(std::move(player));
     try {
         players_.back().BindWith(battle_map_, position);
         initiative_order_.AddPlayer(&players_.back());
-    } catch (std::runtime_error&) {
+    } catch (...) {
+        battle_map_.Set(std::move(original_map));
         players_.pop_back();
+        throw;
     }
 }
 
@@ -202,17 +221,17 @@ bool TBattle::IsRoundEnd() const
 
 void TBattle::GiveStartResource(TPlayer& player)
 {
-    assert(!player.GetCreature()->ResourceFor(EResourceKind::Action)->Count());
-    transformator_.AddResource(player.GetCreature()->ResourceFor(EResourceKind::Action),
+    assert(!ResourceFor(*player.GetCreature(), EResourceKind::Action)->Count());
+    transformator_.AddResource(ResourceFor(*player.GetCreature(), EResourceKind::Action),
                                kActionsPerTurn);
 
     transformator_.AddTask(&scheduler_, TTask{
         .events_before_call = {TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{&player}}},
         .callback = [&player, this]() {
             int resource_count =
-                player.GetCreature()->ResourceFor(EResourceKind::Action)->Count();
+                ResourceFor(*player.GetCreature(), EResourceKind::Action)->Count();
             transformator_.ReduceResource(
-                player.GetCreature()->ResourceFor(EResourceKind::Action), resource_count);
+                ResourceFor(*player.GetCreature(), EResourceKind::Action), resource_count);
             return false;
         },
     });
@@ -236,8 +255,8 @@ std::vector<TAbilityOption> TBattle::AvailableActions(const TPlayer& player) con
     if (!creature.IsAlive()) {
         return {};
     }
-    return EnumerateActions(player.GetId(), creature.CollectAbilities(),
-                            creature.AbilityRules().Executions, player);
+    return EnumerateActions(player.GetId(), CollectAbilities(creature, ability_rules_->Catalog),
+                            ability_rules_->Executions, player);
 }
 
 std::optional<TAbilityOption> TBattle::ChooseAction(TPlayer& player) const
@@ -277,7 +296,7 @@ EAbilityExecutionResult TBattle::Execute(const TAbilityOption& option)
     if (!creature.IsAlive()) {
         return EAbilityExecutionResult::Unavailable;
     }
-    auto fresh = creature.CollectAbilities();
+    auto fresh = CollectAbilities(creature, ability_rules_->Catalog);
     TAbilityExecutionBindings bindings;
     if (const auto* weapon = SourceWeapon(creature, option.Source)) {
         bindings.SourceWeapon = std::make_shared<const TWeapon>(*weapon);
@@ -291,14 +310,20 @@ EAbilityExecutionResult TBattle::Execute(const TAbilityOption& option)
         }
         bindings.TriggerActor = triggered.front();
     }
-    bindings.ValidateSource = [&creature, definition = option.DefinitionId, source = option.Source]() {
-        const auto grants = creature.CollectAbilities();
+    bindings.ValidateSource = [&creature, rules = ability_rules_,
+                              definition = option.DefinitionId, source = option.Source]() {
+        const auto grants = CollectAbilities(creature, rules->Catalog);
         return std::ranges::any_of(grants.Grants(), [&](const TGrantedAbility& grant) {
             return grant.DefinitionId == definition && grant.Source == source;
         });
     };
     return ExecuteAbility(option, MakeActionContext(), actor, fresh,
-                          creature.AbilityRules().Executions, std::move(bindings));
+                          ability_rules_->Executions, std::move(bindings));
+}
+
+const TAbilityRules& TBattle::AbilityRules() const
+{
+    return *ability_rules_;
 }
 
 std::shared_ptr<const TBattleMap> TBattle::BattleMap() const
@@ -319,8 +344,9 @@ std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& t
         if (!creature.IsAlive()) {
             continue;
         }
-        auto candidates = EnumerateReactions(player.GetId(), creature.CollectAbilities(),
-                                            creature.AbilityRules().Executions, player, trigger);
+        auto candidates = EnumerateReactions(
+            player.GetId(), CollectAbilities(creature, ability_rules_->Catalog),
+            ability_rules_->Executions, player, trigger);
         reactions.insert(reactions.end(), candidates.begin(), candidates.end());
     }
     return reactions;
@@ -328,7 +354,7 @@ std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& t
 
 TAstNode TBattle::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 472;
+    static constexpr size_t kExpectedSize = 488;
     AST_ASSERT_LAYOUT(TBattle, kExpectedSize);
 
     ctx.RegisterIdentity(&initiative_order_, "battle.initiative_order");
@@ -341,6 +367,7 @@ TAstNode TBattle::GetAst(TAstContext& ctx) const
     }
 
     TAstNode node = TAstNode::MakeObject("TBattle");
+    AddReference(node, "ability_rules", ability_rules_.get(), "battle.ability_rules");
     AddOwnedObject(node, "battle_map", battle_map_, ctx);
     AddOwnedObject(node, "initiative_order", initiative_order_, ctx);
     AddOwnedObject(node, "transformator", transformator_, ctx);

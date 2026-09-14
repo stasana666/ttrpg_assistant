@@ -1,3 +1,5 @@
+#include <pf2e_engine/mechanics/creature.h>
+
 #include <pf2e_engine/combat_calculator.h>
 
 #include <pf2e_engine/condition.h>
@@ -31,7 +33,7 @@ int TCombatCalculator::ArmorClass(const TCreature& target, const TCreature& atta
 
 bool TCombatCalculator::IsOffGuardFor(const TCreature& target, [[maybe_unused]] const TCreature& attacker) const
 {
-    return target.Get(EConditionKind::Prone) > 0;
+    return ConditionValue(target, EConditionKind::Prone) > 0;
 }
 
 int TCombatCalculator::ResolveDamage(
@@ -81,10 +83,10 @@ template <class T>
 int TCombatCalculator::Penalty(const TCreature& creature, T) const
 {
     if constexpr (std::is_same_v<T, TWeaponAttackTag>) {
-        return creature.Get(EConditionKind::Frightened)
-            + (creature.Get(EConditionKind::Prone) ? 2 : 0);
+        return ConditionValue(creature, EConditionKind::Frightened)
+            + (ConditionValue(creature, EConditionKind::Prone) ? 2 : 0);
     }
-    return creature.Get(EConditionKind::Frightened);
+    return ConditionValue(creature, EConditionKind::Frightened);
 }
 
 template int TCombatCalculator::Penalty<ESkill>(const TCreature&, ESkill) const;

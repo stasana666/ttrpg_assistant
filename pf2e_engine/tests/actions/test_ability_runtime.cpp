@@ -1,9 +1,12 @@
+#include <pf2e_engine/mechanics/creature.h>
+
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/actions/save_point.h>
 #include <pf2e_engine/common/continuation.h>
 #include <pf2e_engine/common/id_collection.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/inventory/weapon.h>
+#include <pf2e_engine/feat.h>
 
 #include "../ast/ast_test_fixture.h"
 
@@ -47,9 +50,10 @@ class TCallbackBlock final : public IActionBlock {
 public:
     using FCallback = std::function<void(std::shared_ptr<TActionContext>)>;
 
-    explicit TCallbackBlock(FCallback callback)
+    explicit TCallbackBlock(FCallback callback, std::string name = {})
         : callback_(std::move(callback))
     {
+        name_ = std::move(name);
     }
 
     void Apply(std::shared_ptr<TActionContext> ctx) override
@@ -91,6 +95,53 @@ std::shared_ptr<TActionContext> MakeContext(TTestBattle& fixture, TTransformator
     });
 }
 
+std::unique_ptr<TTestBattle> MakeHookBattle(
+    TCallbackBlock::FCallback hook_callback, TCallbackBlock::FCallback action_callback)
+{
+    auto fixture = std::make_unique<TTestBattle>();
+    LoadFactory(fixture->factory);
+    auto rules = std::make_shared<TAbilityRules>();
+    rules->Catalog.Register({"test.HookedAction", EAbilityKind::Action, {}});
+    rules->Catalog.Register({"test.ActionFeature", EAbilityKind::Feature, {"test.HookedAction"}});
+    rules->Catalog.Register({"test.HookFeature", EAbilityKind::Feature, {}});
+    TAction::TPipeline action_pipeline;
+    action_pipeline.push_back(std::make_unique<TCallbackBlock>(
+        std::move(action_callback), "probe"));
+    rules->Executions.Register("test.HookedAction", std::make_shared<TAction>(
+        std::move(action_pipeline), TAction::TResources{{EResourceKind::Action, 1}}, "probe action"));
+    auto hook = std::make_shared<TCreatureFeat>();
+    hook->name = "test hook";
+    hook->blocks = {"probe"};
+    hook->pipeline.push_back(std::make_unique<TCallbackBlock>(std::move(hook_callback)));
+    rules->FeatureHooks.emplace("test.HookFeature", std::move(hook));
+
+    TIdCollection<TFeatureSelection> features;
+    features.Add(TFeatureSelection("test.ActionFeature"));
+    TIdCollection<TFeatureSelection> hook_features;
+    hook_features.Add(TFeatureSelection("test.HookFeature"));
+    fixture->creatures.push_back(TCreature::Create({
+        .Level = 1,
+        .Class = TClass::Create({.Features = std::move(hook_features)}),
+        .Hitpoints = THitPoints::Create({.Maximum = Statistic::Create({.Base = 10})}),
+        .Features = std::move(features),
+        .Actions = TResource(3),
+    }));
+    auto map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
+    fixture->battle = std::make_unique<TBattle>(
+        fixture->factory.Create<TBattleMap>(map_id), &fixture->rng, fixture->io, std::move(rules));
+    fixture->rng.ExpectCall(20, 10);
+    fixture->battle->AddPlayer(
+        TPlayer(&fixture->creatures.front(), TPlayerTeam{0}, TPlayerId{0}, "Actor", ""), {0, 0});
+    return fixture;
+}
+
+void RemoveHookFeature(TCreature& creature, TTransformator& transformator)
+{
+    auto context = transformator.ExecutionContext();
+    context.AssignGuarded(creature.Class(), TClass::Create({}),
+                          TGuarded<TCreature>(creature), "class");
+}
+
 }
 
 TEST(AbilityCatalogTest, RegistrationIsIdempotentAndRejectsConflicts)
@@ -126,6 +177,11 @@ TEST(AbilityCatalogTest, RecursiveGrantsDeduplicateWithinSourceAndPreserveProven
     EXPECT_EQ(collector.Grants()[1].Kind, EAbilityKind::Reaction);
     EXPECT_EQ(collector.Grants()[2].DefinitionId, "test.Strike");
     EXPECT_EQ(collector.Grants()[2].Source, second);
+    ASSERT_EQ(collector.Features().size(), 3);
+    EXPECT_EQ(collector.Features()[0].DefinitionId, "test.Fighter");
+    EXPECT_EQ(collector.Features()[1].DefinitionId, "test.Training");
+    EXPECT_EQ(collector.Features()[1].Source, first);
+    EXPECT_EQ(collector.Features()[2].Source, second);
 }
 
 TEST(AbilityCatalogTest, FailedExpansionDoesNotPublishPartialGrants)
@@ -135,16 +191,39 @@ TEST(AbilityCatalogTest, FailedExpansionDoesNotPublishPartialGrants)
     catalog.Register({"test.CycleA", EAbilityKind::Feature, {"test.Strike", "test.CycleB"}});
     catalog.Register({"test.CycleB", EAbilityKind::Feature, {"test.CycleA"}});
     TAbilityCollector collector(catalog);
-    collector.Grant("test.Strike", {}, "initial");
+    collector.Grant("test.Training", {}, "initial");
     const auto initial = collector.Grants();
+    const auto initial_features = collector.Features();
 
     EXPECT_THROW(collector.Grant("test.Broken", {}, "broken"), std::invalid_argument);
     EXPECT_EQ(collector.Grants(), initial);
+    EXPECT_EQ(collector.Features(), initial_features);
     EXPECT_THROW(collector.Grant("test.CycleA", {}, "cycle"), std::invalid_argument);
     EXPECT_EQ(collector.Grants(), initial);
+    EXPECT_EQ(collector.Features(), initial_features);
     EXPECT_THROW(collector.Visit(TFeatureSelection("test.Strike"), {}, "wrong_kind"),
                  std::invalid_argument);
     EXPECT_EQ(collector.Grants(), initial);
+    EXPECT_EQ(collector.Features(), initial_features);
+}
+
+TEST(AbilityCatalogTest, TerminalFreeFeaturesRetainSourceAndAllProvenance)
+{
+    TAbilityCatalog catalog;
+    catalog.Register({"test.Hook", EAbilityKind::Feature, {}});
+    catalog.Register({"test.Left", EAbilityKind::Feature, {"test.Hook"}});
+    catalog.Register({"test.Right", EAbilityKind::Feature, {"test.Hook"}});
+    catalog.Register({"test.Both", EAbilityKind::Feature, {"test.Left", "test.Right"}});
+    TTestProvider provider;
+    const auto source = provider.Features.Add(TFeatureSelection("test.Both"));
+    const auto collector = CollectAbilities(provider, catalog);
+    EXPECT_TRUE(collector.Grants().empty());
+    ASSERT_EQ(collector.Features().size(), 4);
+    const auto& hook = collector.Features()[2];
+    EXPECT_EQ(hook.DefinitionId, "test.Hook");
+    EXPECT_EQ(hook.Kind, EAbilityKind::Feature);
+    EXPECT_EQ(hook.Source, TAbilitySourcePath{}.Field("features").Entry(source.Value));
+    EXPECT_EQ(hook.Provenance.size(), 2);
 }
 
 TEST(AbilityCatalogTest, RecollectionTracksSourceRemovalWithoutRenumberingRemainingSources)
@@ -201,7 +280,7 @@ TEST(AbilityExecutionTest, EnumerationIsPureAndMissingOrMismatchedExecutionsAreE
     auto fixture = MakeTwoWarriorBattle();
     auto& actor = Actor(*fixture);
     TTransformator transformator(fixture->io);
-    transformator.AddResource(actor.GetCreature()->ResourceFor(EResourceKind::Action), 3);
+    transformator.AddResource(ResourceFor(*actor.GetCreature(), EResourceKind::Action), 3);
     const auto catalog = MakeCatalog();
     TAbilityCollector collector(catalog);
     collector.Grant("test.Strike", {}, "self");
@@ -216,7 +295,7 @@ TEST(AbilityExecutionTest, EnumerationIsPureAndMissingOrMismatchedExecutionsAreE
     const TAbilityExecutions missing;
     EXPECT_THROW(ExecuteAbility(options[0], MakeContext(*fixture, transformator), actor,
                                 collector, missing), std::invalid_argument);
-    EXPECT_EQ(actor.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 3);
+    EXPECT_EQ(ResourceFor(*actor.GetCreature(), EResourceKind::Action)->Count(), 3);
     TAstContext after_context;
     EXPECT_EQ(fixture->battle->GetAst(after_context), before);
 
@@ -230,7 +309,7 @@ TEST(AbilityExecutionTest, StaleSourceAndChangedRequirementsRejectBeforeResource
     auto fixture = MakeTwoWarriorBattle();
     auto& actor = Actor(*fixture);
     TTransformator transformator(fixture->io);
-    transformator.AddResource(actor.GetCreature()->ResourceFor(EResourceKind::Action), 3);
+    transformator.AddResource(ResourceFor(*actor.GetCreature(), EResourceKind::Action), 3);
     const auto catalog = MakeCatalog();
     const auto path = TAbilitySourcePath{}.Field("weapons").Entry(8);
     TAbilityCollector initial(catalog);
@@ -249,7 +328,7 @@ TEST(AbilityExecutionTest, StaleSourceAndChangedRequirementsRejectBeforeResource
     EXPECT_EQ(ExecuteAbility(option, MakeContext(*fixture, transformator), actor,
                              initial, executions), EAbilityExecutionResult::Unavailable);
     EXPECT_EQ(calls, 0);
-    EXPECT_EQ(actor.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 3);
+    EXPECT_EQ(ResourceFor(*actor.GetCreature(), EResourceKind::Action)->Count(), 3);
 }
 
 TEST(AbilityExecutionTest, ResourceCostsAreAggregatedAndRecheckedAtExecution)
@@ -257,7 +336,7 @@ TEST(AbilityExecutionTest, ResourceCostsAreAggregatedAndRecheckedAtExecution)
     auto fixture = MakeTwoWarriorBattle();
     auto& actor = Actor(*fixture);
     TTransformator transformator(fixture->io);
-    transformator.AddResource(actor.GetCreature()->ResourceFor(EResourceKind::Action), 3);
+    transformator.AddResource(ResourceFor(*actor.GetCreature(), EResourceKind::Action), 3);
     const auto catalog = MakeCatalog();
     TAbilityCollector collector(catalog);
     collector.Grant("test.Strike", {}, "self");
@@ -265,13 +344,13 @@ TEST(AbilityExecutionTest, ResourceCostsAreAggregatedAndRecheckedAtExecution)
     executions.Register("test.Strike",
         MakeAction({{EResourceKind::Action, 1}, {EResourceKind::Action, 2}}));
     const auto option = EnumerateActions(0, collector, executions, actor).at(0);
-    transformator.ReduceResource(actor.GetCreature()->ResourceFor(EResourceKind::Action), 1);
+    transformator.ReduceResource(ResourceFor(*actor.GetCreature(), EResourceKind::Action), 1);
     EXPECT_TRUE(EnumerateActions(0, collector, executions, actor).empty());
     EXPECT_EQ(ExecuteAbility(option, MakeContext(*fixture, transformator), actor,
                              collector, executions), EAbilityExecutionResult::Unavailable);
     EXPECT_THROW(option.Action->Apply(MakeContext(*fixture, transformator), actor),
                  TAbilityUnavailable);
-    EXPECT_EQ(actor.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 2);
+    EXPECT_EQ(ResourceFor(*actor.GetCreature(), EResourceKind::Action)->Count(), 2);
     EXPECT_THROW(MakeAction({{EResourceKind::Action, -1}}), std::invalid_argument);
     EXPECT_THROW(MakeAction({{EResourceKind::Action, std::numeric_limits<int>::max()},
                              {EResourceKind::Action, 1}}), std::invalid_argument);
@@ -313,7 +392,7 @@ TEST(AbilityExecutionTest, ReactionCandidatesBindBothActorsWithoutExecuting)
     auto& reactor = Actor(*fixture);
     auto& trigger_actor = Actor(*fixture, 1);
     TTransformator transformator(fixture->io);
-    transformator.AddResource(reactor.GetCreature()->ResourceFor(EResourceKind::Reaction), 1);
+    transformator.AddResource(ResourceFor(*reactor.GetCreature(), EResourceKind::Reaction), 1);
     const auto catalog = MakeCatalog();
     TAbilityCollector collector(catalog);
     collector.Grant("test.Counter", {}, "feature");
@@ -335,7 +414,7 @@ TEST(AbilityExecutionTest, ReactionCandidatesBindBothActorsWithoutExecuting)
                              collector, executions, {.TriggerActor = &trigger_actor}),
               EAbilityExecutionResult::Applied);
     EXPECT_EQ(calls, 1);
-    EXPECT_EQ(reactor.GetCreature()->ResourceFor(EResourceKind::Reaction)->Count(), 0);
+    EXPECT_EQ(ResourceFor(*reactor.GetCreature(), EResourceKind::Reaction)->Count(), 0);
 }
 
 TEST(AbilityExecutionTest, SamePlayerIdInDifferentBattleDoesNotReuseActorBinding)
@@ -345,7 +424,7 @@ TEST(AbilityExecutionTest, SamePlayerIdInDifferentBattleDoesNotReuseActorBinding
     auto& actor = Actor(*first);
     auto& foreign_actor = Actor(*second);
     TTransformator transformator(second->io);
-    transformator.AddResource(foreign_actor.GetCreature()->ResourceFor(EResourceKind::Action), 3);
+    transformator.AddResource(ResourceFor(*foreign_actor.GetCreature(), EResourceKind::Action), 3);
     const auto catalog = MakeCatalog();
     TAbilityCollector collector(catalog);
     collector.Grant("test.Strike", {}, "self");
@@ -356,7 +435,7 @@ TEST(AbilityExecutionTest, SamePlayerIdInDifferentBattleDoesNotReuseActorBinding
     EXPECT_EQ(actor.GetId(), foreign_actor.GetId());
     EXPECT_EQ(ExecuteAbility(option, MakeContext(*second, transformator), foreign_actor,
                              collector, executions), EAbilityExecutionResult::Unavailable);
-    EXPECT_EQ(foreign_actor.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 3);
+    EXPECT_EQ(ResourceFor(*foreign_actor.GetCreature(), EResourceKind::Action)->Count(), 3);
 }
 
 TEST(AbilityExecutionTest, SuspendedPipelineKeepsDefinitionAliveAndChargesOnlyOnce)
@@ -364,7 +443,7 @@ TEST(AbilityExecutionTest, SuspendedPipelineKeepsDefinitionAliveAndChargesOnlyOn
     auto fixture = MakeTwoWarriorBattle();
     auto& actor = Actor(*fixture);
     TTransformator transformator(fixture->io);
-    transformator.AddResource(actor.GetCreature()->ResourceFor(EResourceKind::Action), 3);
+    transformator.AddResource(ResourceFor(*actor.GetCreature(), EResourceKind::Action), 3);
     const auto catalog = MakeCatalog();
     TAbilityCollector collector(catalog);
     collector.Grant("test.Strike", {}, "self");
@@ -393,7 +472,7 @@ TEST(AbilityExecutionTest, SuspendedPipelineKeepsDefinitionAliveAndChargesOnlyOn
     suspended->Revert(transformator);
     suspended->Resume();
     EXPECT_EQ(resumed, 1);
-    EXPECT_EQ(actor.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 2);
+    EXPECT_EQ(ResourceFor(*actor.GetCreature(), EResourceKind::Action)->Count(), 2);
     suspended.reset();
     EXPECT_TRUE(weak_action.expired());
 }
@@ -403,7 +482,7 @@ TEST(AbilityExecutionTest, RepeatedSuspensionRevalidatesSourceBeforeInnerResumeC
     auto fixture = MakeTwoWarriorBattle();
     auto& actor = Actor(*fixture);
     TTransformator transformator(fixture->io);
-    transformator.AddResource(actor.GetCreature()->ResourceFor(EResourceKind::Action), 3);
+    transformator.AddResource(ResourceFor(*actor.GetCreature(), EResourceKind::Action), 3);
     const auto catalog = MakeCatalog();
     TAbilityCollector collector(catalog);
     collector.Grant("test.Strike", {}, "self");
@@ -440,5 +519,149 @@ TEST(AbilityExecutionTest, RepeatedSuspensionRevalidatesSourceBeforeInnerResumeC
     present = false;
     EXPECT_THROW(second->Resume(), TAbilityUnavailable);
     EXPECT_EQ(resumed, 1);
-    EXPECT_EQ(actor.GetCreature()->ResourceFor(EResourceKind::Action)->Count(), 2);
+    EXPECT_EQ(ResourceFor(*actor.GetCreature(), EResourceKind::Action)->Count(), 2);
+}
+
+TEST(AbilityHookTest, ReplayingCompletedSavepointRevalidatesFeatureBeforeHookCallback)
+{
+    int resumed = 0;
+    int applied = 0;
+    std::shared_ptr<TActionContext> context;
+    auto fixture = MakeHookBattle([&](std::shared_ptr<TActionContext> ctx) {
+        context = ctx;
+        throw TSavepointStackUnwind(ctx->transformator->CurrentState(), [ctx, &resumed]() {
+            auto& actor = ctx->game_object_registry->Get<TPlayer>(
+                TGameObjectIdManager::Instance().Register("self"));
+            ctx->transformator->DealDamage(&actor, 1);
+            ++resumed;
+        });
+    }, [&](auto) { ++applied; });
+    auto& actor = Actor(*fixture);
+    std::optional<TSavepointStackUnwind> suspended;
+    try {
+        fixture->battle->Execute(fixture->battle->AvailableActions(actor).at(0));
+        FAIL() << "hook did not suspend";
+    } catch (const TSavepointStackUnwind& save_point) {
+        suspended = save_point;
+    }
+    ASSERT_TRUE(suspended.has_value());
+    ASSERT_NE(context, nullptr);
+    EXPECT_EQ(applied, 0);
+    EXPECT_EQ(ResourceFor(*actor.GetCreature(), EResourceKind::Action)->Count(), 2);
+
+    suspended->Resume();
+    EXPECT_EQ(resumed, 1);
+    EXPECT_EQ(applied, 1);
+    EXPECT_EQ(actor.GetCreature()->Hitpoints()->Current(), 9);
+    suspended->Revert(*context->transformator);
+    EXPECT_EQ(actor.GetCreature()->Hitpoints()->Current(), 10);
+    const auto before_removal = context->transformator->CurrentState();
+    RemoveHookFeature(*actor.GetCreature(), *context->transformator);
+    EXPECT_NO_THROW(ValidateAbilitySource(context));
+    EXPECT_THROW(suspended->Resume(), TAbilityUnavailable);
+    EXPECT_EQ(resumed, 1);
+    EXPECT_EQ(applied, 1);
+    EXPECT_EQ(actor.GetCreature()->Hitpoints()->Current(), 10);
+    EXPECT_EQ(ResourceFor(*actor.GetCreature(), EResourceKind::Action)->Count(), 2);
+
+    context->transformator->Undo(before_removal);
+    suspended->Resume();
+    EXPECT_EQ(resumed, 2);
+    EXPECT_EQ(applied, 2);
+    EXPECT_EQ(actor.GetCreature()->Hitpoints()->Current(), 9);
+    EXPECT_EQ(ResourceFor(*actor.GetCreature(), EResourceKind::Action)->Count(), 2);
+}
+
+TEST(AbilityHookTest, NestedSuspensionKeepsHookValidationAndRestoresActionScope)
+{
+    int first_resumed = 0;
+    int second_resumed = 0;
+    int applied = 0;
+    std::shared_ptr<TActionContext> context;
+    auto fixture = MakeHookBattle([&](auto ctx) {
+        context = ctx;
+        throw TSavepointStackUnwind(ctx->transformator->CurrentState(), [&, ctx]() {
+            ++first_resumed;
+            throw TSavepointStackUnwind(ctx->transformator->CurrentState(), [&]() {
+                ++second_resumed;
+            });
+        });
+    }, [&](auto) { ++applied; });
+    auto& actor = Actor(*fixture);
+    std::optional<TSavepointStackUnwind> first;
+    try {
+        fixture->battle->Execute(fixture->battle->AvailableActions(actor).at(0));
+        FAIL() << "hook did not suspend";
+    } catch (const TSavepointStackUnwind& save_point) {
+        first = save_point;
+    }
+    ASSERT_TRUE(first.has_value());
+    std::optional<TSavepointStackUnwind> second;
+    try {
+        first->Resume();
+        FAIL() << "hook did not suspend again";
+    } catch (const TSavepointStackUnwind& save_point) {
+        second = save_point;
+    }
+    ASSERT_TRUE(second.has_value());
+    ASSERT_NE(context, nullptr);
+    EXPECT_EQ(first_resumed, 1);
+    const auto before_removal = context->transformator->CurrentState();
+    RemoveHookFeature(*actor.GetCreature(), *context->transformator);
+    EXPECT_THROW(second->Resume(), TAbilityUnavailable);
+    EXPECT_EQ(second_resumed, 0);
+    EXPECT_EQ(applied, 0);
+    context->transformator->Undo(before_removal);
+    second->Resume();
+    EXPECT_EQ(first_resumed, 1);
+    EXPECT_EQ(second_resumed, 1);
+    EXPECT_EQ(applied, 1);
+    EXPECT_EQ(ResourceFor(*actor.GetCreature(), EResourceKind::Action)->Count(), 2);
+    RemoveHookFeature(*actor.GetCreature(), *context->transformator);
+    EXPECT_NO_THROW(ValidateAbilitySource(context));
+}
+
+TEST(AbilityBattleTest, InvalidAndDuplicateIdentitiesDoNotChangeBattle)
+{
+    auto fixture = MakeTwoWarriorBattle();
+    auto& actor = Actor(*fixture);
+    auto extra = fixture->factory.Create<TCreature>(
+        TGameObjectIdManager::Instance().Register("warrior"));
+    auto restored = TCreature::Restore(actor.GetCreature()->ToJson(), fixture->factory);
+    auto moved_from = fixture->factory.Create<TCreature>(
+        TGameObjectIdManager::Instance().Register("warrior"));
+    auto moved = std::move(moved_from);
+    TAstContext before_context;
+    const auto before = fixture->battle->GetAst(before_context);
+    const auto add = [&](TCreature* creature, int id) {
+        fixture->battle->AddPlayer(
+            TPlayer(creature, TPlayerTeam{0}, TPlayerId{id}, "Invalid", ""), {2, 0});
+    };
+    EXPECT_THROW(add(nullptr, 2), std::invalid_argument);
+    EXPECT_THROW(add(&extra, actor.GetId()), std::invalid_argument);
+    EXPECT_THROW(add(actor.GetCreature(), 2), std::invalid_argument);
+    EXPECT_THROW(add(&restored, 2), std::invalid_argument);
+    EXPECT_THROW(add(&moved_from, 2), std::invalid_argument);
+    EXPECT_NE(moved.Id().Value, 0);
+    TAstContext after_context;
+    EXPECT_EQ(fixture->battle->GetAst(after_context), before);
+    EXPECT_EQ(fixture->rng.RemainingCalls(), 0);
+}
+
+TEST(AbilityBattleTest, FailedInitiativeRestoresMapAndPlayers)
+{
+    auto fixture = MakeTwoWarriorBattle();
+    auto extra = fixture->factory.Create<TCreature>(
+        TGameObjectIdManager::Instance().Register("warrior"));
+    TAstContext before_context;
+    const auto before = fixture->battle->GetAst(before_context);
+    EXPECT_THROW(fixture->battle->AddPlayer(
+        TPlayer(&extra, TPlayerTeam{0}, TPlayerId{2}, "Extra", ""), {2, 0}), std::logic_error);
+    TAstContext after_context;
+    EXPECT_EQ(fixture->battle->GetAst(after_context), before);
+    EXPECT_EQ(fixture->battle->BattleMap()->GetCell(2, 0).player, nullptr);
+    fixture->rng.ExpectCall(20, 15);
+    EXPECT_NO_THROW(fixture->battle->AddPlayer(
+        TPlayer(&extra, TPlayerTeam{0}, TPlayerId{2}, "Extra", ""), {2, 0}));
+    EXPECT_EQ(fixture->battle->GetIfPlayers([](const auto*) { return true; }).size(), 3);
 }

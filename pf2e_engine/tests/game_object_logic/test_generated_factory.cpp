@@ -2,6 +2,12 @@
 
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/creature.h>
+#include <pf2e_engine/feat.h>
+#include <pf2e_engine/transformation/transformator.h>
+#include <cpp_config.h>
+
+#include "../test_lib/mock_interaction_system.h"
 
 #include <nlohmann/json.hpp>
 
@@ -10,9 +16,13 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace generated_factory_fixture {
+
+static_assert(!std::is_copy_constructible_v<TCreature>);
+static_assert(std::is_move_constructible_v<TCreature>);
 
 TGameObjectId NameId(const std::string& name) {
     return TGameObjectIdManager::Instance().Register(name);
@@ -102,6 +112,22 @@ protected:
             {"type", "fixture_value"}, {"name", "value"},
             {"fixture_value", {{"amount", 17}}},
         }));
+    }
+
+    void AddCreatureAssets(TGameObjectFactory& factory) const {
+        const std::filesystem::path data{kRootDirPath + "/pf2e_engine/data"};
+        for (const auto* source : {"inventory/material/leather.json", "inventory/armor/unarmored.json",
+                "inventory/weapon/longsword.json", "creatures/races/human.json", "creatures/classes/fighter.json"}) {
+            factory.AddSource(data / source);
+        }
+    }
+
+    nlohmann::json CreatureDefinition(const std::string& name) const {
+        std::ifstream input(kRootDirPath + "/pf2e_engine/data/creatures/warrior.json");
+        auto definition = nlohmann::json::parse(input);
+        definition["name"] = name;
+        definition["pf2e_creature"]["creature_data"]["features"] = nlohmann::json::array();
+        return definition;
     }
 
     std::filesystem::path directory_;
@@ -270,6 +296,119 @@ TEST_F(TGeneratedFactoryTest, SameTypeAndIdInAnotherFactoryIsNotACycle) {
     second.AddSource(definition);
     TDelegatedValue::delegate = &second;
     EXPECT_EQ(first.Create<TDelegatedValue>(NameId("delegated")).amount, 31);
+}
+
+TEST_F(TGeneratedFactoryTest, ImportedCreatureDefinitionsCreateIndependentEntities) {
+    TGameObjectFactory factory;
+    AddCreatureAssets(factory);
+    factory.AddSource(Write("creature.json", CreatureDefinition("generated_creature")));
+    TCreature first = factory.Create<TCreature>(NameId("generated_creature"));
+    const TCreature second = factory.Create<TCreature>(NameId("generated_creature"));
+    EXPECT_NE(first.Id().Value, 0u);
+    EXPECT_NE(first.Id(), second.Id());
+    TMockInteractionSystem io;
+    TTransformator transformator(io);
+    auto ctx = transformator.ExecutionContext();
+    ctx.Invoke(first.Hitpoints(), &THitPoints::DealDamage, 5);
+    EXPECT_EQ(std::as_const(first).Hitpoints().Current(), second.Hitpoints().Current() - 5);
+    EXPECT_EQ(factory.Create<TCreature>(NameId("generated_creature")).Hitpoints()->Current(),
+              second.Hitpoints().Current());
+}
+
+TEST_F(TGeneratedFactoryTest, CreatureSnapshotsRestoreIdentityAndStateWithoutReinitializing) {
+    TGameObjectFactory factory;
+    AddCreatureAssets(factory);
+    factory.AddSource(Write("creature.json", CreatureDefinition("snapshot_creature")));
+    TCreature original = factory.Create<TCreature>(NameId("snapshot_creature"));
+    TMockInteractionSystem io;
+    TTransformator transformator(io);
+    auto ctx = transformator.ExecutionContext();
+    ctx.Invoke(original.Hitpoints(), &THitPoints::DealDamage, 6);
+    const auto snapshot = original.ToJson();
+    const TCreature restored = TCreature::Restore(snapshot, factory);
+    EXPECT_EQ(restored.Id(), original.Id());
+    EXPECT_EQ(restored.ToJson(), snapshot);
+    EXPECT_EQ(restored.Hitpoints().Current(), 15);
+    EXPECT_NE(factory.Create<TCreature>(NameId("snapshot_creature")).Id(), restored.Id());
+}
+
+TEST_F(TGeneratedFactoryTest, LegacyCreatureDataEnvelopeImportsAsGeneratedCreature) {
+    TGameObjectFactory factory;
+    AddCreatureAssets(factory);
+    const auto definition = CreatureDefinition("unused");
+    factory.AddSource(Write("creature_data.json", {
+        {"type", "pf2e_creature_data"}, {"name", "legacy_profile"},
+        {"pf2e_creature_data", definition.at("pf2e_creature").at("creature_data")}
+    }));
+    const TCreature creature = factory.Create<TCreature>(NameId("legacy_profile"));
+    EXPECT_EQ(creature.Level(), 1);
+    EXPECT_EQ(creature.Hitpoints().Current(), 21);
+    EXPECT_EQ(factory.AllKnown<TCreature>(), std::vector<TGameObjectId>{NameId("legacy_profile")});
+    EXPECT_THROW(factory.AddSource(directory_ / "creature_data.json"), std::invalid_argument);
+}
+
+TEST_F(TGeneratedFactoryTest, CreatureImportsUseTheCopiedOrMovedFactoryForNestedReferences) {
+    auto original = std::make_unique<TGameObjectFactory>();
+    AddCreatureAssets(*original);
+    original->AddSource(Write("armor.json", {
+        {"type", "pf2e_armor"}, {"name", "deferred_armor"},
+        {"pf2e_armor", {{"category", "Unarmored"}, {"material", "destination_material"},
+                        {"armor_class_bonus", 0}, {"dexterity_cap", 10}}}
+    }));
+    auto definition = CreatureDefinition("copied_creature");
+    definition["pf2e_creature"]["creature_data"]["armor"] = "deferred_armor";
+    original->AddSource(Write("creature.json", definition));
+    TGameObjectFactory copy = *original;
+    TGameObjectFactory moved = std::move(*original);
+    copy.AddSource(Write("copy_material.json", {
+        {"type", "pf2e_material"}, {"name", "destination_material"}, {"pf2e_material", {{"hardness", 3}}}
+    }));
+    moved.AddSource(Write("moved_material.json", {
+        {"type", "pf2e_material"}, {"name", "destination_material"}, {"pf2e_material", {{"hardness", 9}}}
+    }));
+    original.reset();
+    const TCreature first = copy.Create<TCreature>(NameId("copied_creature"));
+    const TCreature second = moved.Create<TCreature>(NameId("copied_creature"));
+    EXPECT_EQ(first.Armor().Material().Hardness(), 3);
+    EXPECT_EQ(second.Armor().Material().Hardness(), 9);
+    EXPECT_NE(first.Id(), second.Id());
+}
+
+TEST_F(TGeneratedFactoryTest, LegacyFeatsBecomeSelectionsAndImmutableCatalogHooks) {
+    TGameObjectFactory factory;
+    AddCreatureAssets(factory);
+    auto definition = CreatureDefinition("legacy_hook_creature");
+    definition["pf2e_creature"]["feats"] = nlohmann::json::array({{
+        {"name", "Imported feature"}, {"block", "weapon_damage_roll"},
+        {"pipeline", nlohmann::json::array({{{"name", "done"}, {"type", "terminate"}}})}
+    }});
+    factory.AddSource(Write("creature.json", definition));
+    const TCreature creature = factory.Create<TCreature>(NameId("legacy_hook_creature"));
+    const auto rules = factory.AbilityRules();
+    const auto selected = CollectAbilities(creature, rules->Catalog);
+    ASSERT_EQ(selected.Features().size(), 1u);
+    const std::string feature = "legacy_feat.legacy_hook_creature.0";
+    EXPECT_EQ(selected.Features().front().DefinitionId, feature);
+    EXPECT_EQ(rules->FeatureHooks.at(feature)->name, "Imported feature");
+    EXPECT_TRUE(selected.Grants().empty());
+
+    TGameObjectFactory copy = factory;
+    definition["name"] = "second_hook_creature";
+    copy.AddSource(Write("second_creature.json", definition));
+    EXPECT_EQ(copy.AbilityRules()->FeatureHooks.size(), 2u);
+    EXPECT_EQ(factory.AbilityRules()->FeatureHooks.size(), 1u);
+    EXPECT_EQ(rules->FeatureHooks.size(), 1u);
+}
+
+TEST_F(TGeneratedFactoryTest, CreatureCreationRejectsMissingActionImplementations) {
+    TGameObjectFactory factory;
+    AddCreatureAssets(factory);
+    auto definition = CreatureDefinition("missing_execution");
+    definition["pf2e_creature"]["creature_data"]["features"] = {"abilities.WolfActions"};
+    factory.AddSource(Write("missing.json", definition));
+    EXPECT_THROW(factory.Create<TCreature>(NameId("missing_execution")), std::invalid_argument);
+    factory.AddSource(Write("valid.json", CreatureDefinition("after_failure")));
+    EXPECT_EQ(factory.Create<TCreature>(NameId("after_failure")).Hitpoints()->Current(), 21);
 }
 
 }

@@ -29,7 +29,7 @@ enum ESpellSlotRank {
     Rank10,
 }
 
-class TCreatureData {
+GameEntity TCreature {
     int Level;
     ECreatureSize Size;
     TRace Race;
@@ -54,6 +54,30 @@ class TCreatureData {
     Resource Reactions = 0;
     Resource Hands = 0;
     map<ESpellSlotRank, Resource> SpellSlots;
+
+    query bool IsAlive() {
+        return @self.Hitpoints.Current > 0;
+    }
+
+    query TAbilityScore GetCharacteristic(ECharacteristic Name) {
+        if (Name == Strength) {
+            return @self.Characteristic.Strength;
+        }
+        if (Name == Dexterity) {
+            return @self.Characteristic.Dexterity;
+        }
+        if (Name == Constitution) {
+            return @self.Characteristic.Constitution;
+        }
+        if (Name == Intelligence) {
+            return @self.Characteristic.Intelligence;
+        }
+        if (Name == Wisdom) {
+            return @self.Characteristic.Wisdom;
+        }
+        require Name == Charisma;
+        return @self.Characteristic.Charisma;
+    }
 
     query int ArmorProficiency(EArmorCategory Category) {
         return @self.Proficiency.ArmorBonus(Category, @self.Level);

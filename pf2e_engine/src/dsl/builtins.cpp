@@ -9,7 +9,6 @@
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/weapon.h>
-#include <pf2e_engine/inventory/creature_data.h>
 #include <pf2e_engine/inventory/creature_parts.h>
 #include <pf2e_engine/player.h>
 
@@ -32,7 +31,7 @@ void RegisterAll() {
     TClass::RegisterDslProperties();
     TAbilityScore::RegisterDslProperties();
     TAbilityScores::RegisterDslProperties();
-    TCreatureData::RegisterDslProperties();
+    TCreature::RegisterDslProperties();
 
     auto& player_props = TPropertyRegistry<TPlayer>::Instance();
     player_props.Register("creature", [](const TPlayer* p, TEvalContext&) {

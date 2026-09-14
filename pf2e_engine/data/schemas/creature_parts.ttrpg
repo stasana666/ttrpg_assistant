@@ -1,5 +1,14 @@
 import "abilities.ttrpg";
 
+enum ECharacteristic {
+    Strength,
+    Dexterity,
+    Constitution,
+    Intelligence,
+    Wisdom,
+    Charisma,
+}
+
 class TRace {
     int Hitpoints;
     collection<Feature> Features;

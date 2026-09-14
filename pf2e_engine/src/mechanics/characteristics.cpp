@@ -89,23 +89,5 @@ TAstNode TCharacteristicSet::GetAst(TAstContext& ctx) const
 
 ECharacteristic CharacteristicFromString(std::string_view sv)
 {
-    for (size_t i = 0; i < TCharacteristicSet::kCharacteristicCount; ++i) {
-        if (sv == ToString(static_cast<ECharacteristic>(i))) {
-            return static_cast<ECharacteristic>(i);
-        }
-    }
-    throw std::logic_error("unknown characteristic name");
-}
-
-std::string ToString(ECharacteristic name)
-{
-    switch (name) {
-    case ECharacteristic::Strength:     return "Strength";
-    case ECharacteristic::Dexterity:    return "Dexterity";
-    case ECharacteristic::Constitution: return "Constitution";
-    case ECharacteristic::Intelligence: return "Intelligence";
-    case ECharacteristic::Wisdom:       return "Wisdom";
-    case ECharacteristic::Charisma:     return "Charisma";
-    }
-    throw std::logic_error("unreachable");
+    return ECharacteristicFromString(std::string(sv));
 }

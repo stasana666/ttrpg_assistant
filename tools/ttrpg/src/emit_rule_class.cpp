@@ -295,10 +295,10 @@ void EmitAst(TCppWriter& writer, const TClassDecl& declaration,
         "::GetAst([[maybe_unused]] TAstContext& ctx) const", [&] {
         writer.Line("TAstNode node = TAstNode::MakeObject(\"" + declaration.Name + "\");");
         if (declaration.GameEntity) {
-            writer.Line("AddValueField(node, \"id\", Id_.Value);");
             writer.Block("if (ctx.IdentityOf(this).empty()) {", "}", [&] {
                 writer.Line("ctx.RegisterIdentity(this, \"entity#\" + std::to_string(Id_.Value));");
             });
+            writer.Line("AddValueField(node, \"id\", ctx.IdentityOf(this));");
         }
         writer.Line("[[maybe_unused]] const std::string owner_identity = ctx.IdentityOf(this);");
         for (const auto& compiled_field : compiled.Fields) {

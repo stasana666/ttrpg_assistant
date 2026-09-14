@@ -1,6 +1,7 @@
 target_sources(pf2e_engine
     PRIVATE
         characteristics.cpp
+        creature.cpp
         damage_resolver.cpp
         damage.cpp
         savethrow.cpp

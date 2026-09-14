@@ -150,8 +150,9 @@ void TAbilityCollector::Grant(std::string_view definition, const TAbilitySourceP
     sites.emplace_back(site);
     std::vector<std::string> chain;
     std::vector<TGrantedAbility> expanded;
-    Expand(definition, path, chain, sites, expanded);
-    Merge(expanded);
+    std::vector<TGrantedAbility> features;
+    Expand(definition, path, chain, sites, expanded, features);
+    Merge(expanded, features);
 }
 
 void TAbilityCollector::Visit(const TFeatureSelection& selection,
@@ -170,10 +171,16 @@ const std::vector<TGrantedAbility>& TAbilityCollector::Grants() const
     return grants_;
 }
 
+const std::vector<TGrantedAbility>& TAbilityCollector::Features() const
+{
+    return features_;
+}
+
 void TAbilityCollector::Expand(std::string_view definition, const TAbilitySourcePath& path,
                                std::vector<std::string>& chain,
                                const std::vector<std::string>& sites,
-                               std::vector<TGrantedAbility>& output) const
+                               std::vector<TGrantedAbility>& output,
+                               std::vector<TGrantedAbility>& features) const
 {
     if (std::find(chain.begin(), chain.end(), definition) != chain.end()) {
         throw std::invalid_argument("cyclic ability grant: " + std::string(definition));
@@ -183,23 +190,23 @@ void TAbilityCollector::Expand(std::string_view definition, const TAbilitySource
         throw std::invalid_argument("unknown granted ability: " + std::string(definition));
     }
     chain.emplace_back(definition);
-    if (found->Kind != EAbilityKind::Feature) {
-        output.push_back(TGrantedAbility{
-            .DefinitionId = found->Id,
-            .Kind = found->Kind,
-            .Source = path,
-            .Provenance = {nlohmann::json{{"sites", sites}, {"definitions", chain}}.dump()},
-        });
-    }
+    auto& destination = found->Kind == EAbilityKind::Feature ? features : output;
+    destination.push_back(TGrantedAbility{
+        .DefinitionId = found->Id,
+        .Kind = found->Kind,
+        .Source = path,
+        .Provenance = {nlohmann::json{{"sites", sites}, {"definitions", chain}}.dump()},
+    });
     for (const auto& grant : found->Grants) {
-        Expand(grant, path, chain, sites, output);
+        Expand(grant, path, chain, sites, output, features);
     }
     chain.pop_back();
 }
 
-void TAbilityCollector::Merge(const std::vector<TGrantedAbility>& grants)
+namespace {
+
+void MergeGrants(std::vector<TGrantedAbility>& merged, const std::vector<TGrantedAbility>& grants)
 {
-    auto merged = grants_;
     for (const auto& grant : grants) {
         auto found = std::find_if(merged.begin(), merged.end(), [&](const auto& existing) {
             return existing.DefinitionId == grant.DefinitionId && existing.Source == grant.Source;
@@ -215,5 +222,17 @@ void TAbilityCollector::Merge(const std::vector<TGrantedAbility>& grants)
             }
         }
     }
-    grants_.swap(merged);
+}
+
+}
+
+void TAbilityCollector::Merge(const std::vector<TGrantedAbility>& grants,
+                              const std::vector<TGrantedAbility>& features)
+{
+    auto merged_grants = grants_;
+    auto merged_features = features_;
+    MergeGrants(merged_grants, grants);
+    MergeGrants(merged_features, features);
+    grants_.swap(merged_grants);
+    features_.swap(merged_features);
 }

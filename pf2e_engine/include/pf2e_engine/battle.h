@@ -17,7 +17,9 @@
 
 class TBattle {
 public:
-    explicit TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller, IInteractionSystem& io_system);
+    explicit TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller,
+                     IInteractionSystem& io_system,
+                     std::shared_ptr<const TAbilityRules> ability_rules = {});
 
     void StartBattle();
     void AddPlayer(TPlayer&& player, TPosition position);
@@ -35,6 +37,7 @@ public:
     std::vector<TAbilityOption> AvailableActions(const TPlayer&) const;
     std::vector<TAbilityOption> AvailableReactions(const TTriggerContext& trigger) const;
     EAbilityExecutionResult Execute(const TAbilityOption& option);
+    const TAbilityRules& AbilityRules() const;
 
     TAstNode GetAst(TAstContext& ctx) const;
 
@@ -60,6 +63,7 @@ private:
     TTransformator transformator_;
     TTaskScheduler scheduler_;
     TEffectManager effect_manager_;
+    std::shared_ptr<const TAbilityRules> ability_rules_;
     std::deque<TPlayer> players_;
     [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
