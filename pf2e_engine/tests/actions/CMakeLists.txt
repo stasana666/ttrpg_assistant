@@ -93,6 +93,27 @@ target_link_libraries(test_generated_sources
 
 gtest_discover_tests(test_generated_sources)
 
+add_executable(test_generated_world
+    test_generated_world.cpp
+)
+
+set(GENERATED_WORLD_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/generated_world.h)
+set(GENERATED_WORLD_SOURCE ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/generated_world.cpp)
+ttrpg_generate(
+    TARGET test_generated_world
+    SCHEMA ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/generated_world.ttrpg
+    HEADER ${GENERATED_WORLD_HEADER}
+    SOURCE ${GENERATED_WORLD_SOURCE}
+)
+target_sources(test_generated_world PRIVATE ${GENERATED_WORLD_HEADER} ${GENERATED_WORLD_SOURCE})
+
+target_link_libraries(test_generated_world
+    gtest_main
+    pf2e_engine
+)
+
+gtest_discover_tests(test_generated_world)
+
 add_executable(test_feature_events
     test_feature_event_runtime.cpp
 )
@@ -114,3 +135,14 @@ target_link_libraries(test_source_bindings
 )
 
 gtest_discover_tests(test_source_bindings)
+
+add_executable(test_world_runtime
+    test_world_runtime.cpp
+)
+
+target_link_libraries(test_world_runtime
+    gtest_main
+    pf2e_engine
+)
+
+gtest_discover_tests(test_world_runtime)

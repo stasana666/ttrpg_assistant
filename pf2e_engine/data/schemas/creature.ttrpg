@@ -4,7 +4,6 @@ import "creature_parts.ttrpg";
 import "condition.ttrpg";
 import "damage.ttrpg";
 import "hitpoints.ttrpg";
-import "abilities.ttrpg";
 import "proficiency.ttrpg";
 
 enum ECreatureSize {

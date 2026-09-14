@@ -1,3 +1,5 @@
+import "creature.ttrpg";
+
 action AttackWithWeapon;
 action Strike;
 action Stride;

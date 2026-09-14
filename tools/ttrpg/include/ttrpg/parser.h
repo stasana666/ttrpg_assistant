@@ -371,6 +371,10 @@ private:
                 ts_.Advance();
                 statement.Kind = K::Require;
                 statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "requires") {
+                ts_.Advance();
+                statement.Kind = K::Requires;
+                statement.Value = ReadExpression(ETok::Semi);
             } else if (ts_.Peek().text == "return") {
                 ts_.Advance();
                 statement.Kind = K::Return;

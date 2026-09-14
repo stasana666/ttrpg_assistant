@@ -44,7 +44,7 @@ struct TClassDecl {
         std::string Name;
     };
     struct TStatement {
-        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If, Cost, Choose, ForEach };
+        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If, Cost, Choose, ForEach, Requires };
         EKind Kind = EKind::Call;
         std::string Name;
         std::optional<expr::TExprNode> Target;

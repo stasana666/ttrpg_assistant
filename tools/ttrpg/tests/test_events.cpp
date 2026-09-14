@@ -86,7 +86,7 @@ TEST(FeatureEventCompilerTest, ParsesTypedEventsAndGrantlessFeatureHandlers) {
     const auto header = Header(loaded);
     EXPECT_NE(header.find("struct TEventHealingBonus"), std::string::npos);
     EXPECT_NE(header.find("using TArguments = std::tuple<TGeneratedEntityBinding<TActor>, int>;"), std::string::npos);
-    EXPECT_NE(header.find("using FHandler = std::function<TResult(const TGeneratedEntityBinding<TOwner>&, const TArguments&)>;"), std::string::npos);
+    EXPECT_NE(header.find("using FHandler = std::function<TResult(const TGeneratedWorldView&, const TGeneratedEntityBinding<TOwner>&, const TArguments&)>;"), std::string::npos);
     EXPECT_NE(header.find("kId = \"feature_events.HealingBonus\""), std::string::npos);
 }
 

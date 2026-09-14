@@ -31,7 +31,8 @@ struct TTestBonus {
     using TOwner = TCreature;
     using TResult = int;
     using TArguments = std::tuple<TGeneratedEntityBinding<TCreature>, int>;
-    using FHandler = std::function<TResult(const TGeneratedEntityBinding<TOwner>&,
+    using FHandler = std::function<TResult(const TGeneratedWorldView&,
+                                            const TGeneratedEntityBinding<TOwner>&,
                                             const TArguments&)>;
     static constexpr std::string_view kId = "test.Bonus";
 };
@@ -44,7 +45,8 @@ struct TTestValueBonus {
     using TOwner = TCreature;
     using TResult = Statistic;
     using TArguments = std::tuple<>;
-    using FHandler = std::function<TResult(const TGeneratedEntityBinding<TOwner>&,
+    using FHandler = std::function<TResult(const TGeneratedWorldView&,
+                                            const TGeneratedEntityBinding<TOwner>&,
                                             const TArguments&)>;
     static constexpr std::string_view kId = "test.ValueBonus";
 };
@@ -68,9 +70,9 @@ std::shared_ptr<const TAbilityRules> MakeRules(TTestBonus::FHandler handler)
     rules->Events.Register<TTestBonus>("test.Helpful",
         std::make_shared<const TTestBonus::FHandler>(std::move(handler)));
     rules->Events.Register<TTestOtherBonus>("test.Helpful",
-        std::make_shared<const TTestOtherBonus::FHandler>([](const auto&, const auto&) { return 5; }));
+        std::make_shared<const TTestOtherBonus::FHandler>([](const auto&, const auto&, const auto&) { return 5; }));
     rules->Events.Register<TTestValueBonus>("test.Helpful",
-        std::make_shared<const TTestValueBonus::FHandler>([](const auto& owner, const auto&) {
+        std::make_shared<const TTestValueBonus::FHandler>([](const auto&, const auto& owner, const auto&) {
             return Statistic::Create({.Base = owner.Read().Level()});
         }));
     return rules;
@@ -163,7 +165,7 @@ TEST(FeatureEventRegistryTest, TypedHandlersAreImmutableAndRegistrationIsIdempot
 TEST_F(TFeatureEventRuntimeTest, HandlersReceiveReadonlyOwnerAndArgumentsWithStableIdentity)
 {
     int calls = 0;
-    Start(MakeRules([&](const auto& owner, const auto& arguments) {
+    Start(MakeRules([&](const auto&, const auto& owner, const auto& arguments) {
         ++calls;
         const auto& target = std::get<0>(arguments);
         EXPECT_THROW(owner.Guard(), std::logic_error);
@@ -194,7 +196,7 @@ TEST_F(TFeatureEventRuntimeTest, HandlersReceiveReadonlyOwnerAndArgumentsWithSta
 
 TEST_F(TFeatureEventRuntimeTest, CurrentOwnerSourcesDeduplicateDiamondsAndPreserveSnapshots)
 {
-    Start(MakeRules([](const auto&, const auto&) { return 2; }));
+    Start(MakeRules([](const auto&, const auto&, const auto&) { return 2; }));
     auto& actor = Add("test.Diamond", "test.Helpful");
     auto& target = Add("test.Helpful");
     auto& unrelated = Add();
@@ -226,7 +228,7 @@ TEST_F(TFeatureEventRuntimeTest, CurrentOwnerSourcesDeduplicateDiamondsAndPreser
 
 TEST_F(TFeatureEventRuntimeTest, OrdinaryClassContributionsAreIndependentValueSnapshots)
 {
-    Start(MakeRules([](const auto&, const auto&) { return 2; }));
+    Start(MakeRules([](const auto&, const auto&, const auto&) { return 2; }));
     auto& actor = Add("test.Helpful", {}, 2);
     const auto owner = BindActionEntity<TCreature>(actor);
     const auto result = DispatchFeatureEvent<TTestValueBonus>(*rules_, owner, {});
@@ -244,7 +246,7 @@ TEST_F(TFeatureEventRuntimeTest, OrdinaryClassContributionsAreIndependentValueSn
 TEST_F(TFeatureEventRuntimeTest, ContextRejectsForeignArgumentsBeforeCallingHandlers)
 {
     int calls = 0;
-    Start(MakeRules([&](const auto&, const auto&) { ++calls; return 2; }));
+    Start(MakeRules([&](const auto&, const auto&, const auto&) { ++calls; return 2; }));
     auto& actor = Add("test.Helpful");
     auto foreign_creature = TCreature::Create({.Level = 1});
     TPlayer foreign(&foreign_creature, TPlayerTeam{0}, TPlayerId{0}, "Foreign", "");
@@ -261,7 +263,7 @@ TEST_F(TFeatureEventRuntimeTest, ContextRejectsForeignArgumentsBeforeCallingHand
 TEST_F(TFeatureEventRuntimeTest, ReadonlyDispatchAllowsDefeatedOwnerAndRejectsStaleBindings)
 {
     int calls = 0;
-    Start(MakeRules([&](const auto&, const auto&) { ++calls; return 2; }));
+    Start(MakeRules([&](const auto&, const auto&, const auto&) { ++calls; return 2; }));
     auto& actor = Add("test.Helpful", {}, 1, 0);
     auto target_creature = TCreature::Create({.Level = 1});
     TPlayer target(&target_creature, TPlayerTeam{1}, TPlayerId{1}, "Detached", "");
@@ -277,7 +279,7 @@ TEST_F(TFeatureEventRuntimeTest, ReadonlyDispatchAllowsDefeatedOwnerAndRejectsSt
 
 TEST_F(TFeatureEventRuntimeTest, NestedDispatchFailsAndRestoresTheDispatchScope)
 {
-    Start(MakeRules([&](const auto& owner, const auto& arguments) {
+    Start(MakeRules([&](const auto&, const auto& owner, const auto& arguments) {
         return DispatchFeatureEvent<TTestOtherBonus>(*rules_, owner, arguments).at(0).Value;
     }));
     auto& actor = Add("test.Helpful");
@@ -291,7 +293,7 @@ TEST_F(TFeatureEventRuntimeTest, NestedDispatchFailsAndRestoresTheDispatchScope)
 
 TEST_F(TFeatureEventRuntimeTest, SuspendingHandlerIsRejectedAndLaterDispatchStillWorks)
 {
-    Start(MakeRules([&](const auto&, const auto&) -> int {
+    Start(MakeRules([&](const auto&, const auto&, const auto&) -> int {
         throw TSavepointStackUnwind(transformator_->CurrentState(), []() {});
     }));
     auto& actor = Add("test.Helpful");

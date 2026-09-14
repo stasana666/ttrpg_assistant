@@ -141,16 +141,46 @@ Dispatch constructs a fresh result sequence and publishes it only after all hand
 sequence is a snapshot; later source changes affect the next dispatch, not a
 value already retained across an action's suspended choice.
 
-Handlers receive readonly entity bindings and copied value arguments. They are
+Handlers receive a readonly world view, readonly entity bindings and copied value arguments. They are
 synchronous and pure; nested dispatch and suspension are rejected. The context
 overload validates the acting participant and membership of owner/entity arguments
 in that battle. The rules-only overload permits readonly evaluation outside an
 action and does not impose actor eligibility on the event owner. Its caller must
 keep the referenced entities and rules snapshot alive.
+The explicit world overload also validates the owner and entity arguments against
+that world; the rules-only overload supplies an unbound view. Pure handlers that
+do not use world operations can still run without a battle.
 Readonly capabilities preserve identity while rejecting `Guard()` and mutable
 participant access. The recursion guard is thread-local. Native handlers must
 obey the same purity contract as generated handlers; captured external references
 cannot be sandboxed by the registry.
+
+## Rule world queries (`actions/generated_world.h`)
+
+`TGeneratedWorldView` borrows a battle and exposes readonly participant bindings,
+positions, teams and line-of-effect queries. Every operand is checked for current
+identity and membership in that battle; a participant ID alone is not sufficient.
+`Entities<T>()` returns a snapshot of readonly bindings, including dead participants.
+Rules decide which participants are eligible, and properties are read from the
+current objects. Battle and participants must outlive the view and continuations
+that capture it. Unbound views permit ordinary readonly binding but reject spatial
+queries and participant enumeration.
+
+The language operations are `entities(Type)`, `grid_distance(A, B)`,
+`same_team(A, B)`, `has_line_of_effect(A, B)`, `position_x(A)` and `position_y(A)`.
+Grid distance means Chebyshev distance in map cells; PF2e diagonal movement costs
+are not part of this generic metric. The current map has no obstacle model and
+its line-of-effect check always succeeds.
+
+An action's `requires` declarations are pure preconditions checked during
+enumeration and immediately before payment. A first `choose` immediately after
+the `cost`/`requires` prefix also supplies a target-existence precondition. Later
+choices are not evaluated ahead of intervening computations or effects. The
+existing imperative `require` remains an assertion at its position in the body.
+Preconditions read current source values before payment; execution uses its
+prepared source snapshot. Preconditions are not perpetual invariants after an
+action starts. A chosen target's `where` predicate is checked again on receipt,
+using current target properties and the retained source snapshot.
 
 ## Generated method execution (`generated_execution.h`)
 

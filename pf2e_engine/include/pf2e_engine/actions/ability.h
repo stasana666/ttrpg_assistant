@@ -15,8 +15,12 @@
 #include <string_view>
 #include <vector>
 
-using FAbilityRequirement = std::function<bool(
+class TGeneratedWorldView;
+
+using FLegacyAbilityRequirement = std::function<bool(
     const TPlayer&, const TAbilitySourcePath&, const TTriggerContext*)>;
+using FAbilityRequirement = std::function<bool(
+    const TGeneratedWorldView&, const TPlayer&, const TAbilitySourcePath&, const TTriggerContext*)>;
 using FAbilityPreparation = std::function<void(
     std::shared_ptr<TActionContext>, TPlayer&, const TGrantedAbility&)>;
 
@@ -32,7 +36,7 @@ struct TAbilityExecution {
 class TAbilityExecutions {
 public:
     void Register(std::string id, std::shared_ptr<const TAction> action,
-                  std::optional<ETrigger> trigger = {}, FAbilityRequirement requirement = {});
+                  std::optional<ETrigger> trigger = {}, FLegacyAbilityRequirement requirement = {});
     void Register(std::string id, std::shared_ptr<const TAbilityExecution> execution);
     void Register(std::string id, std::nullptr_t);
     const TAbilityExecution* Find(std::string_view id) const;
@@ -85,10 +89,10 @@ public:
 
 std::vector<TAbilityOption> EnumerateActions(
     int actor_id, const TAbilityCollector& collector, const TAbilityExecutions& executions,
-    const TPlayer& actor);
+    const TPlayer& actor, const TGeneratedWorldView* world = nullptr);
 std::vector<TAbilityOption> EnumerateReactions(
     int actor_id, const TAbilityCollector& collector, const TAbilityExecutions& executions,
-    const TPlayer& actor, const TTriggerContext& trigger);
+    const TPlayer& actor, const TTriggerContext& trigger, const TGeneratedWorldView* world = nullptr);
 EAbilityExecutionResult ExecuteAbility(
     const TAbilityOption& option, std::shared_ptr<TActionContext> ctx, TPlayer& actor,
     const TAbilityCollector& fresh, const TAbilityExecutions& executions,

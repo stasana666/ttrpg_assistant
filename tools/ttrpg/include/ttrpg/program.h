@@ -42,6 +42,7 @@ struct TCompiledActionCost {
 struct TCompiledAction {
     std::vector<TCompiledActionCost> Costs;
     std::vector<std::string> Body;
+    std::vector<std::string> Requirement;
 };
 
 bool UsesRuleSyntax(const TClassDecl& declaration, const TLoadedSchemas& loaded);

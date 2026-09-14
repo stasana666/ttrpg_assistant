@@ -851,6 +851,7 @@ void EmitImpl(std::ostream& os,
     w.Include("pf2e_engine/actions/ability.h");
     if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty() || !ability.Hooks.empty(); })) {
         w.Include("pf2e_engine/actions/generated_action.h");
+        w.Include("pf2e_engine/actions/generated_world.h");
         w.Include("pf2e_engine/actions/feature_event.h");
     }
     if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.SourceType.empty(); })) {

@@ -61,7 +61,9 @@ void ValidateEventDefinitions(const TLoadedSchemas& loaded) {
         const auto& event = *info.Declaration;
         if (loaded.SymbolTable.contains(name) || abilities.contains(name) || IsBuiltinPrimitive(name) ||
             name == "Feature" || name == "Resource" || name == "BoundedQuantity" ||
-            name == "roll" || name == "min" || name == "max") {
+            name == "roll" || name == "min" || name == "max" || name == "entities" ||
+            name == "grid_distance" || name == "same_team" || name == "has_line_of_effect" ||
+            name == "position_x" || name == "position_y") {
             throw std::runtime_error("event name conflicts with existing symbol '" + name + "'");
         }
         if (loaded.SymbolTable.contains(EventTagName(event))) {

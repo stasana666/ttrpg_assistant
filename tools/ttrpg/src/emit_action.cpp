@@ -8,6 +8,7 @@
 void EmitEventDeclarations(TCppWriter& writer, const TLoadedSchemas& loaded) {
     if (!loaded.Primary.Events.empty()) {
         writer.Line("template <class T> class TGeneratedEntityBinding;");
+        writer.Line("class TGeneratedWorldView;");
         writer.EmptyLine();
     }
     for (const auto& event : loaded.Primary.Events) {
@@ -20,7 +21,7 @@ void EmitEventDeclarations(TCppWriter& writer, const TLoadedSchemas& loaded) {
                 arguments += EventArgumentCppType(event.Parameters[i].TypeName, loaded);
             }
             writer.Line("using TArguments = " + arguments + ">;");
-            writer.Line("using FHandler = std::function<TResult(const TGeneratedEntityBinding<TOwner>&, const TArguments&)>;");
+            writer.Line("using FHandler = std::function<TResult(const TGeneratedWorldView&, const TGeneratedEntityBinding<TOwner>&, const TArguments&)>;");
             writer.Line("static constexpr std::string_view kId = " + CppStringLiteral(loaded.PrimaryStem + "." + event.Name) + ";");
         });
         writer.EmptyLine();
@@ -43,7 +44,7 @@ void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
                 const auto body = CompileFeatureHook(ability, hook, loaded);
                 writer.Line("static const auto " + variable + " = std::make_shared<const " + tag + "::FHandler>(");
                 writer.Indented([&] {
-                    writer.Block("[]([[maybe_unused]] const TGeneratedEntityBinding<" + event.OwnerType +
+                    writer.Block("[]([[maybe_unused]] const TGeneratedWorldView& world, [[maybe_unused]] const TGeneratedEntityBinding<" + event.OwnerType +
                         ">& action_self, [[maybe_unused]] const " + tag + "::TArguments& arguments) -> " + CppTypeFor(event.ReturnType) + " {", "});", [&] {
                         for (const auto& line : body) writer.Line(line);
                     });
@@ -68,16 +69,22 @@ void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
                 });
                 writer.Line("std::string(" + CppStringLiteral(ability.Name) + "));");
             });
-            if (ability.SourceType.empty()) {
+            if (compiled.Requirement.empty()) {
                 writer.Line("rules.Executions.Register(" + CppStringLiteral(AbilityId(ability.Name, loaded)) + ", action_" + ability.Name + ");");
             } else {
-                const auto types = ability.OwnerType + ", " + ability.SourceType;
                 writer.Line("static const auto execution_" + ability.Name + " = std::make_shared<const TAbilityExecution>(TAbilityExecution{");
                 writer.Indented([&] {
                     writer.Line(".Action = action_" + ability.Name + ",");
                     writer.Line(".Trigger = {},");
-                    writer.Line(".Requirement = [](const TPlayer& actor, const TAbilitySourcePath& source, const TTriggerContext*) { return RequiredSource<" + types + ">(actor, source); },");
-                    writer.Line(".Prepare = [](std::shared_ptr<TActionContext> Context, TPlayer& actor, const TGrantedAbility& grant) { PrepareActionSource<" + types + ">(Context, actor, grant); }");
+                    writer.Block(".Requirement = []([[maybe_unused]] const TGeneratedWorldView& world, [[maybe_unused]] const TPlayer& actor, [[maybe_unused]] const TAbilitySourcePath& source, const TTriggerContext*) {", "},", [&] {
+                        for (const auto& line : compiled.Requirement) writer.Line(line);
+                    });
+                    if (ability.SourceType.empty()) {
+                        writer.Line(".Prepare = {}");
+                    } else {
+                        const auto types = ability.OwnerType + ", " + ability.SourceType;
+                        writer.Line(".Prepare = [](std::shared_ptr<TActionContext> Context, TPlayer& actor, const TGrantedAbility& grant) { PrepareActionSource<" + types + ">(Context, actor, grant); }");
+                    }
                 });
                 writer.Line("});");
                 writer.Line("rules.Executions.Register(" + CppStringLiteral(AbilityId(ability.Name, loaded)) + ", execution_" + ability.Name + ");");

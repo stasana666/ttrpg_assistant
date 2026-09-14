@@ -26,6 +26,7 @@ public:
 
     const TPlayer* GetPlayer(std::function<bool(const TPlayer*)> predicate) const;
     std::vector<TPlayer*> GetIfPlayers(std::function<bool(const TPlayer*)> predicate);
+    std::vector<const TPlayer*> GetIfPlayers(std::function<bool(const TPlayer*)> predicate) const;
 
     std::vector<int> LivingTeams() const;
     std::optional<int> Winner() const;

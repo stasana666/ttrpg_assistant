@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/actions/generated_action.h>
+#include <pf2e_engine/actions/generated_world.h>
 #include <pf2e_engine/actions/save_point.h>
 #include <pf2e_engine/common/ability.h>
 #include <pf2e_engine/common/feature_event.h>
@@ -54,16 +55,18 @@ void ValidateArgument(const TGeneratedEntityBinding<T>& value)
 }
 
 template <class T>
-void ValidateContextArgument([[maybe_unused]] const std::shared_ptr<TActionContext>& context,
-                             [[maybe_unused]] const T& value)
+void ValidateWorldArgument([[maybe_unused]] const TGeneratedWorldView& world,
+                           [[maybe_unused]] const T& value)
 {
 }
 
 template <class T>
-void ValidateContextArgument(const std::shared_ptr<TActionContext>& context,
-                             const TGeneratedEntityBinding<T>& value)
+void ValidateWorldArgument(const TGeneratedWorldView& world,
+                           const TGeneratedEntityBinding<T>& value)
 {
-    ValidateActionEntity(context, value.View());
+    if (world.IsBound()) {
+        world.Validate(value.View());
+    }
 }
 
 }
@@ -71,6 +74,7 @@ void ValidateContextArgument(const std::shared_ptr<TActionContext>& context,
 template <class TEvent>
 std::vector<TFeatureEventContribution<typename TEvent::TResult>> DispatchFeatureEvent(
     const TAbilityRules& rules,
+    const TGeneratedWorldView& world,
     const TGeneratedEntityBinding<typename TEvent::TOwner>& owner,
     const typename TEvent::TArguments& arguments)
 {
@@ -79,6 +83,10 @@ std::vector<TFeatureEventContribution<typename TEvent::TResult>> DispatchFeature
     const auto readonly_arguments = std::apply([](const auto&... argument) {
         return typename TEvent::TArguments{feature_event_detail::ReadOnlyArgument(argument)...};
     }, arguments);
+    feature_event_detail::ValidateWorldArgument(world, readonly_owner);
+    std::apply([&](const auto&... argument) {
+        (feature_event_detail::ValidateWorldArgument(world, argument), ...);
+    }, readonly_arguments);
     const auto owner_id = readonly_owner.Read().Id();
     const auto abilities = CollectAbilities(readonly_owner.Read(), rules.Catalog);
     std::vector<TFeatureEventContribution<typename TEvent::TResult>> results;
@@ -93,7 +101,7 @@ std::vector<TFeatureEventContribution<typename TEvent::TResult>> DispatchFeature
         }, readonly_arguments);
         auto value = [&]() {
             try {
-                return std::invoke(*handler, readonly_owner, readonly_arguments);
+                return std::invoke(*handler, world, readonly_owner, readonly_arguments);
             } catch (const TSavepointStackUnwind&) {
                 throw std::logic_error("pure feature event handlers cannot suspend");
             }
@@ -106,14 +114,19 @@ std::vector<TFeatureEventContribution<typename TEvent::TResult>> DispatchFeature
 
 template <class TEvent>
 std::vector<TFeatureEventContribution<typename TEvent::TResult>> DispatchFeatureEvent(
+    const TAbilityRules& rules,
+    const TGeneratedEntityBinding<typename TEvent::TOwner>& owner,
+    const typename TEvent::TArguments& arguments)
+{
+    return DispatchFeatureEvent<TEvent>(rules, TGeneratedWorldView{}, owner, arguments);
+}
+
+template <class TEvent>
+std::vector<TFeatureEventContribution<typename TEvent::TResult>> DispatchFeatureEvent(
     const std::shared_ptr<TActionContext>& context,
     const TGeneratedEntityBinding<typename TEvent::TOwner>& owner,
     const typename TEvent::TArguments& arguments)
 {
     const auto& rules = GeneratedActionRules(context);
-    ValidateActionEntity(context, owner.View());
-    std::apply([&](const auto&... argument) {
-        (feature_event_detail::ValidateContextArgument(context, argument), ...);
-    }, arguments);
-    return DispatchFeatureEvent<TEvent>(rules, owner, arguments);
+    return DispatchFeatureEvent<TEvent>(rules, GeneratedActionWorld(context), owner, arguments);
 }

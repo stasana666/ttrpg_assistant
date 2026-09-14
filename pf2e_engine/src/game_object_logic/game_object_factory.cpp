@@ -14,6 +14,7 @@
 #include <limits>
 
 #include <pf2e_engine/inventory/armor.h>
+#include <pf2e_engine/inventory/abilities.h>
 #include <pf2e_engine/inventory/material.h>
 #include "battle_map.h"
 #include "characteristics.h"
@@ -414,7 +415,7 @@ std::shared_ptr<const TAbilityRules> TGameObjectFactory::AbilityRules() const
         return ability_rules_;
     }
     auto rules = std::make_shared<TAbilityRules>();
-    RegisterCreatureAbilities(rules->Catalog);
+    RegisterAbilitiesRules(*rules);
     for (const auto& [id, hook] : feature_hooks_) {
         rules->Catalog.Register({id, EAbilityKind::Feature, {}});
         rules->FeatureHooks.emplace(id, hook);
@@ -435,7 +436,7 @@ std::shared_ptr<const TAbilityRules> TGameObjectFactory::AbilityRules() const
         }
         const auto name = std::string(TGameObjectIdManager::Instance().Name(id));
         rules->Catalog.Register({"legacy_feature." + name, EAbilityKind::Feature, {binding.Definition}});
-        FAbilityRequirement requirement;
+        FLegacyAbilityRequirement requirement;
         if (binding.RequiresWeaponSource) {
             requirement = [](const TPlayer& actor, const TAbilitySourcePath& source,
                              const TTriggerContext*) {

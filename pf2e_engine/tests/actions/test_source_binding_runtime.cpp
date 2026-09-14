@@ -82,7 +82,8 @@ std::shared_ptr<const TAbilityExecution> UsingExecution(TAction::FBody body)
     return std::make_shared<const TAbilityExecution>(TAbilityExecution{
         .Action = std::make_shared<const TAction>(std::move(body), Costs(), "using source"),
         .Trigger = {},
-        .Requirement = [](const TPlayer& actor, const TAbilitySourcePath& source, const auto*) {
+        .Requirement = [](const TGeneratedWorldView&, const TPlayer& actor,
+                           const TAbilitySourcePath& source, const auto*) {
             return RequiredSource<TCreature, TWeapon>(actor, source);
         },
         .Prepare = [](auto ctx, TPlayer& actor, const TGrantedAbility& grant) {

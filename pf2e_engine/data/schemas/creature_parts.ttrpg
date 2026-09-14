@@ -1,5 +1,3 @@
-import "abilities.ttrpg";
-
 enum ECharacteristic {
     Strength,
     Dexterity,

@@ -29,11 +29,23 @@ Canonical project instructions. CLAUDE.md redirects here.
   preparation before payment, readonly source snapshots, stable-path replacement,
   actor/source invalidation and repeated resume checks before native callbacks.
   Collection replacement cases retain no earlier child-field journal entries.
+- `actions/test_world_runtime.cpp` checks readonly world capabilities, participant
+  identity and membership, unbound-world failures, coordinates and the explicit
+  Chebyshev grid metric, live geometry across rollback, world-aware preflight before
+  payment, legacy requirement adapters, and world propagation into pure events.
 - `actions/fixtures/generated_sources.ttrpg` and `actions/test_generated_sources.cpp`
   compile into `test_generated_sources`. They verify named equipment definitions,
   map/set and trait-payload construction, readonly class/collection queries,
   same-name weapon sources, natural weapons, source preflight, and snapshot values
   across removal, replacement, suspension and rollback.
+- `actions/fixtures/generated_world.ttrpg` and `actions/test_generated_world.cpp`
+  compile into `test_generated_world`. They check target existence before payment,
+  live positions, teams and participants in action predicates and pure feature
+  events, source reach snapshots, and suspended target validation with rollback.
+  Prefix `requires` gates new executions before payment; a paid continuation does
+  not rerun it. Existing imperative `require` keeps its body assertion semantics.
+  The ally-count fixture is a language test, not a production PF2e action. Its
+  line-of-effect check uses the current map adapter, which always reports true.
 - `inventory/`: generated schema type and JSON loading tests.
 - `inventory/fixtures/rule_entities.ttrpg` and `inventory/test_rule_entities.cpp`:
   compile generated entities into `test_inventory` and verify named factories,

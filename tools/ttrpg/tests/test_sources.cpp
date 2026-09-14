@@ -96,7 +96,7 @@ TEST(SourceCompilerTest, BindsTypedSnapshotsAndValidatesUnusedSourcesAfterChoice
     EXPECT_EQ(body.find("source_Item.Guard()"), std::string::npos);
     EXPECT_EQ(body.find("source_Item.Read().Id()"), std::string::npos);
     const auto implementation = Implementation(loaded);
-    EXPECT_NE(implementation.find("RequiredSource<TActor, TItem>(actor, source)"), std::string::npos);
+    EXPECT_NE(implementation.find("FindAbilitySource<TItem>(action_self.Read(), source)"), std::string::npos);
     EXPECT_NE(implementation.find("PrepareActionSource<TActor, TItem>(Context, actor, grant)"), std::string::npos);
     EXPECT_NE(implementation.find("static const auto execution_Probe = std::make_shared<const TAbilityExecution>"), std::string::npos);
     EXPECT_NE(implementation.find("rules.Executions.Register(\"sources.Probe\", execution_Probe)"), std::string::npos);

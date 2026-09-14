@@ -22,6 +22,7 @@
 #include "reaction.h"
 #include "save_point.h"
 #include <pf2e_engine/condition.h>
+#include <pf2e_engine/actions/generated_world.h>
 
 namespace {
 constexpr int kActionsPerTurn = 3;
@@ -112,6 +113,18 @@ const TPlayer* TBattle::GetPlayer(std::function<bool(const TPlayer*)> predicate)
         }
     }
     return nullptr;
+}
+
+std::vector<const TPlayer*> TBattle::GetIfPlayers(
+    std::function<bool(const TPlayer*)> predicate) const
+{
+    std::vector<const TPlayer*> result;
+    for (const auto& player : players_) {
+        if (predicate(&player)) {
+            result.push_back(&player);
+        }
+    }
+    return result;
 }
 
 void TBattle::StartBattle()
@@ -255,8 +268,9 @@ std::vector<TAbilityOption> TBattle::AvailableActions(const TPlayer& player) con
     if (!creature.IsAlive()) {
         return {};
     }
+    const TGeneratedWorldView world(this);
     return EnumerateActions(player.GetId(), CollectAbilities(creature, ability_rules_->Catalog),
-                            ability_rules_->Executions, player);
+                            ability_rules_->Executions, player, &world);
 }
 
 std::optional<TAbilityOption> TBattle::ChooseAction(TPlayer& player) const
@@ -339,6 +353,7 @@ THolder<TBattleMap>& TBattle::BattleMapMutable()
 std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& trigger) const
 {
     std::vector<TAbilityOption> reactions;
+    const TGeneratedWorldView world(this);
     for (const auto& player : players_) {
         const auto& creature = *player.GetCreature();
         if (!creature.IsAlive()) {
@@ -346,7 +361,7 @@ std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& t
         }
         auto candidates = EnumerateReactions(
             player.GetId(), CollectAbilities(creature, ability_rules_->Catalog),
-            ability_rules_->Executions, player, trigger);
+            ability_rules_->Executions, player, trigger, &world);
         reactions.insert(reactions.end(), candidates.begin(), candidates.end());
     }
     return reactions;
