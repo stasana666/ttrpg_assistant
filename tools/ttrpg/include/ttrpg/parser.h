@@ -99,6 +99,11 @@ private:
             }
             ts_.Advance();
             declaration.OwnerType = ExpectIdent("action owner type");
+            if (ts_.Peek().text == "using") {
+                ts_.Advance();
+                declaration.SourceType = ExpectIdent("action source type");
+                declaration.SourceName = ExpectIdent("action source name");
+            }
             declaration.Body = ParseBody();
             ts_.Match(ETok::Semi);
         } else if (declaration.Kind == EAbilityDeclarationKind::Feature) {

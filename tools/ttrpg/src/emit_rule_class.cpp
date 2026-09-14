@@ -1,4 +1,5 @@
 #include <ttrpg/emit_rule_class.h>
+#include <ttrpg/emit_source.h>
 
 #include <ttrpg/conventions.h>
 
@@ -374,6 +375,7 @@ void EmitRuleClassDecl(TCppWriter& writer, const TClassDecl& declaration,
     (void)loaded;
     writer.Class(declaration.Name, [&] {
         writer.PublicSection([&] {
+            EmitAbilitySourceVisitor(writer, declaration, loaded.SymbolTable);
             writer.Struct("TInitialValues", [&] {
                 for (const auto& field : compiled.Fields) {
                     if (!field.Declaration.Derived) {

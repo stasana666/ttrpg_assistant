@@ -159,8 +159,30 @@ private:
         }
     }
 
+    TExprNode ParseObjectInitializer(std::string name, parse::TSourceLocation location) {
+        TExprNode e;
+        e.Kind = ENodeKind::ObjectInit;
+        e.Text = std::move(name);
+        e.Location = location;
+        while (!ts_.Match(ETok::RBrace)) {
+            if (ts_.Peek().kind != ETok::Ident) {
+                ts_.Throw("expr parser: expected field name in object initializer");
+            }
+            const auto field = ts_.Consume();
+            ts_.Expect(ETok::Assign, "'='");
+            e.Fields.push_back({field.text, ParseOr(), field.loc});
+            ts_.Expect(ETok::Semicolon, "';'");
+        }
+        return e;
+    }
+
     TExprNode ParsePrimary() {
         const TToken& t = ts_.Peek();
+        if (t.kind == ETok::LBrace) {
+            const auto location = t.loc;
+            ts_.Advance();
+            return ParseObjectInitializer({}, location);
+        }
         if (t.kind == ETok::LBracket) {
             TExprNode e;
             e.Kind = ENodeKind::ListLiteral;
@@ -199,20 +221,7 @@ private:
             const auto location = t.loc;
             std::string name = ts_.Consume().text;
             if (ts_.Match(ETok::LBrace)) {
-                TExprNode e;
-                e.Kind = ENodeKind::ObjectInit;
-                e.Text = std::move(name);
-                e.Location = location;
-                while (!ts_.Match(ETok::RBrace)) {
-                    if (ts_.Peek().kind != ETok::Ident) {
-                        ts_.Throw("expr parser: expected field name in object initializer");
-                    }
-                    const auto field = ts_.Consume();
-                    ts_.Expect(ETok::Assign, "'='");
-                    e.Fields.push_back({field.text, ParseOr(), field.loc});
-                    ts_.Expect(ETok::Semicolon, "';'");
-                }
-                return e;
+                return ParseObjectInitializer(std::move(name), location);
             }
             TExprNode e;
             e.Kind = ENodeKind::Var;

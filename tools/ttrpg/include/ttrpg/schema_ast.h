@@ -79,6 +79,8 @@ struct TAbilityDecl {
         parse::TSourceLocation Location;
     };
     std::vector<THook> Hooks;
+    std::string SourceType;
+    std::string SourceName;
 };
 
 struct TEventDecl {

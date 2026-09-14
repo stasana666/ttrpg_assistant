@@ -1,0 +1,90 @@
+import "../../../data/schemas/creature.ttrpg";
+
+class TWeaponProbeProfile {
+    map<EWeaponCategory, int> CategoryBonus = {
+        Simple = 1;
+        Martial = 3;
+    };
+    set<EDamageType> Favored = [Piercing];
+    collection<TWeapon> Weapons;
+
+    query int Bonus(TWeapon Weapon) {
+        let Amount = @self.CategoryBonus.get(Weapon.Category, 0);
+        if (Weapon.Traits.has(Agile)) {
+            Amount += 1;
+        }
+        if (@self.Favored.has(Weapon.DamageType)) {
+            Amount += 1;
+        }
+        let ThrownData = Weapon.Traits.get(Thrown, { RangeFeet = 0; });
+        Amount += ThrownData.RangeFeet;
+        return Amount;
+    }
+
+    query bool IsFatalD10(TWeapon Weapon) {
+        return Weapon.Traits.get(Fatal, { Die = D6; }).Die == D10;
+    }
+
+    query int MaximumReach() {
+        let Reach = 0;
+        for Weapon in @self.Weapons {
+            Reach = max(Reach, Weapon.Reach);
+        }
+        return Reach;
+    }
+
+    query int TotalDiceSize() {
+        let Total = 0;
+        for Weapon in @self.Weapons {
+            Total += Weapon.BaseDiceSize;
+        }
+        return Total;
+    }
+}
+
+action WeaponProbe for TCreature using TWeapon Weapon {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive();
+    let Profile = TWeaponProbeProfile {};
+    let Amount = roll(1, Weapon.BaseDiceSize);
+    Amount += Profile.Bonus(Weapon);
+    Target.Hitpoints.DealDamage(Amount);
+}
+
+feature ProbeTraining {
+    grant WeaponProbe;
+}
+
+TWeapon ProbeLight {
+    Name = "Blade";
+    BaseDiceSize = 4;
+    DamageType = Piercing;
+    Category = Simple;
+    Reach = 1;
+    Traits = [Agile, Thrown { RangeFeet = 2; }];
+    Features = [ProbeTraining];
+}
+
+TWeapon ProbeHeavy {
+    Name = "Blade";
+    BaseDiceSize = 12;
+    DamageType = Slashing;
+    Category = Martial;
+    Reach = 3;
+    Traits = [Fatal { Die = D10; }, Thrown { RangeFeet = 5; }];
+    Features = [ProbeTraining];
+}
+
+TWeaponProbeProfile ProbeLoadout {
+    Weapons = [ProbeLight, ProbeHeavy, ProbeLight];
+}
+
+TCreature ProbeFighter {
+    Level = 1;
+    Hitpoints = THitPoints {
+        Maximum = Statistic { Base = 100; };
+        Current = 100;
+    };
+    Weapons = [ProbeLight, ProbeHeavy];
+    Actions = 3;
+}

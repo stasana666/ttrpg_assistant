@@ -27,7 +27,10 @@ and `Negate`. Nodes retain a `parse::TSourceLocation` in `Location`.
 - Calls of member or other expressions use `Call.Lhs` for the callee expression
   and leave `Text` empty. `obj.Heal(1)` has a `Member` callee whose receiver is
   `obj`; repeated calls and index/member chains follow the same representation.
-- `ObjectInit.Text` is the declared type name. `Fields` contains ordered
+- `ObjectInit.Text` is the declared type name, or empty for a contextual
+  initializer such as `{ Rank = Expert; }`. The backend supplies its type; the
+  shared parser does not distinguish a class payload from a map initializer.
+  `Fields` contains ordered
   `TFieldInitializer` values with `Name`, `Value`, and `Location`.
 - `Index.Lhs` is the collection expression and `Index.Rhs` is its index.
 - `StringLiteral.Text` stores the decoded string, without enclosing quotes.
@@ -64,7 +67,7 @@ mul_div    := unary      (('*'|'/') unary)*
 unary      := ('!' | '-') unary | postfix
 postfix    := primary ('.' identifier | '(' args? ')' | '[' expression ']')*
 primary    := int | string | ('$' | '@') identifier | identifier
-            | identifier '{' (identifier '=' expression ';')* '}'
+            | identifier? '{' (identifier '=' expression ';')* '}'
             | '[' (expression (',' expression)* ','?)? ']'
             | '(' expression ')'
 args       := expression (',' expression)*

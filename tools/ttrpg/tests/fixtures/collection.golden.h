@@ -15,9 +15,18 @@
 #include <pf2e_engine/common/id_collection.h>
 
 class TGameObjectFactory;
+class TThing;
+class THolder;
 
 class TThing {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+    }
     struct TInitialValues {
         std::optional<int> X{};
     };
@@ -40,6 +49,16 @@ struct TIsAstRecursive<TThing> : std::true_type {};
 
 class THolder {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+        for (auto entry : Things_) {
+            entry->VisitAbilitySources(visitor, path.Field("things").Entry(entry.Id().Value));
+        }
+    }
     struct TInitialValues {
         std::optional<int> Count{};
         std::optional<TIdCollection<TThing>> Things{};

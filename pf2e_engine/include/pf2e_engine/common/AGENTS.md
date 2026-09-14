@@ -99,6 +99,31 @@ body leaves its paid costs and completed mutations in the caller's journal until
 that caller undoes them. Empty choices and failed requirements follow this same
 policy. Whole-action cancellation and target preflight remain separate work.
 
+## Typed action sources (`common/ability_source.h`, `actions/generated_source.h`)
+
+Generated `VisitAbilitySources` exposes stored class providers under the same
+field/collection paths used by grants. `FindAbilitySource<T>` selects the nearest
+ancestor of a grant's source path whose type matches `T`. Discovery reads the
+schema-generated structure; it does not depend on weapon field names or a native
+source-kind enum. The located pointer is only a construction-time borrow.
+
+An action declared `using TWeapon Weapon` checks its required source during
+availability, before resource payment. Its generated immutable execution also
+prepares an owned readonly snapshot before payment. Reads and resumes validate
+the actor, current grant and provider path while retaining the snapshot's values.
+Replacing a provider at the same stable path can preserve eligibility; removing
+the grant or provider invalidates the continuation. Existing snapshots do not
+silently change to the replacement's properties.
+
+`TAbilityExecutions` accepts shared immutable execution definitions, allowing a
+generated action's requirement/preparation callbacks to register idempotently by
+object identity. Independently supplied conflicting callbacks are still rejected.
+`ExecuteAbility` resets prepared source state when reusing a context, then prepares
+the new binding before `TAction::Apply`. Preparation must not mutate the world.
+Snapshot validators capture the owner, rules catalog and previous validator rather
+than their owning context, avoiding an ownership cycle. Their battle and entities
+must remain alive for the binding's lifetime.
+
 ## Typed feature events (`common/feature_event.h`, `actions/feature_event.h`)
 
 `TAbilityRules::Events` stores immutable handlers by event identity and feature
@@ -146,11 +171,17 @@ Assignments stage the replacement and append a journal record before a noexcept
 swap changes the field. Value types must be copy constructible and nothrow
 swappable. Journal AST includes the owning object's identity, field name, and old
 value. Owners must register their stable identity during AST traversal.
+Native callers can journal a complete `TIdCollection` replacement when the
+collection itself stays at a stable field address. Its previous-value AST records
+entry IDs, values and the next ID; Undo restores the allocation history as well as
+the visible items. This does not permit replacing a collection while retaining
+journal records that point into its entries.
 
 Field addresses and owners must remain valid and unmoved while their history is
 retained. Do not use these methods on movable collection elements, or replace an
-aggregate after journaling writes into its children. Entity and container mutation
-will require stable owner/field-path resolution before they can be supported.
+aggregate after journaling writes into its children. Rule-language entity and
+container mutation will require stable owner/field-path resolution before it can
+be supported generally.
 Generated transactions currently support synchronous methods only: suspension via
 `TSavepointStackUnwind` is not a method failure and needs separate continuation-aware
 transaction handling before methods may prompt, yield, or invoke reactions.

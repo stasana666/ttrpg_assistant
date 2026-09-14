@@ -3,6 +3,7 @@
 #include <ttrpg/emit_action.h>
 #include <ttrpg/abilities.h>
 #include <ttrpg/events.h>
+#include <ttrpg/emit_source.h>
 
 #include <ttrpg/analyze.h>
 #include <ttrpg/conventions.h>
@@ -42,6 +43,20 @@ std::vector<const TClassDecl*> OrderedClasses(const TLoadedSchemas& loaded) {
 void ValidateRules(const TLoadedSchemas& loaded) {
     ValidateAbilityDefinitions(loaded);
     ValidateEventDefinitions(loaded);
+    std::unordered_set<std::string> variantNames;
+    auto validateVariants = [&](const TSchemaModule& module) {
+        for (const auto& variant : module.Variants) {
+            std::vector<std::string> names{VariantKindEnum(variant.Name)};
+            for (const auto& alternative : variant.Alternatives) names.push_back(PayloadStructName(variant.Name, alternative.Name));
+            for (const auto& name : names) {
+                if (loaded.SymbolTable.contains(name) || !variantNames.insert(name).second) {
+                    throw std::runtime_error("generated variant type name collision '" + name + "'");
+                }
+            }
+        }
+    };
+    for (const auto& [stem, module] : loaded.ByStem) if (stem != loaded.PrimaryStem) validateVariants(module);
+    validateVariants(loaded.Primary);
     (void)OrderedClasses(loaded);
     for (const auto& c : loaded.Primary.Classes) {
         (void)CompileClass(c, loaded);
@@ -84,6 +99,7 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
                    const std::unordered_map<std::string, TTypeInfo>& symbols) {
     w.Class(c.Name, [&] {
         w.PublicSection([&] {
+            EmitAbilitySourceVisitor(w, c, symbols);
             w.Struct("TInitialValues", [&] {
                 for (const auto& f : c.Fields) {
                     if (!f.Derived) w.Line("std::optional<" + CppMemberType(f, symbols) + "> " + f.Name + "{};");
@@ -436,6 +452,7 @@ void EmitHeader(std::ostream& os,
     }
 
     w.Line("class TGameObjectFactory;");
+    for (const auto& declaration : mod.Classes) w.Line("class " + declaration.Name + ";");
     w.EmptyLine();
 
     for (const auto& e : mod.Enums) {
@@ -835,6 +852,9 @@ void EmitImpl(std::ostream& os,
     if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty() || !ability.Hooks.empty(); })) {
         w.Include("pf2e_engine/actions/generated_action.h");
         w.Include("pf2e_engine/actions/feature_event.h");
+    }
+    if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.SourceType.empty(); })) {
+        w.Include("pf2e_engine/actions/generated_source.h");
     }
     w.Include("pf2e_engine/dsl/property_registry.h");
     w.Include("pf2e_engine/dsl/value.h");

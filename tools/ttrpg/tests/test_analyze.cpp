@@ -441,7 +441,7 @@ TEST(RuleAnalyzeTest, RejectsMixedEnumTypesAndNonEqualityOperators) {
             query bool Check(ESecond Value) { return @self.Accept(Value); }
         }
     )"), std::runtime_error);
-    EXPECT_THROW(CheckRules("class TValue {} class TReader { query int Read(TValue Value) { return 1; } }"), std::runtime_error);
+    EXPECT_THROW(CheckRules("GameEntity TValue {} class TReader { query int Read(TValue Value) { return 1; } }"), std::runtime_error);
 }
 
 TEST(RuleAnalyzeTest, MapGetReturnsClassValuesForTemporaryAndLocalQueries) {

@@ -24,6 +24,16 @@ Canonical project instructions. CLAUDE.md redirects here.
   checks typed immutable handler registration, readonly argument capabilities,
   source deduplication and provenance, snapshot results, context membership,
   stale entity bindings, and rejection of nested or suspending event handlers.
+- `actions/test_source_binding_runtime.cpp` builds as `test_source_bindings` and
+  checks nearest typed source resolution, immutable execution registration,
+  preparation before payment, readonly source snapshots, stable-path replacement,
+  actor/source invalidation and repeated resume checks before native callbacks.
+  Collection replacement cases retain no earlier child-field journal entries.
+- `actions/fixtures/generated_sources.ttrpg` and `actions/test_generated_sources.cpp`
+  compile into `test_generated_sources`. They verify named equipment definitions,
+  map/set and trait-payload construction, readonly class/collection queries,
+  same-name weapon sources, natural weapons, source preflight, and snapshot values
+  across removal, replacement, suspension and rollback.
 - `inventory/`: generated schema type and JSON loading tests.
 - `inventory/fixtures/rule_entities.ttrpg` and `inventory/test_rule_entities.cpp`:
   compile generated entities into `test_inventory` and verify named factories,

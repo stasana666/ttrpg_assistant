@@ -68,7 +68,20 @@ void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
                 });
                 writer.Line("std::string(" + CppStringLiteral(ability.Name) + "));");
             });
-            writer.Line("rules.Executions.Register(" + CppStringLiteral(AbilityId(ability.Name, loaded)) + ", action_" + ability.Name + ");");
+            if (ability.SourceType.empty()) {
+                writer.Line("rules.Executions.Register(" + CppStringLiteral(AbilityId(ability.Name, loaded)) + ", action_" + ability.Name + ");");
+            } else {
+                const auto types = ability.OwnerType + ", " + ability.SourceType;
+                writer.Line("static const auto execution_" + ability.Name + " = std::make_shared<const TAbilityExecution>(TAbilityExecution{");
+                writer.Indented([&] {
+                    writer.Line(".Action = action_" + ability.Name + ",");
+                    writer.Line(".Trigger = {},");
+                    writer.Line(".Requirement = [](const TPlayer& actor, const TAbilitySourcePath& source, const TTriggerContext*) { return RequiredSource<" + types + ">(actor, source); },");
+                    writer.Line(".Prepare = [](std::shared_ptr<TActionContext> Context, TPlayer& actor, const TGrantedAbility& grant) { PrepareActionSource<" + types + ">(Context, actor, grant); }");
+                });
+                writer.Line("});");
+                writer.Line("rules.Executions.Register(" + CppStringLiteral(AbilityId(ability.Name, loaded)) + ", execution_" + ability.Name + ");");
+            }
         }
     });
     writer.EmptyLine();

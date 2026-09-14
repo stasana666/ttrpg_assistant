@@ -15,9 +15,19 @@
 #include <pf2e_engine/common/bounded_quantity.h>
 
 class TGameObjectFactory;
+class TPart;
+class TAbility;
+class TStats;
 
 class TPart {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+    }
     struct TInitialValues {
         std::optional<int> Bonus{};
     };
@@ -40,6 +50,13 @@ struct TIsAstRecursive<TPart> : std::true_type {};
 
 class TAbility {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+    }
     struct TInitialValues {
         std::optional<int> Value{};
     };
@@ -63,6 +80,15 @@ struct TIsAstRecursive<TAbility> : std::true_type {};
 
 class TStats {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+        Part_.VisitAbilitySources(visitor, path.Field("part"));
+        Ability_.VisitAbilitySources(visitor, path.Field("ability"));
+    }
     struct TInitialValues {
         std::optional<TBoundedQuantity> Health{};
         std::optional<int> Base{};

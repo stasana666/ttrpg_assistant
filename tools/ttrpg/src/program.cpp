@@ -22,6 +22,39 @@ using TStatement = TClassDecl::TStatement;
 using TMethod = TClassDecl::TMethod;
 using TClasses = std::unordered_map<std::string, const TClassDecl*>;
 using TEnums = std::unordered_map<std::string, const TEnumDecl*>;
+using TVariants = std::unordered_map<std::string, const TVariantDecl*>;
+using TInstances = std::unordered_map<std::string, const TInstanceDecl*>;
+
+TInstances InstanceTable(const TLoadedSchemas& loaded) {
+    TInstances result;
+    auto add = [&](const TSchemaModule& module) {
+        for (const auto& instance : module.Instances) {
+            if (!result.emplace(instance.Name, &instance).second) throw std::runtime_error("duplicate named value '" + instance.Name + "'");
+            if (loaded.SymbolTable.contains("Create" + instance.Name)) throw std::runtime_error("named value factory conflicts with type 'Create" + instance.Name + "'");
+        }
+    };
+    for (const auto& [stem, module] : loaded.ByStem) if (stem != loaded.PrimaryStem) add(module);
+    add(loaded.Primary);
+    return result;
+}
+
+bool ContainsNamedValue(const expr::TExprNode& expression, const TInstances& instances) {
+    if (expression.Kind == expr::ENodeKind::Var && !expression.HasDollar && instances.contains(expression.Text)) return true;
+    if (expression.Lhs && ContainsNamedValue(*expression.Lhs, instances)) return true;
+    if (expression.Rhs && ContainsNamedValue(*expression.Rhs, instances)) return true;
+    for (const auto& argument : expression.Args) if (ContainsNamedValue(argument, instances)) return true;
+    for (const auto& field : expression.Fields) if (ContainsNamedValue(field.Value, instances)) return true;
+    return false;
+}
+
+TVariants VariantTable(const TLoadedSchemas& loaded) {
+    TVariants result;
+    for (const auto& [stem, module] : loaded.ByStem) {
+        for (const auto& variant : module.Variants) result[variant.Name] = &variant;
+    }
+    for (const auto& variant : loaded.Primary.Variants) result[variant.Name] = &variant;
+    return result;
+}
 
 TEnums EnumTable(const TLoadedSchemas& loaded) {
     TEnums result;
@@ -93,13 +126,23 @@ struct TValue {
     std::string Binding{};
     std::string LocalCode{};
     std::string SequenceElement{};
+    std::string SourceBinding{};
+    std::string VariantAlternative{};
 };
 
 class TCompiler {
 public:
-    TCompiler(const TClassDecl& self, const TLoadedSchemas& loaded)
-        : self_(self), loaded_(loaded), classes_(ClassTable(loaded)), enums_(EnumTable(loaded)), events_(EventSymbols(loaded)) {
+    TCompiler(const TClassDecl& self, const TLoadedSchemas& loaded,
+              std::shared_ptr<std::vector<std::string>> construction = std::make_shared<std::vector<std::string>>())
+        : self_(self), loaded_(loaded), classes_(ClassTable(loaded)), enums_(EnumTable(loaded)),
+          variants_(VariantTable(loaded)), events_(EventSymbols(loaded)), instances_(InstanceTable(loaded)),
+          construction_(std::move(construction)) {
         classes_[self.Name] = &self;
+        for (const auto& [name, variant] : variants_) {
+            for (const auto& alternative : variant->Alternatives) {
+                payloads_.emplace(PayloadStructName(name, alternative.Name), &alternative);
+            }
+        }
     }
 
     [[noreturn]] void Fail(const std::string& message) const {
@@ -165,6 +208,9 @@ public:
                     if (definition.Kind != EAbilityDeclarationKind::Feature) Fail("Feature values require a feature definition");
                     return {.Type = "Feature", .Code = "TFeatureSelection(" + CppStringLiteral(definition.OwnerStem + "." + e.Text) + ")"};
                 }
+                if (const auto variant = variants_.find(expected); variant != variants_.end()) {
+                    return ReadVariant(e, *variant->second, Alternative(*variant->second, e.Text));
+                }
                 const TEnumDecl* literal_type = nullptr;
                 for (const auto& [name, enumeration] : enums_) {
                     if ((!expected.empty() && name != expected) ||
@@ -175,10 +221,22 @@ public:
                     literal_type = enumeration;
                 }
                 if (literal_type) return {.Type = literal_type->Name, .Code = literal_type->Name + "::" + e.Text};
+                if (const auto instance = instances_.find(e.Text); instance != instances_.end()) {
+                    return ReadNamedValue(*instance->second);
+                }
                 Fail("unknown name '" + e.Text + "'");
             }
             case K::Member: {
                 auto owner = Read(*e.Lhs);
+                if (const auto payload = payloads_.find(owner.Type); payload != payloads_.end()) {
+                    const TFieldDecl* field = nullptr;
+                    for (const auto& candidate : payload->second->Fields) if (candidate.Name == e.Text) field = &candidate;
+                    if (!field) Fail("unknown variant payload field '" + e.Text + "'");
+                    return {.Type = field->Container == EContainer::None ? field->TypeName : CppMemberType(*field, loaded_.SymbolTable),
+                        .Code = "(" + owner.Code + ")." + e.Text, .Field = field,
+                        .Container = field->Container, .KeyType = field->Container == EContainer::Map ? field->TypeName : "",
+                        .ElementType = field->Container == EContainer::Map ? field->ValueTypeName : field->TypeName};
+                }
                 auto cls = classes_.find(owner.Type);
                 if (cls == classes_.end()) Fail("type '" + owner.Type + "' has no fields");
                 const auto* field = Field(*cls->second, e.Text);
@@ -249,6 +307,13 @@ public:
             }
             case K::Call: return Call(e, effects);
             case K::ObjectInit: {
+                if (const auto payload = payloads_.find(expected); payload != payloads_.end()) {
+                    if (!e.Text.empty() && e.Text != payload->second->Name) Fail("fallback must construct the requested variant payload");
+                    return {.Type = expected, .Code = ReadPayload(e, *payload->second, expected)};
+                }
+                if (const auto variant = variants_.find(expected); variant != variants_.end()) {
+                    return ReadVariant(e, *variant->second, Alternative(*variant->second, e.Text));
+                }
                 const auto type = e.Text.empty() ? expected : e.Text;
                 const auto cls = classes_.find(type);
                 if (cls == classes_.end()) Fail("unknown constructed class '" + type + "'");
@@ -264,6 +329,7 @@ public:
                     auto value = ReadInitializer(initializer.Value, *field);
                     values.emplace(initializer.Name, value.Code);
                 }
+                ValidateConstructionDefaults(*cls->second, values);
                 std::string code = type + "::Create({";
                 bool first = true;
                 for (const auto& field : cls->second->Fields) {
@@ -291,18 +357,45 @@ public:
             Match(value, field.TypeName);
             return value;
         }
-        if (field.Container != EContainer::Collection || expression.Kind != expr::ENodeKind::ListLiteral) {
-            Fail("container initialization requires a list literal for a collection field");
-        }
         const std::string type = CppMemberType(field, loaded_.SymbolTable);
         std::string code = "([&] { " + type + " values; ";
+        if (field.Container == EContainer::Map) {
+            if (expression.Kind != expr::ENodeKind::ObjectInit || !expression.Text.empty()) Fail("map initialization requires a contextual { Key = Value; } literal");
+            std::unordered_set<std::string> keys;
+            TFieldDecl valueField = field;
+            valueField.Container = EContainer::None;
+            valueField.TypeName = field.ValueTypeName;
+            valueField.ValueTypeName.clear();
+            for (const auto& element : expression.Fields) {
+                if (!keys.insert(element.Name).second) Fail("duplicate map key '" + element.Name + "'");
+                const auto enumeration = enums_.find(field.TypeName);
+                if (enumeration == enums_.end() || std::find(enumeration->second->Values.begin(), enumeration->second->Values.end(), element.Name) == enumeration->second->Values.end()) {
+                    Fail("unknown map key '" + element.Name + "' for enum '" + field.TypeName + "'");
+                }
+                auto value = ReadInitializer(element.Value, valueField);
+                code += "values.emplace(" + field.TypeName + "::" + element.Name + ", " + value.Code + "); ";
+            }
+            return {.Type = type, .Code = code + "return values; }())", .Container = EContainer::Map,
+                .KeyType = field.TypeName, .ElementType = field.ValueTypeName};
+        }
+        if (expression.Kind != expr::ENodeKind::ListLiteral) Fail("container initialization requires a list literal");
+        std::unordered_set<std::string> alternatives;
+        std::size_t elementIndex = 0;
         for (const auto& element : expression.Args) {
             auto value = Read(element, field.TypeName);
             Match(value, field.TypeName);
-            code += "values.Add(" + value.Code + "); ";
+            if (field.Container == EContainer::Set && variants_.contains(field.TypeName)) {
+                if (!value.VariantAlternative.empty() && !alternatives.insert(value.VariantAlternative).second) Fail("duplicate variant alternative '" + value.VariantAlternative + "'");
+                const auto local = "element_" + std::to_string(elementIndex++);
+                code += "auto " + local + " = " + value.Code + "; if (values.Has(" + local +
+                    ".Kind())) { throw std::invalid_argument(" + CppStringLiteral("duplicate variant alternative in " + field.Name) +
+                    "); } values.Set(std::move(" + local + ")); ";
+            } else {
+                code += std::string(field.Container == EContainer::Collection ? "values.Add(" : "values.insert(") + value.Code + "); ";
+            }
         }
         code += "return values; }())";
-        return {.Type = type, .Code = code};
+        return {.Type = type, .Code = code, .Container = field.Container, .ElementType = field.TypeName};
     }
 
     TValue Call(const expr::TExprNode& call, bool effects) {
@@ -351,6 +444,28 @@ public:
         if (call.Lhs->Kind != expr::ENodeKind::Member) Fail("only named methods can be called");
         const auto& member = *call.Lhs;
         auto owner = Read(*member.Lhs);
+        if (owner.Container == EContainer::Set) {
+            if (const auto variant = variants_.find(owner.ElementType); variant != variants_.end()) {
+                if (member.Text != "has" && member.Text != "get") Fail("variant sets support only 'has' and 'get'");
+                if (call.Args.size() != (member.Text == "has" ? 1u : 2u)) Fail("wrong argument count for variant set lookup");
+                const auto& key = call.Args.front();
+                if (key.Kind != expr::ENodeKind::Var || key.HasDollar) Fail("variant lookup requires an alternative name");
+                const auto& alternative = Alternative(*variant->second, key.Text);
+                if (member.Text == "has") {
+                    return {.Type = "bool", .Code = "(" + owner.Code + ").Has(" + VariantKindEnum(variant->first) + "::" + alternative.Name + ")"};
+                }
+                const auto payloadType = PayloadStructName(variant->first, alternative.Name);
+                auto fallback = Read(call.Args[1], payloadType);
+                Match(fallback, payloadType);
+                return {.Type = payloadType, .Code = "([](const auto& rule_set, " + payloadType +
+                    " fallback) { const auto* value = rule_set.template Get<" + payloadType +
+                    ">(); if (value == nullptr) { return fallback; } return *value; }(" + owner.Code + ", " + fallback.Code + "))"};
+            }
+            if (member.Text != "has" || call.Args.size() != 1) Fail("enum sets support only 'has' with one argument");
+            auto key = Read(call.Args.front(), owner.ElementType);
+            Match(key, owner.ElementType);
+            return {.Type = "bool", .Code = "(" + owner.Code + ").contains(" + key.Code + ")"};
+        }
         if (owner.Container == EContainer::Map) {
             if (member.Text != "get") Fail("map supports only the pure 'get' lookup");
             if (call.Args.size() != 2) Fail("map.get expects a key and a fallback value");
@@ -386,6 +501,7 @@ public:
         }
         std::string code;
         if (method->Query) {
+            ValidateQueryConstruction(*cls->second, *method);
             code = "(" + owner.Code + ")." + method->Name + "(" + args + ")";
         } else {
             code = "ctx.Invoke(" + owner.Guard + ", &" + owner.Type + "::" + method->Name;
@@ -451,8 +567,10 @@ public:
             CheckType(method.ReturnType, true);
             for (const auto& parameter : method.Parameters) {
                 CheckType(parameter.TypeName);
-                if (!IsBuiltinPrimitive(parameter.TypeName) && !enums_.contains(parameter.TypeName)) {
-                    Fail("method parameters require primitive or enum value types");
+                const auto parameter_class = classes_.find(parameter.TypeName);
+                if (!IsBuiltinPrimitive(parameter.TypeName) && !enums_.contains(parameter.TypeName) &&
+                    (parameter_class == classes_.end() || parameter_class->second->GameEntity)) {
+                    Fail("method parameters require primitive, enum, or ordinary class value types");
                 }
                 if (!locals_.emplace(parameter.Name, TValue{.Type = parameter.TypeName, .Code = "arg_" + parameter.Name}).second) {
                     Fail("duplicate parameter '" + parameter.Name + "'");
@@ -488,6 +606,14 @@ public:
         }
         result.Body.push_back("[[maybe_unused]] auto action_self = ActionSelf<" + self_.Name + ">(Context);");
         result.Body.push_back("[[maybe_unused]] auto ctx = Context->transformator->ExecutionContext();");
+        if (!declaration.SourceType.empty()) {
+            const auto source = classes_.find(declaration.SourceType);
+            if (source == classes_.end() || source->second->GameEntity) Fail("action source requires an ordinary class type");
+            const auto binding = "source_" + declaration.SourceName;
+            result.Body.push_back("[[maybe_unused]] auto " + binding + " = ActionSource<" + self_.Name + ", " + declaration.SourceType + ">(Context);");
+            locals_.emplace(declaration.SourceName, TValue{.Type = declaration.SourceType, .Code = binding + ".Read()",
+                .LocalCode = binding, .SourceBinding = binding});
+        }
         ActionStatements(declaration.Body, first, result.Body, "");
         method_ = nullptr;
         return result;
@@ -524,6 +650,103 @@ public:
     }
 
 private:
+    void ValidateQueryConstruction(const TClassDecl& owner, const TMethod& method) {
+        CheckConstruction("query " + owner.Name + "." + method.Name, [&] {
+            TCompiler compiler(owner, loaded_, construction_);
+            compiler.method_ = &method;
+            for (const auto& parameter : method.Parameters) {
+                if (!compiler.locals_.emplace(parameter.Name, TValue{.Type = parameter.TypeName, .Code = "arg_" + parameter.Name}).second) {
+                    Fail("duplicate parameter '" + parameter.Name + "'");
+                }
+            }
+            std::vector<std::string> output;
+            compiler.Statements(method.Body, output, "");
+        });
+    }
+
+    void CheckConstruction(const std::string& step, const std::function<void()>& validate) {
+        if (std::find(construction_->begin(), construction_->end(), step) != construction_->end()) {
+            std::string path;
+            for (const auto& value : *construction_) path += value + " -> ";
+            Fail("cyclic named value construction: " + path + step);
+        }
+        construction_->push_back(step);
+        try {
+            validate();
+        } catch (...) {
+            construction_->pop_back();
+            throw;
+        }
+        construction_->pop_back();
+    }
+
+    TValue ReadNamedValue(const TInstanceDecl& instance) {
+        const auto cls = classes_.find(instance.TypeName);
+        if (cls == classes_.end()) Fail("named values require a declared class type");
+        if (cls->second->GameEntity) Fail("named GameEntity factories cannot be used as value expressions");
+        CheckConstruction("value " + instance.Name, [&] {
+            TClassDecl scope;
+            scope.Name = "value " + instance.Name;
+            TCompiler compiler(scope, loaded_, construction_);
+            auto value = compiler.Read(instance.Value, instance.TypeName);
+            compiler.Match(value, instance.TypeName);
+        });
+        return {.Type = instance.TypeName, .Code = "Create" + instance.Name + "()"};
+    }
+
+    void ValidateConstructionDefaults(const TClassDecl& declaration,
+                                      const std::unordered_map<std::string, std::string>& supplied) {
+        for (const auto& field : declaration.Fields) {
+            if (field.Derived || supplied.contains(field.Name)) continue;
+            const bool nested = field.Container == EContainer::None && classes_.contains(field.TypeName);
+            if (!field.Init && !nested) continue;
+            CheckConstruction("default " + declaration.Name + "." + field.Name, [&] {
+                TCompiler compiler(declaration, loaded_, construction_);
+                if (field.Init) {
+                    compiler.ReadInitializer(*field.Init, field);
+                } else {
+                    expr::TExprNode value;
+                    value.Kind = expr::ENodeKind::ObjectInit;
+                    value.Text = field.TypeName;
+                    compiler.Read(value, field.TypeName);
+                }
+            });
+        }
+    }
+
+    const TVariantAlt& Alternative(const TVariantDecl& variant, const std::string& name) const {
+        for (const auto& alternative : variant.Alternatives) if (alternative.Name == name) return alternative;
+        Fail("unknown alternative '" + variant.Name + "." + name + "'");
+    }
+
+    std::string ReadPayload(const expr::TExprNode& expression, const TVariantAlt& alternative, const std::string& type) {
+        std::unordered_map<std::string, std::string> values;
+        for (const auto& initializer : expression.Fields) {
+            const TFieldDecl* field = nullptr;
+            for (const auto& candidate : alternative.Fields) if (candidate.Name == initializer.Name) field = &candidate;
+            if (!field) Fail("unknown variant initializer field '" + initializer.Name + "'");
+            if (!values.emplace(initializer.Name, ReadInitializer(initializer.Value, *field).Code).second) {
+                Fail("duplicate variant initializer field '" + initializer.Name + "'");
+            }
+        }
+        std::string code = type + "{";
+        bool first = true;
+        for (const auto& field : alternative.Fields) {
+            if (const auto value = values.find(field.Name); value != values.end()) {
+                if (!first) code += ", ";
+                first = false;
+                code += "." + field.Name + " = " + value->second;
+            }
+        }
+        return code + "}";
+    }
+
+    TValue ReadVariant(const expr::TExprNode& expression, const TVariantDecl& variant, const TVariantAlt& alternative) {
+        return {.Type = variant.Name,
+            .Code = variant.Name + "(" + ReadPayload(expression, alternative, PayloadStructName(variant.Name, alternative.Name)) + ")",
+            .VariantAlternative = alternative.Name};
+    }
+
     void ValidateActionStep(std::vector<std::string>& output, const std::string& indent) const {
         output.push_back(indent + "ValidateActionActor(Context);");
         output.push_back(indent + "action_self.View().Validate();");
@@ -532,6 +755,11 @@ private:
             if (!value.Binding.empty()) bindings.insert(value.Binding);
         }
         for (const auto& binding : bindings) output.push_back(indent + binding + ".View().Validate();");
+        std::set<std::string> sources;
+        for (const auto& [name, value] : locals_) {
+            if (!value.SourceBinding.empty()) sources.insert(value.SourceBinding);
+        }
+        for (const auto& source : sources) output.push_back(indent + source + ".Validate();");
     }
 
     TValue EntityBinding(const std::string& type, const std::string& name) const {
@@ -700,7 +928,9 @@ private:
                 if (statement.Value) expression(*statement.Value, scope);
                 if (statement.Target) expression(*statement.Target, scope);
                 if (statement.Kind == TStatement::EKind::Let) scope.insert(statement.Name);
-                statements(statement.Body, scope);
+                auto nested_scope = scope;
+                if (statement.Kind == TStatement::EKind::ForEach) nested_scope.insert(statement.Name);
+                statements(statement.Body, std::move(nested_scope));
                 statements(statement.ElseBody, scope);
             }
         };
@@ -722,7 +952,7 @@ private:
             "using", "virtual", "void", "volatile", "wchar_t", "while", "xor", "xor_eq"
         };
         if (keywords.contains(self_.Name)) Fail("reserved class name '" + self_.Name + "'");
-        const std::unordered_set<std::string> reserved{"Create", "FromJson", "Restore", "ToJson", "GetAst", "RegisterDslProperties", "TInitialValues", "TUninitialized", "VisitGrantedAbilities"};
+        const std::unordered_set<std::string> reserved{"Create", "FromJson", "Restore", "ToJson", "GetAst", "RegisterDslProperties", "TInitialValues", "TUninitialized", "VisitGrantedAbilities", "VisitAbilitySources"};
         for (const auto& field : self_.Fields) {
             if (field.Name == self_.Name || field.Name.ends_with('_') || keywords.contains(field.Name) || reserved.contains(field.Name) || (self_.GameEntity && field.Name == "Id")) Fail("reserved field name '" + field.Name + "'");
             if (!names.insert(field.Name).second) Fail("duplicate member '" + field.Name + "'");
@@ -837,10 +1067,11 @@ private:
                 case K::Choose: Fail("choose is supported only at the top level of an action body");
                 case K::Cost: Fail("cost declarations must precede all statements in an action body");
                 case K::ForEach: {
-                    if (!action_) Fail("for currently requires an action event sequence");
                     if (locals_.contains(statement.Name)) Fail("duplicate local '" + statement.Name + "'");
                     auto sequence = Read(*statement.Value);
-                    if (sequence.SequenceElement.empty()) Fail("for requires an event contribution sequence");
+                    const bool collection = sequence.Container == EContainer::Collection;
+                    if (sequence.SequenceElement.empty() && !collection) Fail("for requires an event contribution sequence or read-only collection");
+                    const auto elementType = collection ? sequence.ElementType : sequence.SequenceElement;
                     const auto number = std::to_string(loop_++);
                     const auto snapshot = "event_values_" + number;
                     const auto entry = "event_value_" + number;
@@ -849,8 +1080,8 @@ private:
                     line("{");
                     line("    const auto " + snapshot + " = " + sequence.Code + ";");
                     line("    for (const auto& " + entry + " : " + snapshot + ") {");
-                    line("        [[maybe_unused]] auto " + local + " = " + entry + ".Value;");
-                    locals_[statement.Name] = {.Type = sequence.SequenceElement, .Code = local, .LocalCode = local};
+                    line("        [[maybe_unused]] auto " + local + " = " + (collection ? "*" + entry : entry + ".Value") + ";");
+                    locals_[statement.Name] = {.Type = elementType, .Code = local, .LocalCode = local};
                     Statements(statement.Body, output, indent + "        ");
                     locals_ = std::move(saved);
                     line("    }");
@@ -866,7 +1097,11 @@ private:
     const TLoadedSchemas& loaded_;
     TClasses classes_;
     TEnums enums_;
+    TVariants variants_;
+    std::unordered_map<std::string, const TVariantAlt*> payloads_;
     std::unordered_map<std::string, TEventInfo> events_;
+    TInstances instances_;
+    std::shared_ptr<std::vector<std::string>> construction_;
     std::unordered_map<std::string, TValue> locals_;
     std::unordered_set<std::string> dependencies_;
     const TMethod* method_ = nullptr;
@@ -879,6 +1114,7 @@ private:
 
 bool UsesRuleSyntax(const TClassDecl& declaration, const TLoadedSchemas& loaded) {
     const auto classes = ClassTable(loaded);
+    const auto instances = InstanceTable(loaded);
     std::unordered_set<std::string> visiting;
     std::function<bool(const TClassDecl&)> inspect = [&](const TClassDecl& c) {
         if (!visiting.insert(c.Name).second) return false;
@@ -886,6 +1122,7 @@ bool UsesRuleSyntax(const TClassDecl& declaration, const TLoadedSchemas& loaded)
         for (const auto& field : c.Fields) {
             if (IsBuiltinFeature(field.TypeName)) return true;
             if (field.Init && NewExpression(*field.Init)) return true;
+            if (field.Init && ContainsNamedValue(*field.Init, instances)) return true;
             const auto nested = classes.find(field.TypeName);
             if (nested != classes.end() && inspect(*nested->second)) return true;
         }

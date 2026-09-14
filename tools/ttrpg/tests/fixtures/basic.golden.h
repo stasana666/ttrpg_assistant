@@ -16,6 +16,7 @@
 #include <pf2e_engine/common/bounded_quantity.h>
 
 class TGameObjectFactory;
+class TThing;
 
 enum class EColor {
     Red,
@@ -28,6 +29,13 @@ EColor EColorFromString(const std::string& s);
 
 class TThing {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+    }
     struct TInitialValues {
         std::optional<std::string> Name{};
         std::optional<int> Count{};

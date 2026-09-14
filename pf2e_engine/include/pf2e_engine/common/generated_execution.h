@@ -2,6 +2,8 @@
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/guarded.h>
+#include <pf2e_engine/common/id_collection.h>
+#include <pf2e_engine/common/variant_map.h>
 #include <pf2e_engine/transformation/state.h>
 
 #include <concepts>
@@ -15,6 +17,43 @@
 class TTransformator;
 class TGeneratedExecutionContext;
 class TGeneratedTransaction;
+
+namespace generated_assignment_detail {
+
+template <class T>
+void AddPrevious(TAstNode& node, std::string_view label, const T& value, TAstContext& ctx)
+{
+    if constexpr (TIsAstRecursive<T>::value) {
+        AddOwnedObject(node, label, value, ctx);
+    } else {
+        AddValueField(node, label, value);
+    }
+}
+
+template <class T>
+void AddPrevious(TAstNode& node, std::string_view label, const TIdCollection<T>& value,
+                 TAstContext& ctx)
+{
+    auto collection = TAstNode::MakeObject("collection");
+    AddValueField(collection, "next_id", value.NextId().Value);
+    for (const auto entry : value) {
+        AddPrevious(collection, std::to_string(entry.Id().Value), *entry, ctx);
+    }
+    node.AddChild(label, std::move(collection));
+}
+
+template <class TKind, class TVariant>
+void AddPrevious(TAstNode& node, std::string_view label,
+                 const TVariantMap<TKind, TVariant>& value, TAstContext& ctx)
+{
+    auto variants = TAstNode::MakeObject("container");
+    for (const auto& [kind, variant] : value) {
+        AddPrevious(variants, ToString(kind), variant, ctx);
+    }
+    node.AddChild(label, std::move(variants));
+}
+
+}
 
 class TGeneratedAssignment {
 public:
@@ -53,11 +92,7 @@ private:
             TAstNode node = TAstNode::MakeObject("TGeneratedAssignment");
             AddReference(node, "owner_ref", owner_, ctx);
             AddValueField(node, "field", field_);
-            if constexpr (TIsAstRecursive<T>::value) {
-                AddOwnedObject(node, "previous", previous_, ctx);
-            } else {
-                AddValueField(node, "previous", previous_);
-            }
+            generated_assignment_detail::AddPrevious(node, "previous", previous_, ctx);
             return node;
         }
 

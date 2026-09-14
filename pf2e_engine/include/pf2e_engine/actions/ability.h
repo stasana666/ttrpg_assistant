@@ -6,6 +6,7 @@
 #include <pf2e_engine/common/feature_event.h>
 
 #include <functional>
+#include <cstddef>
 #include <map>
 #include <memory>
 #include <optional>
@@ -16,6 +17,8 @@
 
 using FAbilityRequirement = std::function<bool(
     const TPlayer&, const TAbilitySourcePath&, const TTriggerContext*)>;
+using FAbilityPreparation = std::function<void(
+    std::shared_ptr<TActionContext>, TPlayer&, const TGrantedAbility&)>;
 
 struct TCreatureFeat;
 
@@ -23,17 +26,20 @@ struct TAbilityExecution {
     std::shared_ptr<const TAction> Action;
     std::optional<ETrigger> Trigger;
     FAbilityRequirement Requirement;
+    FAbilityPreparation Prepare = {};
 };
 
 class TAbilityExecutions {
 public:
     void Register(std::string id, std::shared_ptr<const TAction> action,
                   std::optional<ETrigger> trigger = {}, FAbilityRequirement requirement = {});
+    void Register(std::string id, std::shared_ptr<const TAbilityExecution> execution);
+    void Register(std::string id, std::nullptr_t);
     const TAbilityExecution* Find(std::string_view id) const;
     const TAbilityExecution& Require(std::string_view id) const;
 
 private:
-    std::map<std::string, TAbilityExecution, std::less<>> executions_;
+    std::map<std::string, std::shared_ptr<const TAbilityExecution>, std::less<>> executions_;
 };
 
 struct TAbilityRules {

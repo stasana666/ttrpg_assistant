@@ -6,6 +6,7 @@ add_executable(test_ttrpg
     test_abilities.cpp
     test_actions.cpp
     test_events.cpp
+    test_sources.cpp
     test_golden.cpp
 )
 

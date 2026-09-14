@@ -18,6 +18,7 @@
 #include <pf2e_engine/common/variant_map.h>
 
 class TGameObjectFactory;
+class TSpell;
 
 enum class EColor {
     Red,
@@ -90,6 +91,13 @@ struct TIsAstRecursive<TEffect> : std::true_type {};
 
 class TSpell {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+    }
     struct TInitialValues {
         std::optional<std::string> Name{};
         std::optional<TVariantMap<EEffectKind, TEffect>> Effects{};

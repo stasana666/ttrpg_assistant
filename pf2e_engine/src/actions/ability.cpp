@@ -11,27 +11,43 @@ void TAbilityExecutions::Register(std::string id, std::shared_ptr<const TAction>
                                   std::optional<ETrigger> trigger,
                                   FAbilityRequirement requirement)
 {
-    if (id.empty() || !action || trigger == ETrigger::COUNT) {
+    Register(std::move(id), std::make_shared<const TAbilityExecution>(TAbilityExecution{
+        .Action = std::move(action),
+        .Trigger = trigger,
+        .Requirement = std::move(requirement),
+    }));
+}
+
+void TAbilityExecutions::Register(std::string id,
+                                  std::shared_ptr<const TAbilityExecution> execution)
+{
+    if (id.empty() || !execution || !execution->Action || execution->Trigger == ETrigger::COUNT) {
         throw std::invalid_argument("invalid ability execution binding");
     }
-    if (const auto* existing = Find(id)) {
-        if (existing->Action != action || existing->Trigger != trigger
-            || existing->Requirement || requirement) {
+    if (const auto found = executions_.find(id); found != executions_.end()) {
+        const auto& existing = found->second;
+        if (existing == execution) {
+            return;
+        }
+        if (existing->Action != execution->Action || existing->Trigger != execution->Trigger
+            || existing->Requirement || execution->Requirement
+            || existing->Prepare || execution->Prepare) {
             throw std::invalid_argument("conflicting ability execution: " + id);
         }
         return;
     }
-    executions_.emplace(std::move(id), TAbilityExecution{
-        .Action = std::move(action),
-        .Trigger = trigger,
-        .Requirement = std::move(requirement),
-    });
+    executions_.emplace(std::move(id), std::move(execution));
 }
 
 const TAbilityExecution* TAbilityExecutions::Find(std::string_view id) const
 {
     const auto found = executions_.find(id);
-    return found == executions_.end() ? nullptr : &found->second;
+    return found == executions_.end() ? nullptr : found->second.get();
+}
+
+void TAbilityExecutions::Register(std::string, std::nullptr_t)
+{
+    throw std::invalid_argument("invalid ability execution binding");
 }
 
 const TAbilityExecution& TAbilityExecutions::Require(std::string_view id) const
@@ -163,11 +179,18 @@ EAbilityExecutionResult ExecuteAbility(
         || (bindings.ValidateSource && !bindings.ValidateSource())) {
         return EAbilityExecutionResult::Unavailable;
     }
+    if (!ctx) {
+        throw std::invalid_argument("ability execution requires a context");
+    }
+    ctx->generated_source.reset();
     ctx->owned_action = execution.Action;
     ctx->source_weapon = std::move(bindings.SourceWeapon);
     ctx->trigger_actor = bindings.TriggerActor;
     ctx->ability_source = option.Source;
     ctx->validate_ability = std::move(bindings.ValidateSource);
+    if (execution.Prepare) {
+        execution.Prepare(ctx, actor, *grant);
+    }
     execution.Action->Apply(std::move(ctx), actor);
     return EAbilityExecutionResult::Applied;
 }

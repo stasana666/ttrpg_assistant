@@ -283,3 +283,52 @@ TEST(ExprParser, RejectsMalformedListLiterals) {
         EXPECT_THROW(Parse(source), std::runtime_error) << source;
     }
 }
+
+TEST(ExprParser, ParsesContextualObjectInitializersWithoutInferringTheirType) {
+    const auto value = Parse("{ Martial = { Rank = Expert; }; Unarmed = TValue { Bonus = 3; }; }");
+    ASSERT_EQ(value.Kind, ENodeKind::ObjectInit);
+    EXPECT_TRUE(value.Text.empty());
+    ASSERT_EQ(value.Fields.size(), 2u);
+    EXPECT_EQ(value.Fields[0].Name, "Martial");
+    const auto& nested = value.Fields[0].Value;
+    ASSERT_EQ(nested.Kind, ENodeKind::ObjectInit);
+    EXPECT_TRUE(nested.Text.empty());
+    ASSERT_EQ(nested.Fields.size(), 1u);
+    EXPECT_EQ(nested.Fields[0].Value.Text, "Expert");
+    EXPECT_EQ(value.Fields[1].Value.Text, "TValue");
+    EXPECT_TRUE(Parse("{}").Fields.empty());
+}
+
+TEST(ExprParser, UsesContextualInitializersInCallsAndLists) {
+    const auto value = Parse("Traits.get(Fatal, { Die = D6; }).Die");
+    ASSERT_EQ(value.Kind, ENodeKind::Member);
+    ASSERT_EQ(value.Lhs->Kind, ENodeKind::Call);
+    ASSERT_EQ(value.Lhs->Args.size(), 2u);
+    const auto& fallback = value.Lhs->Args[1];
+    EXPECT_EQ(fallback.Kind, ENodeKind::ObjectInit);
+    EXPECT_TRUE(fallback.Text.empty());
+    ASSERT_EQ(fallback.Fields.size(), 1u);
+    EXPECT_EQ(fallback.Fields[0].Name, "Die");
+    const auto list = Parse("[{ Value = -3; }, { Value = 4; },]");
+    ASSERT_EQ(list.Args.size(), 2u);
+    EXPECT_EQ(list.Args[0].Fields[0].Value.Text, "-3");
+    EXPECT_EQ(list.Args[1].Fields[0].Value.Text, "4");
+}
+
+TEST(ExprParser, PreservesContextualInitializerAndFieldLocations) {
+    const auto value = Parse("call(\n  {\n    Value = 7;\n  })");
+    ASSERT_EQ(value.Args.size(), 1u);
+    const auto& object = value.Args[0];
+    EXPECT_EQ(object.Location.line, 2);
+    EXPECT_EQ(object.Location.col, 3);
+    ASSERT_EQ(object.Fields.size(), 1u);
+    EXPECT_EQ(object.Fields[0].Location.line, 3);
+    EXPECT_EQ(object.Fields[0].Location.col, 5);
+}
+
+TEST(ExprParser, RejectsMalformedContextualInitializers) {
+    for (const std::string source : {"{", "{ Value = 1 }", "{ Value 1; }", "{ Value = ; }",
+                                     "{ Value = 1;", "{ Value = 1, }", "{ 1 = 2; }"}) {
+        EXPECT_THROW(Parse(source), std::runtime_error) << source;
+    }
+}

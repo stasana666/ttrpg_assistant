@@ -16,6 +16,7 @@ class TEffectManager;
 class TAction;
 class TWeapon;
 class TPlayer;
+class TGeneratedSourceView;
 
 struct TActionContext {
     TBattle* battle;
@@ -28,6 +29,7 @@ struct TActionContext {
     std::shared_ptr<TGameObjectRegistry> game_object_registry = nullptr;
     std::shared_ptr<const TAction> owned_action = {};
     std::shared_ptr<const TWeapon> source_weapon = {};
+    std::shared_ptr<const TGeneratedSourceView> generated_source = {};
     TPlayer* trigger_actor = nullptr;
     TAbilitySourcePath ability_source = {};
     std::function<bool()> validate_ability = {};
