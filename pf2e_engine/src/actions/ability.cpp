@@ -1,5 +1,7 @@
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/actions/generated_world.h>
+#include <pf2e_engine/actions/generated_history.h>
+#include <pf2e_engine/game_object_logic/game_object_registry.h>
 
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/player.h>
@@ -40,7 +42,7 @@ void TAbilityExecutions::Register(std::string id,
         }
         if (existing->Action != execution->Action || existing->Trigger != execution->Trigger
             || existing->Requirement || execution->Requirement
-            || existing->Prepare || execution->Prepare) {
+            || existing->Prepare || execution->Prepare || existing->PreviousRecord != execution->PreviousRecord) {
             throw std::invalid_argument("conflicting ability execution: " + id);
         }
         return;
@@ -157,6 +159,13 @@ std::vector<TAbilityOption> Enumerate(
         if (!IsEligible(execution, grant, actor, trigger, world)) {
             continue;
         }
+        std::optional<TActionRecordStamp> previous;
+        if (!execution.PreviousRecord.empty()) {
+            previous = FindActionRecordStamp(world, actor, execution.PreviousRecord);
+            if (!previous) {
+                continue;
+            }
+        }
         std::optional<TAbilityTriggerBinding> binding;
         if (trigger != nullptr) {
             binding = TAbilityTriggerBinding{trigger->type, trigger->triggered_player->GetId(),
@@ -170,6 +179,7 @@ std::vector<TAbilityOption> Enumerate(
             .Provenance = grant.Provenance,
             .Action = execution.Action,
             .Trigger = binding,
+            .PreviousRecord = std::move(previous),
         });
     }
     return options;
@@ -234,6 +244,11 @@ EAbilityExecutionResult ExecuteAbility(
         trigger = TTriggerContext{option.Trigger->Type, bindings.TriggerActor};
     }
     const TGeneratedWorldView world(ctx ? ctx->battle : nullptr);
+    if (!execution.PreviousRecord.empty()
+        && (!option.PreviousRecord || !MatchActionRecordStamp(world, actor, *option.PreviousRecord,
+                                                              execution.PreviousRecord))) {
+        return EAbilityExecutionResult::Unavailable;
+    }
     if (!IsEligible(execution, *grant, actor, trigger ? &*trigger : nullptr, world)
         || (bindings.ValidateSource && !bindings.ValidateSource())) {
         return EAbilityExecutionResult::Unavailable;
@@ -245,11 +260,18 @@ EAbilityExecutionResult ExecuteAbility(
     ctx->input_validators.reset();
     ctx->owned_reaction.reset();
     ctx->reaction_trace.reset();
+    ctx->previous_record = option.PreviousRecord;
+    ctx->prepared_record.reset();
+    ctx->action_ticket = {};
+    ctx->history_kind = trigger ? EActionHistoryKind::Reaction : EActionHistoryKind::Action;
+    ctx->action_definition = option.DefinitionId;
     ctx->owned_action = execution.Action;
     ctx->source_weapon = std::move(bindings.SourceWeapon);
     ctx->trigger_actor = bindings.TriggerActor;
     ctx->ability_source = option.Source;
     ctx->validate_ability = std::move(bindings.ValidateSource);
+    ctx->game_object_registry = std::make_shared<TGameObjectRegistry>();
+    ctx->game_object_registry->Add(TGameObjectIdManager::Instance().Register("self"), &actor);
     if (execution.Prepare) {
         execution.Prepare(ctx, actor, *grant);
     }

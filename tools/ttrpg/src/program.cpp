@@ -6,6 +6,7 @@
 #include <ttrpg/events.h>
 #include <ttrpg/constructors.h>
 #include <ttrpg/triggers.h>
+#include <ttrpg/records.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -146,6 +147,9 @@ struct TValue {
     std::optional<TStoredOrigin> Origin{};
     bool SelectedSource = false;
     bool SourceDerived = false;
+    std::string SourceKey{};
+    std::string RecordName{};
+    bool RecordWritable = false;
 };
 
 class TCompiler {
@@ -200,6 +204,7 @@ public:
     }
 
     void RequireMaterializable(const TValue& value) const {
+        if (!value.RecordName.empty()) Fail("completed records expose their fields and cannot be copied as ordinary values");
         if (value.SourceDerived && !sourceInputAudit_) Fail("class values derived from a selected source cannot be materialized or escape its binding");
     }
 
@@ -285,6 +290,18 @@ public:
             }
             case K::Member: {
                 auto owner = Read(*e.Lhs);
+                if (!owner.RecordName.empty()) {
+                    const auto& record = *RecordSymbols(loaded_).at(owner.RecordName).Declaration;
+                    const auto field = "(" + owner.Code + ")." + e.Text;
+                    if (e.Text == record.SourceName) return SourceValue(record.SourceType, field, true);
+                    for (const auto& parameter : record.Parameters) if (parameter.Name == e.Text) {
+                        if (classes_.contains(parameter.TypeName) && classes_.at(parameter.TypeName)->GameEntity) {
+                            return EntityBinding(parameter.TypeName, field, owner.RecordWritable);
+                        }
+                        return {.Type = parameter.TypeName, .Code = field};
+                    }
+                    Fail("unknown completed record field '" + e.Text + "'");
+                }
                 if (IsBuiltinPosition(owner.Type)) {
                     if (e.Text != "X" && e.Text != "Y") Fail("Position has only X and Y coordinates");
                     return {.Type = "int", .Code = "(" + owner.Code + ")." + (e.Text == "X" ? "x" : "y")};
@@ -522,6 +539,16 @@ public:
 
     TValue Call(const expr::TExprNode& call, bool effects) {
         if (!call.Lhs) {
+            if (RecordSymbols(loaded_).contains(call.Text)) Fail("completed record construction requires terminal publish in a root action");
+            if (call.Text == "same_source") {
+                if (call.Args.size() != 2) Fail("same_source expects two bound sources");
+                const auto first = Read(call.Args[0]);
+                const auto second = Read(call.Args[1]);
+                const auto firstKey = first.SourceBinding.empty() ? first.SourceKey : first.SourceBinding + ".Key()";
+                const auto secondKey = second.SourceBinding.empty() ? second.SourceKey : second.SourceBinding + ".Key()";
+                if (first.Type != second.Type || firstKey.empty() || secondKey.empty()) Fail("same_source requires two bound sources of the same type");
+                return {.Type = "bool", .Code = "(" + firstKey + " == " + secondKey + ")"};
+            }
             if (preflightProbe_ && (triggers_.contains(call.Text) || activities_.contains(call.Text) ||
                 events_.contains(call.Text) || call.Text == "roll" || call.Text == "move" ||
                 call.Text == "move_before_current_turn")) throw TPreflightBoundary{};
@@ -916,6 +943,8 @@ public:
     TCompiledAction CompileActionBody(const TAbilityDecl& declaration) {
         if (!self_.GameEntity) Fail("compiled action owner must be a GameEntity");
         action_ = true;
+        rootAction_ = true;
+        callableStem_ = ResolveAbility(declaration.Name, loaded_).OwnerStem;
         TMethod body_method;
         body_method.Name = declaration.Name;
         body_method.ReturnType = "void";
@@ -937,6 +966,12 @@ public:
             result.Flow.Environment.push_back("[[maybe_unused]] auto " + binding + " = ActionSource<" + CppRuleType(self_.Name) + ", " + CppRuleType(declaration.SourceType) + ">(Context);");
             locals_.emplace(declaration.SourceName, TValue{.Type = declaration.SourceType, .Code = binding + ".Read()",
                 .LocalCode = binding, .SourceBinding = binding});
+        }
+        if (!declaration.PreviousRecord.empty()) {
+            const auto& record = *ResolveRecord(declaration.PreviousRecord, callableStem_, loaded_).Declaration;
+            const auto slot = AddFrameLocal(result.Flow, declaration.PreviousName,
+                TValue{.RecordName = record.Name, .RecordWritable = true}, "record_");
+            result.Flow.Initializers.emplace_back(slot, "::PreparedActionRecord<::" + RecordTagName(record) + ">(Context)");
         }
         result.Requirement = CompileActionRequirement(declaration, first);
         result.Flow.Blocks.resize(2);
@@ -1092,6 +1127,7 @@ private:
             for (const auto& [name, declaration] : payloads_) ruleCppTypes_.insert(name);
             for (const auto& [name, declaration] : events_) ruleCppTypes_.insert(EventTagName(*declaration.Declaration));
             for (const auto& [name, declaration] : triggers_) ruleCppTypes_.insert(TriggerTagName(*declaration.Declaration));
+            for (const auto& [name, declaration] : RecordSymbols(loaded_)) ruleCppTypes_.insert(RecordTagName(*declaration.Declaration));
         }
         return ruleCppTypes_;
     }
@@ -1135,6 +1171,7 @@ private:
         method.Query = true;
         compiler.method_ = &method;
         compiler.preflight_ = true;
+        compiler.callableStem_ = callableStem_;
         std::vector<std::string> result;
         result.push_back("[[maybe_unused]] const auto action_self = world.Bind<" + compiler.CppRuleType(self_.Name) + ">(actor);");
         if (trigger) {
@@ -1149,7 +1186,14 @@ private:
         if (!declaration.SourceType.empty()) {
             result.push_back("const auto source_value = FindAbilitySource<" + compiler.CppRuleType(declaration.SourceType) + ">(action_self.Read(), source);");
             result.push_back("if (!source_value) { return false; }");
-            compiler.locals_.emplace(declaration.SourceName, TValue{.Type = declaration.SourceType, .Code = "(*source_value->Value)"});
+            compiler.locals_.emplace(declaration.SourceName, TValue{.Type = declaration.SourceType, .Code = "(*source_value->Value)",
+                .SourceKey = "TGeneratedSourceKey{action_self.Read().Id(), &actor, typeid(" + compiler.CppRuleType(self_.Name) + "), typeid(" + compiler.CppRuleType(declaration.SourceType) + "), source_value->Path}"});
+        }
+        if (!declaration.PreviousRecord.empty()) {
+            const auto& record = *ResolveRecord(declaration.PreviousRecord, callableStem_, loaded_).Declaration;
+            result.push_back("const auto previous_record = ::FindActionRecord<::" + RecordTagName(record) + ">(world, actor);");
+            result.push_back("if (!previous_record) { return false; }");
+            compiler.locals_.emplace(declaration.PreviousName, TValue{.Code = "(*previous_record)", .RecordName = record.Name});
         }
         for (std::size_t i = 0; i < first; ++i) {
             if (declaration.Body[i].Kind != TStatement::EKind::Requires) continue;
@@ -1170,7 +1214,7 @@ private:
         }
         compiler.preflightProbe_ = false;
         const bool leadingChoice = candidateIndex < declaration.Body.size() && declaration.Body[candidateIndex].Kind == TStatement::EKind::Choose;
-        if (!leadingChoice && !hasRequirements && declaration.SourceType.empty()) return {};
+        if (!leadingChoice && !hasRequirements && declaration.SourceType.empty() && declaration.PreviousRecord.empty()) return {};
         if (leadingChoice) {
             result.insert(result.end(), prefix.begin(), prefix.end());
             const auto& choice = declaration.Body[candidateIndex];
@@ -1316,6 +1360,10 @@ private:
             if (!value.SourceBinding.empty()) sources.insert(value.SourceBinding);
         }
         for (const auto& source : sources) output.push_back(indent + source + ".Validate(Context);");
+        for (const auto& [name, value] : locals_) if (!value.RecordName.empty()) {
+            const auto& record = *RecordSymbols(loaded_).at(value.RecordName).Declaration;
+            output.push_back(indent + "::" + RecordTagName(record) + "::Validate(Context, " + value.Code + ");");
+        }
     }
 
     TValue EntityBinding(const std::string& type, const std::string& name, bool writable = true) const {
@@ -1333,6 +1381,10 @@ private:
         std::set<std::string> bindings;
         for (const auto& [name, value] : locals_) {
             if (value.SelectedSource) bindings.insert(value.SourceBinding + ".InputValidator()");
+            if (!value.RecordName.empty()) {
+                const auto& record = *RecordSymbols(loaded_).at(value.RecordName).Declaration;
+                bindings.insert("(" + value.Code + ")." + record.SourceName + ".InputValidator()");
+            }
         }
         return {bindings.begin(), bindings.end()};
     }
@@ -1477,6 +1529,7 @@ private:
     }
 
     std::string FrameCppType(const TValue& value) const {
+        if (!value.RecordName.empty()) return "::" + RecordTagName(*RecordSymbols(loaded_).at(value.RecordName).Declaration) + "::TInputs";
         if (!value.Binding.empty()) return CppRuleType("TGeneratedEntityBinding<" + value.Type + ">");
         if (!value.SourceBinding.empty()) return CppRuleType("TGeneratedSourceBinding<" + value.Type + ">");
         if (!value.SequenceElement.empty()) {
@@ -1513,7 +1566,8 @@ private:
             locals_[name] = {.Type = value.Type, .Code = local,
                 .Container = value.Container, .KeyType = value.KeyType, .ElementType = value.ElementType,
                 .LocalCode = local, .SequenceElement = value.SequenceElement,
-                .SequenceKind = value.SequenceKind};
+                .SequenceKind = value.SequenceKind, .SourceKey = value.SourceKey,
+                .RecordName = value.RecordName, .RecordWritable = value.RecordWritable};
         }
         return slot;
     }
@@ -1614,6 +1668,34 @@ private:
                 }
                 flow.Blocks[current].Invocation = std::move(call);
                 flow.Blocks[current].Exit = E::Invoke;
+            } else if (statement.Kind == K::Publish) {
+                if (!rootAction_) Fail("publish requires a root action body");
+                const auto& expression = *statement.Value;
+                if (expression.Kind != expr::ENodeKind::Call || expression.Lhs) Fail("publish requires a completed record call");
+                const auto& record = *ResolveRecord(expression.Text, callableStem_, loaded_).Declaration;
+                if (record.OwnerType != self_.Name) Fail("published record owner does not match action owner");
+                if (expression.Args.size() != record.Parameters.size() + 1) Fail("record argument count mismatch");
+                ValidateActionStep(flow.Blocks[current].Body, "");
+                const auto source = Read(expression.Args.front(), record.SourceType, false);
+                Match(source, record.SourceType);
+                if (source.SourceBinding.empty()) Fail("published record source requires a bound source snapshot");
+                const auto tag = "::" + RecordTagName(record);
+                std::string call = "::PublishActionRecord<" + tag + ">(Context, frame.action_ticket, " + source.SourceBinding + ", " + tag + "::TArguments{";
+                for (std::size_t i = 0; i < record.Parameters.size(); ++i) {
+                    const auto& type = record.Parameters[i].TypeName;
+                    const auto value = Read(expression.Args[i + 1], type, false);
+                    Match(value, type);
+                    RequireMaterializable(value);
+                    if (value.SelectedSource || value.SourceDerived) Fail("record values cannot retain selected source provenance; use the explicit record source");
+                    const bool entity = classes_.contains(type) && classes_.at(type)->GameEntity;
+                    if (entity && value.Binding.empty()) Fail("record entity values require checked bindings");
+                    if (i) call += ", ";
+                    call += entity ? value.Binding : value.Code;
+                }
+                flow.Blocks[current].Publication = call + "});";
+                flow.Blocks[current].Exit = E::Publish;
+                flow.HasActionTicket = true;
+                returns = true;
             } else if (statement.Kind == K::Let) {
                 ValidateActionStep(flow.Blocks[current].Body, "");
                 auto value = Read(*statement.Value, "", true);
@@ -1790,7 +1872,7 @@ private:
                         locals_[statement.Name] = EntityBinding(value.Type, local, !value.Guard.empty());
                         break;
                     }
-                    if (action_ && !value.SourceBinding.empty()) {
+                    if ((action_ || preflight_) && !value.SourceBinding.empty()) {
                         line("[[maybe_unused]] auto " + local + " = " + value.SourceBinding + ";");
                         locals_[statement.Name] = SourceValue(value.Type, local, value.SelectedSource);
                         break;
@@ -1799,7 +1881,7 @@ private:
                     locals_[statement.Name] = {.Type = value.Type, .Code = local,
                         .Container = value.Container, .KeyType = value.KeyType, .ElementType = value.ElementType,
                         .LocalCode = local, .SequenceElement = value.SequenceElement,
-                        .SequenceKind = value.SequenceKind};
+                        .SequenceKind = value.SequenceKind, .SourceKey = value.SourceKey};
                     break;
                 }
                 case K::Require: {
@@ -1888,6 +1970,7 @@ private:
                     break;
                 }
                 case K::Choose: Fail("choose requires resumable action control flow and cannot appear in a synchronous scope");
+                case K::Publish: Fail("publish requires the terminal statement of a root action body");
                 case K::While: Fail("while requires resumable action control flow and cannot appear in a synchronous scope");
                 case K::Cost: Fail("cost declarations must precede all statements in an action body");
                 case K::Requires: Fail("requires declarations must be in the initial action prefix");
@@ -1948,6 +2031,7 @@ private:
     std::unordered_set<std::string> auditedSourceLocals_;
     std::shared_ptr<std::unordered_set<std::string>> sourceInputAudits_ = std::make_shared<std::unordered_set<std::string>>();
     bool action_ = false;
+    bool rootAction_ = false;
     bool hook_ = false;
     bool preflight_ = false;
     bool preflightProbe_ = false;
@@ -2005,6 +2089,7 @@ TCompiledConstructor CompileConstructor(const TInstanceDecl& declaration, const 
 }
 
 TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded) {
+    ValidateRecordDefinitions(loaded);
     if (declaration.Kind != EAbilityDeclarationKind::Action || declaration.OwnerType.empty()) {
         throw std::runtime_error("compiled action requires an owner type");
     }

@@ -129,6 +129,22 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("identical types and parameter names", result.stderr)
         self.assertFalse(self.header.exists())
 
+    def test_imported_completed_records_and_invalid_publication_preserve_outputs(self):
+        self.write("types.ttrpg", "class TItem { int Amount = 1; } GameEntity TActor { collection<TItem> Items; }")
+        records = self.write("receipts.ttrpg", 'import "types.ttrpg"; record Result for TActor using TItem Item(TActor Target, int Amount);')
+        (self.root / "alias_receipts.ttrpg").symlink_to(records)
+        self.schema.write_text('import "alias_receipts.ttrpg"; action Attack for TActor { choose TItem Item from @self.Items; publish Result(Item,@self,1); } action Follow for TActor after Result Previous { require Previous.Amount > 0; }')
+        self.command([CODEGEN, "--schema", self.schema, "--check"])
+        self.generate()
+        self.assertIn("receipts.h", self.header.read_text())
+        self.assertIn("::PublishActionRecord<::TRecordResult>", self.source.read_text())
+        self.assertIn(".PreviousRecord = std::string(::TRecordResult::kId)", self.source.read_text())
+        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
+        self.schema.write_text('import "alias_receipts.ttrpg"; activity void Bad for TActor(TItem Item) { publish Result(Item,@self,1); }')
+        result = self.generate(success=False)
+        self.assertIn("final statement of a root action", result.stderr)
+        self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
+
     def test_parameterized_factories_import_types_and_preserve_outputs_on_errors(self):
         self.write("items.ttrpg", "class TItem { int Amount = 2; } feature First; feature Second; GameEntity TActor { collection<TItem> Items; collection<Feature> Features; }")
         self.schema.write_text('import "items.ttrpg"; TActor Fighter(collection<TItem> Equipment = [TItem {}], choice Feature Feat from [First, Second] = First) { Items = Equipment; Features = [Feat]; }')

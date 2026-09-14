@@ -96,6 +96,32 @@ const TPlayer* TBattle::CurrentTurnPlayer() const
     return initiative_order_.CurrentPlayer();
 }
 
+const TActionHistory& TBattle::History() const
+{
+    return history_;
+}
+
+TActionTicket TBattle::AcceptActionHistory(TPlayer& actor, EActionHistoryKind kind,
+                                          std::string definition, TTransformator& journal)
+{
+    if (GetPlayer([&actor](const TPlayer* player) { return player == &actor; }) == nullptr) {
+        throw TAbilityUnavailable();
+    }
+    return history_.Accept(actor, kind, std::move(definition), journal);
+}
+
+void TBattle::PublishActionHistory(const TPlayer& actor, const TActionTicket& ticket,
+                                  std::shared_ptr<const IActionRecordValue> record, TTransformator& journal)
+{
+    if (GetPlayer([&actor](const TPlayer* player) { return player == &actor; }) == nullptr) {
+        throw TAbilityUnavailable();
+    }
+    if (record) {
+        ability_rules_->Records.Require(record->Id(), record->Type());
+    }
+    history_.Publish(actor, ticket, std::move(record), journal);
+}
+
 void TBattle::MoveBeforeCurrentTurn(TPlayer& target, TTransformator& transformator)
 {
     if (GetPlayer([&target](const TPlayer* player) { return player == &target; }) == nullptr) {
@@ -386,7 +412,7 @@ std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& t
 
 TAstNode TBattle::GetAst(TAstContext& ctx) const
 {
-    static constexpr size_t kExpectedSize = 464;
+    static constexpr size_t kExpectedSize = 520;
     AST_ASSERT_LAYOUT(TBattle, kExpectedSize);
 
     ctx.RegisterIdentity(&initiative_order_, "battle.initiative_order");
@@ -394,6 +420,7 @@ TAstNode TBattle::GetAst(TAstContext& ctx) const
     ctx.RegisterIdentity(&effect_manager_,   "battle.effect_manager");
     ctx.RegisterIdentity(&transformator_,    "battle.transformator");
     ctx.RegisterIdentity(&battle_map_,       "battle.map_holder");
+    ctx.RegisterIdentity(&history_,          "battle.action_history");
     for (const auto& player : players_) {
         ctx.RegisterIdentity(&player, "player#" + std::to_string(player.GetId()));
     }
@@ -405,6 +432,7 @@ TAstNode TBattle::GetAst(TAstContext& ctx) const
     AddOwnedObject(node, "transformator", transformator_, ctx);
     AddOwnedObject(node, "scheduler", scheduler_, ctx);
     AddOwnedObject(node, "effect_manager", effect_manager_, ctx);
+    AddOwnedObject(node, "action_history", history_, ctx);
 
     TAstNode players_node = TAstNode::MakeObject("players");
     for (const auto& player : players_) {

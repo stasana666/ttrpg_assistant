@@ -3,6 +3,7 @@
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/actions/generated_action.h>
 #include <pf2e_engine/actions/generated_world.h>
+#include <pf2e_engine/actions/generated_history.h>
 #include <pf2e_engine/actions/save_point.h>
 
 #include <algorithm>
@@ -180,7 +181,13 @@ TResult<TTrigger> Execute(const std::shared_ptr<const TEnvironment>& environment
         ValidateActionActorBinding(context, actor);
         on_resume(TResult<TTrigger>{std::move(value), next_scope});
     };
-    option.Execution->Payment.Consume(*context->transformator, actor.MutablePlayer());
+    {
+        auto execution_context = context->transformator->ExecutionContext();
+        auto transaction = execution_context.Atomic();
+        option.Execution->Payment.Consume(*context->transformator, actor.MutablePlayer());
+        AcceptActionExecution(context, actor.MutablePlayer(), EActionHistoryKind::Reaction);
+        transaction.Commit();
+    }
     try {
         auto value = option.Execution->Run(context, std::move(pending.Value),
                                            std::move(arguments), std::move(complete));

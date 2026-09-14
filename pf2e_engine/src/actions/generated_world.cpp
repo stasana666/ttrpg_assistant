@@ -19,6 +19,23 @@ bool TGeneratedWorldView::IsBound() const
     return battle_ != nullptr;
 }
 
+const TActionHistory* TGeneratedWorldView::History() const
+{
+    return battle_ == nullptr ? nullptr : &battle_->History();
+}
+
+TGeneratedEntityView TGeneratedWorldView::ResolveRecordEntity(const TRecordedEntityKey& entity) const
+{
+    RequireWorld();
+    const auto* actor = battle_->GetPlayer([&entity](const TPlayer* player) {
+        return player == entity.Identity;
+    });
+    if (actor == nullptr || !entity.Matches(*actor)) {
+        throw TAbilityUnavailable();
+    }
+    return BindGeneratedActionEntity(*actor, battle_);
+}
+
 void TGeneratedWorldView::RequireWorld() const
 {
     if (!IsBound()) {

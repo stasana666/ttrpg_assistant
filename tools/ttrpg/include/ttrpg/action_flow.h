@@ -24,7 +24,7 @@ struct TActionFlowChoice {
 };
 
 struct TActionFlowBlock {
-    enum class EExit { Return, Jump, Branch, Choose, Invoke, Window };
+    enum class EExit { Return, Jump, Branch, Choose, Invoke, Window, Publish };
     std::vector<std::size_t> LiveSlots;
     std::vector<std::string> Body;
     EExit Exit = EExit::Return;
@@ -46,6 +46,7 @@ struct TActionFlowBlock {
         std::optional<std::size_t> Slot;
     } Window;
     std::string ReturnValue;
+    std::string Publication;
 };
 
 struct TCompiledActionFlow {
@@ -60,6 +61,7 @@ struct TCompiledActionFlow {
     std::string ResultType = "void";
     bool Activity = false;
     bool HasReactionScope = false;
+    bool HasActionTicket = false;
     std::vector<std::string> EntryChecks;
     std::vector<std::pair<std::size_t, std::string>> Initializers;
 };

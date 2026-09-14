@@ -273,3 +273,21 @@ gtest_discover_tests(test_generated_movement)
 add_executable(test_generated_shield test_generated_shield.cpp)
 target_link_libraries(test_generated_shield gtest_main pf2e_engine)
 gtest_discover_tests(test_generated_shield)
+
+add_executable(test_action_history test_action_history.cpp)
+target_link_libraries(test_action_history gtest_main pf2e_engine)
+gtest_discover_tests(test_action_history)
+
+add_executable(test_generated_records test_generated_records.cpp)
+
+set(GENERATED_RECORDS_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/generated_records.h)
+set(GENERATED_RECORDS_SOURCE ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/generated_records.cpp)
+ttrpg_generate(
+    TARGET test_generated_records
+    SCHEMA ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/generated_records.ttrpg
+    HEADER ${GENERATED_RECORDS_HEADER}
+    SOURCE ${GENERATED_RECORDS_SOURCE}
+)
+target_sources(test_generated_records PRIVATE ${GENERATED_RECORDS_HEADER} ${GENERATED_RECORDS_SOURCE})
+target_link_libraries(test_generated_records gtest_main pf2e_engine)
+gtest_discover_tests(test_generated_records)

@@ -88,6 +88,8 @@ void BindExecution(const std::shared_ptr<TActionContext>& context,
                    const TGrantedAbility& grant, std::shared_ptr<const void> execution)
 {
     context->owned_reaction = std::move(execution);
+    context->action_definition = grant.DefinitionId;
+    context->history_kind = EActionHistoryKind::Reaction;
     context->ability_source = grant.Source;
     context->validate_ability = [actor, catalog = &rules.Catalog,
                                 definition = grant.DefinitionId, source = grant.Source]() {

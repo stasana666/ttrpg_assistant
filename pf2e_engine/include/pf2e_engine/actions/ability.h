@@ -33,6 +33,7 @@ struct TAbilityExecution {
     std::optional<ETrigger> Trigger;
     FAbilityRequirement Requirement;
     FAbilityPreparation Prepare = {};
+    std::string PreviousRecord = {};
 };
 
 class TAbilityExecutions {
@@ -54,6 +55,7 @@ struct TAbilityRules {
     TReactionRegistry Reactions;
     TLifecycleExecutions Lifecycle;
     TFeatureEventRegistry Events;
+    TActionRecordRegistry Records;
     std::map<std::string, std::shared_ptr<const TCreatureFeat>, std::less<>> FeatureHooks;
 };
 
@@ -82,6 +84,7 @@ struct TAbilityOption {
     std::vector<std::string> Provenance;
     std::shared_ptr<const TAction> Action;
     std::optional<TAbilityTriggerBinding> Trigger;
+    std::optional<TActionRecordStamp> PreviousRecord = {};
 };
 
 struct TAbilityExecutionBindings {

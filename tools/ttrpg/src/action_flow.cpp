@@ -25,6 +25,7 @@ std::vector<std::string> RenderActionFlow(const TCompiledActionFlow& flow) {
     };
     writer.Struct(flow.FlowType, [&] {
         writer.Struct(flow.FrameType, [&] {
+            if (flow.HasActionTicket) writer.Line("::TActionTicket action_ticket;");
             if (flow.HasReactionScope) writer.Line("::TReactionScope reaction_scope;");
             for (std::size_t index = 0; index < flow.Slots.size(); ++index) {
                 writer.Line("std::optional<" + flow.Slots[index].CppType + "> slot_" + std::to_string(index) + "{};");
@@ -43,7 +44,10 @@ std::vector<std::string> RenderActionFlow(const TCompiledActionFlow& flow) {
                             aliases(block);
                             for (const auto& line : block.Body) writer.Line(line);
                             using E = TActionFlowBlock::EExit;
-                            if (block.Exit == E::Return) {
+                            if (block.Exit == E::Publish) {
+                                writer.Line(block.Publication);
+                                writer.Line("return;");
+                            } else if (block.Exit == E::Return) {
                                 if (!block.ReturnValue.empty()) writer.Line("return " + block.ReturnValue + ";");
                                 else if (flow.ResultType == "void") writer.Line("return;");
                                 else writer.Line("throw std::logic_error(\"unreachable generated activity exit\");");
@@ -132,6 +136,7 @@ std::vector<std::string> RenderActionFlow(const TCompiledActionFlow& flow) {
     writer.Line("ValidateActionActorBinding(Context, action_self.View());");
     for (const auto& line : flow.EntryChecks) writer.Line(line);
     writer.Line(flow.FlowType + "::" + flow.FrameType + " initial;");
+    if (flow.HasActionTicket) writer.Line("initial.action_ticket = ::CaptureActionTicket(Context);");
     for (const auto& [slot, value] : flow.Initializers) writer.Line("initial.slot_" + std::to_string(slot) + ".emplace(std::move(" + value + "));");
     writer.Line("return " + flow.FlowType + "::" + flow.RunName + "(Context, action_self, std::move(initial), " +
         std::to_string(flow.Entry) + ", " + (flow.Activity ? "std::move(on_resume)" : "[] {}") + ");");

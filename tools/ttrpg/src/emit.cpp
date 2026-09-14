@@ -9,6 +9,8 @@
 #include <ttrpg/emit_instance.h>
 #include <ttrpg/emit_reaction.h>
 #include <ttrpg/triggers.h>
+#include <ttrpg/records.h>
+#include <ttrpg/emit_record.h>
 
 #include <ttrpg/analyze.h>
 #include <ttrpg/conventions.h>
@@ -82,6 +84,7 @@ void ValidateRules(const TLoadedSchemas& loaded) {
         throw std::runtime_error("type name 'ReadGeneratedRuleInteger' is reserved for generated JSON parsing");
     }
     ValidateAbilityDefinitions(loaded);
+    ValidateRecordDefinitions(loaded);
     ValidateEventDefinitions(loaded);
     ValidateTriggerDefinitions(loaded);
     ValidateActivityDefinitions(loaded);
@@ -306,6 +309,11 @@ void EmitHeader(std::ostream& os,
     w.EmptyLine();
     w.Include("limits");
     w.Include("string");
+    if (!mod.Records.empty()) {
+        w.Include("pf2e_engine/actions/generated_history.h");
+        w.Include("tuple");
+        w.Include("string_view");
+    }
     if (!mod.Activities.empty()) {
         w.Include("functional");
         w.Include("memory");
@@ -483,6 +491,17 @@ void EmitHeader(std::ostream& os,
             inspectField(field, "trigger '" + trigger.Name + "'");
         }
     }
+    for (const auto& record : mod.Records) {
+        std::vector<TClassDecl::TParameter> types = record.Parameters;
+        types.push_back({record.OwnerType, "owner"});
+        types.push_back({record.SourceType, "source"});
+        for (const auto& parameter : types) {
+            if (IsBuiltinPosition(parameter.TypeName)) continue;
+            TFieldDecl field;
+            field.TypeName = parameter.TypeName;
+            inspectField(field, "record '" + record.Name + "'");
+        }
+    }
     if (std::any_of(mod.Instances.begin(), mod.Instances.end(), [](const auto& instance) { return instance.Parameterized; })) {
         w.Include("pf2e_engine/common/construction.h");
         w.Include("pf2e_engine/common/rule_integer.h");
@@ -554,6 +573,7 @@ void EmitHeader(std::ostream& os,
         EmitInstanceDeclaration(w, instance, loaded);
     }
     EmitEventDeclarations(w, loaded);
+    EmitRecordDeclarations(w, loaded);
     EmitActivityDeclarations(w, loaded);
     EmitReactionDeclarations(w, loaded);
     w.Line("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog);");
@@ -932,6 +952,7 @@ void EmitImpl(std::ostream& os,
         w.Include("pf2e_engine/actions/generated_world.h");
         w.Include("pf2e_engine/actions/generated_movement.h");
         w.Include("pf2e_engine/actions/generated_initiative.h");
+        w.Include("pf2e_engine/actions/generated_history.h");
         w.Include("pf2e_engine/actions/reaction_window.h");
         w.Include("pf2e_engine/actions/feature_event.h");
     }
@@ -997,6 +1018,7 @@ void EmitImpl(std::ostream& os,
     });
     w.EmptyLine();
     EmitActivityImplementations(w, loaded);
+    EmitRecordImplementations(w, loaded);
     EmitReactionImplementations(w, loaded);
     EmitActionRegistration(w, loaded);
 }

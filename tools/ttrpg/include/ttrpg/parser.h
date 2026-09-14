@@ -57,7 +57,9 @@ public:
             if (t.kind != ETok::Ident) {
                 ts_.Throw("expected 'enum' or 'class'");
             }
-            if (t.text == "trigger") {
+            if (t.text == "record") {
+                mod.Records.push_back(ParseRecord());
+            } else if (t.text == "trigger") {
                 mod.Triggers.push_back(ParseTrigger());
             } else if (t.text == "enum") {
                 mod.Enums.push_back(ParseEnum());
@@ -114,6 +116,11 @@ private:
                     declaration.Triggers.push_back(ExpectIdent("reaction trigger"));
                 } while (ts_.Match(ETok::Comma));
             }
+            if (ts_.Peek().text == "after") {
+                ts_.Advance();
+                declaration.PreviousRecord = ExpectIdent("completed action record");
+                declaration.PreviousName = ExpectIdent("completed action record binding");
+            }
             declaration.Body = ParseBody();
             ts_.Match(ETok::Semi);
         } else if (declaration.Kind == EAbilityDeclarationKind::Feature) {
@@ -135,6 +142,30 @@ private:
         } else {
             ts_.Expect(ETok::Semi, "';' after action or reaction declaration");
         }
+        return declaration;
+    }
+
+    TRecordDecl ParseRecord() {
+        TRecordDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        ExpectIdentText("record");
+        declaration.Name = ExpectIdent("record name");
+        ExpectIdentText("for");
+        declaration.OwnerType = ExpectIdent("record owner type");
+        ExpectIdentText("using");
+        declaration.SourceType = ExpectIdent("record source type");
+        declaration.SourceName = ExpectIdent("record source name");
+        ts_.Expect(ETok::LParen, "'('");
+        if (ts_.Peek().kind != ETok::RParen) {
+            do {
+                TClassDecl::TParameter parameter;
+                parameter.TypeName = ExpectIdent("record parameter type");
+                parameter.Name = ExpectIdent("record parameter name");
+                declaration.Parameters.push_back(std::move(parameter));
+            } while (ts_.Match(ETok::Comma));
+        }
+        ts_.Expect(ETok::RParen, "')'");
+        ts_.Expect(ETok::Semi, "';' after record declaration");
         return declaration;
     }
 
@@ -465,7 +496,11 @@ private:
             TClassDecl::TStatement statement;
             statement.Location = ts_.Peek().loc;
             using K = TClassDecl::TStatement::EKind;
-            if (ts_.Peek().text == "cost") {
+            if (ts_.Peek().text == "publish") {
+                ts_.Advance();
+                statement.Kind = K::Publish;
+                statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "cost") {
                 ts_.Advance();
                 statement.Kind = K::Cost;
                 statement.Target = ReadExpression(ETok::Equals);

@@ -42,6 +42,25 @@ Canonical project instructions. CLAUDE.md redirects here.
   replay. Failed nested transitions undo their HP writes; JSON import and snapshots
   preserve health state. Unconscious creatures regain turn resources but cannot
   use them, while dead creatures do not regain actions or reactions.
+- `actions/`: combat/action pipeline tests using real data.
+- `actions/test_action_history.cpp` builds as `test_action_history`. It checks
+  detached typed results, readonly enumeration and mutable prepared inputs,
+  payment rejection versus accepted body failure, source-owner validation,
+  immutable version stamps across divergent rollback branches, stale parent
+  publication, sparse source restoration and context release. Receipt and journal
+  AST snapshots include semantic payloads and identity validity while normalizing
+  independent entity IDs. Nested activity inputs keep validating consumed-record
+  sources without recursive context validation, including removal and restoration.
+  Turn methods do not implicitly expire receipts.
+- `actions/fixtures/generated_records.ttrpg` and `actions/test_generated_records.cpp`
+  build as `test_generated_records`. They check terminal action publication after
+  yielded child activities, exact target/source history, selected source aliases,
+  consumed follow-up inputs and stale option versions. Own accepted actions and
+  reactions invalidate prior results; other actors and rejected preflight do not.
+  Historical sources retain their value snapshot independently of the old grant,
+  while replacement or removal invalidates their identity. Two-stage suspension
+  and journal replay preserve both history and effects. The fixture uses generic
+  actions, not the production PF2e Knockdown rule.
 - `actions/test_generated_shield.cpp` builds as `test_generated_shield` and executes
   Raise a Shield and Shield Block against production compiled Strike. It checks
   circumstance bonus merging, resistance before Hardness, temporary HP after the
@@ -51,7 +70,6 @@ Canonical project instructions. CLAUDE.md redirects here.
   round-trip through JSON/AST; invalid blocks preserve the journal. Turn-start
   expiration lowers only the current actor's shield before scheduled effects and
   resource replenishment. Grip and legacy mixed-damage packets remain separate.
-- `actions/`: combat/action pipeline tests using real data.
 - `actions/test_generated_movement.cpp` builds as `test_generated_movement` and
   executes production Stride, Step, Stand, Sudden Charge and movement-triggered
   Reactive Strike. It checks diagonal costs across actions and own-turn reset,

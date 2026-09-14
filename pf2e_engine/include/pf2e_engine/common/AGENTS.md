@@ -5,6 +5,49 @@ Canonical project instructions. CLAUDE.md redirects here.
 Shared low-level building blocks used across the engine. These utilities carry
 non-obvious design constraints worth knowing before changing them.
 
+## Completed-action records (`actions/action_history.h`, `actions/generated_history.h`)
+
+The battle owns a `TActionHistory` sidecar; immutable rules own the typed record
+registry. A root action or reaction is accepted in the same synchronous journal
+transaction as its resource payment. Rejected availability and payment leave the
+previous result intact. An accepted body failure retains its payment and history
+invalidation until the caller undoes that journal. Subordinate activities and
+system phases do not accept another root action, and turn boundaries do not expire
+the last result automatically.
+
+`PreviousRecord` execution metadata adds an opaque receipt stamp to enumerated
+options. Execution checks the stamp before payment, binds `self`, and prepares the
+record inputs before acceptance invalidates history. The prepared inputs survive
+that invalidation; their source and target locators continue to validate current
+world membership. Generated continuation frames retain and validate these inputs
+without requiring the consumed receipt to remain current.
+Source input validators must use membership-only checks. Calling the complete actor
+or input validator from one of those callbacks recursively re-enters the same source
+when an activity inherits it through `ForkActionInputs`.
+
+Records store immutable ordinary-value source snapshots and detached typed entity
+locators, never an old action context or source/grant validator. Publication requires
+the source owner to be the acting participant. Rebinding checks exact current
+provider paths, so a journal-restored collection entry can resolve without retaining
+its former address. Changed source attributes affect future actions while the
+record keeps the original snapshot. Removing the original publishing grant alone
+does not invalidate a receipt whose source still exists.
+
+Each acceptance allocates an immutable version object in addition to its journaled
+numeric revision. Options compare object identity, preventing an abandoned branch
+from becoming valid when a different replay reaches the same revision. Root frames
+capture a ticket explicitly for publication; an intervening accepted own reaction
+makes that publication a no-op. Undo restores the original shared version object,
+so its previous options and tickets regain their original validity.
+
+History AST is semantic state, not a persistence DTO or full battle restore format.
+It records revisions, action identity, canonical record tags, payloads and normalized
+participant references. Entity type and current captured-identity validity distinguish
+stale locators without exposing process-global entity numbers. Distinct invalid old
+IDs are equally unavailable. Participants and their battle must remain alive while
+history, transformation records or continuations reference them. An unbound native
+action has no history ticket and cannot supply a previous record.
+
 ## Ability catalogs and source traversal (`ability.h`)
 
 `TAbilityCatalog` owns definitions keyed by module-qualified IDs. Identical repeated

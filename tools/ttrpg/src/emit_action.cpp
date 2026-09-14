@@ -5,6 +5,7 @@
 #include <ttrpg/program.h>
 #include <ttrpg/events.h>
 #include <ttrpg/emit_reaction.h>
+#include <ttrpg/records.h>
 
 void EmitEventDeclarations(TCppWriter& writer, const TLoadedSchemas& loaded) {
     if (!loaded.Primary.Events.empty()) {
@@ -34,6 +35,9 @@ void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
         writer.Line(AbilityRegistrationFunction(loaded.PrimaryStem) + "(rules.Catalog);");
         for (const auto& imported : ImportedModuleStems(loaded, loaded.PrimaryStem)) {
             writer.Line(RulesRegistrationFunction(imported) + "(rules);");
+        }
+        for (const auto& record : loaded.Primary.Records) {
+            writer.Line("rules.Records.Register<::" + RecordTagName(record) + ">();");
         }
         std::size_t hookIndex = 0;
         for (const auto& ability : loaded.Primary.Abilities) {
@@ -84,11 +88,20 @@ void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
                     writer.Block(".Requirement = []([[maybe_unused]] const TGeneratedWorldView& world, [[maybe_unused]] const TPlayer& actor, [[maybe_unused]] const TAbilitySourcePath& source, const TTriggerContext*) {", "},", [&] {
                         for (const auto& line : compiled.Requirement) writer.Line(line);
                     });
-                    if (ability.SourceType.empty()) {
-                        writer.Line(".Prepare = {}");
-                    } else {
+                    if (!ability.PreviousRecord.empty()) {
+                        const auto& record = *ResolveRecord(ability.PreviousRecord, loaded.PrimaryStem, loaded).Declaration;
+                        writer.Block(".Prepare = [](std::shared_ptr<TActionContext> Context, [[maybe_unused]] TPlayer& actor, [[maybe_unused]] const TGrantedAbility& grant) {", "},", [&] {
+                            if (!ability.SourceType.empty()) {
+                                writer.Line("PrepareActionSource<::" + ability.OwnerType + ", ::" + ability.SourceType + ">(Context, actor, grant);");
+                            }
+                            writer.Line("::PrepareActionRecord<::" + RecordTagName(record) + ">(Context, *Context->previous_record);");
+                        });
+                        writer.Line(".PreviousRecord = std::string(::" + RecordTagName(record) + "::kId)");
+                    } else if (!ability.SourceType.empty()) {
                         const auto types = ability.OwnerType + ", " + ability.SourceType;
                         writer.Line(".Prepare = [](std::shared_ptr<TActionContext> Context, TPlayer& actor, const TGrantedAbility& grant) { PrepareActionSource<" + types + ">(Context, actor, grant); }");
+                    } else {
+                        writer.Line(".Prepare = {}");
                     }
                 });
                 writer.Line("});");

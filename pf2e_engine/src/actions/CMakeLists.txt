@@ -12,6 +12,8 @@ target_sources(pf2e_engine
         generated_world.cpp
         generated_movement.cpp
         generated_initiative.cpp
+        action_history.cpp
+        generated_history.cpp
         feature_event.cpp
         reaction.cpp
         save_point.cpp

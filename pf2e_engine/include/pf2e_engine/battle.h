@@ -41,6 +41,11 @@ public:
     std::vector<TAbilityOption> AvailableReactions(const TTriggerContext& trigger) const;
     EAbilityExecutionResult Execute(const TAbilityOption& option);
     const TAbilityRules& AbilityRules() const;
+    const TActionHistory& History() const;
+    TActionTicket AcceptActionHistory(TPlayer& actor, EActionHistoryKind kind,
+                                      std::string definition, TTransformator& journal);
+    void PublishActionHistory(const TPlayer& actor, const TActionTicket& ticket,
+                              std::shared_ptr<const IActionRecordValue> record, TTransformator& journal);
 
     TAstNode GetAst(TAstContext& ctx) const;
 
@@ -66,6 +71,7 @@ private:
     TEffectManager effect_manager_;
     std::shared_ptr<const TAbilityRules> ability_rules_;
     std::deque<TPlayer> players_;
+    TActionHistory history_;
     [[maybe_unused]] char ast_layout_sentinel_[1] = {};
 };
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <pf2e_engine/common/ability.h>
+#include <pf2e_engine/actions/action_history.h>
 
 #include <functional>
 #include <memory>
@@ -48,4 +49,9 @@ struct TActionContext {
     std::shared_ptr<const std::vector<std::string>> reaction_trace = {};
     EActionExecutionMode execution_mode = EActionExecutionMode::Ordinary;
     std::shared_ptr<const void> owned_lifecycle = {};
+    std::optional<TActionRecordStamp> previous_record = {};
+    std::shared_ptr<const IActionRecordInput> prepared_record = {};
+    TActionTicket action_ticket = {};
+    EActionHistoryKind history_kind = EActionHistoryKind::Action;
+    std::string action_definition = {};
 };

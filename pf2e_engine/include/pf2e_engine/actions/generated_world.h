@@ -14,6 +14,8 @@ public:
     explicit TGeneratedWorldView(const TBattle* battle);
 
     bool IsBound() const;
+    const TActionHistory* History() const;
+    TGeneratedEntityView ResolveRecordEntity(const TRecordedEntityKey& entity) const;
     void Validate(const TGeneratedEntityView& entity) const;
     TPosition Position(const TGeneratedEntityView& entity) const;
     bool Contains(TPosition position) const;

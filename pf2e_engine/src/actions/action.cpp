@@ -4,6 +4,7 @@
 #include <pf2e_engine/actions/action_context.h>
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/actions/generated_action.h>
+#include <pf2e_engine/actions/generated_history.h>
 #include <pf2e_engine/common/continuation.h>
 #include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/inventory/weapon.h>
@@ -92,8 +93,8 @@ TAction::TAction(TCompiledBody body, TBoundResources costs, std::string name)
 
 void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
 {
-    if (!ctx) {
-        throw std::invalid_argument("action requires an execution context");
+    if (!ctx || ctx->transformator == nullptr) {
+        throw std::invalid_argument("action requires an execution context and journal");
     }
     ctx->execution_mode = EActionExecutionMode::Ordinary;
     ctx->owned_lifecycle.reset();
@@ -101,6 +102,11 @@ void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
         throw TAbilityUnavailable();
     }
     ValidateAbilitySource(ctx);
+    if (ctx->previous_record && (!*ctx->previous_record
+        || !MatchActionRecordStamp(TGeneratedWorldView(ctx->battle), player, *ctx->previous_record,
+                                    ctx->previous_record->Record()->Id()))) {
+        throw TAbilityUnavailable();
+    }
     ctx->next_block = pipeline_.empty() ? nullptr : pipeline_.front().get();
     ctx->game_object_registry = std::make_shared<TGameObjectRegistry>();
     ctx->game_object_registry->Add(kSelf, &player);
@@ -117,7 +123,13 @@ void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
         ctx->game_object_registry->Add(variable.id, TGameObjectPtr{variable.weapon.get()});
     }
 
-    Consume(ctx, player);
+    {
+        auto execution = ctx->transformator->ExecutionContext();
+        auto transaction = execution.Atomic();
+        Consume(ctx, player);
+        AcceptActionExecution(ctx, player, ctx->history_kind);
+        transaction.Commit();
+    }
 
     ctx->io_system->GameLog() << player.GetName() << ": " << name_ << std::endl;
 

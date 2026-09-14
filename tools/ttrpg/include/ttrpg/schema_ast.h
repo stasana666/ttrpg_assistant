@@ -44,7 +44,7 @@ struct TClassDecl {
         std::string Name;
     };
     struct TStatement {
-        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If, Cost, Choose, ForEach, Requires, While };
+        enum class EKind { Let, Require, Assign, AddAssign, SubAssign, Call, Return, If, Cost, Choose, ForEach, Requires, While, Publish };
         EKind Kind = EKind::Call;
         std::string Name;
         std::optional<expr::TExprNode> Target;
@@ -83,6 +83,17 @@ struct TAbilityDecl {
     std::string SourceType;
     std::string SourceName;
     std::vector<std::string> Triggers;
+    std::string PreviousRecord;
+    std::string PreviousName;
+};
+
+struct TRecordDecl {
+    std::string Name;
+    std::string OwnerType;
+    std::string SourceType;
+    std::string SourceName;
+    std::vector<TClassDecl::TParameter> Parameters;
+    parse::TSourceLocation Location;
 };
 
 struct TTriggerDecl {
@@ -146,4 +157,5 @@ struct TSchemaModule {
     std::vector<TEventDecl> Events;
     std::vector<TActivityDecl> Activities;
     std::vector<TTriggerDecl> Triggers;
+    std::vector<TRecordDecl> Records;
 };
