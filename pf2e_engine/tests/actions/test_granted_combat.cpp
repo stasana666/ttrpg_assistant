@@ -178,7 +178,10 @@ TEST_F(TGrantedCombatTest, SourceBoundStrikeUsesChosenWeaponAndOnlyPromptsForTar
     EXPECT_EQ(first_wolf.GetCreature()->Hitpoints()->Current(), first_hp - 11);
     EXPECT_EQ(second_wolf.GetCreature()->Hitpoints()->Current(), second_hp);
     EXPECT_EQ(ResourceFor(*fighter.GetCreature(), EResourceKind::Action)->Count(), 2);
-    EXPECT_EQ(ConditionValue(*fighter.GetCreature(), EConditionKind::MultipleAttackPenalty), 5);
+    EXPECT_EQ(fighter.GetCreature()->AttacksMade().Get(), 1);
+    const auto* heavy_weapon = fighter.GetCreature()->Weapons()->Find(TId<TWeapon>{1});
+    ASSERT_NE(heavy_weapon, nullptr);
+    EXPECT_EQ(fighter.GetCreature()->MultipleAttackPenalty(*heavy_weapon), 5);
     EXPECT_EQ(ResourceFor(*first_wolf.GetCreature(), EResourceKind::Action)->Count(), 0);
     EXPECT_EQ(ResourceFor(*second_wolf.GetCreature(), EResourceKind::Action)->Count(), 0);
 }

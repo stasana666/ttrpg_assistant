@@ -47,14 +47,14 @@ TEST_F(TransformationTest, ChangeConditionUndoRestoresPreviousValue) {
 }
 
 TEST_F(TransformationTest, ChangeConditionUndoFromZero) {
-    EXPECT_FALSE(conditions_.Has(EConditionKind::MultipleAttackPenalty));
+    EXPECT_FALSE(conditions_.Has(EConditionKind::Frightened));
 
-    TChangeCondition change(&conditions_, EConditionKind::MultipleAttackPenalty, 5);
-    ASSERT_TRUE(conditions_.Has(EConditionKind::MultipleAttackPenalty));
-    EXPECT_EQ(conditions_.Get<TConditionMultipleAttackPenalty>()->Value, 5);
+    TChangeCondition change(&conditions_, EConditionKind::Frightened, 5);
+    ASSERT_TRUE(conditions_.Has(EConditionKind::Frightened));
+    EXPECT_EQ(conditions_.Get<TConditionFrightened>()->Value, 5);
 
     change.Undo();
-    EXPECT_FALSE(conditions_.Has(EConditionKind::MultipleAttackPenalty));
+    EXPECT_FALSE(conditions_.Has(EConditionKind::Frightened));
 }
 
 TEST(ChangeResourceTest, AddResourceAppliesValue) {
@@ -194,17 +194,17 @@ TEST_F(TransformatorTest, MixedTransformationsUndo) {
 
     transformator_->ChangeCondition(creature_.get(), EConditionKind::Frightened, 2);
     transformator_->AddResource(ResourceFor(*creature_, EResourceKind::Action), 5);
-    transformator_->ChangeCondition(creature_.get(), EConditionKind::MultipleAttackPenalty, 5);
+    transformator_->ChangeCondition(creature_.get(), EConditionKind::Prone, 1);
 
     EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 2);
     EXPECT_EQ(ResourceFor(*creature_, EResourceKind::Action)->Count(), 5);
-    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::MultipleAttackPenalty), 5);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Prone), 1);
 
     transformator_->Undo(initial_state);
 
     EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
     EXPECT_EQ(ResourceFor(*creature_, EResourceKind::Action)->Count(), 0);
-    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::MultipleAttackPenalty), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Prone), 0);
 }
 
 class EffectTransformationTest : public ::testing::Test {
@@ -525,8 +525,8 @@ TEST_F(IntegrationRollbackTest, MultipleEffectsAndTasksRollback) {
 
     auto canceler2 = effect_manager_->AddEffect(TPlayerConditionSet{
         .player = player_.get(),
-        .condition = EConditionKind::MultipleAttackPenalty,
-        .value = 5,
+        .condition = EConditionKind::Prone,
+        .value = 1,
     }, *transformator_);
 
     transformator_->AddTask(scheduler_.get(), TTask{
@@ -535,14 +535,14 @@ TEST_F(IntegrationRollbackTest, MultipleEffectsAndTasksRollback) {
     });
 
     EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 2);
-    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::MultipleAttackPenalty), 5);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Prone), 1);
 
     transformator_->Undo(initial_state);
 
     EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
-    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::MultipleAttackPenalty), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Prone), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 0);
-    EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::MultipleAttackPenalty), 0);
+    EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Prone), 0);
 }
 
 TEST_F(IntegrationRollbackTest, ClearConditionStopsScheduledRevival) {

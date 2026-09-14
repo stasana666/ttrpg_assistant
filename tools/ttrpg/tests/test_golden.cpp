@@ -70,7 +70,7 @@ TEST(GoldenTest, MapCodegen) {
     EXPECT_NE(header.find("#include <map>"), std::string::npos);
     EXPECT_NE(header.find("const std::map<EColor, int>& Counts() const"), std::string::npos);
     EXPECT_NE(header.find("TGuarded<std::map<EColor, int>> Counts()"), std::string::npos);
-    EXPECT_NE(impl.find("r.Counts_.emplace(EColorFromString(map_key), map_value.get<int>())"),
+    EXPECT_NE(impl.find("r.Counts_.emplace(EColorFromString(map_key), ::ReadGeneratedRuleInteger(map_value))"),
               std::string::npos);
     EXPECT_NE(impl.find("AddValueField(map_node, ToString(map_key), map_value)"),
               std::string::npos);
@@ -95,6 +95,77 @@ TEST(GoldenTest, ResourceCodegen) {
     EXPECT_NE(impl.find("AddOwnedObject(node, \"actions\", Actions_, ctx)"), std::string::npos);
     EXPECT_NE(impl.find("AddOwnedObject(map_node, ToString(map_key), map_value, ctx)"),
               std::string::npos);
+}
+
+TEST(GoldenTest, SharesCheckedJsonIntegerParsingAcrossStorageAndDefaults) {
+    TLoadedSchemas loaded;
+    loaded.PrimaryStem = "checked_json";
+    loaded.Primary = TParser(Tokenize(R"(
+        enum EKey { First }
+        variant TValue { Number { int Amount; } }
+        class TLiteral {
+            int Required;
+            int Defaulted = 3;
+            bool Enabled = true;
+            string Name;
+            map<EKey, int> Values;
+        }
+        class TRule {
+            int Value = 0;
+            derive int Result = @self.Value;
+        }
+        class TShadow { int ReadGeneratedRuleInteger = 0; }
+    )")).Parse();
+    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
+    std::ostringstream output;
+    EmitImpl(output, loaded, "checked_json.ttrpg", "checked_json.h");
+    const auto code = output.str();
+    const auto helper = code.find("int ReadGeneratedRuleInteger(");
+    ASSERT_NE(helper, std::string::npos);
+    EXPECT_EQ(code.find("int ReadGeneratedRuleInteger(", helper + 1), std::string::npos);
+    EXPECT_NE(code.find("if (!value.is_number_integer())"), std::string::npos);
+    EXPECT_NE(code.find("value.is_number_unsigned() && value.get<std::uint64_t>()"), std::string::npos);
+    EXPECT_NE(code.find("TRuleInteger::Checked(value.get<std::int64_t>())"), std::string::npos);
+    EXPECT_NE(code.find("r.Defaulted_ = j.contains(\"defaulted\") ? ::ReadGeneratedRuleInteger(j.at(\"defaulted\")) : int{3}"), std::string::npos);
+    EXPECT_NE(code.find("initial.Value = ::ReadGeneratedRuleInteger(j.at(\"value\"))"), std::string::npos);
+    EXPECT_NE(code.find("a.Amount = ::ReadGeneratedRuleInteger(val)"), std::string::npos);
+    EXPECT_NE(code.find("r.ReadGeneratedRuleInteger_ = j.contains(\"read_generated_rule_integer\") ? ::ReadGeneratedRuleInteger("), std::string::npos);
+    EXPECT_NE(code.find("ReadGeneratedRuleInteger(map_value)"), std::string::npos);
+    EXPECT_EQ(code.find(".get<int>()"), std::string::npos);
+    EXPECT_EQ(code.find("j.value(\"defaulted\""), std::string::npos);
+
+    TClassDecl conflicting;
+    conflicting.Name = "ReadGeneratedRuleInteger";
+    loaded.Primary.Classes.push_back(std::move(conflicting));
+    loaded.SymbolTable.emplace("ReadGeneratedRuleInteger", TTypeInfo{"checked_json", ETypeKind::Class});
+    EXPECT_THROW(EmitImpl(output, loaded, "checked_json.ttrpg", "checked_json.h"), std::runtime_error);
+}
+
+TEST(GoldenTest, EmptyStorageFactoriesDoNotDeclareUnusedRestorationValues) {
+    TLoadedSchemas loaded;
+    loaded.PrimaryStem = "empty_storage";
+    loaded.Primary = TParser(Tokenize(R"(
+        class TQueries { query int One() { return 1; } }
+        class TDerived { derive int One = max(1, 1); }
+        GameEntity TMarker {}
+    )")).Parse();
+    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
+    std::ostringstream output;
+    EmitImpl(output, loaded, "empty_storage.ttrpg", "empty_storage.h");
+    const auto code = output.str();
+    for (const std::string name : {"TQueries", "TDerived", "TMarker"}) {
+        const auto create = code.find(name + " " + name + "::Create(");
+        const auto fromJson = code.find(name + " " + name + "::FromJson(");
+        const auto restore = code.find(name + " " + name + "::Restore(");
+        const auto toJson = code.find("nlohmann::json " + name + "::ToJson(");
+        ASSERT_NE(create, std::string::npos);
+        ASSERT_NE(fromJson, std::string::npos);
+        ASSERT_NE(restore, std::string::npos);
+        ASSERT_NE(toJson, std::string::npos);
+        EXPECT_NE(code.substr(create, fromJson - create).find("(void)initial;"), std::string::npos);
+        EXPECT_NE(code.substr(fromJson, restore - fromJson).find("return Create(initial);"), std::string::npos);
+        EXPECT_EQ(code.substr(restore, toJson - restore).find("TInitialValues initial;"), std::string::npos);
+    }
 }
 
 TEST(GoldenTest, CompoundEntityLifecycleKeepsSnapshotsSeparateFromContextIdentity) {

@@ -159,6 +159,8 @@ void TBattle::StartTurn()
     TPlayer& player = *initiative_order_.CurrentPlayer();
     io_system_.GameLog() << "Start turn: player " << player.GetName() << std::endl;
 
+    auto execution = transformator_.ExecutionContext();
+    execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::ResetAttacks);
     GiveStartResource(player);
 
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnStart, .context = TEventContext{.player = &player}}, transformator_);
@@ -200,6 +202,8 @@ void TBattle::EndTurn()
 
     io_system_.GameLog() << "End turn: player " << player.GetName() << std::endl;
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{.player = &player}}, transformator_);
+    auto execution = transformator_.ExecutionContext();
+    execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::ResetAttacks);
 }
 
 std::vector<int> TBattle::LivingTeams() const

@@ -2,6 +2,7 @@
 #include <collection.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/rule_integer.h>
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/dsl/property_registry.h>
 #include <pf2e_engine/dsl/value.h>
@@ -12,7 +13,20 @@
 
 #include <stdexcept>
 #include <string>
+#include <cstdint>
 #include <utility>
+
+namespace {
+    int ReadGeneratedRuleInteger(const nlohmann::json& value) {
+        if (!value.is_number_integer()) {
+            throw std::invalid_argument("rule integer JSON must be an integer");
+        }
+        if (value.is_number_unsigned() && value.get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+            throw std::overflow_error("rule integer overflow");
+        }
+        return TRuleInteger::Checked(value.get<std::int64_t>());
+    }
+}
 
 TThing TThing::Create(const TInitialValues& initial) {
     TThing r;
@@ -25,7 +39,7 @@ TThing TThing::Create(const TInitialValues& initial) {
 TThing TThing::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     (void)factory;
     TThing r;
-    r.X_ = j.at("x").get<int>();
+    r.X_ = ::ReadGeneratedRuleInteger(j.at("x"));
     return r;
 }
 
@@ -55,7 +69,7 @@ THolder THolder::Create(const TInitialValues& initial) {
 
 THolder THolder::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     THolder r;
-    r.Count_ = j.value("count", int{0});
+    r.Count_ = j.contains("count") ? ::ReadGeneratedRuleInteger(j.at("count")) : int{0};
     if (j.contains("things")) {
         for (const auto& item : j.at("things")) {
             r.Things_.Add((item).is_string() ? factory.Create<TThing>(TGameObjectIdManager::Instance().Register((item).get<std::string>())) : TThing::FromJson(item, factory));

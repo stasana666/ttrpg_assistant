@@ -2,6 +2,7 @@
 #include <basic.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/rule_integer.h>
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/dsl/property_registry.h>
 #include <pf2e_engine/dsl/value.h>
@@ -12,7 +13,20 @@
 
 #include <stdexcept>
 #include <string>
+#include <cstdint>
 #include <utility>
+
+namespace {
+    int ReadGeneratedRuleInteger(const nlohmann::json& value) {
+        if (!value.is_number_integer()) {
+            throw std::invalid_argument("rule integer JSON must be an integer");
+        }
+        if (value.is_number_unsigned() && value.get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+            throw std::overflow_error("rule integer overflow");
+        }
+        return TRuleInteger::Checked(value.get<std::int64_t>());
+    }
+}
 
 std::string ToString(EColor v) {
     switch (v) {
@@ -59,7 +73,7 @@ TThing TThing::Create(const TInitialValues& initial) {
 TThing TThing::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     TThing r;
     r.Name_ = j.at("name").get<std::string>();
-    r.Count_ = j.value("count", int{3});
+    r.Count_ = j.contains("count") ? ::ReadGeneratedRuleInteger(j.at("count")) : int{3};
     r.Color_ = EColorFromString(j.at("color").get<std::string>());
     r.Charges_ = TBoundedQuantity::FromJson(j.at("charges"), factory);
     if (j.contains("tags")) {

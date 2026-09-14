@@ -1,5 +1,4 @@
 variant TCondition {
     Prone;
     Frightened            { int Value; }
-    MultipleAttackPenalty { int Value; }
 }

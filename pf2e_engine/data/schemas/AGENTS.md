@@ -4,8 +4,8 @@ Canonical project instructions. CLAUDE.md redirects here.
 
 ## Purpose
 - Source of truth for generated engine types such as armor, material, weapon, damage, dice, creature data, creature parts, and condition.
-- Current generated condition schema is a variant with `Prone`, `Frightened`, and `MultipleAttackPenalty`.
-- `TCreature` stores passive damage data as `set<EDamageType> Immunities`, `map<EDamageType, int> Resistances`, and `map<EDamageType, int> Vulnerabilities`; damage resolution lives in combat/mechanics code, not on `TCreature`.
+- Current generated condition schema is a variant with `Prone` and `Frightened`. Attack history is the separate `TCreature.AttacksMade` field.
+- `TCreature` stores passive damage data as `set<EDamageType> Immunities`, `map<EDamageType, int> Resistances`, and `map<EDamageType, int> Vulnerabilities`. Its generated `DamageAmount` query applies defenses; `ReceiveDamage` then delegates to generated hit points.
 - CMake generates C++ into `build/generated/pf2e_engine/...` through `ttrpg_codegen`.
 
 ## Key Concepts
@@ -39,7 +39,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 ## Ability Grants
 - `abilities.ttrpg` declares action symbols and reusable feature groups. `TCreature`, `TRace`, `TClass`, and `TWeapon` store `collection<Feature>` and expose their providers with `grant @self.Features`.
 - `TCreature` also grants its race, class, weapon collection, and natural-weapon collection. Traversal reads their current selections; it does not copy action lists during construction.
-- `feature WeaponStrike { grant Strike; }` can be selected on any declared weapon. Its pipeline binds that particular weapon as `$source`/`$weapon`; the original `AttackWithWeapon` action retains the legacy weapon-selection prompt.
+- `feature WeaponStrike { grant Strike; }` can be selected on any declared weapon. Its compiled action binds that weapon as a readonly `TWeapon` snapshot; the original `AttackWithWeapon` action retains the legacy weapon-selection prompt.
 - Feature choices are arbitrary declared definitions at this stage; ancestry/class prerequisites, level gates, choice counts, contextual modifiers, and the full PF2e feat catalogue are not implemented.
 - `tests/inventory/fixtures/granted_entities.ttrpg` shows named fighter/wolf factories with collection literals and imported feature definitions. These are language fixtures, not complete PF2e statblocks.
 
@@ -50,7 +50,8 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Completed: typed pure feature events and synchronous loops over their contributions. Active features can return primitive, enum, or ordinary class values without action grants; event results preserve source provenance and snapshot semantics across suspension/replay.
 - Completed: typed readonly action sources with preflight and snapshots, named value reuse, map/set and variant-payload construction, class-valued parameters, and synchronous collection queries. `tests/actions/fixtures/generated_sources.ttrpg` exercises independent equipment and its bound actions.
 - Completed: readonly world queries in actions and feature hooks, `requires` preconditions, `Resource.Count()`, and target-existence preflight for a leading `choose`. `tests/actions/fixtures/generated_world.ttrpg` covers live positions and teams, readonly entity sequences, source snapshots and prepayment-only requirements.
-- Next: compiled PF2e combat, character choices, reaction bodies/windows, and declarative replacements for production PF2e action pipelines. JSON pipelines remain a migration adapter until those replacements exist. Choices after prior effects and action cancellation/refund policy still need explicit rule/runtime support.
+- Completed: production compiled melee Strike, typed Pack Attack, PC combat formulas, explicit complete NPC baselines, check outcomes, damage defenses, and shared attack counting across generated and legacy attacks. Native calculators delegate these formulas to generated methods.
+- Next: remaining PF2e actions, character choices, reaction bodies/windows, and declarative replacements for production PF2e action pipelines. JSON pipelines remain a migration adapter until those replacements exist. Choices after prior effects and action cancellation/refund policy still need explicit rule/runtime support.
 - Then: contextual statistics and feature modifiers, declaration-time character choices, complete fighter/wolf definitions, and reusable encounter construction with selected weapons and class/ancestry features.
 - Final acceptance: construct one human fighter and two independent wolves from declarations, equip different declared weapons and features, enumerate and execute their actions and reactions, and verify selection, resource use, effects, and rollback in combat. The existence of generated entity and grant plumbing alone does not complete this sequence.
 
@@ -59,9 +60,17 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Compiled combat still needs controlled movement/condition/resource operations and choices within composed activities. Keep their PF2e formulas and timing in the rules module. Existing readonly world queries expose generic grid coordinates and Chebyshev distance, without encoding PF2e movement costs.
 - Complete character construction still needs choice counts, prerequisites, legal feature selections and configurable named creature construction. Named values and test fixtures alone do not complete that authoring surface.
 - NPC final-stat baselines must be separate from fixed proficiency contributions: a wolf's fixed attack +9 already includes its attributes. Keep `TProficiencyValue.FixedBonus` as a proficiency contribution. Legacy JSON baselines remain covered by their own tests while new Remaster profiles receive separate expectations.
-- Replace accumulated MAP penalties with attacks made and a penalty determined by the current weapon. Mixed Agile/non-Agile attacks currently expose an incorrect legacy accumulation. Future Vicious Swing must count as two attacks; Knockdown must use an explicit immediately preceding attack record.
+- Attack penalties use attacks made and the current weapon's Agile trait, capped after two prior attacks. Legacy JSON `add_condition("MultipleAttackPenalty")` is only an import shim that records an attack. Turn boundaries reset the count through the journal. Future Vicious Swing must count as two attacks; Knockdown must use an explicit immediately preceding attack record.
 - World visibility is incomplete: `TBattleMap::HasLine` currently returns true. A compiled call to that adapter does not by itself implement obstacles or line of effect.
 - When migrating damage, clamp a penalized weapon damage roll to its minimum before critical doubling, then add critical-only dice and apply defenses once to each accumulated damage type. General incoming-damage methods must not turn an already resolved zero into one point of damage. The legacy resolver currently clamps after evaluating its combined expression; keep that compatibility behavior separate until its callers migrate.
+
+## Compiled Combat
+- `combat_checks.ttrpg` owns four degrees of success, natural 1/20 adjustments, and the weapon-damage minimum. `statistic_baseline.ttrpg` represents an explicitly fixed complete statistic, including zero and negative values, separately from proficiency contributions.
+- `TCreature.ArmorClass` and `AttackBonus` calculate character statistics or use fixed baselines, then apply conditions. `TWeapon.DamageModifierBaseline` similarly replaces the Strength contribution for a fixed natural attack. Changing creature level continues to affect rank-based proficiency without changing a fixed NPC total.
+- Strike checks live target eligibility before payment and again on selection, rolls once for the attack, records a miss as an attack, and applies one accumulated damage amount. Pack Attack counts two other living allies with reach and line of effect; two wolves alone cannot activate it.
+- Critical Strike replaces the base die for Fatal, doubles the minimum-adjusted base damage and Pack Attack dice, then adds Fatal/Deadly critical-only dice. Deadly currently adds one die: striking rune tiers are not represented, and arbitrary `DamageDiceCount` must not be interpreted as a rune tier.
+- This Strike represents a melee profile. Versatile damage-type selection, Thrown range/mode, TwoHand grip, ranged ammunition, and nonlethal/dying rules remain subsequent work. Trait storage alone does not implement those behaviors.
+- Historical JSON creatures, weapons and legacy Pack Attack hooks retain their previous data. The compiled Strike tests use separate fixtures with explicit baselines; complete Remaster declarations remain an acceptance milestone.
 
 ## Planned PF2e Acceptance Data
 - Use the Remaster rules (Player Core and Monster Core) for the new declarations; existing JSON combat fixtures retain their historical statistics until an explicit data/rules migration.

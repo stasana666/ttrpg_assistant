@@ -1,5 +1,3 @@
-#include <pf2e_engine/mechanics/creature.h>
-
 #include <pf2e_engine/action_blocks/add_condition.h>
 
 #include <pf2e_engine/condition.h>
@@ -7,39 +5,23 @@
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/effect_manager.h>
 #include <pf2e_engine/scheduler.h>
-#include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/transformation/transformator.h>
 
-#include <algorithm>
 #include <stdexcept>
 
 static const TGameObjectId kConditionId = TGameObjectIdManager::Instance().Register("condition");
 static const TGameObjectId kAttackerId = TGameObjectIdManager::Instance().Register("attacker");
-static const TGameObjectId kWeaponId = TGameObjectIdManager::Instance().Register("weapon");
 static const TGameObjectId kTargetId = TGameObjectIdManager::Instance().Register("target");
 static const TGameObjectId kValueId = TGameObjectIdManager::Instance().Register("value");
 
-namespace {
-
-const TWeapon* GetWeapon(const TGameObjectPtr& object)
-{
-    if (const auto* weapon = std::get_if<TWeapon*>(&object)) {
-        return *weapon;
-    }
-    if (const auto* weapon = std::get_if<const TWeapon*>(&object)) {
-        return *weapon;
-    }
-    throw std::logic_error("expected weapon");
-}
-
-}
-
 void FAddCondition::operator ()(std::shared_ptr<TActionContext> ctx) const
 {
-    EConditionKind condition = EConditionKindFromString(input_.GetString(kConditionId));
+    const std::string name = input_.GetString(kConditionId);
+    if (name == "MultipleAttackPenalty") {
+        return RecordAttackHandle(ctx);
+    }
+    EConditionKind condition = EConditionKindFromString(name);
     switch (condition) {
-        case EConditionKind::MultipleAttackPenalty:
-            return MultipleAttackPenaltyHandle(ctx);
         case EConditionKind::Frightened:
             return FrightenedHandle(ctx);
         case EConditionKind::Prone:
@@ -48,35 +30,11 @@ void FAddCondition::operator ()(std::shared_ptr<TActionContext> ctx) const
     throw std::runtime_error("invalid EConditionKind value: FAddCondition");
 }
 
-void FAddCondition::MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> ctx) const
+void FAddCondition::RecordAttackHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
-
-    int current = ConditionValue(*attacker.GetCreature(), EConditionKind::MultipleAttackPenalty);
-
-    int increase = 5;
-    if (input_.Has(kWeaponId)) {
-        const TWeapon* weapon = GetWeapon(input_.Get(kWeaponId, ctx));
-        if (weapon->Traits().Has(EWeaponTraitKind::Agile)) {
-            increase = 4;
-        }
-    }
-
-    auto canceler = ctx->effect_manager->AddEffect(TPlayerConditionSet{
-        .player = &attacker,
-        .condition = EConditionKind::MultipleAttackPenalty,
-        .value = std::min(10, current + increase),
-    }, *ctx->transformator);
-
-    ctx->transformator->AddTask(ctx->scheduler, TTask{
-        .events_before_call = {
-            TEvent{
-                .type = EEvent::OnTurnEnd,
-                .context = {.player = &attacker },
-            }
-        },
-        .callback = [canceler]() { return canceler(EEffectCancelPolicy::Cancel); },
-    });
+    auto execution = ctx->transformator->ExecutionContext();
+    execution.Invoke(TGuarded<TCreature>(*attacker.GetCreature()), &TCreature::RecordAttack, 1);
 }
 
 void FAddCondition::FrightenedHandle(std::shared_ptr<TActionContext> ctx) const

@@ -257,6 +257,40 @@ TEST(SourceCompilerTest, RejectsInvalidSourcesAndCollectionMutation) {
     Rejects("action A for TActor { for Item in @self.Inventory { Item.Grow(1); } }", "stable persistent receiver");
 }
 
+TEST(SourceCompilerTest, BorrowsOnlyDirectStoredCollectionsInSynchronousQueries) {
+    const auto loaded = Rules(R"(
+        class TBox { collection<TItem> Items; }
+        class TProfile {
+            collection<TItem> Items;
+            derive TBox Generated = TBox { Items = [TItem {}]; };
+            query int Sum() {
+                let Result = 0;
+                for Item in @self.Items { Result += Item.Size; }
+                for Item in (TBox {}).Items { Result += Item.Size; }
+                for Item in @self.Generated.Items { Result += Item.Size; }
+                let Snapshot = @self.Items;
+                for Item in Snapshot { Result += Item.Size; }
+                return Result;
+            }
+            method int Read() {
+                let Result = 0;
+                for Item in @self.Items { Result += Item.Size; }
+                return Result;
+            }
+        }
+    )");
+    const auto compiled = CompileClass(loaded.Primary.Classes.back(), loaded);
+    const auto query = Join(compiled.Methods.front().Body);
+    EXPECT_NE(query.find("const auto& event_values_0 = (std::as_const(self)).Items();"), std::string::npos);
+    EXPECT_NE(query.find("auto local_Item = *event_value_0;"), std::string::npos);
+    EXPECT_NE(query.find("const auto event_values_1 ="), std::string::npos);
+    EXPECT_NE(query.find("const auto event_values_2 ="), std::string::npos);
+    EXPECT_NE(query.find("const auto event_values_3 = local_Snapshot;"), std::string::npos);
+    EXPECT_EQ(Join(compiled.Methods.back().Body).find("const auto& event_values_"), std::string::npos);
+    const auto action = Rules("action A for TActor { for Item in @self.Inventory { let Size = Item.Size; } }");
+    EXPECT_EQ(Join(CompileAction(action.Primary.Abilities.back(), action).Body).find("const auto& event_values_"), std::string::npos);
+}
+
 TEST(SourceCompilerTest, RejectsMalformedMapsSetsAndPayloadAccess) {
     Rejects("class TProfile { map<ECategory, int> Values = { Missing = 1; }; }", "unknown map key");
     Rejects("class TProfile { map<ECategory, int> Values = { Simple = 1; Simple = 2; }; }", "duplicate map key");

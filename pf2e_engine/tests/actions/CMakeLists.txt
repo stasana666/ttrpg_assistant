@@ -1,6 +1,7 @@
 add_executable(test_actions
     test_action_combat.cpp
     test_granted_combat.cpp
+    test_mixed_attack_runtime.cpp
 )
 
 target_link_libraries(test_actions
@@ -16,6 +17,21 @@ target_include_directories(test_actions
 
 include(GoogleTest)
 gtest_discover_tests(test_actions)
+
+add_executable(test_generated_strike
+    test_generated_strike.cpp
+)
+
+target_link_libraries(test_generated_strike
+    gtest_main
+    pf2e_engine
+)
+
+target_include_directories(test_generated_strike
+    PRIVATE ${CMAKE_BINARY_DIR}/cpp_config
+)
+
+gtest_discover_tests(test_generated_strike)
 
 add_executable(test_wolf_combat
     test_wolf_combat.cpp

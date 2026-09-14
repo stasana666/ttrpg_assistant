@@ -3,6 +3,7 @@ add_executable(test_mechanics
     test_characteristics.cpp
     test_damage_resolver.cpp
     test_proficiency_calculation.cpp
+    test_generated_combat_rules.cpp
 )
 
 target_link_libraries(test_mechanics

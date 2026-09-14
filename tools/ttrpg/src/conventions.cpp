@@ -138,6 +138,7 @@ std::string ScalarParseExpr(const TFieldDecl& f,
 {
     switch (kind) {
         case EFieldKind::Primitive:
+            if (IsBuiltinInt(f.TypeName)) return "::ReadGeneratedRuleInteger(" + valExpr + ")";
             return valExpr + ".get<" + CppPrimitiveType(f) + ">()";
         case EFieldKind::Enum:
             return f.TypeName + "FromString(" + valExpr + ".get<std::string>())";
@@ -163,6 +164,10 @@ std::string LoadFieldCall(const TFieldDecl& f,
                           const std::string& jsonKey)
 {
     if (kind == EFieldKind::Primitive && f.Init) {
+        if (IsBuiltinInt(f.TypeName)) {
+            return "j.contains(\"" + jsonKey + "\") ? " + ScalarParseExpr(f, kind, "j.at(\"" + jsonKey + "\")") +
+                " : int{" + DefaultExprToCpp(f.Init->Text, f.TypeName) + "}";
+        }
         return "j.value(\"" + jsonKey + "\", " +
                CppPrimitiveType(f) + "{" + DefaultExprToCpp(f.Init->Text, f.TypeName) +
                "})";

@@ -2,6 +2,7 @@
 #include <variant.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/rule_integer.h>
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/dsl/property_registry.h>
 #include <pf2e_engine/dsl/value.h>
@@ -12,7 +13,20 @@
 
 #include <stdexcept>
 #include <string>
+#include <cstdint>
 #include <utility>
+
+namespace {
+    int ReadGeneratedRuleInteger(const nlohmann::json& value) {
+        if (!value.is_number_integer()) {
+            throw std::invalid_argument("rule integer JSON must be an integer");
+        }
+        if (value.is_number_unsigned() && value.get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+            throw std::overflow_error("rule integer overflow");
+        }
+        return TRuleInteger::Checked(value.get<std::int64_t>());
+    }
+}
 
 std::string ToString(EColor v) {
     switch (v) {
@@ -74,7 +88,7 @@ TEffect TEffect::FromJson(const nlohmann::json& j, const TGameObjectFactory& fac
         switch (EEffectKindFromString(key)) {
             case EEffectKind::Burn: {
                 TEffectBurn a;
-                a.Damage = val.get<int>();
+                a.Damage = ::ReadGeneratedRuleInteger(val);
                 return a;
             }
             case EEffectKind::Tint: {

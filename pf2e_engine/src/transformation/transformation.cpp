@@ -21,8 +21,6 @@ int GetConditionValue(const TVariantMap<EConditionKind, TCondition>& conditions,
             return 1;
         case EConditionKind::Frightened:
             return conditions.Get<TConditionFrightened>()->Value;
-        case EConditionKind::MultipleAttackPenalty:
-            return conditions.Get<TConditionMultipleAttackPenalty>()->Value;
     }
     throw std::logic_error("unreachable");
 }
@@ -41,9 +39,6 @@ void SetConditionValue(TVariantMap<EConditionKind, TCondition>& conditions,
             return;
         case EConditionKind::Frightened:
             conditions.Set(TConditionFrightened{.Value = value});
-            return;
-        case EConditionKind::MultipleAttackPenalty:
-            conditions.Set(TConditionMultipleAttackPenalty{.Value = value});
             return;
     }
     throw std::logic_error("unreachable");

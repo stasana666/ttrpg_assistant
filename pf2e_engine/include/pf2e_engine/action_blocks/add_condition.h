@@ -10,7 +10,7 @@ public:
     void operator ()(std::shared_ptr<TActionContext> ctx) const;
 
 private:
-    void MultipleAttackPenaltyHandle(std::shared_ptr<TActionContext> ctx) const;
+    void RecordAttackHandle(std::shared_ptr<TActionContext> ctx) const;
     void FrightenedHandle(std::shared_ptr<TActionContext> ctx) const;
     void ProneHandle(std::shared_ptr<TActionContext> ctx) const;
 };

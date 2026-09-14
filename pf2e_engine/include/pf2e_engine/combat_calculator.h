@@ -11,8 +11,6 @@ public:
     int ArmorClass(const TCreature& target, const TCreature& attacker) const;
     int ResolveDamage(const TCreature& target, const TDamage& damage, IRandomGenerator& rng) const;
 
-    bool IsOffGuardFor(const TCreature& target, const TCreature& attacker) const;
-
     template <class T>
     int DifficultyClass(const TCreature& creature, T type) const;
     template <class T>

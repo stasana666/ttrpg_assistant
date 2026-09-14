@@ -19,6 +19,36 @@
 
 namespace {
 
+bool HasJsonIntegerFields(const TSchemaModule& module) {
+    const auto integer = [](const TFieldDecl& field) {
+        return !field.Derived && IsBuiltinInt(field.Container == EContainer::Map ? field.ValueTypeName : field.TypeName);
+    };
+    for (const auto& declaration : module.Classes) {
+        if (std::any_of(declaration.Fields.begin(), declaration.Fields.end(), integer)) return true;
+    }
+    for (const auto& variant : module.Variants) {
+        for (const auto& alternative : variant.Alternatives) {
+            if (std::any_of(alternative.Fields.begin(), alternative.Fields.end(), integer)) return true;
+        }
+    }
+    return false;
+}
+
+void EmitJsonIntegerReader(TCppWriter& writer) {
+    writer.Block("namespace {", "}", [&] {
+        writer.Function("int ReadGeneratedRuleInteger(const nlohmann::json& value)", [&] {
+            writer.Block("if (!value.is_number_integer()) {", "}", [&] {
+                writer.Line("throw std::invalid_argument(\"rule integer JSON must be an integer\");");
+            });
+            writer.Block("if (value.is_number_unsigned() && value.get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {", "}", [&] {
+                writer.Line("throw std::overflow_error(\"rule integer overflow\");");
+            });
+            writer.Line("return TRuleInteger::Checked(value.get<std::int64_t>());");
+        });
+    });
+    writer.EmptyLine();
+}
+
 std::vector<const TClassDecl*> OrderedClasses(const TLoadedSchemas& loaded) {
     std::unordered_map<std::string, const TClassDecl*> classes;
     for (const auto& c : loaded.Primary.Classes) classes[c.Name] = &c;
@@ -41,6 +71,9 @@ std::vector<const TClassDecl*> OrderedClasses(const TLoadedSchemas& loaded) {
 }
 
 void ValidateRules(const TLoadedSchemas& loaded) {
+    if (HasJsonIntegerFields(loaded.Primary) && loaded.SymbolTable.contains("ReadGeneratedRuleInteger")) {
+        throw std::runtime_error("type name 'ReadGeneratedRuleInteger' is reserved for generated JSON parsing");
+    }
     ValidateAbilityDefinitions(loaded);
     ValidateEventDefinitions(loaded);
     std::unordered_set<std::string> variantNames;
@@ -848,6 +881,7 @@ void EmitImpl(std::ostream& os,
     w.Include(headerInclude);
     w.EmptyLine();
     w.Include("pf2e_engine/common/ast/ast_helpers.h");
+    if (HasJsonIntegerFields(mod)) w.Include("pf2e_engine/common/rule_integer.h");
     w.Include("pf2e_engine/actions/ability.h");
     if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty() || !ability.Hooks.empty(); })) {
         w.Include("pf2e_engine/actions/generated_action.h");
@@ -866,10 +900,13 @@ void EmitImpl(std::ostream& os,
     w.EmptyLine();
     w.Include("stdexcept");
     w.Include("string");
+    if (HasJsonIntegerFields(mod)) w.Include("cstdint");
     if (!mod.Classes.empty()) {
         w.Include("utility");
     }
     w.EmptyLine();
+
+    if (HasJsonIntegerFields(mod)) EmitJsonIntegerReader(w);
 
     std::unordered_map<std::string, const TClassDecl*> classes;
     for (const auto& [stem, module] : loaded.ByStem) {

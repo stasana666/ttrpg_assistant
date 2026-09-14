@@ -558,7 +558,7 @@ void EmitRuleClassImpl(TCppWriter& writer, const TClassDecl& declaration,
             writer.Block("if (!j.is_object()) {", "}", [&] {
                 writer.Line("throw std::invalid_argument(\"Expected an object for " + declaration.Name + "\");");
             });
-            writer.Line("TInitialValues initial;");
+            if (!restore || !compiled.InitOrder.empty()) writer.Line("TInitialValues initial;");
             for (const auto& field : compiled.Fields) {
                 if (!field.Declaration.Derived) {
                     EmitReadField(writer, field, loaded, restore);

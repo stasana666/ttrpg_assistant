@@ -1,39 +1,26 @@
-#include <pf2e_engine/mechanics/creature.h>
-
 #include <pf2e_engine/combat_calculator.h>
 
-#include <pf2e_engine/condition.h>
+#include <pf2e_engine/common/rule_integer.h>
+#include <pf2e_engine/expressions/base_expression.h>
+#include <pf2e_engine/inventory/combat_checks.h>
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/mechanics/characteristics.h>
-#include <pf2e_engine/mechanics/damage_resolver.h>
+#include <pf2e_engine/mechanics/damage.h>
 #include <pf2e_engine/mechanics/savethrows.h>
 #include <pf2e_engine/success_level.h>
 
-struct TWeaponAttackTag {};
-struct TArmorClassTag {};
+#include <stdexcept>
+
 
 int TCombatCalculator::InitiativeBonus(const TCreature& creature) const
 {
     return creature.GetCharacteristic(ECharacteristic::Dexterity).Modifier();
 }
 
-int TCombatCalculator::ArmorClass(const TCreature& target, const TCreature& attacker) const
+int TCombatCalculator::ArmorClass(
+    const TCreature& target, [[maybe_unused]] const TCreature& attacker) const
 {
-    const TArmor& armor = target.Armor();
-    int dex = target.GetCharacteristic(ECharacteristic::Dexterity).Modifier();
-    int ac = 10 + armor.ArmorClassBonus()
-        + std::min(armor.DexterityCap(), dex)
-        + ProficiencyBonus(target, armor)
-        - Penalty(target, TArmorClassTag{});
-    if (IsOffGuardFor(target, attacker)) {
-        ac -= 2;
-    }
-    return ac;
-}
-
-bool TCombatCalculator::IsOffGuardFor(const TCreature& target, [[maybe_unused]] const TCreature& attacker) const
-{
-    return ConditionValue(target, EConditionKind::Prone) > 0;
+    return target.ArmorClass();
 }
 
 int TCombatCalculator::ResolveDamage(
@@ -41,17 +28,13 @@ int TCombatCalculator::ResolveDamage(
     const TDamage& damage,
     IRandomGenerator& rng) const
 {
-    TDamageResolver resolver;
-    for (EDamageType type : target.Immunities()) {
-        resolver.AddImmunity(type);
+    const auto rules = TCheckRules::Create({});
+    int result = 0;
+    for (const auto& [type, expression] : damage) {
+        const int amount = rules.MinimumDamage(expression->Value(rng));
+        result = TRuleInteger::Add(result, target.DamageAmount(type, amount));
     }
-    for (const auto& [type, value] : target.Resistances()) {
-        resolver.AddResistance(type, value);
-    }
-    for (const auto& [type, value] : target.Vulnerabilities()) {
-        resolver.AddVulnerability(type, value);
-    }
-    return resolver(damage, rng);
+    return result;
 }
 
 
@@ -82,56 +65,31 @@ template int TCombatCalculator::DifficultyClass<TPerceptionTag>(const TCreature&
 template <class T>
 int TCombatCalculator::Penalty(const TCreature& creature, T) const
 {
-    if constexpr (std::is_same_v<T, TWeaponAttackTag>) {
-        return ConditionValue(creature, EConditionKind::Frightened)
-            + (ConditionValue(creature, EConditionKind::Prone) ? 2 : 0);
-    }
-    return ConditionValue(creature, EConditionKind::Frightened);
+    return creature.ConditionPenalty();
 }
 
 template int TCombatCalculator::Penalty<ESkill>(const TCreature&, ESkill) const;
 template int TCombatCalculator::Penalty<ESavethrow>(const TCreature&, ESavethrow) const;
 template int TCombatCalculator::Penalty<TPerceptionTag>(const TCreature&, TPerceptionTag) const;
-template int TCombatCalculator::Penalty<TArmorClassTag>(const TCreature&, TArmorClassTag) const;
-template int TCombatCalculator::Penalty<TWeaponAttackTag>(const TCreature&, TWeaponAttackTag) const;
 
 
 int TCombatCalculator::AttackRollBonus(const TCreature& creature, const TWeapon& weapon) const
 {
-    int str = creature.GetCharacteristic(ECharacteristic::Strength).Modifier();
-    int ability_mod = str;
-
-    if (weapon.Traits().Has(EWeaponTraitKind::Finesse)) {
-        int dex = creature.GetCharacteristic(ECharacteristic::Dexterity).Modifier();
-        ability_mod = std::max(str, dex);
-    }
-
-    return ability_mod
-        + ProficiencyBonus(creature, weapon)
-        - Penalty(creature, TWeaponAttackTag{});
+    return creature.AttackBonus(weapon);
 }
 
 ESuccessLevel TCombatCalculator::RollD20(IRandomGenerator* roller, int bonus, int ac) const
 {
-    int roll = roller->RollDice(20);
-    int roll_result = bonus + roll;
-    ESuccessLevel result = [](int diff) {
-        if (diff >= 10) {
-            return ESuccessLevel::CriticalSuccess;
-        }
-        if (diff >= 0) {
-            return ESuccessLevel::Success;
-        }
-        if (diff > -10) {
+    const int roll = roller->RollDice(20);
+    switch (TCheckRules::Create({}).Resolve(roll, bonus, ac)) {
+        case ECheckOutcome::CriticalFailure:
+            return ESuccessLevel::CriticalFailure;
+        case ECheckOutcome::Failure:
             return ESuccessLevel::Failure;
-        }
-        return ESuccessLevel::CriticalFailure;
-    }(roll_result - ac);
-    if (roll == 20) {
-        result = IncreaseSuccessLevel(result);
+        case ECheckOutcome::Success:
+            return ESuccessLevel::Success;
+        case ECheckOutcome::CriticalSuccess:
+            return ESuccessLevel::CriticalSuccess;
     }
-    if (roll == 1) {
-        result = DecreaseSuccessLevel(result);
-    }
-    return result;
+    throw std::logic_error("invalid generated check outcome");
 }

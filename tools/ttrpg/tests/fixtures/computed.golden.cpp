@@ -2,6 +2,7 @@
 #include <computed.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/rule_integer.h>
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/dsl/property_registry.h>
 #include <pf2e_engine/dsl/value.h>
@@ -12,7 +13,20 @@
 
 #include <stdexcept>
 #include <string>
+#include <cstdint>
 #include <utility>
+
+namespace {
+    int ReadGeneratedRuleInteger(const nlohmann::json& value) {
+        if (!value.is_number_integer()) {
+            throw std::invalid_argument("rule integer JSON must be an integer");
+        }
+        if (value.is_number_unsigned() && value.get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+            throw std::overflow_error("rule integer overflow");
+        }
+        return TRuleInteger::Checked(value.get<std::int64_t>());
+    }
+}
 
 TPart TPart::Create(const TInitialValues& initial) {
     TPart r;
@@ -25,7 +39,7 @@ TPart TPart::Create(const TInitialValues& initial) {
 TPart TPart::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     (void)factory;
     TPart r;
-    r.Bonus_ = j.at("bonus").get<int>();
+    r.Bonus_ = ::ReadGeneratedRuleInteger(j.at("bonus"));
     return r;
 }
 
@@ -53,7 +67,7 @@ TAbility TAbility::Create(const TInitialValues& initial) {
 TAbility TAbility::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     (void)factory;
     TAbility r;
-    r.Value_ = j.at("value").get<int>();
+    r.Value_ = ::ReadGeneratedRuleInteger(j.at("value"));
     return r;
 }
 
@@ -119,15 +133,15 @@ TStats TStats::Create(const TInitialValues& initial) {
 
 TStats TStats::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     TStats r;
-    r.Base_ = j.at("base").get<int>();
-    r.Level_ = j.value("level", int{1});
-    r.PerLevel_ = j.at("per_level").get<int>();
+    r.Base_ = ::ReadGeneratedRuleInteger(j.at("base"));
+    r.Level_ = j.contains("level") ? ::ReadGeneratedRuleInteger(j.at("level")) : int{1};
+    r.PerLevel_ = ::ReadGeneratedRuleInteger(j.at("per_level"));
     r.Health_ = j.contains("health") ? TBoundedQuantity::FromJson(j.at("health"), factory) : TBoundedQuantity((r.Base_ + (r.Level_ * r.PerLevel_)));
-    r.Total_ = j.contains("total") ? j.at("total").get<int>() : (r.Base_ + r.PerLevel_);
+    r.Total_ = j.contains("total") ? ::ReadGeneratedRuleInteger(j.at("total")) : (r.Base_ + r.PerLevel_);
     r.Part_ = (j.at("part")).is_string() ? factory.Create<TPart>(TGameObjectIdManager::Instance().Register((j.at("part")).get<std::string>())) : TPart::FromJson(j.at("part"), factory);
-    r.Boosted_ = j.contains("boosted") ? j.at("boosted").get<int>() : (std::as_const(r.Part_).Bonus() + r.Base_);
+    r.Boosted_ = j.contains("boosted") ? ::ReadGeneratedRuleInteger(j.at("boosted")) : (std::as_const(r.Part_).Bonus() + r.Base_);
     r.Ability_ = (j.at("ability")).is_string() ? factory.Create<TAbility>(TGameObjectIdManager::Instance().Register((j.at("ability")).get<std::string>())) : TAbility::FromJson(j.at("ability"), factory);
-    r.ModBoost_ = j.contains("mod_boost") ? j.at("mod_boost").get<int>() : (std::as_const(r.Ability_).Modifier() + r.Base_);
+    r.ModBoost_ = j.contains("mod_boost") ? ::ReadGeneratedRuleInteger(j.at("mod_boost")) : (std::as_const(r.Ability_).Modifier() + r.Base_);
     return r;
 }
 

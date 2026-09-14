@@ -1,0 +1,45 @@
+enum ECheckOutcome {
+    CriticalFailure,
+    Failure,
+    Success,
+    CriticalSuccess,
+}
+
+class TCheckRules {
+    query ECheckOutcome Resolve(int Natural, int Bonus, int DC) {
+        require Natural >= 1 && Natural <= 20;
+        let Difference = Natural + Bonus - DC;
+        if (Difference >= 10) {
+            if (Natural == 1) {
+                return Success;
+            }
+            return CriticalSuccess;
+        }
+        if (Difference >= 0) {
+            if (Natural == 20) {
+                return CriticalSuccess;
+            }
+            if (Natural == 1) {
+                return Failure;
+            }
+            return Success;
+        }
+        if (Difference > -10) {
+            if (Natural == 20) {
+                return Success;
+            }
+            if (Natural == 1) {
+                return CriticalFailure;
+            }
+            return Failure;
+        }
+        if (Natural == 20) {
+            return Failure;
+        }
+        return CriticalFailure;
+    }
+
+    query int MinimumDamage(int Amount) {
+        return max(1, Amount);
+    }
+}

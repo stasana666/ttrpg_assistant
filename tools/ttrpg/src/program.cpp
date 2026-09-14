@@ -1179,8 +1179,10 @@ private:
                     const auto entry = "event_value_" + number;
                     const auto local = "local_" + statement.Name;
                     auto saved = locals_;
+                    const bool borrowed = collection && method_->Query && !action_ && !hook_ && !preflight_ &&
+                        sequence.Storage.starts_with("self.") && sequence.Field && !sequence.Field->Derived;
                     line("{");
-                    line("    const auto " + snapshot + " = " + sequence.Code + ";");
+                    line("    const auto" + std::string(borrowed ? "& " : " ") + snapshot + " = " + sequence.Code + ";");
                     line("    for (const auto& " + entry + " : " + snapshot + ") {");
                     const bool entities = sequence.SequenceKind == ESequenceKind::Entity;
                     line("        [[maybe_unused]] auto " + local + " = " + (collection ? "*" + entry : entities ? entry : entry + ".Value") + ";");

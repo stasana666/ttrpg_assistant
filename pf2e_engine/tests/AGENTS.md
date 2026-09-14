@@ -9,6 +9,13 @@ Canonical project instructions. CLAUDE.md redirects here.
 - `test_lib/mock_dice_roller.h`: deterministic RNG expectations for reproducible tests.
 - `test_lib/mock_interaction_system.h`: scripted player choices and optional state checks.
 - `actions/`: combat/action pipeline tests using real data.
+- `actions/test_generated_strike.cpp` builds as `test_generated_strike` and loads
+  the production compiled Strike through the real factory catalog. It covers
+  declared weapons and natural-attack baselines, check outcomes, attack counting,
+  critical Fatal/Deadly dice, typed Pack Attack, damage aggregation and defenses,
+  target preflight, source snapshots, and suspended execution with rollback.
+  Its temporary actor definitions reuse historical JSON profiles; they are not
+  complete Remaster fighter/wolf declarations.
 - `actions/fixtures/generated_actions.ttrpg` and `actions/test_generated_actions.cpp`
   compile actions into `test_generated_actions` and execute them through battle
   grants. They cover chosen entities, dice, arbitrary declared resource fields,
@@ -46,6 +53,10 @@ Canonical project instructions. CLAUDE.md redirects here.
   not rerun it. Existing imperative `require` keeps its body assertion semantics.
   The ally-count fixture is a language test, not a production PF2e action. Its
   line-of-effect check uses the current map adapter, which always reports true.
+- `actions/test_mixed_attack_runtime.cpp` runs compiled Strike and the legacy weapon,
+  Trip and opportunity pipelines against the same creature state. It checks the
+  current weapon's MAP, shared attack counts on hits and misses, non-Agile Trip,
+  reaction exemption, generated base damage inputs, turn resets and joint undo.
 - `inventory/`: generated schema type and JSON loading tests.
 - `inventory/fixtures/rule_entities.ttrpg` and `inventory/test_rule_entities.cpp`:
   compile generated entities into `test_inventory` and verify named factories,

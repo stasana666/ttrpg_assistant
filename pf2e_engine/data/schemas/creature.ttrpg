@@ -5,6 +5,7 @@ import "condition.ttrpg";
 import "damage.ttrpg";
 import "hitpoints.ttrpg";
 import "proficiency.ttrpg";
+import "statistic_baseline.ttrpg";
 
 enum ECreatureSize {
     Tiny,
@@ -42,6 +43,7 @@ GameEntity TCreature {
         };
     };
     TArmor Armor;
+    TStatisticBaseline ArmorClassBaseline;
     collection<TWeapon> Weapons;
     collection<TWeapon> NaturalWeapons;
     collection<Feature> Features;
@@ -49,6 +51,7 @@ GameEntity TCreature {
     set<EDamageType> Immunities;
     map<EDamageType, int> Resistances;
     map<EDamageType, int> Vulnerabilities;
+    int AttacksMade = 0;
     Resource Actions = 0;
     Resource Reactions = 0;
     Resource Hands = 0;
@@ -96,6 +99,98 @@ GameEntity TCreature {
 
     query int PerceptionProficiency() {
         return @self.Proficiency.PerceptionBonus(@self.Level);
+    }
+
+    query int ConditionPenalty() {
+        return @self.Conditions.get(Frightened, { Value = 0; }).Value;
+    }
+
+    query int AttackConditionPenalty() {
+        let Penalty = @self.ConditionPenalty();
+        if (@self.Conditions.has(Prone)) {
+            Penalty += 2;
+        }
+        return Penalty;
+    }
+
+    query int ArmorClass() {
+        let Value = @self.ArmorClassBaseline.Value;
+        if (!@self.ArmorClassBaseline.IsFixed) {
+            Value = 10 + @self.Armor.ArmorClassBonus
+                + min(@self.Armor.DexterityCap, @self.Characteristic.Dexterity.Modifier)
+                + @self.ArmorProficiency(@self.Armor.Category);
+        }
+        Value -= @self.ConditionPenalty();
+        if (@self.Conditions.has(Prone)) {
+            Value -= 2;
+        }
+        return Value;
+    }
+
+    query int AttackBonus(TWeapon Weapon) {
+        if (Weapon.AttackBonusBaseline.IsFixed) {
+            return Weapon.AttackBonusBaseline.Value - @self.AttackConditionPenalty();
+        }
+        let Modifier = @self.Characteristic.Strength.Modifier;
+        if (Weapon.Traits.has(Finesse)) {
+            Modifier = max(Modifier, @self.Characteristic.Dexterity.Modifier);
+        }
+        return Modifier + @self.WeaponProficiency(Weapon.Category) - @self.AttackConditionPenalty();
+    }
+
+    query int AttackCountPenalty(bool Agile) {
+        require @self.AttacksMade >= 0;
+        let Step = 5;
+        if (Agile) {
+            Step = 4;
+        }
+        return min(@self.AttacksMade, 2) * Step;
+    }
+
+    query int MultipleAttackPenalty(TWeapon Weapon) {
+        return @self.AttackCountPenalty(Weapon.Traits.has(Agile));
+    }
+
+    query int DamageModifier(TWeapon Weapon) {
+        if (Weapon.DamageModifierBaseline.IsFixed) {
+            return Weapon.DamageModifierBaseline.Value;
+        }
+        return @self.Characteristic.Strength.Modifier;
+    }
+
+    query int DamageAmount(EDamageType Type, int Amount) {
+        require Amount >= 0;
+        if (Amount == 0 || @self.Immunities.has(Type)) {
+            return 0;
+        }
+        let Weakness = @self.Vulnerabilities.get(Type, 0);
+        let Resistance = @self.Resistances.get(Type, 0);
+        return max(0, Amount + Weakness - Resistance);
+    }
+
+    query int MaxWeaponReach() {
+        let Reach = 0;
+        for Weapon in @self.Weapons {
+            Reach = max(Reach, Weapon.Reach);
+        }
+        for Weapon in @self.NaturalWeapons {
+            Reach = max(Reach, Weapon.Reach);
+        }
+        return Reach;
+    }
+
+    method void RecordAttack(int Count) {
+        require Count > 0;
+        require @self.AttacksMade >= 0;
+        @self.AttacksMade += Count;
+    }
+
+    method void ResetAttacks() {
+        @self.AttacksMade = 0;
+    }
+
+    method TDamageResult ReceiveDamage(EDamageType Type, int Amount) {
+        return @self.Hitpoints.DealDamage(@self.DamageAmount(Type, Amount));
     }
 
     grant @self.Features;
