@@ -2,6 +2,7 @@
 
 #include <ttrpg/conventions.h>
 #include <ttrpg/abilities.h>
+#include <ttrpg/activities.h>
 #include <ttrpg/events.h>
 
 #include <algorithm>
@@ -138,7 +139,7 @@ public:
     TCompiler(const TClassDecl& self, const TLoadedSchemas& loaded,
               std::shared_ptr<std::vector<std::string>> construction = std::make_shared<std::vector<std::string>>())
         : self_(self), loaded_(loaded), classes_(ClassTable(loaded)), enums_(EnumTable(loaded)),
-          variants_(VariantTable(loaded)), events_(EventSymbols(loaded)), instances_(InstanceTable(loaded)),
+          variants_(VariantTable(loaded)), events_(EventSymbols(loaded)), activities_(ActivitySymbols(loaded)), instances_(InstanceTable(loaded)),
           construction_(std::move(construction)) {
         classes_[self.Name] = &self;
         for (const auto& [name, variant] : variants_) {
@@ -436,6 +437,7 @@ public:
 
     TValue Call(const expr::TExprNode& call, bool effects) {
         if (!call.Lhs) {
+            if (activities_.contains(call.Text)) Fail("activity calls require a standalone action or activity let/call statement");
             if (call.Text == "position" || call.Text == "adjacent_positions" ||
                 call.Text == "contains_position" || call.Text == "can_occupy" || call.Text == "move") {
                 RequireWorldScope();
@@ -735,16 +737,7 @@ public:
         body_method.ReturnType = "void";
         method_ = &body_method;
         TCompiledAction result;
-        auto occupied = RuleCppTypes();
-        const auto flowName = [&](const std::string& base) {
-            auto name = base;
-            std::size_t suffix = 0;
-            while (!occupied.insert(name).second) name = base + "_" + std::to_string(++suffix);
-            return name;
-        };
-        result.Flow.FlowType = flowName("TFlow");
-        result.Flow.FrameType = flowName("TFrame");
-        result.Flow.RunName = flowName("Run");
+        ConfigureFlow(result.Flow);
         std::size_t first = 0;
         while (first < declaration.Body.size() &&
                (declaration.Body[first].Kind == TStatement::EKind::Cost || declaration.Body[first].Kind == TStatement::EKind::Requires)) {
@@ -753,9 +746,6 @@ public:
             }
             ++first;
         }
-        result.Flow.Environment.push_back("[[maybe_unused]] const auto world = GeneratedActionWorld(Context);");
-        result.Flow.Environment.push_back("[[maybe_unused]] auto action_self = ActionSelf<" + CppRuleType(self_.Name) + ">(Context);");
-        result.Flow.Environment.push_back("[[maybe_unused]] auto ctx = Context->transformator->ExecutionContext();");
         if (!declaration.SourceType.empty()) {
             const auto source = classes_.find(declaration.SourceType);
             if (source == classes_.end() || source->second->GameEntity) Fail("action source requires an ordinary class type");
@@ -767,6 +757,42 @@ public:
         result.Requirement = CompileActionRequirement(declaration, first);
         result.Flow.Blocks.resize(2);
         ActionFlowStatements(declaration.Body, first, result.Flow, 0, 1);
+        result.Body = RenderActionFlow(result.Flow);
+        method_ = nullptr;
+        return result;
+    }
+
+    TCompiledActivity CompileActivityBody(const TActivityDecl& declaration) {
+        if (!self_.GameEntity) Fail("activity owner must be a GameEntity");
+        action_ = true;
+        callableStem_ = activities_.at(declaration.Name).OwnerStem;
+        TMethod method;
+        method.Name = declaration.Name;
+        method.ReturnType = declaration.ReturnType;
+        method_ = &method;
+        TCompiledActivity result;
+        result.FunctionName = ActivityFunctionName(callableStem_, declaration);
+        result.ResultType = CppRuleType(CppTypeFor(declaration.ReturnType));
+        ConfigureFlow(result.Flow);
+        result.Flow.Activity = true;
+        result.Flow.ResultType = result.ResultType;
+        for (const auto& parameter : declaration.Parameters) {
+            const auto found = classes_.find(parameter.TypeName);
+            const bool entity = found != classes_.end() && found->second->GameEntity;
+            const auto value = entity ? EntityBinding(parameter.TypeName, "parameter") : TValue{.Type = parameter.TypeName};
+            const auto slot = AddFrameLocal(result.Flow, parameter.Name, value, "arg_");
+            const auto& local = result.Flow.Slots[slot];
+            result.Parameters.push_back({local.CppType, local.Local});
+            result.Flow.Initializers.emplace_back(slot, local.Local);
+            if (entity) {
+                result.Flow.EntryChecks.push_back("ValidateActionEntity(Context, " + local.Local + ".View());");
+                result.Flow.EntryChecks.push_back("(void)" + local.Local + ".Guard();");
+            }
+        }
+        result.Flow.Blocks.resize(2);
+        if (!ActionFlowStatements(declaration.Body, 0, result.Flow, 0, 1) && declaration.ReturnType != "void") {
+            Fail("activity must return a value on every path");
+        }
         result.Body = RenderActionFlow(result.Flow);
         method_ = nullptr;
         return result;
@@ -803,6 +829,22 @@ public:
     }
 
 private:
+    void ConfigureFlow(TCompiledActionFlow& flow) const {
+        auto occupied = RuleCppTypes();
+        const auto flowName = [&](const std::string& base) {
+            auto name = base;
+            std::size_t suffix = 0;
+            while (!occupied.insert(name).second) name = base + "_" + std::to_string(++suffix);
+            return name;
+        };
+        flow.FlowType = flowName("TFlow");
+        flow.FrameType = flowName("TFrame");
+        flow.RunName = flowName("Run");
+        flow.OwnerType = CppRuleType(self_.Name);
+        flow.Environment.push_back("[[maybe_unused]] const auto world = GeneratedActionWorld(Context);");
+        flow.Environment.push_back("[[maybe_unused]] auto ctx = Context->transformator->ExecutionContext();");
+    }
+
     const std::unordered_set<std::string>& RuleCppTypes() const {
         if (ruleCppTypes_.empty()) {
             for (const auto& [name, declaration] : classes_) ruleCppTypes_.insert(name);
@@ -993,13 +1035,12 @@ private:
     }
 
     void ValidateActionStep(std::vector<std::string>& output, const std::string& indent) const {
-        output.push_back(indent + "ValidateActionActor(Context);");
-        output.push_back(indent + "action_self.View().Validate();");
+        output.push_back(indent + "ValidateActionActorBinding(Context, action_self.View());");
         std::set<std::string> bindings;
         for (const auto& [name, value] : locals_) {
             if (!value.Binding.empty()) bindings.insert(value.Binding);
         }
-        for (const auto& binding : bindings) output.push_back(indent + binding + ".View().Validate();");
+        for (const auto& binding : bindings) output.push_back(indent + "ValidateActionEntity(Context, " + binding + ".View());");
         std::set<std::string> sources;
         for (const auto& [name, value] : locals_) {
             if (!value.SourceBinding.empty()) sources.insert(value.SourceBinding);
@@ -1178,7 +1219,33 @@ private:
             SetFlowScope(flow.Blocks[current]);
             flow.Blocks[current].Next = next;
             flow.Blocks[current].Exit = E::Jump;
-            if (statement.Kind == K::Let) {
+            const bool invocation = (statement.Kind == K::Let || statement.Kind == K::Call) && statement.Value &&
+                statement.Value->Kind == expr::ENodeKind::Call && !statement.Value->Lhs && activities_.contains(statement.Value->Text);
+            if (invocation) {
+                ValidateActionStep(flow.Blocks[current].Body, "");
+                const auto info = ResolveActivity(statement.Value->Text, callableStem_.empty() ? loaded_.PrimaryStem : callableStem_, loaded_);
+                const auto& declaration = *info.Declaration;
+                if (declaration.OwnerType != self_.Name) Fail("activity owner does not match the calling action owner");
+                if (statement.Value->Args.size() != declaration.Parameters.size()) Fail("activity argument count mismatch");
+                TActionFlowBlock::TInvocation call;
+                call.FunctionName = "::" + ActivityFunctionName(info.OwnerStem, declaration);
+                call.ResultType = CppRuleType(CppTypeFor(declaration.ReturnType));
+                for (std::size_t i = 0; i < declaration.Parameters.size(); ++i) {
+                    const auto& parameter = declaration.Parameters[i];
+                    const auto value = Read(statement.Value->Args[i], parameter.TypeName, false);
+                    Match(value, parameter.TypeName);
+                    const auto type = classes_.find(parameter.TypeName);
+                    const bool entity = type != classes_.end() && type->second->GameEntity;
+                    if (entity && (value.Binding.empty() || value.Guard.empty())) Fail("activity entity arguments require mutable entity bindings");
+                    call.Arguments.push_back(entity ? value.Binding : value.Code);
+                }
+                if (statement.Kind == K::Let) {
+                    if (declaration.ReturnType == "void") Fail("cannot bind void activity result");
+                    call.Slot = AddFrameLocal(flow, statement.Name, TValue{.Type = declaration.ReturnType});
+                }
+                flow.Blocks[current].Invocation = std::move(call);
+                flow.Blocks[current].Exit = E::Invoke;
+            } else if (statement.Kind == K::Let) {
                 ValidateActionStep(flow.Blocks[current].Body, "");
                 auto value = Read(*statement.Value, "", true);
                 if (value.Type == "void") Fail("cannot bind void result");
@@ -1226,9 +1293,12 @@ private:
             } else if (statement.Kind == K::Return) {
                 ValidateActionStep(flow.Blocks[current].Body, "");
                 if (statement.Value) {
-                    const auto value = Read(*statement.Value, "void", true);
-                    Match(value, "void");
-                    flow.Blocks[current].Body.push_back("(void)" + value.Code + ";");
+                    const auto value = Read(*statement.Value, method_->ReturnType, true);
+                    Match(value, method_->ReturnType);
+                    if (value.Type == "void") flow.Blocks[current].Body.push_back("(void)" + value.Code + ";");
+                    else flow.Blocks[current].ReturnValue = value.Code;
+                } else if (method_->ReturnType != "void") {
+                    Fail("return value required");
                 }
                 flow.Blocks[current].Exit = E::Return;
                 returns = true;
@@ -1470,6 +1540,7 @@ private:
     TVariants variants_;
     std::unordered_map<std::string, const TVariantAlt*> payloads_;
     std::unordered_map<std::string, TEventInfo> events_;
+    std::unordered_map<std::string, TActivityInfo> activities_;
     TInstances instances_;
     std::shared_ptr<std::vector<std::string>> construction_;
     std::unordered_map<std::string, TValue> locals_;
@@ -1482,6 +1553,7 @@ private:
     std::unordered_map<std::string, std::size_t> frameSlots_;
     std::unordered_set<std::string> generatedLocals_;
     mutable std::unordered_set<std::string> ruleCppTypes_;
+    std::string callableStem_;
 };
 
 }
@@ -1529,6 +1601,14 @@ TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSche
     const auto owner = classes.find(declaration.OwnerType);
     if (owner == classes.end()) throw std::runtime_error("unknown action owner type '" + declaration.OwnerType + "'");
     return TCompiler(*owner->second, loaded).CompileActionBody(declaration);
+}
+
+TCompiledActivity CompileActivity(const TActivityDecl& declaration, const TLoadedSchemas& loaded) {
+    ValidateActivityDefinitions(loaded);
+    const auto classes = ClassTable(loaded);
+    const auto owner = classes.find(declaration.OwnerType);
+    if (owner == classes.end()) throw std::runtime_error("unknown activity owner type '" + declaration.OwnerType + "'");
+    return TCompiler(*owner->second, loaded).CompileActivityBody(declaration);
 }
 
 std::vector<std::string> CompileFeatureHook(const TAbilityDecl& feature, const TAbilityDecl::THook& hook,

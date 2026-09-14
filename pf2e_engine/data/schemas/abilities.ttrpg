@@ -21,18 +21,32 @@ action Strike for TCreature using TWeapon Weapon {
     choose TCreature Target where Target != @self && Target.IsAlive()
         && grid_distance(@self, Target) <= Weapon.Reach
         && has_line_of_effect(@self, Target);
+    ResolveMeleeStrike(Weapon, Target, 0, 1, true);
+}
+
+activity ECheckOutcome ResolveMeleeStrike for TCreature(
+    TWeapon Weapon, TCreature Target, int ExtraWeaponDice, int AttackCount, bool ApplyMAP
+) {
+    require ExtraWeaponDice >= 0 && AttackCount >= 0;
+    require Target != @self && Target.IsAlive()
+        && grid_distance(@self, Target) <= Weapon.Reach
+        && has_line_of_effect(@self, Target);
     let Checks = TCheckRules {};
+    let AttackBonus = @self.AttackBonus(Weapon);
+    if (ApplyMAP) {
+        AttackBonus -= @self.MultipleAttackPenalty(Weapon);
+    }
     let Natural = roll(1, 20);
-    let Outcome = Checks.Resolve(Natural,
-        @self.AttackBonus(Weapon) - @self.MultipleAttackPenalty(Weapon),
-        Target.ArmorClass());
-    @self.RecordAttack(1);
+    let Outcome = Checks.Resolve(Natural, AttackBonus, Target.ArmorClass());
+    if (AttackCount > 0) {
+        @self.RecordAttack(AttackCount);
+    }
     if (Outcome == Success || Outcome == CriticalSuccess) {
         let Size = Weapon.BaseDiceSize;
         if (Outcome == CriticalSuccess && Weapon.Traits.has(Fatal)) {
             Size = Weapon.DieFaces(Weapon.Traits.get(Fatal, { Die = D6; }).Die);
         }
-        let Amount = roll(Weapon.DamageDiceCount, Size);
+        let Amount = roll(Weapon.DamageDiceCount + ExtraWeaponDice, Size);
         Amount += @self.DamageModifier(Weapon);
         for Bonus in StrikeDamageBonus(@self, Target, Weapon) {
             if (Bonus.Count > 0) {
@@ -54,6 +68,7 @@ action Strike for TCreature using TWeapon Weapon {
         }
         Target.ReceiveDamage(Weapon.DamageType, Amount);
     }
+    return Outcome;
 }
 
 feature PackAttack {

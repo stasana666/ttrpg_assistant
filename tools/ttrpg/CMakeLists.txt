@@ -10,9 +10,11 @@ add_library(ttrpg STATIC
     src/program.cpp
     src/action_flow.cpp
     src/abilities.cpp
+    src/activities.cpp
     src/events.cpp
     src/cpp_writer.cpp
     src/emit.cpp
+    src/emit_activity.cpp
     src/emit_action.cpp
     src/emit_source.cpp
     src/emit_rule_class.cpp

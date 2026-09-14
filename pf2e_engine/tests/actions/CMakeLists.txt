@@ -22,6 +22,16 @@ add_executable(test_generated_strike
     test_generated_strike.cpp
 )
 
+set(GENERATED_STRIKE_ACTIVITIES_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/generated_strike_activities.h)
+set(GENERATED_STRIKE_ACTIVITIES_SOURCE ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/generated_strike_activities.cpp)
+ttrpg_generate(
+    TARGET test_generated_strike
+    SCHEMA ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/generated_strike_activities.ttrpg
+    HEADER ${GENERATED_STRIKE_ACTIVITIES_HEADER}
+    SOURCE ${GENERATED_STRIKE_ACTIVITIES_SOURCE}
+)
+target_sources(test_generated_strike PRIVATE ${GENERATED_STRIKE_ACTIVITIES_HEADER} ${GENERATED_STRIKE_ACTIVITIES_SOURCE})
+
 target_link_libraries(test_generated_strike
     gtest_main
     pf2e_engine
@@ -194,3 +204,24 @@ target_link_libraries(test_movement_runtime
 )
 
 gtest_discover_tests(test_movement_runtime)
+
+add_executable(test_generated_activities
+    test_generated_activities.cpp
+)
+
+set(GENERATED_ACTIVITIES_HEADER ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/generated_activities.h)
+set(GENERATED_ACTIVITIES_SOURCE ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/generated_activities.cpp)
+ttrpg_generate(
+    TARGET test_generated_activities
+    SCHEMA ${CMAKE_CURRENT_SOURCE_DIR}/fixtures/generated_activities.ttrpg
+    HEADER ${GENERATED_ACTIVITIES_HEADER}
+    SOURCE ${GENERATED_ACTIVITIES_SOURCE}
+)
+target_sources(test_generated_activities PRIVATE ${GENERATED_ACTIVITIES_HEADER} ${GENERATED_ACTIVITIES_SOURCE})
+
+target_link_libraries(test_generated_activities
+    gtest_main
+    pf2e_engine
+)
+
+gtest_discover_tests(test_generated_activities)

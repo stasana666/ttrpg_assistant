@@ -108,6 +108,16 @@ void ValidateActionActor(const std::shared_ptr<TActionContext>& ctx)
     GeneratedActionSelf(ctx).Validate();
 }
 
+void ValidateActionActorBinding(const std::shared_ptr<TActionContext>& ctx,
+                                const TGeneratedEntityView& actor)
+{
+    actor.Validate();
+    const auto current = GeneratedActionSelf(ctx);
+    if (current != actor || &current.Player() != &actor.Player()) {
+        throw TAbilityUnavailable();
+    }
+}
+
 void ValidateActionEntity(const std::shared_ptr<TActionContext>& ctx,
                           const TGeneratedEntityView& entity)
 {
@@ -200,11 +210,7 @@ std::size_t SelectActionIndex(const std::shared_ptr<TActionContext>& ctx,
     };
     const auto actor = GeneratedActionSelf(ctx);
     auto validate_actor = [ctx, actor] {
-        actor.Validate();
-        const auto current = GeneratedActionSelf(ctx);
-        if (current != actor || &current.Player() != &actor.Player()) {
-            throw TAbilityUnavailable();
-        }
+        ValidateActionActorBinding(ctx, actor);
     };
     const auto request = std::make_shared<TRequest>();
     const auto size = alternatives.Size();

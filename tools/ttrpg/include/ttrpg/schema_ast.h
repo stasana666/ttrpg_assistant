@@ -92,6 +92,15 @@ struct TEventDecl {
     parse::TSourceLocation Location;
 };
 
+struct TActivityDecl {
+    std::string Name;
+    std::string OwnerType;
+    std::string ReturnType;
+    std::vector<TClassDecl::TParameter> Parameters;
+    std::vector<TClassDecl::TStatement> Body;
+    parse::TSourceLocation Location;
+};
+
 struct TInstanceDecl {
     std::string TypeName;
     std::string Name;
@@ -116,4 +125,5 @@ struct TSchemaModule {
     std::vector<TInstanceDecl> Instances;
     std::vector<TAbilityDecl> Abilities;
     std::vector<TEventDecl> Events;
+    std::vector<TActivityDecl> Activities;
 };

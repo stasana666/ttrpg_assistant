@@ -1,6 +1,8 @@
 #include <ttrpg/emit.h>
 #include <ttrpg/emit_rule_class.h>
 #include <ttrpg/emit_action.h>
+#include <ttrpg/emit_activity.h>
+#include <ttrpg/activities.h>
 #include <ttrpg/abilities.h>
 #include <ttrpg/events.h>
 #include <ttrpg/emit_source.h>
@@ -77,6 +79,7 @@ void ValidateRules(const TLoadedSchemas& loaded) {
     }
     ValidateAbilityDefinitions(loaded);
     ValidateEventDefinitions(loaded);
+    ValidateActivityDefinitions(loaded);
     std::unordered_set<std::string> variantNames;
     auto validateVariants = [&](const TSchemaModule& module) {
         for (const auto& variant : module.Variants) {
@@ -99,6 +102,7 @@ void ValidateRules(const TLoadedSchemas& loaded) {
         if (!ability.OwnerType.empty()) (void)CompileAction(ability, loaded);
         for (const auto& hook : ability.Hooks) (void)CompileFeatureHook(ability, hook, loaded);
     }
+    for (const auto& activity : loaded.Primary.Activities) (void)CompileActivity(activity, loaded);
     std::unordered_set<std::string> names;
     for (const auto& instance : loaded.Primary.Instances) {
         if (!names.insert(instance.Name).second) throw std::runtime_error("duplicate instance '" + instance.Name + "'");
@@ -291,6 +295,13 @@ void EmitHeader(std::ostream& os,
     w.EmptyLine();
     w.Include("limits");
     w.Include("string");
+    if (!mod.Activities.empty()) {
+        w.Include("functional");
+        w.Include("memory");
+        w.Include("optional");
+        w.Include("utility");
+        w.Include("pf2e_engine/position.h");
+    }
     if (!mod.Events.empty()) {
         w.Include("functional");
         w.Include("tuple");
@@ -506,6 +517,7 @@ void EmitHeader(std::ostream& os,
         w.Line(instance.TypeName + " Create" + instance.Name + "();");
     }
     EmitEventDeclarations(w, loaded);
+    EmitActivityDeclarations(w, loaded);
     w.Line("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog);");
     w.Line("struct TAbilityRules;");
     w.Line("void " + RulesRegistrationFunction(loaded.PrimaryStem) + "(TAbilityRules& rules);");
@@ -884,7 +896,7 @@ void EmitImpl(std::ostream& os,
     w.Include("pf2e_engine/common/ast/ast_helpers.h");
     if (HasJsonIntegerFields(mod)) w.Include("pf2e_engine/common/rule_integer.h");
     w.Include("pf2e_engine/actions/ability.h");
-    if (std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty() || !ability.Hooks.empty(); })) {
+    if (!mod.Activities.empty() || std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty() || !ability.Hooks.empty(); })) {
         w.Include("pf2e_engine/actions/generated_action.h");
         w.Include("pf2e_engine/actions/generated_world.h");
         w.Include("pf2e_engine/actions/generated_movement.h");
@@ -954,5 +966,6 @@ void EmitImpl(std::ostream& os,
         }
     });
     w.EmptyLine();
+    EmitActivityImplementations(w, loaded);
     EmitActionRegistration(w, loaded);
 }

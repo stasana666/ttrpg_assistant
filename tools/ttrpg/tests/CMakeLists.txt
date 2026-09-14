@@ -4,6 +4,7 @@ add_executable(test_ttrpg
     test_parser.cpp
     test_analyze.cpp
     test_abilities.cpp
+    test_activities.cpp
     test_actions.cpp
     test_action_flow.cpp
     test_events.cpp

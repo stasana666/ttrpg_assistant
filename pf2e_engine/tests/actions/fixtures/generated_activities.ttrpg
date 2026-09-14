@@ -1,0 +1,155 @@
+import "../../../data/schemas/creature.ttrpg";
+
+enum EActivityDecision {
+    Accepted,
+    Declined,
+}
+
+class TActivityReport {
+    int Total = 0;
+    bool Accepted = false;
+}
+
+activity int ChooseIncrement for TCreature(int Base) {
+    choose int Extra from [2, 5];
+    return Base + Extra;
+}
+
+activity EActivityDecision ChooseOutcome for TCreature(TCreature Target, int Amount) {
+    choose EActivityDecision Decision from [Accepted, Declined];
+    if (Decision == Accepted) {
+        Target.Hitpoints.DealDamage(Amount);
+    }
+    return Decision;
+}
+
+activity void ApplyExtra for TCreature(TCreature Target, int Amount) {
+    choose int Extra from [1, 3];
+    Target.Hitpoints.DealDamage(Amount + Extra);
+    return;
+}
+
+activity TActivityReport ComposeReport for TCreature(TCreature Target, int Base) {
+    let Total = ChooseIncrement(Base);
+    let Decision = ChooseOutcome(Target, Total);
+    if (Decision == Accepted) {
+        ApplyExtra(Target, Total);
+    }
+    return TActivityReport { Total = Total; Accepted = Decision == Accepted; };
+}
+
+activity void StoreReport for TCreature(TActivityReport Report, int Multiplier) {
+    @self.Hands.SetCount(Report.Total * Multiplier);
+    if (Report.Accepted) {
+        @self.Hands.Add(1);
+    }
+}
+
+activity int Increment for TCreature(int Value) {
+    return Value + 1;
+}
+
+activity void StoreValue for TCreature(int Value) {
+    @self.Hands.SetCount(Value);
+}
+
+activity int WeaponAmount for TCreature(TWeapon Weapon, TCreature Target) {
+    choose int Extra from [0, 1];
+    let Amount = Weapon.BaseDiceSize + Extra;
+    Target.Hitpoints.DealDamage(Amount);
+    return Amount;
+}
+
+activity TActivityReport WeaponReport for TCreature(TWeapon Weapon, TCreature Target) {
+    let Amount = WeaponAmount(Weapon, Target);
+    return TActivityReport { Total = Amount; Accepted = true; };
+}
+
+activity int FailingChild for TCreature(TCreature Target) {
+    Target.Hitpoints.DealDamage(3);
+    choose int Amount from [1, 2];
+    require false;
+    return Amount;
+}
+
+activity int EntryProbe for TCreature(TCreature Target) {
+    @self.Hands.Add(1);
+    return 7;
+}
+
+activity int PausedEntryProbe for TCreature(TCreature Target) {
+    choose int Result from [7];
+    @self.Hands.Add(1);
+    return Result;
+}
+
+activity Position ChooseDestination for TCreature(Position Origin) {
+    choose Position Next from adjacent_positions(Origin) where can_occupy(@self, Next);
+    return Next;
+}
+
+action NestedActivities for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive() && Target != @self;
+    let Report = ComposeReport(Target, 1);
+    choose int Multiplier from [2, 4];
+    StoreReport(Report, Multiplier);
+}
+
+action ImmediateActivities for TCreature {
+    cost @self.Actions = 1;
+    let Remaining = @self.Level;
+    let Total = 0;
+    while (Remaining > 0) {
+        let Next = Increment(Total);
+        Total = Next;
+        Remaining -= 1;
+    }
+    StoreValue(Total);
+}
+
+action DiscardActivityResult for TCreature {
+    cost @self.Actions = 1;
+    ChooseIncrement(10);
+    @self.Hands.Add(1);
+}
+
+action WeaponActivities for TCreature using TWeapon Weapon {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive() && Target != @self;
+    let Report = WeaponReport(Weapon, Target);
+    StoreReport(Report, 1);
+}
+
+action FailingActivity for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive() && Target != @self;
+    let Result = FailingChild(Target);
+    @self.Hands.SetCount(Result);
+}
+
+action PositionActivity for TCreature {
+    cost @self.Actions = 1;
+    let Origin = position(@self);
+    let Destination = ChooseDestination(Origin);
+    move(@self, Origin, Destination);
+    @self.Hands.SetCount(Destination.X * 10 + Destination.Y);
+}
+
+feature ActivityTraining {
+    grant NestedActivities;
+    grant ImmediateActivities;
+    grant DiscardActivityResult;
+    grant FailingActivity;
+    grant PositionActivity;
+}
+
+feature ActivityWeaponTraining {
+    grant WeaponActivities;
+}
+
+TWeapon ActivityBlade {
+    Name = "Activity blade";
+    BaseDiceSize = 4;
+    Features = [ActivityWeaponTraining];
+}

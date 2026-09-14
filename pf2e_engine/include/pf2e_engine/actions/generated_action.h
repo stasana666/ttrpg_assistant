@@ -20,6 +20,8 @@ TGeneratedEntityView BindGeneratedActionEntity(const TPlayer& player, const TBat
 TGeneratedEntityView BindGeneratedActionEntity(TPlayer& player, const TBattle* battle = nullptr);
 TGeneratedEntityView GeneratedActionSelf(const std::shared_ptr<TActionContext>& ctx);
 void ValidateActionActor(const std::shared_ptr<TActionContext>& ctx);
+void ValidateActionActorBinding(const std::shared_ptr<TActionContext>& ctx,
+                                const TGeneratedEntityView& actor);
 void ValidateActionEntity(const std::shared_ptr<TActionContext>& ctx,
                           const TGeneratedEntityView& entity);
 const TAbilityRules& GeneratedActionRules(const std::shared_ptr<TActionContext>& ctx);

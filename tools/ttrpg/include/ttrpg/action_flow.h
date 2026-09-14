@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct TActionFrameSlot {
@@ -20,7 +22,7 @@ struct TActionFlowChoice {
 };
 
 struct TActionFlowBlock {
-    enum class EExit { Return, Jump, Branch, Choose };
+    enum class EExit { Return, Jump, Branch, Choose, Invoke };
     std::vector<std::size_t> LiveSlots;
     std::vector<std::string> Body;
     EExit Exit = EExit::Return;
@@ -28,6 +30,13 @@ struct TActionFlowBlock {
     std::size_t Otherwise = 0;
     std::string Condition;
     TActionFlowChoice Choice;
+    struct TInvocation {
+        std::string FunctionName;
+        std::string ResultType;
+        std::vector<std::string> Arguments;
+        std::optional<std::size_t> Slot;
+    } Invocation;
+    std::string ReturnValue;
 };
 
 struct TCompiledActionFlow {
@@ -38,6 +47,11 @@ struct TCompiledActionFlow {
     std::string FlowType = "TFlow";
     std::string FrameType = "TFrame";
     std::string RunName = "Run";
+    std::string OwnerType;
+    std::string ResultType = "void";
+    bool Activity = false;
+    std::vector<std::string> EntryChecks;
+    std::vector<std::pair<std::size_t, std::string>> Initializers;
 };
 
 std::vector<std::string> RenderActionFlow(const TCompiledActionFlow& flow);

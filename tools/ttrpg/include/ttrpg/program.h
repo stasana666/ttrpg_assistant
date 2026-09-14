@@ -47,9 +47,23 @@ struct TCompiledAction {
     TCompiledActionFlow Flow;
 };
 
+struct TCompiledActivityParameter {
+    std::string CppType;
+    std::string Name;
+};
+
+struct TCompiledActivity {
+    std::string FunctionName;
+    std::string ResultType;
+    std::vector<TCompiledActivityParameter> Parameters;
+    TCompiledActionFlow Flow;
+    std::vector<std::string> Body;
+};
+
 bool UsesRuleSyntax(const TClassDecl& declaration, const TLoadedSchemas& loaded);
 TCompiledClass CompileClass(const TClassDecl& declaration, const TLoadedSchemas& loaded);
 std::string CompileInstance(const TInstanceDecl& declaration, const TLoadedSchemas& loaded);
 TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded);
+TCompiledActivity CompileActivity(const TActivityDecl& declaration, const TLoadedSchemas& loaded);
 std::vector<std::string> CompileFeatureHook(const TAbilityDecl& feature, const TAbilityDecl::THook& hook,
                                           const TLoadedSchemas& loaded);

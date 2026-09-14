@@ -133,8 +133,8 @@ TEST(ActionCompilerTest, CapturesValuesBeforeEachChoiceAndRecreatesContinuationL
     EXPECT_NE(body.find("auto next = frame;"), std::string::npos);
     EXPECT_NE(body.find("frame.slot_2.emplace(bound_First)"), std::string::npos);
     EXPECT_NE(body.find("bound_Second.Read().Id() != local_Alias.Read().Id()"), std::string::npos);
-    EXPECT_NE(body.find("ValidateActionActor(Context);"), std::string::npos);
-    EXPECT_NE(body.find("bound_First.View().Validate();"), std::string::npos);
+    EXPECT_NE(body.find("ValidateActionActorBinding(Context, action_self.View());"), std::string::npos);
+    EXPECT_NE(body.find("ValidateActionEntity(Context, bound_First.View());"), std::string::npos);
     EXPECT_EQ(body.find("mutable"), std::string::npos);
     EXPECT_EQ(body.find("[&"), std::string::npos);
     EXPECT_EQ(body.find("shared_ptr<Frame"), std::string::npos);

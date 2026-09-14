@@ -163,10 +163,10 @@ TEST(WorldCompilerTest, CapturesWorldAndReadonlyEntitySequencesAcrossChoices) {
         }
     )");
     const auto body = Join(CompileAction(loaded.Primary.Abilities.front(), loaded).Body);
-    EXPECT_NE(body.find("[Context, frame]"), std::string::npos);
+    EXPECT_NE(body.find("[Context, action_self, frame]"), std::string::npos);
     EXPECT_NE(body.find("std::optional<std::vector<TGeneratedEntityBinding<::TActor>>> slot_0"), std::string::npos);
     EXPECT_NE(body.find("auto& local_Others = frame.slot_0.value()"), std::string::npos);
-    EXPECT_NE(body.find("local_Alias.View().Validate()"), std::string::npos);
+    EXPECT_NE(body.find("ValidateActionEntity(Context, local_Alias.View())"), std::string::npos);
     EXPECT_NE(body.find("bound_Target.Guard()"), std::string::npos);
     EXPECT_NE(body.find("action_self.Guard()"), std::string::npos);
     EXPECT_EQ(body.find("local_Alias.Guard()"), std::string::npos);

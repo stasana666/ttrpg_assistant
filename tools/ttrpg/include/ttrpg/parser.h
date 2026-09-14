@@ -67,6 +67,8 @@ public:
                 mod.Abilities.push_back(ParseAbility());
             } else if (t.text == "event") {
                 mod.Events.push_back(ParseEvent());
+            } else if (t.text == "activity") {
+                mod.Activities.push_back(ParseActivity());
             } else if (t.text == "import") {
                 ts_.Throw("'import' must appear before any class/enum/variant");
             } else {
@@ -146,6 +148,29 @@ private:
         }
         ts_.Expect(ETok::RParen, "')'");
         ts_.Expect(ETok::Semi, "';' after event declaration");
+        return declaration;
+    }
+
+    TActivityDecl ParseActivity() {
+        TActivityDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        ExpectIdentText("activity");
+        declaration.ReturnType = ExpectIdent("activity result type");
+        declaration.Name = ExpectIdent("activity name");
+        ExpectIdentText("for");
+        declaration.OwnerType = ExpectIdent("activity owner type");
+        ts_.Expect(ETok::LParen, "'('");
+        if (ts_.Peek().kind != ETok::RParen) {
+            do {
+                TClassDecl::TParameter parameter;
+                parameter.TypeName = ExpectIdent("activity parameter type");
+                parameter.Name = ExpectIdent("activity parameter name");
+                declaration.Parameters.push_back(std::move(parameter));
+            } while (ts_.Match(ETok::Comma));
+        }
+        ts_.Expect(ETok::RParen, "')'");
+        declaration.Body = ParseBody();
+        ts_.Match(ETok::Semi);
         return declaration;
     }
 

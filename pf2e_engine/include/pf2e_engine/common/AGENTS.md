@@ -87,6 +87,13 @@ checks the current battle eligibility policy. The native battle adapter currentl
 provides `TCreature` participants. The compiler has no hard-coded creature type,
 HP field names or resource categories. Future native entity kinds need adapters.
 
+`ValidateActionActorBinding` checks a captured actor against the current context
+using both entity identity and participant address. Generated callable frames
+retain that original binding across suspension instead of resolving a new owner
+on each resume. The check preserves source and actor eligibility validation;
+when a battle is bound, the current participant must belong to it. Readonly and
+mutable aliases compare as the same actor without changing their capabilities.
+
 `IInteractionSystem::RequestChoice` either invokes its receiver synchronously or
 suspends through `TSavepointStackUnwind` with an owned callback. It must not return
 without delivering a choice or suspending. Generated actions execute a compiled

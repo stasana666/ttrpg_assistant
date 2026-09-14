@@ -74,6 +74,24 @@ class TtrpgCliTest(unittest.TestCase):
                 self.command([CODEGEN, "--schema", self.schema, "--check"], success=False)
                 self.assertFalse(self.header.exists())
 
+    def test_imported_activities_use_canonical_export_names(self):
+        self.write("actor.ttrpg", "GameEntity TActor { int Value = 1; }")
+        library = self.write("library.ttrpg", 'import "actor.ttrpg"; activity int Increment for TActor(int Value) { return Value + 1; }')
+        (self.root / "alias.ttrpg").symlink_to(library)
+        self.schema.write_text('import "alias.ttrpg"; action Use for TActor { let Value = Increment(1); @self.Value = Value; }')
+        self.command([CODEGEN, "--schema", self.schema, "--check"])
+        self.generate()
+        self.assertIn("::RunLibraryIncrement(Context", self.source.read_text())
+        self.assertIn("library.h", self.header.read_text())
+
+    def test_recursive_activities_preserve_generated_outputs(self):
+        self.generate()
+        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
+        self.schema.write_text("GameEntity TActor {} activity void First for TActor() { Second(); } activity void Second for TActor() { First(); }")
+        result = self.generate(success=False)
+        self.assertIn("recursive activity calls", result.stderr)
+        self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
+
     def test_invalid_grants_preserve_generated_outputs(self):
         self.generate()
         paths = [self.header, self.source, self.depfile]

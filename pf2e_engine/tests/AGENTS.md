@@ -70,6 +70,14 @@ Canonical project instructions. CLAUDE.md redirects here.
   stale origins and grants, failed movement/insertion, and replay with map rollback.
   The generic movement primitive has no resource cost or implicit reaction window;
   legacy `MovePlayer` retains support for movement beyond adjacent cells.
+- `actions/fixtures/generated_activities.ttrpg` and `actions/test_generated_activities.cpp`
+  compile into `test_generated_activities`. They check nested primitive, enum,
+  class, Position and void results across suspension, replay and journal undo; parent costs
+  are paid once and immediate calls keep loop stack usage bounded. Source values
+  remain snapshots while grant validity stays live. Native entry checks reject
+  foreign or readonly entity arguments before effects and retain the original
+  actor across context changes. Failed activities preserve completed effects
+  until the caller undoes their shared journal.
 - `inventory/`: generated schema type and JSON loading tests.
 - `inventory/fixtures/rule_entities.ttrpg` and `inventory/test_rule_entities.cpp`:
   compile generated entities into `test_inventory` and verify named factories,

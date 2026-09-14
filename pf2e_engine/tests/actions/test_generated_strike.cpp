@@ -5,6 +5,7 @@
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/generated_execution.h>
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
+#include <pf2e_engine/inventory/generated_strike_activities.h>
 #include <cpp_config.h>
 
 #include "../test_lib/mock_dice_roller.h"
@@ -23,6 +24,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -116,7 +118,9 @@ protected:
             }
         }
         nlohmann::json map = {{"x_size", 8}, {"y_size", 8}};
-        battle_ = std::make_unique<TBattle>(TBattleMap(map), &rng_, io_, factory_.AbilityRules());
+        auto rules = std::make_shared<TAbilityRules>(*factory_.AbilityRules());
+        RegisterGeneratedStrikeActivitiesRules(*rules);
+        battle_ = std::make_unique<TBattle>(TBattleMap(map), &rng_, io_, std::move(rules));
         journal_ = std::make_unique<TTransformator>(io_);
     }
 
@@ -188,8 +192,21 @@ protected:
         output << definition;
         output.close();
         factory_.AddSource(path);
-        creatures_.push_back(factory_.Create<TCreature>(
-            TGameObjectIdManager::Instance().Register(object_name)));
+        return Join(factory_.Create<TCreature>(TGameObjectIdManager::Instance().Register(object_name)),
+                    std::move(name), position, team);
+    }
+
+    TPlayer& AddActivityActor(nlohmann::json definition)
+    {
+        auto& data = definition["pf2e_creature"]["creature_data"];
+        data["proficiency"] = {{"weapon_category", {{"Simple", {{"rank", "Expert"}}}}}};
+        return Join(TCreature::FromJson(data, factory_), "Fighter", {0, 0}, 0);
+    }
+
+    TPlayer& Join(TCreature creature, std::string name, TPosition position, int team)
+    {
+        const int id = static_cast<int>(creatures_.size());
+        creatures_.push_back(std::move(creature));
         rng_.ExpectCall(20, 10);
         battle_->AddPlayer(TPlayer(&creatures_.back(), TPlayerTeam{team}, TPlayerId{id},
                                    std::move(name), ""), position);
@@ -198,13 +215,14 @@ protected:
         }).at(0);
     }
 
-    TAbilityOption Option(TPlayer& actor, std::size_t entry = 0, bool natural = false) const
+    TAbilityOption Option(TPlayer& actor, std::size_t entry = 0, bool natural = false,
+                          std::string_view definition = "abilities.Strike") const
     {
         const auto source = TAbilitySourcePath{}.Field(natural ? "natural_weapons" : "weapons")
             .Entry(entry).Field("features").Entry(0);
         const auto options = battle_->AvailableActions(actor);
         const auto found = std::ranges::find_if(options, [&](const TAbilityOption& option) {
-            return option.DefinitionId == "abilities.Strike" && option.Source == source;
+            return option.DefinitionId == definition && option.Source == source;
         });
         if (found == options.end()) {
             throw std::logic_error("missing compiled strike option");
@@ -221,10 +239,11 @@ protected:
         });
         return ExecuteAbility(option, std::move(context), actor,
             CollectAbilities(*actor.GetCreature(), rules.Catalog), rules.Executions,
-            {.ValidateSource = [this, &actor, source = option.Source]() {
+            {.ValidateSource = [this, &actor, source = option.Source,
+                                definition = option.DefinitionId]() {
                 const auto fresh = CollectAbilities(*actor.GetCreature(), battle_->AbilityRules().Catalog);
                 return std::ranges::any_of(fresh.Grants(), [&](const TGrantedAbility& grant) {
-                    return grant.DefinitionId == "abilities.Strike" && grant.Source == source;
+                    return grant.DefinitionId == definition && grant.Source == source;
                 });
             }});
     }
@@ -546,6 +565,84 @@ TEST_F(TGeneratedStrikeTest, SourceRemovalSnapshotAndReplayPreserveSinglePayment
     EXPECT_EQ(actor.GetCreature()->AttacksMade().Get(), 1);
     EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
     context.Undo(edit_start);
+    journal_->Undo(initial);
+    EXPECT_EQ(Snapshot(), before);
+}
+
+TEST_F(TGeneratedStrikeTest, SharedStrikeActivityCountsTwoAttacksOnAMissAndOnlyPaysTheParent)
+{
+    auto weapon = StrikeWeapon();
+    weapon["features"] = nlohmann::json::array({"generated_strike_activities.HeavyWeapon"});
+    auto definition = Armed(nlohmann::json::array({weapon}));
+    definition["pf2e_creature"]["creature_data"]["attacks_made"] = 1;
+    auto& actor = AddActivityActor(std::move(definition));
+    auto& target = Add(Target(20), "Target", {1, 0});
+    const auto before = Snapshot();
+    const auto initial = journal_->CurrentState();
+    io_.ExpectTarget("Target");
+    rng_.ExpectCall(20, 15);
+    EXPECT_EQ(ExecuteJournal(actor, Option(actor, 0, false,
+        "generated_strike_activities.HeavyStrike")), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 100);
+    EXPECT_EQ(actor.GetCreature()->AttacksMade().Get(), 3);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 1);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 0);
+    journal_->Undo(initial);
+    EXPECT_EQ(Snapshot(), before);
+}
+
+TEST_F(TGeneratedStrikeTest, AdditionalWeaponDiceUseFatalSizeAndCriticalDoublingThroughActivity)
+{
+    auto weapon = StrikeWeapon();
+    weapon["features"] = nlohmann::json::array({"generated_strike_activities.HeavyWeapon"});
+    weapon["traits"] = nlohmann::json::array({{{"Fatal", "D10"}}});
+    auto& actor = AddActivityActor(Armed(nlohmann::json::array({weapon})));
+    auto& target = Add(Target(), "Target", {1, 0});
+    const auto before = Snapshot();
+    const auto initial = journal_->CurrentState();
+    io_.ExpectTarget("Target", true);
+    auto point = Suspend([&]() {
+        ExecuteJournal(actor, Option(actor, 0, false, "generated_strike_activities.HeavyStrike"));
+    });
+    const auto paused = Snapshot();
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        rng_.ExpectCall(20, 20);
+        rng_.ExpectCall(10, 6);
+        rng_.ExpectCall(10, 7);
+        rng_.ExpectCall(10, 3);
+        point.Resume();
+        EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 63);
+        EXPECT_EQ(actor.GetCreature()->AttacksMade().Get(), 2);
+        EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 1);
+        EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 1);
+        point.Revert(*journal_);
+        EXPECT_EQ(Snapshot(), paused);
+    }
+    journal_->Undo(initial);
+    EXPECT_EQ(Snapshot(), before);
+}
+
+TEST_F(TGeneratedStrikeTest, ActivityCanIgnoreMapWithoutIncreasingItOrChargingAnAction)
+{
+    auto weapon = StrikeWeapon();
+    weapon["features"] = nlohmann::json::array({"generated_strike_activities.HeavyWeapon"});
+    auto definition = Armed(nlohmann::json::array({weapon}));
+    definition["pf2e_creature"]["creature_data"]["attacks_made"] = 2;
+    definition["pf2e_creature"]["creature_data"]["reactions"] = 1;
+    auto& actor = AddActivityActor(std::move(definition));
+    auto& target = Add(Target(), "Target", {1, 0});
+    const auto before = Snapshot();
+    const auto initial = journal_->CurrentState();
+    io_.ExpectTarget("Target");
+    rng_.ExpectCall(20, 6);
+    rng_.ExpectCall(6, 3);
+    EXPECT_EQ(ExecuteJournal(actor, Option(actor, 0, false,
+        "generated_strike_activities.UnpenalizedStrike")), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 93);
+    EXPECT_EQ(actor.GetCreature()->AttacksMade().Get(), 2);
+    EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 3);
+    EXPECT_EQ(actor.GetCreature()->Reactions()->Count(), 0);
+    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 1);
     journal_->Undo(initial);
     EXPECT_EQ(Snapshot(), before);
 }

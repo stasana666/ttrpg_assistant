@@ -1,0 +1,30 @@
+import "../../../data/schemas/abilities.ttrpg";
+
+action HeavyStrike for TCreature using TWeapon Weapon {
+    cost @self.Actions = 2;
+    choose TCreature Target where Target != @self && Target.IsAlive()
+        && grid_distance(@self, Target) <= Weapon.Reach
+        && has_line_of_effect(@self, Target);
+    let Outcome = ResolveMeleeStrike(Weapon, Target, 1, 2, true);
+    if (Outcome == Success || Outcome == CriticalSuccess) {
+        @self.Hands.SetCount(1);
+    } else {
+        @self.Hands.SetCount(0);
+    }
+}
+
+action UnpenalizedStrike for TCreature using TWeapon Weapon {
+    cost @self.Reactions = 1;
+    choose TCreature Target where Target != @self && Target.IsAlive()
+        && grid_distance(@self, Target) <= Weapon.Reach
+        && has_line_of_effect(@self, Target);
+    let Outcome = ResolveMeleeStrike(Weapon, Target, 0, 0, false);
+    if (Outcome == Success || Outcome == CriticalSuccess) {
+        @self.Hands.SetCount(1);
+    }
+}
+
+feature HeavyWeapon {
+    grant HeavyStrike;
+    grant UnpenalizedStrike;
+}
