@@ -65,9 +65,9 @@ TEST_F(WolfCombatTest, NaturalAttackHitsWithoutPack) {
     TBattleMap battle_map = MakeMap();
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
-    battle.AddPlayer(std::move(wolf_player), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 20);
+    battle.AddPlayer(std::move(wolf_player), TPosition{0, 0});
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
@@ -100,13 +100,13 @@ TEST_F(WolfCombatTest, PackAttackAddsBonusDamage) {
     TBattleMap battle_map = MakeMap();
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 10);
     battle.AddPlayer(std::move(wolf_b_player), TPosition{2, 0});
     mock_rng_.ExpectCall(20, 15);
     battle.AddPlayer(std::move(wolf_c_player), TPosition{1, 1});
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
@@ -140,13 +140,13 @@ TEST_F(WolfCombatTest, PackAttackGatedByAllyCount) {
     TBattleMap battle_map = MakeMap();
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 10);
     battle.AddPlayer(std::move(wolf_b_player), TPosition{2, 0});
     mock_rng_.ExpectCall(20, 15);
     battle.AddPlayer(std::move(wolf_c_player), TPosition{5, 5});
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
@@ -179,13 +179,13 @@ TEST_F(WolfCombatTest, PackAttackCriticalDoublesBonus) {
     TBattleMap battle_map = MakeMap();
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(wolf_a_player), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 10);
     battle.AddPlayer(std::move(wolf_b_player), TPosition{2, 0});
     mock_rng_.ExpectCall(20, 15);
     battle.AddPlayer(std::move(wolf_c_player), TPosition{1, 1});
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(warrior_player), TPosition{1, 0});
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");

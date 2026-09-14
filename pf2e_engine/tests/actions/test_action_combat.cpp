@@ -45,11 +45,11 @@ TEST_F(ActionCombatTest, TwoWarriorsAttackEachOther) {
 
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
     
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{1, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -91,11 +91,11 @@ TEST_F(ActionCombatTest, AttackMiss) {
 
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{1, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -130,11 +130,11 @@ TEST_F(ActionCombatTest, AttackCriticalHit) {
 
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{1, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -170,11 +170,11 @@ TEST_F(ActionCombatTest, WarriorKillsOtherBattleEnds) {
 
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{1, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -233,11 +233,11 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
 
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{1, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -287,11 +287,11 @@ TEST_F(ActionCombatTest, WizardCastsFireball) {
 
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{5, 5});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -338,13 +338,11 @@ TEST_F(ActionCombatTest, FireballDamagesEveryTargetInArea) {
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    // Wizard acts first (lowest initiative). It sits outside the blast so only
-    // the two warriors are targets.
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player_wizard), TPosition{0, 0});
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player_w1), TPosition{5, 5});
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player_w2), TPosition{5, 6});
 
     mock_interaction_.ExpectChoice(0, "next action", "fireball");
@@ -395,13 +393,19 @@ TEST_F(ActionCombatTest, ReachFilterExcludesOutOfRangeTargets) {
     battle.AddPlayer(std::move(attacker), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 10);
     battle.AddPlayer(std::move(near_target), TPosition{1, 0});
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(far_target), TPosition{5, 0});
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Far");
 
-    EXPECT_THROW(battle.StartBattle(), std::logic_error);
+    try {
+        battle.StartBattle();
+        FAIL() << "out-of-range target was unexpectedly selectable";
+    } catch (const std::logic_error& error) {
+        EXPECT_NE(std::string(error.what()).find("choice name \"Far\" not found in alternatives"),
+                  std::string::npos);
+    }
 }
 
 // Drives a move while the interaction system defers reaction triggers the way
@@ -421,10 +425,9 @@ TEST_F(ActionCombatTest, MoveResumesAfterDeferredReactionTrigger) {
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
     TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    // Lower initiative acts first in this engine, so Mover (id 0) goes first.
-    mock_rng_.ExpectCall(20, 0);
-    battle.AddPlayer(std::move(mover), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 20);
+    battle.AddPlayer(std::move(mover), TPosition{0, 0});
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(other), TPosition{5, 0});
 
     mock_interaction_.SetReactionSuspends(true);

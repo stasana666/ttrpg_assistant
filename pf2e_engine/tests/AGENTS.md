@@ -14,6 +14,12 @@ Canonical project instructions. CLAUDE.md redirects here.
   and repeated Undo preserve callback order; malformed task restoration leaves the
   scheduler unchanged. Battle tests cover three independent participants and
   restoration across a whole round.
+- `test_initiative.cpp` builds as `test_initiative` and checks generated Perception
+  initiative, selected skills and typed modifiers, descending rolled totals,
+  explicit tie order and stable insertion. It covers natural 1/20 ranking,
+  independent NPC totals, current-stat changes without rerolling stored order,
+  round replay, exact journal rollback and failed battle insertion. Native tie
+  ordering uses encounter options without inferring PC/NPC roles from teams.
 - `actions/`: combat/action pipeline tests using real data.
 - `actions/test_generated_strike.cpp` builds as `test_generated_strike` and loads
   the production compiled Strike through the real factory catalog. It covers

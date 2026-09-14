@@ -23,6 +23,10 @@ add_executable(test_lifecycle test_lifecycle.cpp)
 target_link_libraries(test_lifecycle gtest_main pf2e_engine nlohmann_json)
 gtest_discover_tests(test_lifecycle)
 
+add_executable(test_initiative test_initiative.cpp)
+target_link_libraries(test_initiative gtest_main pf2e_engine nlohmann_json)
+gtest_discover_tests(test_initiative)
+
 add_subdirectory(actions)
 add_subdirectory(ast)
 add_subdirectory(dsl)

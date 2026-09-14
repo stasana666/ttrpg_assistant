@@ -2,10 +2,12 @@
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/ast/ast_layout_assert.h>
+#include <pf2e_engine/common/rule_integer.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/transformation/transformator.h>
 
 #include <iterator>
+#include <stdexcept>
 
 TInitiativeOrder::TInitiativeOrder(IRandomGenerator* dice_roller, IInteractionSystem& io_system)
     : dice_roller_(dice_roller)
@@ -14,13 +16,23 @@ TInitiativeOrder::TInitiativeOrder(IRandomGenerator* dice_roller, IInteractionSy
 {
 }
 
-void TInitiativeOrder::AddPlayer(TPlayer* player)
+void TInitiativeOrder::AddPlayer(TPlayer* player, const TInitiativeOptions& options)
 {
-    // TODO: спрашивать от какого навыка кидать инициативу
-    int bonus = combat_calculator_.InitiativeBonus(*player->GetCreature());
+    if (player == nullptr || player->GetCreature() == nullptr) {
+        throw std::invalid_argument("initiative requires a creature");
+    }
+    const auto& creature = *player->GetCreature();
+    const int bonus = options.Skill
+        ? creature.SkillBonusWithModifiers(*options.Skill, options.Modifiers)
+        : combat_calculator_.InitiativeBonus(creature, options.Modifiers);
+    const int natural = dice_roller_->RollDice(20);
+    if (natural < 1 || natural > 20) {
+        throw std::out_of_range("initiative roll must be between 1 and 20");
+    }
     TInitiative initiative{
-        .initiative = dice_roller_->RollDice(20) + bonus,
+        .initiative = TRuleInteger::Add(natural, bonus),
         .initiative_bonus = bonus,
+        .tie_order = options.TieOrder,
     };
 
     io_system_.GameLog() << "Add player " << player->GetName() << " with initiative: " << initiative.initiative << std::endl;
@@ -93,6 +105,7 @@ TAstNode TInitiativeOrder::GetAst(TAstContext& ctx) const
         TAstNode entry = TAstNode::MakeObject("entry");
         AddValueField(entry, "initiative", init.initiative);
         AddValueField(entry, "initiative_bonus", init.initiative_bonus);
+        AddValueField(entry, "tie_order", init.tie_order);
         AddReference(entry, "player", player, ctx);
         order.AddChild(std::to_string(idx++), std::move(entry));
     }

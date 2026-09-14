@@ -161,6 +161,14 @@ GameEntity TCreature {
         return @self.PerceptionBonusWithModifiers(TCheckModifiers {});
     }
 
+    query int InitiativeBonusWithModifiers(TCheckModifiers Extra) {
+        return @self.PerceptionBonusWithModifiers(Extra);
+    }
+
+    query int InitiativeBonus() {
+        return @self.InitiativeBonusWithModifiers(TCheckModifiers {});
+    }
+
     query int SaveBonusWithModifiers(ESavethrow Save, TCheckModifiers Extra) {
         return @self.SaveBase(Save) + @self.CheckConditionModifiers().Merge(Extra).Total();
     }

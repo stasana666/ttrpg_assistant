@@ -67,7 +67,7 @@ TEST_F(ProficiencyCalculationTest, ExistingWarriorBonusesRemainUnchanged)
     EXPECT_EQ(calculator_.DifficultyClass(creature, ESavethrow::Will), 14);
     EXPECT_EQ(calculator_.DifficultyClass(creature, ESkill::Athletics), 17);
     EXPECT_EQ(calculator_.DifficultyClass(creature, TPerceptionTag{}), 16);
-    EXPECT_EQ(calculator_.InitiativeBonus(creature), 1);
+    EXPECT_EQ(calculator_.InitiativeBonus(creature), 6);
 }
 
 TEST_F(ProficiencyCalculationTest, ExistingWolfBonusesAndFinesseSelectionRemainUnchanged)
@@ -86,7 +86,7 @@ TEST_F(ProficiencyCalculationTest, ExistingWolfBonusesAndFinesseSelectionRemainU
     EXPECT_EQ(calculator_.RollBonus(wolf, ESavethrow::Will), 5);
     EXPECT_EQ(calculator_.RollBonus(wolf, ESkill::Athletics), 5);
     EXPECT_EQ(calculator_.RollBonus(wolf, TPerceptionTag{}), 7);
-    EXPECT_EQ(calculator_.InitiativeBonus(wolf), 4);
+    EXPECT_EQ(calculator_.InitiativeBonus(wolf), 7);
 }
 
 TEST_F(ProficiencyCalculationTest, RankedBonusesReadCurrentCreatureLevelAndRollback)
@@ -108,7 +108,7 @@ TEST_F(ProficiencyCalculationTest, RankedBonusesReadCurrentCreatureLevelAndRollb
     EXPECT_EQ(calculator_.RollBonus(creature, ESkill::Athletics), 10);
     EXPECT_EQ(calculator_.RollBonus(creature, TPerceptionTag{}), 9);
     EXPECT_EQ(calculator_.RollBonus(creature, ESkill::Arcana), 1);
-    EXPECT_EQ(calculator_.InitiativeBonus(creature), 1);
+    EXPECT_EQ(calculator_.InitiativeBonus(creature), 9);
 
     ctx.Undo(checkpoint);
 

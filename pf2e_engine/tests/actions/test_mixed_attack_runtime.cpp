@@ -94,7 +94,7 @@ protected:
             .Actions = TResource(6), .Reactions = TResource(1),
         }));
         const int id = actor ? 0 : 1;
-        rng_.ExpectCall(20, actor ? 1 : 20);
+        rng_.ExpectCall(20, actor ? 20 : 1);
         battle_->AddPlayer(TPlayer(&creatures_.back(), TPlayerTeam{id}, TPlayerId{id},
                                    actor ? "Actor" : "Target", ""), {id, 0});
         return *battle_->GetIfPlayers([id](const TPlayer* player) {

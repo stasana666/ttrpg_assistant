@@ -63,7 +63,7 @@ TBattle::TBattle(TBattleMap&& battle_map, IRandomGenerator* dice_roller,
 {
 }
 
-void TBattle::AddPlayer(TPlayer&& player, TPosition position)
+void TBattle::AddPlayer(TPlayer&& player, TPosition position, const TInitiativeOptions& options)
 {
     const auto* creature = player.GetCreature();
     if (creature == nullptr || creature->Id().Value == 0) {
@@ -82,7 +82,7 @@ void TBattle::AddPlayer(TPlayer&& player, TPosition position)
     players_.push_back(std::move(player));
     try {
         players_.back().BindWith(battle_map_, position);
-        initiative_order_.AddPlayer(&players_.back());
+        initiative_order_.AddPlayer(&players_.back(), options);
     } catch (...) {
         battle_map_.Set(std::move(original_map));
         players_.pop_back();

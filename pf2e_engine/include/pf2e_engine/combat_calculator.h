@@ -5,9 +5,12 @@
 #include <pf2e_engine/success_level.h>
 #include <pf2e_engine/proficiency.h>
 
+class TCheckModifiers;
+
 class TCombatCalculator {
 public:
     int InitiativeBonus(const TCreature& creature) const;
+    int InitiativeBonus(const TCreature& creature, const TCheckModifiers& modifiers) const;
     int ArmorClass(const TCreature& target, const TCreature& attacker) const;
     int ResolveDamage(const TCreature& target, const TDamage& damage, IRandomGenerator& rng) const;
 

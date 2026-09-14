@@ -3,18 +3,26 @@
 #include <pf2e_engine/combat_calculator.h>
 #include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/i_interaction_system.h>
+#include <pf2e_engine/inventory/check_modifiers.h>
 
 #include <map>
+#include <optional>
 
 class IRandomGenerator;
 
 class TTransformator;
 
+struct TInitiativeOptions {
+    std::optional<ESkill> Skill = {};
+    TCheckModifiers Modifiers = TCheckModifiers::Create({});
+    int TieOrder = 0;
+};
+
 class TInitiativeOrder {
 public:
     TInitiativeOrder(IRandomGenerator*, IInteractionSystem& io_system);
 
-    void AddPlayer(TPlayer* player);
+    void AddPlayer(TPlayer* player, const TInitiativeOptions& options = {});
     TPlayer* CurrentPlayer() const;
     size_t CurrentRound() const;
     void Next(TTransformator& transformator);
@@ -29,12 +37,13 @@ private:
     struct TInitiative {
         int initiative;
         int initiative_bonus;
+        int tie_order;
 
-        bool operator <(TInitiative other) const {
+        bool operator <(const TInitiative& other) const {
             if (initiative == other.initiative) {
-                return initiative_bonus < other.initiative_bonus;
+                return tie_order < other.tie_order;
             }
-            return initiative < other.initiative;
+            return initiative > other.initiative;
         }
     };
 

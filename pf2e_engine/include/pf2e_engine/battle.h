@@ -22,7 +22,7 @@ public:
                      std::shared_ptr<const TAbilityRules> ability_rules = {});
 
     void StartBattle();
-    void AddPlayer(TPlayer&& player, TPosition position);
+    void AddPlayer(TPlayer&& player, TPosition position, const TInitiativeOptions& options = {});
 
     const TPlayer* GetPlayer(std::function<bool(const TPlayer*)> predicate) const;
     std::vector<TPlayer*> GetIfPlayers(std::function<bool(const TPlayer*)> predicate);

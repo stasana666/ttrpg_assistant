@@ -15,7 +15,12 @@
 
 int TCombatCalculator::InitiativeBonus(const TCreature& creature) const
 {
-    return creature.GetCharacteristic(ECharacteristic::Dexterity).Modifier();
+    return creature.InitiativeBonus();
+}
+
+int TCombatCalculator::InitiativeBonus(const TCreature& creature, const TCheckModifiers& modifiers) const
+{
+    return creature.InitiativeBonusWithModifiers(modifiers);
 }
 
 int TCombatCalculator::ArmorClass(
