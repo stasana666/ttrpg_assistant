@@ -179,6 +179,12 @@ void TBattle::StartTurn()
     TPlayer& player = *initiative_order_.CurrentPlayer();
     io_system_.GameLog() << "Start turn: player " << player.GetName() << std::endl;
 
+    if (auto lifecycle = ability_rules_->Lifecycle.Find(ELifecyclePhase::TurnStartExpiration)) {
+        RunLifecycleAndDrain(MakeActionContext(), player, std::move(lifecycle));
+    } else {
+        auto execution = transformator_.ExecutionContext();
+        execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::ExpireTurnStartEffects);
+    }
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnStart, .context = TEventContext{.player = &player}}, transformator_);
     if (auto lifecycle = ability_rules_->Lifecycle.Find(ELifecyclePhase::TurnStart)) {
         RunLifecycleAndDrain(MakeActionContext(), player, std::move(lifecycle));

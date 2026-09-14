@@ -18,6 +18,12 @@ event TStrikeDamageDice StrikeDamageBonus for TCreature(TCreature Target, TWeapo
 
 event int RecoveryDCAdjustment for TCreature();
 
+trigger TPendingAttackDamage BeforeAttackDamage(TPendingAttackDamage Pending, TCreature Target) once per activity;
+
+activity void ExpireCreatureTurnStart for TCreature() {
+    @self.ExpireTurnStartEffects();
+}
+
 feature Toughness {
     on RecoveryDCAdjustment {
         return -1;
@@ -109,12 +115,24 @@ activity ECheckOutcome ResolveMeleeStrike for TCreature(
                 Amount += Extra;
             }
         }
-        ApplyCreatureDamage(Target, Weapon.DamageType, Amount, TDamageContext {
+        ApplyAttackDamage(Target, Weapon.DamageType, Amount, TDamageContext {
             Critical = Outcome == CriticalSuccess;
             Nonlethal = Weapon.Traits.has(Nonlethal);
         });
     }
     return Outcome;
+}
+
+activity void ApplyAttackDamage for TCreature(
+    TCreature Target, EDamageType Type, int Amount, TDamageContext Context
+) {
+    let Resolved = Target.DamageAmount(Type, Amount);
+    let Pending = BeforeAttackDamage(TPendingAttackDamage {
+        Amount = Resolved;
+        Type = Type;
+        Context = Context;
+    }, Target);
+    ApplyResolvedCreatureDamage(Target, Pending.Amount, Pending.Context);
 }
 
 activity void ApplyCreatureDamage for TCreature(

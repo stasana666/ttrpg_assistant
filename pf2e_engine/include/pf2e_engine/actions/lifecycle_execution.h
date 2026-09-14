@@ -11,6 +11,7 @@ enum class ELifecyclePhase {
     RoundStart,
     TurnStart,
     TurnEnd,
+    TurnStartExpiration,
 };
 
 struct TLifecycleExecution {

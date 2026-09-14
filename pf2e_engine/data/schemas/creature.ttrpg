@@ -1,4 +1,5 @@
 import "armor.ttrpg";
+import "shield.ttrpg";
 import "weapon.ttrpg";
 import "creature_parts.ttrpg";
 import "condition.ttrpg";
@@ -58,6 +59,7 @@ GameEntity TCreature {
         };
     };
     TArmor Armor;
+    TShield Shield;
     TStatisticBaseline ArmorClassBaseline;
     collection<TWeapon> Weapons;
     collection<TWeapon> NaturalWeapons;
@@ -319,18 +321,33 @@ GameEntity TCreature {
         return Penalty;
     }
 
-    query int ArmorClass() {
+    query int ArmorClassWithModifiers(TCheckModifiers Extra) {
         let Value = @self.ArmorClassBaseline.Value;
+        let ItemBonus = 0;
+        let ItemPenalty = 0;
         if (!@self.ArmorClassBaseline.IsFixed) {
-            Value = 10 + @self.Armor.ArmorClassBonus
+            ItemBonus = max(0, @self.Armor.ArmorClassBonus);
+            ItemPenalty = max(0, -@self.Armor.ArmorClassBonus);
+            Value = 10
                 + min(@self.Armor.DexterityCap, @self.Characteristic.Dexterity.Modifier)
                 + @self.ArmorProficiency(@self.Armor.Category);
         }
-        Value -= max(@self.ConditionPenalty(), @self.UnconsciousPenalty());
+        let CircumstancePenalty = 0;
         if (@self.Conditions.has(Prone) || @self.Conditions.has(Unconscious)) {
-            Value -= 2;
+            CircumstancePenalty = 2;
         }
-        return Value;
+        let Modifiers = TCheckModifiers {
+            ItemBonus = ItemBonus;
+            ItemPenalty = ItemPenalty;
+            StatusPenalty = max(@self.ConditionPenalty(), @self.UnconsciousPenalty());
+            CircumstancePenalty = CircumstancePenalty;
+            CircumstanceBonus = @self.Shield.ArmorClassBonusWhenRaised();
+        };
+        return Value + Modifiers.Merge(Extra).Total();
+    }
+
+    query int ArmorClass() {
+        return @self.ArmorClassWithModifiers(TCheckModifiers {});
     }
 
     query int AttackBonus(TWeapon Weapon) {
@@ -410,6 +427,10 @@ GameEntity TCreature {
         @self.Reactions.SetCount(1);
     }
 
+    method void ExpireTurnStartEffects() {
+        @self.Shield.Lower();
+    }
+
     method void EndTurn() {
         @self.Actions.SetCount(0);
         @self.ResetAttacks();
@@ -426,6 +447,7 @@ GameEntity TCreature {
     }
 
     method void Die() {
+        @self.Shield.Drop();
         @self.Dead = true;
         @self.Hitpoints.Current = 0;
         @self.Actions.SetCount(0);
@@ -433,6 +455,7 @@ GameEntity TCreature {
     }
 
     method void BecomeUnconscious() {
+        @self.Shield.Drop();
         @self.Conditions.set(Unconscious);
         @self.Conditions.set(Prone);
     }

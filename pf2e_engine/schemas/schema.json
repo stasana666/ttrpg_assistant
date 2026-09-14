@@ -40,6 +40,35 @@
             ]
         },
 
+        "pf2e_shield_core": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "armor_class_bonus": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+                "hardness": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+                "maximum_hitpoints": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+                "hitpoints": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+                "broken_threshold": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+                "wielded": { "type": "boolean" },
+                "raised": { "type": "boolean" }
+            },
+            "additionalProperties": false
+        },
+
+        "pf2e_shield": {
+            "allOf": [
+                { "$ref": "#/$defs/pf2e_base" },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": { "const": "pf2e_shield" },
+                        "pf2e_shield": { "$ref": "#/$defs/pf2e_shield_core" }
+                    },
+                    "required": ["pf2e_shield"]
+                }
+            ]
+        },
+
         "pf2e_material_core": {
             "type": "object",
             "properties": {
@@ -382,6 +411,12 @@
                     "additionalProperties": false
                 },
                 "armor": { "type": "string" },
+                "shield": {
+                    "oneOf": [
+                        { "type": "string" },
+                        { "$ref": "#/$defs/pf2e_shield_core" }
+                    ]
+                },
                 "weapons": {
                     "type": "array",
                     "default": [],

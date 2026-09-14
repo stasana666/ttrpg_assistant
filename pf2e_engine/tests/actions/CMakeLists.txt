@@ -269,3 +269,7 @@ gtest_discover_tests(test_generated_reactions)
 add_executable(test_generated_movement test_generated_movement.cpp)
 target_link_libraries(test_generated_movement gtest_main pf2e_engine)
 gtest_discover_tests(test_generated_movement)
+
+add_executable(test_generated_shield test_generated_shield.cpp)
+target_link_libraries(test_generated_shield gtest_main pf2e_engine)
+gtest_discover_tests(test_generated_shield)

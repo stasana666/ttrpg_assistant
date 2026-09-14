@@ -13,7 +13,7 @@ namespace {
 void ValidatePhase(ELifecyclePhase phase)
 {
     if (phase != ELifecyclePhase::RoundStart && phase != ELifecyclePhase::TurnStart &&
-        phase != ELifecyclePhase::TurnEnd) {
+        phase != ELifecyclePhase::TurnEnd && phase != ELifecyclePhase::TurnStartExpiration) {
         throw std::invalid_argument("unknown lifecycle phase");
     }
 }

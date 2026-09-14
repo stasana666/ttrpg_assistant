@@ -1,4 +1,5 @@
 import "hitpoints.ttrpg";
+import "damage.ttrpg";
 
 enum EZeroHpRule {
     Defeat,
@@ -15,4 +16,14 @@ class THealthDamageResult {
     TDamageResult Hitpoints;
     bool NewlyKnockedOut = false;
     bool NewlyDead = false;
+}
+
+class TPendingAttackDamage {
+    int Amount = 0;
+    EDamageType Type;
+    TDamageContext Context;
+
+    query bool IsPhysical() {
+        return @self.Type == Bludgeoning || @self.Type == Piercing || @self.Type == Slashing;
+    }
 }

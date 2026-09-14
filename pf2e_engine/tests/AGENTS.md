@@ -42,6 +42,15 @@ Canonical project instructions. CLAUDE.md redirects here.
   replay. Failed nested transitions undo their HP writes; JSON import and snapshots
   preserve health state. Unconscious creatures regain turn resources but cannot
   use them, while dead creatures do not regain actions or reactions.
+- `actions/test_generated_shield.cpp` builds as `test_generated_shield` and executes
+  Raise a Shield and Shield Block against production compiled Strike. It checks
+  circumstance bonus merging, resistance before Hardness, temporary HP after the
+  block, breaking/destruction, decline, physical damage eligibility and knockout
+  after reaction completion. Suspended offers recheck the raised shield before
+  payment and replay the pending damage without rerolls. Nested shield values
+  round-trip through JSON/AST; invalid blocks preserve the journal. Turn-start
+  expiration lowers only the current actor's shield before scheduled effects and
+  resource replenishment. Grip and legacy mixed-damage packets remain separate.
 - `actions/`: combat/action pipeline tests using real data.
 - `actions/test_generated_movement.cpp` builds as `test_generated_movement` and
   executes production Stride, Step, Stand, Sudden Charge and movement-triggered

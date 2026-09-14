@@ -59,6 +59,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Completed: configurable named factories with optional native overrides, legal feature pools, conditional choices, dependent defaults and shared construction reports. Errors in explicit fields and class defaults are detected before allocating entity identity.
 - Completed: native typed reaction windows, independent reactor contexts, shared atomic resource payment and replayable pending values.
 - Completed: `.ttrpg` trigger declarations and typed reaction bodies, compatible multi-trigger subscriptions, window calls in compiled control flow and implicit activity scopes. Compilation validates pending values, pure requirements and cycles through subscribers and activities; no authored runtime scope or callback is required.
+- Completed: declared shield values, Raise a Shield and Shield Block. Attack damage opens the typed reaction window after defenses; generated methods own Hardness, shield HP, AC stacking and turn-start expiration.
 - Completed: declared flat-grid Stride, Step, Stand, Sudden Charge and movement-triggered Reactive Strike. Pure local prefixes before the first choice participate in availability checks, so Step cannot pay for an empty destination set. Legacy movement IDs remain until their creature declarations migrate.
 - Completed: generic journaled initiative relocation and its declared trigger on a new nonfatal knockout. Generated and legacy battle damage share the same activity.
 - Completed: declared health policies, critical/nonlethal damage context, unconsciousness, dying/wounded, healing, recovery and death. Turn-start recovery executes a generated activity with feature contributions through generic lifecycle hooks. Legacy damage delivery uses the same generated health methods.
@@ -177,3 +178,41 @@ Canonical project instructions. CLAUDE.md redirects here.
 - [Longsword](https://2e.aonprd.com/Weapons.aspx?ID=386) uses d8 and versatile piercing; the old JSON longsword uses d6. [Default initiative](https://2e.aonprd.com/Rules.aspx?ID=2423) uses Perception; both generated queries and the native initiative adapter now follow this rule.
 - Acceptance covers arbitrary declared weapons and legal declared feature choices using general mechanisms, not the entire published PF2e catalogue.
 - Damage rules references: [damage rolls, minimums and critical doubling](https://2e.aonprd.com/Rules.aspx?ID=2302), [order of immunities, weaknesses and resistances](https://2e.aonprd.com/Rules.aspx?ID=2309). Dice added specifically on a critical hit are not doubled; weapon-dice counts exclude extra dice from activities and traits.
+
+## Declared Shields
+- `shield.ttrpg` declares ordinary `TShield` values and the named `SteelShield`.
+  `TCreature.Shield` holds one selected shield; zero maximum HP means no shield.
+  `Wielded` records selected equipment, while `Raised` is journaled combat state.
+  A broken or destroyed shield cannot be raised, block damage or grant AC.
+  Steel shield statistics follow [Player Core](https://2e.aonprd.com/Shields.aspx?ID=19);
+  loss of function follows [Broken](https://2e.aonprd.com/Conditions.aspx?ID=60).
+- `shield_actions.BaseActions` grants `RaiseShield` independently of class feats.
+  `ShieldBlockTraining` grants `UseShieldBlock`. Raise costs one action; Block
+  costs one reaction and is offered only to the target of a physical attack
+  while its shield is raised. The declaration mutates only shield HP and returns
+  the remaining pending damage; the parent activity then applies creature damage.
+  [Raise a Shield](https://2e.aonprd.com/Actions.aspx?ID=2316) and
+  [Shield Block](https://2e.aonprd.com/Feats.aspx?ID=5212) define these rules.
+- `ApplyAttackDamage` resolves defenses once, opens `BeforeAttackDamage` once for
+  that invocation, then delivers the returned amount and critical/nonlethal
+  context through `ApplyResolvedCreatureDamage`. Putting the window after defenses
+  is an interpretation of the Block trigger and the damage sequence. Hardness is
+  subtracted once; shield and creature each take the full remainder, and creature
+  temporary HP absorb their share after the window. Production melee Strike,
+  including subordinate and reactive Strikes, uses this route.
+- `ArmorClassWithModifiers` merges the character armor's item bonus and the
+  raised shield's circumstance bonus with explicit typed modifiers, frightened,
+  unconscious and off-guard penalties. Fixed NPC baselines remain complete totals.
+  The old `ArmorClass()` query calls it with an empty modifier contribution.
+- The generic `TurnStartExpiration` lifecycle phase runs before scheduled
+  `OnTurnStart` effects. Its declared method lowers the current actor's shield;
+  recovery and resource replenishment still occur in the later `TurnStart` phase.
+  Ending a turn does not lower the shield. Becoming unconscious or dying drops the shield
+  by clearing both `Wielded` and `Raised` through generated methods.
+- The current equipment model has one ordinary shield field and explicit wielding
+  state. Grip compatibility, picking up dropped equipment, held weapon dropping,
+  and effects on other carried items require further equipment rules. Direct
+  health methods and `ApplyCreatureDamage` describe non-attack damage without a
+  shield window. Legacy mixed-type `FDealDamage` currently delivers an aggregated
+  amount; integrating its attacks requires retaining one typed packet per hit so
+  Hardness is not applied separately to each component.
