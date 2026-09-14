@@ -55,7 +55,7 @@ void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
             const auto compiled = CompileAction(ability, loaded);
             writer.Line("static const auto action_" + ability.Name + " = std::make_shared<const TAction>(");
             writer.Indented([&] {
-                writer.Block("[](std::shared_ptr<TActionContext> Context) {", "},", [&] {
+                writer.Block("TAction::TCompiledBody{[](std::shared_ptr<TActionContext> Context) {", "}},", [&] {
                     for (const auto& line : compiled.Body) writer.Line(line);
                 });
                 writer.Block("TAction::TBoundResources{", "},", [&] {

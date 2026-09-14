@@ -50,6 +50,11 @@ public:
     const TPlayer& Player() const;
     TPlayer& MutablePlayer() const;
     TGeneratedEntityView ReadOnly() const;
+    std::type_index Type() const
+    {
+        Validate();
+        return type_;
+    }
 
     friend bool operator==(const TGeneratedEntityView& lhs, const TGeneratedEntityView& rhs)
     {

@@ -73,6 +73,29 @@ TAbilityUnavailable::TAbilityUnavailable()
 {
 }
 
+EAbilityImplementation RequireGrantImplementation(const TAbilityRules& rules,
+                                                   const TGrantedAbility& grant)
+{
+    const auto& definition = rules.Catalog.Require(grant.DefinitionId);
+    const auto* execution = rules.Executions.Find(grant.DefinitionId);
+    const bool typed = rules.Reactions.Contains(grant.DefinitionId);
+    if (definition.Kind != grant.Kind || (execution != nullptr && typed)) {
+        throw std::invalid_argument("ability has conflicting execution bindings");
+    }
+    if (grant.Kind == EAbilityKind::Action && execution != nullptr && !execution->Trigger) {
+        return EAbilityImplementation::Action;
+    }
+    if (grant.Kind == EAbilityKind::Reaction) {
+        if (typed) {
+            return EAbilityImplementation::TypedReaction;
+        }
+        if (execution != nullptr && execution->Trigger) {
+            return EAbilityImplementation::LegacyReaction;
+        }
+    }
+    throw std::invalid_argument("missing or mismatched ability implementation: " + grant.DefinitionId);
+}
+
 namespace {
 
 bool IsEligible(const TAbilityExecution& execution, const TGrantedAbility& grant,
@@ -114,7 +137,8 @@ bool IsEligible(const TAbilityExecution& execution, const TGrantedAbility& grant
 
 std::vector<TAbilityOption> Enumerate(
     int actor_id, const TAbilityCollector& collector, const TAbilityExecutions& executions,
-    const TPlayer& actor, const TTriggerContext* trigger, const TGeneratedWorldView& world)
+    const TPlayer& actor, const TTriggerContext* trigger, const TGeneratedWorldView& world,
+    const TAbilityRules* rules = nullptr)
 {
     if (actor_id != actor.GetId()) {
         throw std::invalid_argument("ability actor id does not match player");
@@ -123,6 +147,10 @@ std::vector<TAbilityOption> Enumerate(
     for (const auto& grant : collector.Grants()) {
         const auto kind = trigger == nullptr ? EAbilityKind::Action : EAbilityKind::Reaction;
         if (grant.Kind != kind) {
+            continue;
+        }
+        if (rules != nullptr &&
+            RequireGrantImplementation(*rules, grant) == EAbilityImplementation::TypedReaction) {
             continue;
         }
         const auto& execution = executions.Require(grant.DefinitionId);
@@ -165,6 +193,14 @@ std::vector<TAbilityOption> EnumerateReactions(
                       world != nullptr ? *world : TGeneratedWorldView{});
 }
 
+std::vector<TAbilityOption> EnumerateReactions(
+    int actor_id, const TAbilityCollector& collector, const TAbilityRules& rules,
+    const TPlayer& actor, const TTriggerContext& trigger, const TGeneratedWorldView* world)
+{
+    return Enumerate(actor_id, collector, rules.Executions, actor, &trigger,
+                      world != nullptr ? *world : TGeneratedWorldView{}, &rules);
+}
+
 EAbilityExecutionResult ExecuteAbility(
     const TAbilityOption& option, std::shared_ptr<TActionContext> ctx, TPlayer& actor,
     const TAbilityCollector& fresh, const TAbilityExecutions& executions,
@@ -203,6 +239,8 @@ EAbilityExecutionResult ExecuteAbility(
     }
     ctx->generated_source.reset();
     ctx->input_validators.reset();
+    ctx->owned_reaction.reset();
+    ctx->reaction_trace.reset();
     ctx->owned_action = execution.Action;
     ctx->source_weapon = std::move(bindings.SourceWeapon);
     ctx->trigger_actor = bindings.TriggerActor;

@@ -246,3 +246,7 @@ target_link_libraries(test_generated_source_choices
 )
 
 gtest_discover_tests(test_generated_source_choices)
+
+add_executable(test_reaction_runtime test_reaction_runtime.cpp)
+target_link_libraries(test_reaction_runtime gtest_main pf2e_engine)
+gtest_discover_tests(test_reaction_runtime)

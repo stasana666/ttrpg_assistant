@@ -76,7 +76,7 @@ void TBattle::AddPlayer(TPlayer&& player, TPosition position)
     }
     const auto abilities = CollectAbilities(*creature, ability_rules_->Catalog);
     for (const auto& grant : abilities.Grants()) {
-        ability_rules_->Executions.Require(grant.DefinitionId);
+        RequireGrantImplementation(*ability_rules_, grant);
     }
     auto original_map = battle_map_.Copy();
     players_.push_back(std::move(player));
@@ -127,7 +127,7 @@ void TBattle::StartBattle()
 {
     while (!IsBattleEnd()) {
         StartRound();
-        while (!IsRoundEnd()) {
+        while (!IsRoundEnd() && !IsBattleEnd()) {
             StartTurn();
             MakeTurn();
             EndTurn();
@@ -169,7 +169,7 @@ void TBattle::MakeTurn()
     TPlayer& player = *initiative_order_.CurrentPlayer();
 
     std::optional<TSavepointStackUnwind> last_save_point;
-    while (!IsBattleEnd() && player.GetCreature()->IsAlive())
+    while (last_save_point || (!IsBattleEnd() && player.GetCreature()->IsAlive()))
     {
         try {
             if (last_save_point.has_value()) {
@@ -344,7 +344,7 @@ std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& t
         }
         auto candidates = EnumerateReactions(
             player.GetId(), CollectAbilities(creature, ability_rules_->Catalog),
-            ability_rules_->Executions, player, trigger, &world);
+            *ability_rules_, player, trigger, &world);
         reactions.insert(reactions.end(), candidates.begin(), candidates.end());
     }
     return reactions;

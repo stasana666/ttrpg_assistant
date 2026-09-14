@@ -2,6 +2,7 @@
 
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/reaction.h>
+#include <pf2e_engine/actions/reaction_execution.h>
 #include <pf2e_engine/common/ability.h>
 #include <pf2e_engine/common/feature_event.h>
 
@@ -49,9 +50,19 @@ private:
 struct TAbilityRules {
     TAbilityCatalog Catalog;
     TAbilityExecutions Executions;
+    TReactionRegistry Reactions;
     TFeatureEventRegistry Events;
     std::map<std::string, std::shared_ptr<const TCreatureFeat>, std::less<>> FeatureHooks;
 };
+
+enum class EAbilityImplementation {
+    Action,
+    LegacyReaction,
+    TypedReaction,
+};
+
+EAbilityImplementation RequireGrantImplementation(const TAbilityRules& rules,
+                                                   const TGrantedAbility& grant);
 
 struct TAbilityTriggerBinding {
     ETrigger Type;
@@ -92,6 +103,9 @@ std::vector<TAbilityOption> EnumerateActions(
     const TPlayer& actor, const TGeneratedWorldView* world = nullptr);
 std::vector<TAbilityOption> EnumerateReactions(
     int actor_id, const TAbilityCollector& collector, const TAbilityExecutions& executions,
+    const TPlayer& actor, const TTriggerContext& trigger, const TGeneratedWorldView* world = nullptr);
+std::vector<TAbilityOption> EnumerateReactions(
+    int actor_id, const TAbilityCollector& collector, const TAbilityRules& rules,
     const TPlayer& actor, const TTriggerContext& trigger, const TGeneratedWorldView* world = nullptr);
 EAbilityExecutionResult ExecuteAbility(
     const TAbilityOption& option, std::shared_ptr<TActionContext> ctx, TPlayer& actor,

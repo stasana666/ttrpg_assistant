@@ -327,7 +327,7 @@ void TGameObjectFactory::ValidateCreature(const TCreature& creature) const
     const auto rules = AbilityRules();
     const auto collector = CollectAbilities(creature, rules->Catalog);
     for (const auto& grant : collector.Grants()) {
-        rules->Executions.Require(grant.DefinitionId);
+        RequireGrantImplementation(*rules, grant);
     }
 }
 

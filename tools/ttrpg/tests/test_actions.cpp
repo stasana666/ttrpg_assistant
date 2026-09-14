@@ -165,6 +165,7 @@ TEST(ActionCompilerTest, RegistersStableExecutorsAndImportedRules) {
     EXPECT_NE(implementation.find("RegisterCompiledActionsAbilities(rules.Catalog);"), std::string::npos);
     EXPECT_NE(implementation.find("RegisterBaseRules(rules);"), std::string::npos);
     EXPECT_NE(implementation.find("static const auto action_Mend = std::make_shared<const TAction>"), std::string::npos);
+    EXPECT_NE(implementation.find("TAction::TCompiledBody{"), std::string::npos);
     EXPECT_NE(implementation.find("rules.Executions.Register(\"compiled_actions.Mend\", action_Mend);"), std::string::npos);
     EXPECT_NE(implementation.find("#include <pf2e_engine/actions/generated_action.h>"), std::string::npos);
     std::ostringstream header;

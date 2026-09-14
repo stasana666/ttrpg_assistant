@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <vector>
+#include <string>
 
 class IActionBlock;
 class TBattle;
@@ -38,4 +39,6 @@ struct TActionContext {
     TAbilitySourcePath ability_source = {};
     std::function<bool()> validate_ability = {};
     std::shared_ptr<const std::vector<FActionInputValidator>> input_validators = {};
+    std::shared_ptr<const void> owned_reaction = {};
+    std::shared_ptr<const std::vector<std::string>> reaction_trace = {};
 };

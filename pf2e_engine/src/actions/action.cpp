@@ -10,8 +10,6 @@
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/transformation/transformator.h>
 
-#include <limits>
-#include <map>
 #include <stdexcept>
 
 namespace {
@@ -21,25 +19,6 @@ const TGameObjectId kSource = TGameObjectIdManager::Instance().Register("source"
 const TGameObjectId kWeapon = TGameObjectIdManager::Instance().Register("weapon");
 const TGameObjectId kTriggerActor = TGameObjectIdManager::Instance().Register("trigger_actor");
 const TGameObjectId kTarget = TGameObjectIdManager::Instance().Register("target");
-
-void AddCost(int& total, int count)
-{
-    if (count < 0 || count > std::numeric_limits<int>::max() - total) {
-        throw std::invalid_argument("invalid action resource cost");
-    }
-    total += count;
-}
-
-void ValidateCosts(const TAction::TBoundResources& costs)
-{
-    std::map<std::string, int, std::less<>> totals;
-    for (const auto& cost : costs) {
-        if (cost.Key.empty() || !cost.Read || !cost.Write) {
-            throw std::invalid_argument("invalid action resource binding");
-        }
-        AddCost(totals[cost.Key], cost.Count);
-    }
-}
 
 TAction::TBoundResources BindLegacyCosts(const TAction::TResources& costs)
 {
@@ -62,38 +41,6 @@ TAction::TBoundResources BindLegacyCosts(const TAction::TResources& costs)
     return bindings;
 }
 
-struct TResourceTotal {
-    const TResource* Resource;
-    std::size_t FirstBinding;
-    int Count = 0;
-};
-
-struct TResolvedReadCosts {
-    std::vector<const TResource*> Bindings;
-    std::vector<TResourceTotal> Totals;
-};
-
-TResolvedReadCosts ResolveReadCosts(const TAction::TBoundResources& costs, const TPlayer& actor)
-{
-    TResolvedReadCosts resolved;
-    std::map<std::string, const TResource*, std::less<>> keys;
-    std::map<const TResource*, std::size_t> resources;
-    for (const auto& cost : costs) {
-        const auto* resource = &cost.Read(actor);
-        const auto [key, key_inserted] = keys.emplace(cost.Key, resource);
-        if (!key_inserted && key->second != resource) {
-            throw std::invalid_argument("action resource key refers to different resources");
-        }
-        const auto [entry, inserted] = resources.emplace(resource, resolved.Totals.size());
-        if (inserted) {
-            resolved.Totals.push_back({resource, resolved.Bindings.size()});
-        }
-        AddCost(resolved.Totals[entry->second].Count, cost.Count);
-        resolved.Bindings.push_back(resource);
-    }
-    return resolved;
-}
-
 void RunValidatedAbility(const std::shared_ptr<TActionContext>& ctx,
                          const TSavepointCallback& callback)
 {
@@ -113,11 +60,10 @@ void RunValidatedAbility(const std::shared_ptr<TActionContext>& ctx,
 TAction::TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name,
                  TVariables&& variables)
     : pipeline_(std::move(pipeline))
-    , consume_(BindLegacyCosts(consume))
+    , payment_(BindLegacyCosts(consume))
     , name_(std::move(name))
     , variables_(std::move(variables))
 {
-    ValidateCosts(consume_);
     for (const auto& variable : variables_) {
         if (variable.id == kSelf || variable.id == kSource || variable.id == kWeapon
             || variable.id == kTriggerActor || variable.id == kTarget || !variable.weapon) {
@@ -128,13 +74,18 @@ TAction::TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name,
 
 TAction::TAction(FBody body, TBoundResources costs, std::string name)
     : body_(std::move(body))
-    , consume_(std::move(costs))
+    , payment_(std::move(costs))
     , name_(std::move(name))
 {
     if (!body_) {
         throw std::invalid_argument("generated action body must not be empty");
     }
-    ValidateCosts(consume_);
+}
+
+TAction::TAction(TCompiledBody body, TBoundResources costs, std::string name)
+    : TAction(std::move(body.Run), std::move(costs), std::move(name))
+{
+    compiled_body_ = true;
 }
 
 void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
@@ -163,7 +114,9 @@ void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
 
     ctx->io_system->GameLog() << player.GetName() << ": " << name_ << std::endl;
 
-    if (body_) {
+    if (compiled_body_) {
+        body_(ctx);
+    } else if (body_) {
         RunValidatedAbility(ctx, [this, ctx]() { body_(ctx); });
     } else {
         RunValidatedAbility(ctx, [ctx]() {
@@ -176,39 +129,15 @@ void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
 
 void TAction::Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
 {
-    const auto resolved = ResolveReadCosts(consume_, std::as_const(player));
-    std::vector<TGuarded<TResource>> targets;
-    targets.reserve(consume_.size());
-    for (std::size_t index = 0; index < consume_.size(); ++index) {
-        auto target = consume_[index].Write(player);
-        if (&target.Get() != resolved.Bindings[index]) {
-            throw std::invalid_argument("action resource read and write bindings disagree");
-        }
-        targets.push_back(target);
+    if (!ctx || ctx->transformator == nullptr) {
+        throw std::invalid_argument("resource payment requires a journal");
     }
-    for (const auto& total : resolved.Totals) {
-        if (!total.Resource->Has(total.Count)) {
-            throw TAbilityUnavailable();
-        }
-    }
-    auto execution = ctx->transformator->ExecutionContext();
-    auto transaction = execution.Atomic();
-    for (const auto& total : resolved.Totals) {
-        if (total.Count != 0) {
-            ctx->transformator->ReduceResource(targets[total.FirstBinding], total.Count);
-        }
-    }
-    transaction.Commit();
+    payment_.Consume(*ctx->transformator, player);
 }
 
 bool TAction::Check(const TPlayer& player) const
 {
-    for (const auto& total : ResolveReadCosts(consume_, player).Totals) {
-        if (!total.Resource->Has(total.Count)) {
-            return false;
-        }
-    }
-    return true;
+    return payment_.Check(player);
 }
 
 std::string_view TAction::Name() const

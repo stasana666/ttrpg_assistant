@@ -75,7 +75,7 @@ restores the map and player list.
 
 ## Compiled action execution (`actions/generated_action.h`)
 
-Generated actions use `TAction::FBody` and direct C++ continuations. They do not
+Generated actions use explicit `TAction::TCompiledBody` and direct C++ continuations. They do not
 build action-reader pipelines or invoke legacy block hooks. Resource costs bind
 generated `Resource` field paths through separate const reads and guarded writes;
 payment aggregates aliases, validates all bindings and availability first, then
@@ -183,6 +183,61 @@ validation from an input validator would recursively enter the same chain.
 child callable uses the fork, while its return channel resumes the parent context,
 so input constraints do not outlive their lexical caller scope. Starting a new
 top-level ability clears any earlier input constraints on a reused context.
+
+## Typed reaction windows (`actions/reaction_execution.h`, `reaction_window.h`)
+
+`TAbilityRules::Reactions` contains immutable typed executors keyed by trigger and
+reaction definition. A definition can support several trigger types. Registration
+permits the same shared executor again and rejects conflicting executors or trigger
+identities. `RequireGrantImplementation` routes terminal grants to exactly one
+matching action, legacy reaction or typed reaction backend. Legacy `ETrigger`
+enumeration intentionally skips validated typed reactions through its rules-aware
+overload; the two protocols remain separate.
+
+This stage exposes native typed windows only. It does not add `.ttrpg` reaction
+bodies or window syntax. `TReactionExecution<Tag>` carries an owner type, pure
+requirement, optional source preparation, bound resource payment and a yielding
+body. The body's state and argument types come from the trigger tag. Entity
+arguments keep their supplied capabilities; requirements receive readonly aliases.
+Persistent changes use the shared transformation journal. Resource formulas,
+disruption, pending damage reduction and event timing belong to authored rules.
+
+`OpenReactionWindow` visits participants in insertion order, once each per window.
+It recollects current grants for each participant and explicitly offers decline
+alongside eligible reactions. Selection rechecks identity, grant/source, requirement
+and resources before preparation and atomic payment. `TResourcePayment` is also
+used by `TAction`, preserving alias aggregation and read/write identity checks.
+A nonempty `LimitKey` records the reactor in a copied `TReactionScope` after payment;
+passing the returned scope through several windows restricts the same reaction
+across different source grants during one composed activity. Declining records no
+use. Ordering and one offer per participant are the current native protocol, not a
+complete PF2e simultaneous-trigger policy.
+
+Window frames copy the pending value, arguments, scope and participant cursor.
+Immediate calls return without invoking their continuation; suspended calls return
+through that continuation, including repeated suspension and replay. A small
+shared protocol flag rejects immediate and late body callbacks; it stores no result
+or mutable continuation frame. Bodies must follow the same validation contract as
+compiled activities, including captured actor/input validation at resumed edges.
+All completed effects and prices remain journaled after a failed body until the
+caller explicitly undoes them.
+
+Offer contexts and execution contexts are separate objects. Both inherit only a
+snapshot of battle, journal and services. An execution owns its reactor binding,
+registry, immutable executable, granting source and trigger argument validators.
+It does not inherit parent grant or selected-input validators. Parent continuation
+validation happens after the reaction/window finishes. `TCompiledBody` consequently
+runs without the legacy outer `RunValidatedAbility` savepoint wrapper; ordinary
+native `FBody` and pipelines retain that wrapper. The battle drains an existing
+savepoint even after the parent dies or the battle reaches its end condition.
+Once that continuation finishes, the battle does not start another participant's
+turn after its end condition has been reached.
+
+Nested windows retain an immutable trigger trace in their contexts. Different
+triggers may nest; an already active trigger is rejected to prevent native cycles.
+No trace or scope requires global mutable state or restoration after a suspension.
+Battles and participants must remain alive and at stable addresses for all retained
+contexts and continuations. Pure callbacks must not mutate, roll dice or suspend.
 
 ## Typed feature events (`common/feature_event.h`, `actions/feature_event.h`)
 

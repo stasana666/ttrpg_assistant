@@ -3,6 +3,8 @@ target_sources(pf2e_engine
         action_reader.cpp
         action_block.cpp
         action.cpp
+        resource_payment.cpp
+        reaction_window.cpp
         ability.cpp
         generated_action.cpp
         generated_source.cpp

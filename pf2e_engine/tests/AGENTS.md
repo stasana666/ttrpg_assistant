@@ -36,6 +36,15 @@ Canonical project instructions. CLAUDE.md redirects here.
   and rollback, and battle identity/insertion failures. Hook-removal tests replace
   a generated class value through the journal only when none of its child fields
   have retained mutation history; they do not introduce collection mutation APIs.
+- `actions/test_reaction_runtime.cpp` builds as `test_reaction_runtime`. It checks
+  native typed registry validation and legacy coexistence, readonly requirements,
+  explicit decline, source/resource rechecks, preparation before payment, copied
+  pending values across nested suspension/replay, per-actor scope across equipment
+  sources, independent offer/execution contexts, late callback rejection, trigger
+  cycle guards, bounded immediate stack use and completion after parent death or
+  grant removal. These are native runtime tests; reaction DSL syntax is not yet
+  implemented. Existing `test_abilities` payment tests cover the extracted shared
+  payment implementation, including aliases and atomic rollback.
 - `actions/test_feature_event_runtime.cpp` builds as `test_feature_events` and
   checks typed immutable handler registration, readonly argument capabilities,
   source deduplication and provenance, snapshot results, context membership,
