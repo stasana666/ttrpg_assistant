@@ -151,7 +151,8 @@
         "pf2e_language": {
             "type": "object",
             "properties": {
-                "name": { "type": "string", "minLength": 1 }
+                "name": { "type": "string", "minLength": 1 },
+                "spoken": { "type": "boolean" }
             },
             "required": ["name"],
             "additionalProperties": false
@@ -201,6 +202,9 @@
                 "reach": {
                     "type": "integer",
                     "default": 1
+                },
+                "hands_required": {
+                    "type": "integer", "minimum": 0, "maximum": 2
                 },
                 "traits": {
                     "type": "array",
@@ -348,6 +352,8 @@
                     "type": "array",
                     "items": { "$ref": "#/$defs/pf2e_language" }
                 },
+                "can_vocalize": { "type": "boolean" },
+                "body_reach": { "type": "integer", "minimum": 0 },
                 "senses": {
                     "type": "array",
                     "items": { "$ref": "#/$defs/pf2e_sense" }

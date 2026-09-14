@@ -20,13 +20,30 @@ void PrintCombatant(const TCombatantStats& stats, size_t iterations)
 int main(int argc, char** argv)
 {
     size_t iterations = 1000;
+    std::string_view scenario = "two-warriors";
     for (int i = 1; i + 1 < argc; ++i) {
         if (std::string_view(argv[i]) == "--iterations") {
             iterations = std::strtoul(argv[i + 1], nullptr, 10);
         }
+        if (std::string_view(argv[i]) == "--scenario") {
+            scenario = argv[i + 1];
+        }
     }
 
     TCombatAnalyzer analyzer;
+    if (scenario == "fighter-wolves") {
+        const auto result = analyzer.RunFighterAgainstWolves(iterations);
+        std::cout << "Generated fighter versus two wolves over " << result.iterations << " simulations:\n";
+        for (const auto& combatant : result.combatants) {
+            PrintCombatant(combatant, result.iterations);
+        }
+        std::cout << "  draws: " << result.draws << "\n";
+        return 0;
+    }
+    if (scenario != "two-warriors") {
+        std::cerr << "Unknown scenario: " << scenario << "\n";
+        return 1;
+    }
     TAnalysisResult result = analyzer.RunTwoWarriors(iterations);
 
     std::cout << "Two-warrior combat analysis over " << result.iterations << " simulations:\n";

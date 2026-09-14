@@ -71,9 +71,9 @@ Canonical project instructions. CLAUDE.md redirects here.
 ## Remaining Integration Boundaries
 - `abilities.ttrpg` imports creature types. Creature, ancestry/class and weapon modules depend only on the built-in `Feature`, without importing the action catalog. The factory explicitly calls `RegisterAbilitiesRules`, so production action bodies can use creature types without an import cycle.
 - `movement.ttrpg` implements movement budgets and predeparture reaction windows for the flat land grid. Its new action IDs coexist with legacy JSON movement until creature declarations select the new feature groups. World queries expose generic grid coordinates and Chebyshev distance; PF2e movement costs remain in the rules module.
-- Configurable factories support one feature per enabled `choice`, conditional extra choices and declared combination requirements. Production ancestry/class prerequisites and full fighter/wolf declarations still need to be authored; compiler fixtures do not supply PF2e content.
+- Configurable factories support one feature per enabled `choice`, conditional extra choices and declared combination requirements. The production remaster_profiles module supplies the selected level-one feat pools, prerequisites and fighter/wolf declarations; compiler fixtures remain separate from that content.
 - NPC final-stat baselines must be separate from fixed proficiency contributions: a wolf's fixed attack +9 already includes its attributes. Keep `TProficiencyValue.FixedBonus` as a proficiency contribution. Legacy JSON baselines remain covered by their own tests while new Remaster profiles receive separate expectations.
-- Attack penalties use attacks made and the current weapon's Agile trait, capped after two prior attacks. Legacy JSON `add_condition("MultipleAttackPenalty")` is only an import shim that records an attack. Turn boundaries reset the count through the journal. Vicious Swing counts as two attacks, including a miss; Knockdown still needs an explicit immediately preceding attack record.
+- Attack penalties use attacks made and the current weapon's Agile trait, capped after two prior attacks. Legacy JSON `add_condition("MultipleAttackPenalty")` is only an import shim that records an attack. Turn boundaries reset the count through the journal. Vicious Swing counts as two attacks, including a miss; monster Knockdown consumes a qualifying completed Strike record without applying or increasing MAP.
 - World visibility is incomplete: `TBattleMap::HasLine` currently returns true. A compiled call to that adapter does not by itself implement obstacles or line of effect.
 - When migrating damage, clamp a penalized weapon damage roll to its minimum before critical doubling, then add critical-only dice and apply defenses once to each accumulated damage type. General incoming-damage methods must not turn an already resolved zero into one point of damage. The legacy resolver currently clamps after evaluating its combined expression; keep that compatibility behavior separate until its callers migrate.
 
@@ -83,10 +83,10 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Strike checks live target eligibility before payment and again on selection, rolls once for the attack, records a miss as an attack, and applies one accumulated damage amount. Pack Attack counts two other living allies with reach and line of effect; two wolves alone cannot activate it.
 - Critical Strike replaces the base die for Fatal, doubles the minimum-adjusted base damage and Pack Attack dice, then adds Fatal/Deadly critical-only dice. Deadly currently adds one die: striking rune tiers are not represented, and arbitrary `DamageDiceCount` must not be interpreted as a rune tier.
 - `ResolveMeleeStrike` returns the check outcome. Extra weapon dice use the Fatal die size and critical doubling; zero attacks counted leaves attack history untouched. Movement's Reactive Strike uses zero attacks counted and disables MAP through this same activity.
-- `feature ViciousSwing` grants `UseViciousSwing`. It pays two Actions and one shared Flourishes resource, selects a live target and a suitable weapon from equipment or natural attacks, then calls `ResolveMeleeStrike`. It uses the current MAP, records two attacks, and adds one weapon die before level 10, two through level 17, and three thereafter. The chosen item need not grant any action itself. Character-level eligibility and feat selection still belong to the upcoming constructor validation.
+- `feature ViciousSwing` grants `UseViciousSwing`. It pays two Actions and one shared Flourishes resource, selects a live target and a suitable weapon from equipment or natural attacks, then calls `ResolveMeleeStrike`. It uses the current MAP, records two attacks, and adds one weapon die before level 10, two through level 17, and three thereafter. The chosen item need not grant any action itself. Character-level eligibility and feat selection belong to constructor validation; the production level-one factory supplies a constrained legal feat pool.
 - Source choices retain an exact owner/field/entry locator until selection, then an immutable snapshot plus live presence checks. Aliases preserve the binding; child activities inherit scoped input checks without changing their parent's context. Class-valued results that could discard selected-source provenance are conservatively restricted; see the compiler documentation for these temporary authoring boundaries.
-- This Strike represents a melee profile. It passes critical and Nonlethal weapon-trait metadata to the declared health rules. Versatile damage-type selection, Thrown range/mode, TwoHand grip and ranged ammunition remain subsequent work. Trait storage alone does not implement those behaviors.
-- Historical JSON creatures, weapons and legacy Pack Attack hooks retain their previous data. The compiled Strike tests use separate fixtures with explicit baselines; complete Remaster declarations remain an acceptance milestone.
+- This Strike represents a melee profile. It passes critical and Nonlethal weapon-trait metadata to the declared health rules. Versatile offers the base and alternate damage types before the attack roll, then repeats target validation before rolling. A suspended source retains its values, and the selected damage type continues through defenses and Shield Block. A redundant alternate type adds no prompt. Thrown range/mode, TwoHand grip and ranged ammunition remain subsequent work.
+- Historical JSON creatures, weapons and legacy Pack Attack hooks retain their previous data. The compiled Strike tests use separate fixtures with explicit baselines; production Remaster declarations are separately covered by the profile and encounter tests.
 
 ## Compiled Land Movement
 - `movement.ttrpg` imports the combat abilities module and declares `UseStride`,
@@ -167,7 +167,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 - The legacy `deal_damage` action block resolves its expressions and defenses once, then invokes the same generated activity. Direct `TTransformator` damage/healing calls remain local health operations with no battle phase; battle actions use the declared activities for initiative effects. Existing HP-level methods remain arithmetic primitives and should not be used directly for creature damage/healing rules.
 - Doomed, Hero Points, death effects, timed natural awakening, held-item dropping and blinded detection remain separate rules work.
 
-## Planned PF2e Acceptance Data
+## PF2e Acceptance Data
 - Use the Remaster rules (Player Core and Monster Core) for the new declarations; existing JSON combat fixtures retain their historical statistics until an explicit data/rules migration.
 - Human fighter 1: Human ancestry boosts Strength/Dexterity; Versatile Human with Toughness; Warrior background boosts Strength/Constitution, Intimidation, Warfare Lore and Intimidating Glare; Fighter key Strength; free boosts Strength/Dexterity/Constitution/Wisdom. Choose Athletics plus Acrobatics, Medicine and Survival; Natural Ambition grants Vicious Swing, and the normal class feat is Sudden Charge. Human also needs Common and one additional language. Expected modifiers: +4/+2/+2/+0/+1/+0; HP 21; unarmored AC 15; Perception +6; Fortitude +7, Reflex +7, Will +4; Class DC 17. Fighter also grants Reactive Strike and Shield Block.
 - Primary rules references: [Human](https://2e.aonprd.com/Ancestries.aspx?ID=64), [Versatile Human](https://2e.aonprd.com/Heritages.aspx?ID=262), [Warrior](https://2e.aonprd.com/Backgrounds.aspx?ID=445), [Fighter](https://2e.aonprd.com/Classes.aspx?ID=35), [Natural Ambition](https://2e.aonprd.com/Feats.aspx?ID=4478), [Toughness](https://2e.aonprd.com/Feats.aspx?ID=5227).
@@ -252,3 +252,69 @@ Canonical project instructions. CLAUDE.md redirects here.
   and feature removal are checked before acceptance or resume. Undo restores the
   receipt and source identity; accepted follow-ups retain their prepared inputs
   after consuming the receipt. Turn boundaries add no implicit expiration.
+
+## Generated Remaster Encounter
+- `remaster_profiles.ttrpg` now defines the production `HumanFighter1` and `Wolf`
+  factories. `CreateHumanFighter1`, `DescribeHumanFighter1`, and
+  `ValidateHumanFighter1` share the constructor rules. The fighter's level-one
+  attribute/background choices are fixed by this profile; its readied weapons,
+  armor, shield, additional language and declared class/ancestry/general feats are
+  configurable. This is a concrete character profile, not a complete character
+  builder or the entire published feat catalogue. Legacy JSON creatures remain
+  separate historical fixtures.
+- Default class feat is Sudden Charge; Natural Ambition supplies Vicious Swing.
+  Selecting General Training disables the extra class feat and enables a distinct
+  general feat. Versatile heritage and General Training choose from Toughness and
+  Fleet; duplicate selections reject before identity allocation. Toughness changes
+  maximum HP and the existing recovery event; Fleet adds five feet to land Speed.
+  [General Training](https://2e.aonprd.com/Feats.aspx?ID=4476) and
+  [Fleet](https://2e.aonprd.com/Feats.aspx?ID=5150) define these alternatives.
+- `Equipment` means currently readied melee weapons. `TWeapon.HandsRequired` and
+  the selected wielded shield determine the initial free `Hands` resource. A
+  two-handed weapon with a wielded shield rejects construction; empty equipment
+  keeps the generated Fist available. The profile does not model an entire carried
+  inventory or picking up/changing grips. `TCreature.DropShield` releases its hand
+  exactly once, including the knockout-to-death path, and both state changes undo
+  together. Held weapon dropping and general inventory mutation remain separate.
+- The named Longsword has d8 slashing and versatile piercing; WolfJaws has complete
+  +9 attack/+2 damage baselines and grants Knockdown directly. Generic `UseStrike`
+  selects current weapons or natural weapons even when their Feature list is
+  empty. Wolf baselines do not manufacture an ancestry/class or infer missing
+  proficiencies. Two independent wolf factories have independent entity identities,
+  HP, equipment entries, resources, action history and relation keys.
+- Production feature groups have distinct language names: `MovementActions`,
+  `ShieldActions`, `TripActions`, `IntimidationActions`, and `BasicStrike`.
+  Imported ability names currently share a compiler namespace; using `BaseActions`
+  for every module prevented importing the modules together. Their native feature
+  IDs still include the module stem. `CombatBasics` grants the five groups.
+
+## Intimidation and Observation
+- `intimidation.ttrpg` declares ordinary auditory Demoralize and the optional visual
+  Intimidating Glare action. Both cost one action, use Intimidation against Will DC
+  within 30 feet, leave MAP unchanged, and share a ten-minute immunity relation
+  keyed by target and actor after every resolved check. A shared named spoken
+  language avoids the ordinary four-point circumstance penalty; `TLanguage.Spoken`
+  distinguishes signed language metadata. Glare uses no language penalty.
+  [Demoralize](https://2e.aonprd.com/Actions.aspx?ID=2395) and
+  [Intimidating Glare](https://2e.aonprd.com/Feats.aspx?ID=5162) are the sources.
+- `Awareness`, `Visibility`, and `Audibility` are declared directional bool relations
+  from observer/listener to subject. Their explicit `get(..., true)` fallback is
+  the current illuminated, open-encounter policy. A scenario can provide persistent
+  false/true overrides through the same generic relation API. The runtime derives
+  none of these facts from the descriptive Senses collection. Ordinary Demoralize
+  checks actor awareness, target hearing and actor `CanVocalize`; Glare checks actor
+  awareness and target-to-actor visibility, and excludes unconscious viewers.
+  Hidden/concealed detection, lighting, obstructed sound, fear/mental immunity,
+  and arbitrary sustained fear effects are not implemented by these defaults.
+- `ApplyFrightened` keeps the highest ordinary value; `EndTurn` decreases it by one
+  for that creature. BeginTurn and other creatures' turns do not decrease it.
+  `ClearFrightened` leaves Demoralize immunity intact. Legacy add/remove-condition
+  blocks delegate to these methods and no longer create private frightened
+  EffectManager counters or start-of-turn scheduler tasks. See
+  [Frightened](https://2e.aonprd.com/Conditions.aspx?ID=76).
+- The relation clock belongs to the encounter. `combat_timing.ttrpg` specifies six
+  seconds per completed round; exact 599/600-second expiry is supported by explicit
+  game-time advancement. Combat quantizes elapsed time at completed round boundaries.
+  New battles start with an empty store and elapsed time zero; cross-encounter
+  transfer/save, exploration timing and detailed within-round deadlines remain
+  separate policies. Observation overrides can be permanent, with no deadline.

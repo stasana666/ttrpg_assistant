@@ -41,6 +41,7 @@ GameEntity TCreature {
     set<ECreatureTrait> Traits;
     collection<TLanguage> Languages;
     collection<TSense> Senses;
+    bool CanVocalize = true;
     int Level;
     ECreatureSize Size;
     int BodyReach = 1;
@@ -436,6 +437,27 @@ GameEntity TCreature {
         @self.Actions.SetCount(0);
         @self.ResetAttacks();
         @self.DiagonalSteps = 0;
+        @self.DecayFrightened();
+    }
+
+    method void ApplyFrightened(int Value) {
+        require Value >= 0;
+        if (Value > @self.ConditionPenalty()) {
+            @self.Conditions.set(Frightened { Value = Value; });
+        }
+    }
+
+    method void ClearFrightened() {
+        @self.Conditions.erase(Frightened);
+    }
+
+    method void DecayFrightened() {
+        let Value = @self.ConditionPenalty();
+        if (Value <= 1) {
+            @self.ClearFrightened();
+        } else {
+            @self.Conditions.set(Frightened { Value = Value - 1; });
+        }
     }
 
     method TDamageResult ReceiveDamage(EDamageType Type, int Amount) {
@@ -448,7 +470,7 @@ GameEntity TCreature {
     }
 
     method void Die() {
-        @self.Shield.Drop();
+        @self.DropShield();
         @self.Dead = true;
         @self.Hitpoints.Current = 0;
         @self.Actions.SetCount(0);
@@ -456,9 +478,18 @@ GameEntity TCreature {
     }
 
     method void BecomeUnconscious() {
-        @self.Shield.Drop();
+        @self.DropShield();
         @self.Conditions.set(Unconscious);
         @self.Conditions.set(Prone);
+    }
+
+    method void DropShield() {
+        let FreeHands = @self.Hands.Count();
+        if (@self.Shield.IsPresent() && @self.Shield.Wielded) {
+            FreeHands += 1;
+        }
+        @self.Shield.Drop();
+        @self.Hands.SetCount(FreeHands);
     }
 
     method void LoseDying() {

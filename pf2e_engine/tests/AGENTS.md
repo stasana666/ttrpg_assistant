@@ -242,11 +242,6 @@ Canonical project instructions. CLAUDE.md redirects here.
 - Keep expected RNG rolls and interaction choices in exact sequence.
 - When adding data-dependent tests, add only minimal fixture data or reuse existing JSON sources.
 
-- `test_lib/generated_combat_fixture.h` is a shared fixture for executing individual
-  generated actions with the real factory rules. Its IO scripts asynchronous choice
-  requests and optional savepoints; full StartBattle tests need a separate synchronous
-  next-action policy. Creature storage uses a deque to keep player references stable.
-
 ## Production Trip and Strike Follow-Ups
 - `actions/test_generated_trip.cpp` builds as `test_generated_trip`. It checks four
   Trip outcomes, non-Agile shared MAP, free hands, size, body reach and the ten-foot
@@ -261,3 +256,37 @@ Canonical project instructions. CLAUDE.md redirects here.
   defenses, recheck a moved target, preserve selected source values and replay
   downstream shield windows without rerolling. These cases do not implement Weapon
   Trip, creature footprints or full obstacle visibility.
+
+## Remaster Acceptance
+- `inventory/test_remaster_profiles.cpp` checks the production fighter/wolf statblocks,
+  declared feat alternatives, disabled/duplicate choices, readied equipment and hand
+  validation, generated grant traversal and JSON/AST snapshots.
+- `actions/test_generated_intimidation.cpp` builds as `test_generated_intimidation`.
+  It checks auditory versus visual checks, spoken versus signed languages, all four
+  outcomes, directional observation overrides, independent actor/target immunity,
+  the exact ten-minute deadline, target-end-turn fear decay and legacy adapters.
+  Suspended target choices recheck observations/immunity before dice; replay supplies
+  the same dice inputs after the restored choice point and preserves exact AST state.
+  Knockout drops a shield and frees its hand once through healing, death and Undo.
+- `test_lib/generated_combat_fixture.h` is a shared fixture for executing individual
+  generated actions with the real factory rules. Its IO scripts asynchronous choice
+  requests and optional savepoints; full StartBattle tests need a separate synchronous
+  next-action policy. Creature storage uses a deque to keep player references stable.
+
+## Generated Encounter Acceptance
+- `actions/test_generated_encounter.cpp` builds as `test_generated_encounter` and
+  runs `TBattle.StartBattle` to a winner with one declared `HumanFighter1` and two
+  separately constructed `Wolf` entities. Scripted initiative, action selection,
+  resource replenishment, shield blocking, Knockdown and a predeparture Reactive
+  Strike all run through the battle loop. Exact damage and RNG expectations also
+  verify that two wolves cannot supply the two other allies required by Pack Attack.
+- A second fight equips a custom martial weapon with no action grants and selects
+  General Training, Fleet and Toughness through constructor options. Both fights
+  use actor-granted UseStrike and actual weapon choices. They finish with different
+  winners and retain independent wolf HP and equipment identities.
+- A test-only RoundStart observer captures the existing battle journal and performs
+  the same generated BeginRound call as the default phase. The IO observer stores
+  the first completed-round checkpoint. After the encounter finishes, Undo restores
+  the complete battle AST, and StartBattle replays every remaining turn to the same
+  winner and exact final AST. Suspended generated reaction choices are drained by
+  the real MakeTurn loop; observer counters are outside the compared game state.

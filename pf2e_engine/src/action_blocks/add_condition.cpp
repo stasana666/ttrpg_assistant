@@ -3,8 +3,6 @@
 #include <pf2e_engine/condition.h>
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/player.h>
-#include <pf2e_engine/effect_manager.h>
-#include <pf2e_engine/scheduler.h>
 #include <pf2e_engine/transformation/transformator.h>
 
 #include <stdexcept>
@@ -57,25 +55,9 @@ void FAddCondition::RecordAttackHandle(std::shared_ptr<TActionContext> ctx) cons
 void FAddCondition::FrightenedHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
-    int value = input_.GetNumber(kValueId);
-
-    TPlayerConditionSet condition_set{
-        .player = &target,
-        .condition = EConditionKind::Frightened,
-        .value = value,
-    };
-
-    auto canceler = ctx->effect_manager->AddEffect(condition_set, *ctx->transformator);
-
-    TEvent event{
-        .type = EEvent::OnTurnStart,
-        .context = {.player = &target },
-    };
-
-    ctx->transformator->AddTask(ctx->scheduler, TTask{
-        .events_before_call = { event },
-        .callback = [canceler]() { return canceler(EEffectCancelPolicy::ReduceUntilZero); },
-    });
+    auto execution = ctx->transformator->ExecutionContext();
+    execution.Invoke(TGuarded<TCreature>(*target.GetCreature()),
+                     &TCreature::ApplyFrightened, input_.GetNumber(kValueId));
 }
 
 void FAddCondition::ProneHandle(std::shared_ptr<TActionContext> ctx) const
