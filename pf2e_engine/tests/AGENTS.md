@@ -112,6 +112,12 @@ Canonical project instructions. CLAUDE.md redirects here.
   field mutation records; attribute edits and whole-collection edits use separate
   scenarios and explicitly reversible journals.
 - `inventory/`: generated schema type and JSON loading tests.
+- `inventory/test_creature_description.cpp` checks generated creature, ancestry and
+  class names, typed traits, arbitrary language names and sense descriptions.
+  Metadata survives JSON/AST snapshots and sparse collection rollback. Advanced
+  weapons use their independent proficiency rank, and display distances derive
+  feet from stored cells with checked arithmetic. Sense metadata does not add
+  visibility or detection rules.
 - `inventory/fixtures/constructor_choices.ttrpg` and `inventory/test_constructor_choices.cpp`
   verify configurable factory reports and actual construction together: dependent
   choices, disabled input rejection and lazy defaults, declared feature pools,

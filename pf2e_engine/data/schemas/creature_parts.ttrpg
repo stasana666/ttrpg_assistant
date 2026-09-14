@@ -8,12 +8,14 @@ enum ECharacteristic {
 }
 
 class TRace {
+    string Name;
     int Hitpoints;
     collection<Feature> Features;
     grant @self.Features;
 }
 
 class TClass {
+    string Name;
     int Hitpoints;
     collection<Feature> Features;
     grant @self.Features;

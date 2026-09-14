@@ -9,6 +9,7 @@ import "statistic_baseline.ttrpg";
 import "check_modifiers.ttrpg";
 import "statistics.ttrpg";
 import "lore.ttrpg";
+import "creature_description.ttrpg";
 
 enum ECreatureSize {
     Tiny,
@@ -33,6 +34,10 @@ enum ESpellSlotRank {
 }
 
 GameEntity TCreature {
+    string Name;
+    set<ECreatureTrait> Traits;
+    collection<TLanguage> Languages;
+    collection<TSense> Senses;
     int Level;
     ECreatureSize Size;
     TRace Race;
@@ -68,6 +73,10 @@ GameEntity TCreature {
 
     query bool IsAlive() {
         return @self.Hitpoints.Current > 0;
+    }
+
+    query int SpeedFeet() {
+        return @self.Movement * 5;
     }
 
     query TAbilityScore GetCharacteristic(ECharacteristic Name) {

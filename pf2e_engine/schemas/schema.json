@@ -119,6 +119,32 @@
             "additionalProperties": false
         },
 
+        "pf2e_language": {
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "minLength": 1 }
+            },
+            "required": ["name"],
+            "additionalProperties": false
+        },
+
+        "pf2e_sense": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": ["Vision", "LowLightVision", "Darkvision", "Scent", "Other"]
+                },
+                "name": { "type": "string" },
+                "range_feet": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+                "precision": {
+                    "type": "string",
+                    "enum": ["Precise", "Imprecise", "Vague"]
+                }
+            },
+            "additionalProperties": false
+        },
+
         "pf2e_weapon_core": {
             "type": "object",
             "properties": {
@@ -141,7 +167,7 @@
                 },
                 "category": {
                     "type": "string",
-                    "enum": ["Unarmed", "Simple", "Martial"]
+                    "enum": ["Unarmed", "Simple", "Martial", "Advanced"]
                 },
                 "reach": {
                     "type": "integer",
@@ -189,6 +215,7 @@
         "pf2e_race_core": {
             "type": "object",
             "properties": {
+                "name": { "type": "string" },
                 "features": {
                     "type": "array",
                     "items": { "type": "string", "minLength": 1 }
@@ -214,6 +241,7 @@
         "pf2e_class_core": {
             "type": "object",
             "properties": {
+                "name": { "type": "string" },
                 "features": {
                     "type": "array",
                     "items": { "type": "string", "minLength": 1 }
@@ -276,6 +304,20 @@
         "pf2e_creature_data_core": {
             "type": "object",
             "properties": {
+                "name": { "type": "string" },
+                "traits": {
+                    "type": "array",
+                    "uniqueItems": true,
+                    "items": { "type": "string", "enum": ["Human", "Humanoid", "Animal"] }
+                },
+                "languages": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/pf2e_language" }
+                },
+                "senses": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/pf2e_sense" }
+                },
                 "proficiency": { "$ref": "#/$defs/pf2e_proficiency_data" },
                 "perception_baseline": { "$ref": "#/$defs/pf2e_statistic_baseline" },
                 "save_baselines": { "$ref": "#/$defs/pf2e_save_baselines" },
@@ -499,7 +541,8 @@
                     "properties": {
                         "Unarmed": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
                         "Simple": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
-                        "Martial": { "$ref": "#/$defs/pf2e_proficiency_bonus" }
+                        "Martial": { "$ref": "#/$defs/pf2e_proficiency_bonus" },
+                        "Advanced": { "$ref": "#/$defs/pf2e_proficiency_bonus" }
                     },
                     "additionalProperties": false
                 },
@@ -594,6 +637,9 @@
                             "$ref": "#/$defs/pf2e_proficiency_value"
                         },
                         "Martial": {
+                            "$ref": "#/$defs/pf2e_proficiency_value"
+                        },
+                        "Advanced": {
                             "$ref": "#/$defs/pf2e_proficiency_value"
                         }
                     },

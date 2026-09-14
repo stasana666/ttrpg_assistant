@@ -6,6 +6,7 @@ enum EWeaponCategory {
     Unarmed,
     Simple,
     Martial,
+    Advanced,
 }
 
 variant TWeaponTrait {
@@ -30,6 +31,10 @@ class TWeapon {
     int Reach = 1;
     set<TWeaponTrait> Traits;
     collection<Feature> Features;
+
+    query int ReachFeet() {
+        return @self.Reach * 5;
+    }
 
     query int DieFaces(EDieSize Size) {
         if (Size == D4) {
