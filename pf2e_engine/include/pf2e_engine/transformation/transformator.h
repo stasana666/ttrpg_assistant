@@ -11,6 +11,8 @@ public:
     explicit TTransformator(IInteractionSystem& io_system);
 
     void DealDamage(TPlayer* player, int damage);
+    THealthDamageResult DealDamageWithContext(TPlayer* player, int damage,
+                                             const TDamageContext& context);
     void Heal(TPlayer* player, int value);
 
     void ChangeCondition(TCreature* creature, EConditionKind condition, int new_value);

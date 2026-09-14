@@ -14,12 +14,25 @@ Canonical project instructions. CLAUDE.md redirects here.
   and repeated Undo preserve callback order; malformed task restoration leaves the
   scheduler unchanged. Battle tests cover three independent participants and
   restoration across a whole round.
+- `test_lifecycle_execution.cpp` and `actions/fixtures/generated_lifecycle.ttrpg`
+  verify system phases with inactive actors, two successive suspensions, copied
+  service lifetimes, exact Undo/replay without rerolls and callback protocol errors.
+  Ordinary actions cannot retain lifecycle privilege; suspended legacy bodies stop
+  after unconsciousness or death. Factory/battle integration runs recovery from
+  transitive Toughness grants and skips unconscious actors' ordinary action prompts.
 - `test_initiative.cpp` builds as `test_initiative` and checks generated Perception
   initiative, selected skills and typed modifiers, descending rolled totals,
   explicit tie order and stable insertion. It covers natural 1/20 ranking,
   independent NPC totals, current-stat changes without rerolling stored order,
   round replay, exact journal rollback and failed battle insertion. Native tie
   ordering uses encounter options without inferring PC/NPC roles from teams.
+- `test_health.cpp` builds as `test_health` and verifies explicit defeat/dying/death
+  policies, normal and critical knockout, nonlethal damage, temporary HP, defenses,
+  massive damage and four-degree recovery with explicit DC adjustments. Healing,
+  stabilization, wounded and native adapters share exact journal rollback and
+  replay. Failed nested transitions undo their HP writes; JSON import and snapshots
+  preserve health state. Unconscious creatures regain turn resources but cannot
+  use them, while dead creatures do not regain actions or reactions.
 - `actions/`: combat/action pipeline tests using real data.
 - `actions/test_generated_strike.cpp` builds as `test_generated_strike` and loads
   the production compiled Strike through the real factory catalog. It covers
@@ -81,6 +94,11 @@ Canonical project instructions. CLAUDE.md redirects here.
   Trip and opportunity pipelines against the same creature state. It checks the
   current weapon's MAP, shared attack counts on hits and misses, non-Agile Trip,
   reaction exemption, generated base damage inputs, turn resets and joint undo.
+- `actions/test_legacy_damage_context.cpp` compares real legacy weapon attacks with
+  compiled Strike for ordinary, critical and nonlethal knockout under dying/death
+  policies. It checks critical Trip, fresh metadata on subsequent attacks, optional
+  flat-damage flags, rejection of dead targets before dice, area eligibility and
+  generated health-condition adapters with exact journal rollback.
 - `actions/fixtures/generated_flow.ttrpg` and `actions/test_generated_flow.cpp`
   compile into `test_generated_flow`. They exercise nested entity/value choices,
   branches, while-loop locals and early returns, repeated suspension and replay,

@@ -11,6 +11,7 @@
 #include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/inventory/creature_parts.h>
 #include <pf2e_engine/inventory/creature_description.h>
+#include <pf2e_engine/inventory/health.h>
 #include <pf2e_engine/player.h>
 
 #include <algorithm>
@@ -34,6 +35,8 @@ void RegisterAll() {
     TAbilityScores::RegisterDslProperties();
     TLanguage::RegisterDslProperties();
     TSense::RegisterDslProperties();
+    TDamageContext::RegisterDslProperties();
+    THealthDamageResult::RegisterDslProperties();
     TCreature::RegisterDslProperties();
 
     auto& player_props = TPropertyRegistry<TPlayer>::Instance();

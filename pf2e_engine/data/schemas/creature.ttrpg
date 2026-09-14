@@ -10,6 +10,8 @@ import "check_modifiers.ttrpg";
 import "statistics.ttrpg";
 import "lore.ttrpg";
 import "creature_description.ttrpg";
+import "health.ttrpg";
+import "combat_checks.ttrpg";
 
 enum ECreatureSize {
     Tiny,
@@ -61,6 +63,9 @@ GameEntity TCreature {
     collection<TWeapon> NaturalWeapons;
     collection<Feature> Features;
     set<TCondition> Conditions;
+    EZeroHpRule ZeroHpRule = Defeat;
+    bool Dead = @self.ZeroHpRule == Death && @self.Hitpoints.Current == 0
+        && !@self.Conditions.has(Unconscious);
     set<EDamageType> Immunities;
     map<EDamageType, int> Resistances;
     map<EDamageType, int> Vulnerabilities;
@@ -72,7 +77,50 @@ GameEntity TCreature {
     map<ESpellSlotRank, Resource> SpellSlots;
 
     query bool IsAlive() {
-        return @self.Hitpoints.Current > 0;
+        if (@self.ZeroHpRule == Defeat) {
+            return !@self.IsDead() && @self.Hitpoints.Current > 0;
+        }
+        return !@self.IsDead();
+    }
+
+    query bool IsDead() {
+        return @self.Dead || @self.DyingValue() >= 4;
+    }
+
+    query bool CanAct() {
+        return !@self.IsDead() && @self.Hitpoints.Current > 0
+            && !@self.Conditions.has(Unconscious) && @self.DyingValue() == 0;
+    }
+
+    query bool IsDefeated() {
+        return !@self.CanAct();
+    }
+
+    query int DyingValue() {
+        return @self.Conditions.get(Dying, { Value = 0; }).Value;
+    }
+
+    query int WoundedValue() {
+        return @self.Conditions.get(Wounded, { Value = 0; }).Value;
+    }
+
+    query bool NeedsRecoveryCheck() {
+        return @self.ZeroHpRule == Dying && !@self.IsDead()
+            && @self.Hitpoints.Current == 0 && @self.DyingValue() > 0;
+    }
+
+    query int RecoveryDC(int DcAdjustment) {
+        require @self.NeedsRecoveryCheck();
+        return 10 + @self.DyingValue() + DcAdjustment;
+    }
+
+    query bool IsMassiveDamage(int Amount) {
+        require Amount >= 0;
+        if (@self.ZeroHpRule == Defeat) {
+            return false;
+        }
+        require @self.Hitpoints.Maximum.Value > 0;
+        return Amount / 2 >= @self.Hitpoints.Maximum.Value;
     }
 
     query int SpeedFeet() {
@@ -162,8 +210,18 @@ GameEntity TCreature {
         return TCheckModifiers { StatusPenalty = @self.ConditionPenalty(); };
     }
 
+    query int UnconsciousPenalty() {
+        if (@self.Conditions.has(Unconscious)) {
+            return 4;
+        }
+        return 0;
+    }
+
     query int PerceptionBonusWithModifiers(TCheckModifiers Extra) {
-        return @self.PerceptionBase() + @self.CheckConditionModifiers().Merge(Extra).Total();
+        let Conditions = @self.CheckConditionModifiers().Merge(TCheckModifiers {
+            StatusPenalty = @self.UnconsciousPenalty();
+        });
+        return @self.PerceptionBase() + Conditions.Merge(Extra).Total();
     }
 
     query int PerceptionBonus() {
@@ -179,7 +237,13 @@ GameEntity TCreature {
     }
 
     query int SaveBonusWithModifiers(ESavethrow Save, TCheckModifiers Extra) {
-        return @self.SaveBase(Save) + @self.CheckConditionModifiers().Merge(Extra).Total();
+        let Conditions = @self.CheckConditionModifiers();
+        if (Save == Reflex) {
+            Conditions = Conditions.Merge(TCheckModifiers {
+                StatusPenalty = @self.UnconsciousPenalty();
+            });
+        }
+        return @self.SaveBase(Save) + Conditions.Merge(Extra).Total();
     }
 
     query int SaveBonus(ESavethrow Save) {
@@ -261,8 +325,8 @@ GameEntity TCreature {
                 + min(@self.Armor.DexterityCap, @self.Characteristic.Dexterity.Modifier)
                 + @self.ArmorProficiency(@self.Armor.Category);
         }
-        Value -= @self.ConditionPenalty();
-        if (@self.Conditions.has(Prone)) {
+        Value -= max(@self.ConditionPenalty(), @self.UnconsciousPenalty());
+        if (@self.Conditions.has(Prone) || @self.Conditions.has(Unconscious)) {
             Value -= 2;
         }
         return Value;
@@ -336,6 +400,11 @@ GameEntity TCreature {
 
     method void BeginTurn() {
         @self.ResetAttacks();
+        if (@self.IsDead()) {
+            @self.Actions.SetCount(0);
+            @self.Reactions.SetCount(0);
+            return;
+        }
         @self.Actions.SetCount(3);
         @self.Reactions.SetCount(1);
     }
@@ -346,7 +415,121 @@ GameEntity TCreature {
     }
 
     method TDamageResult ReceiveDamage(EDamageType Type, int Amount) {
-        return @self.Hitpoints.DealDamage(@self.DamageAmount(Type, Amount));
+        let Result = @self.ReceiveDamageWithContext(Type, Amount, TDamageContext {});
+        return Result.Hitpoints;
+    }
+
+    method THealthDamageResult ReceiveDamageWithContext(EDamageType Type, int Amount, TDamageContext Context) {
+        return @self.ApplyResolvedDamage(@self.DamageAmount(Type, Amount), Context);
+    }
+
+    method void Die() {
+        @self.Dead = true;
+        @self.Hitpoints.Current = 0;
+        @self.Actions.SetCount(0);
+        @self.Reactions.SetCount(0);
+    }
+
+    method void BecomeUnconscious() {
+        @self.Conditions.set(Unconscious);
+        @self.Conditions.set(Prone);
+    }
+
+    method void LoseDying() {
+        require @self.WoundedValue() >= 0 && @self.DyingValue() >= 0;
+        if (@self.DyingValue() > 0) {
+            let NewWounded = @self.WoundedValue() + 1;
+            @self.Conditions.set(Wounded { Value = NewWounded; });
+        }
+        @self.Conditions.erase(Dying);
+    }
+
+    method void SetDyingValue(int Value) {
+        require Value >= 0;
+        if (Value == 0) {
+            @self.LoseDying();
+            return;
+        }
+        @self.Conditions.set(Dying { Value = Value; });
+        @self.BecomeUnconscious();
+        if (Value >= 4) {
+            @self.Die();
+        }
+    }
+
+    method THealthDamageResult ApplyResolvedDamage(int Amount, TDamageContext Context) {
+        require Amount >= 0 && !@self.IsDead();
+        require @self.Hitpoints.Current >= 0 && @self.Hitpoints.Temporary >= 0;
+        require @self.DyingValue() >= 0 && @self.WoundedValue() >= 0;
+        let Massive = @self.IsMassiveDamage(Amount);
+        let Damage = @self.Hitpoints.DealDamage(Amount);
+        if (Amount > 0 && @self.ZeroHpRule != Defeat) {
+            let Increase = 1;
+            if (Context.Critical) {
+                Increase = 2;
+            }
+            if (Massive) {
+                @self.Die();
+            } else {
+                if (@self.DyingValue() > 0) {
+                    @self.SetDyingValue(@self.DyingValue() + Increase);
+                } else {
+                    if (@self.Hitpoints.Current == 0) {
+                        @self.BecomeUnconscious();
+                        if (!Context.Nonlethal) {
+                            if (@self.ZeroHpRule == Death) {
+                                @self.Die();
+                            } else {
+                                @self.SetDyingValue(Increase + @self.WoundedValue());
+                            }
+                        }
+                    } else {
+                        @self.Conditions.erase(Unconscious);
+                    }
+                }
+            }
+        }
+        return THealthDamageResult {
+            Hitpoints = TDamageResult {
+                Incoming = Damage.Incoming;
+                AbsorbedTemporary = Damage.AbsorbedTemporary;
+                Before = Damage.Before;
+                After = @self.Hitpoints.Current;
+            };
+            NewlyKnockedOut = Damage.Before > 0 && @self.Hitpoints.Current == 0;
+            NewlyDead = @self.IsDead();
+        };
+    }
+
+    method int ReceiveHealing(int Amount) {
+        require Amount >= 0 && !@self.IsDead();
+        let Restored = @self.Hitpoints.Heal(Amount);
+        if (Amount > 0 && @self.Hitpoints.Current > 0) {
+            @self.LoseDying();
+            @self.Conditions.erase(Unconscious);
+        }
+        return Restored;
+    }
+
+    method ECheckOutcome ApplyRecovery(int Natural, int DcAdjustment) {
+        require @self.NeedsRecoveryCheck();
+        let Outcome = TCheckRules {}.Resolve(Natural, 0, @self.RecoveryDC(DcAdjustment));
+        let Value = @self.DyingValue();
+        if (Outcome == CriticalSuccess) {
+            Value = max(0, Value - 2);
+        } else {
+            if (Outcome == Success) {
+                Value -= 1;
+            } else {
+                if (Outcome == Failure) {
+                    Value += 1;
+                } else {
+                    Value += 2;
+                }
+            }
+        }
+        @self.SetDyingValue(Value);
+        return Outcome;
     }
 
     grant @self.Features;

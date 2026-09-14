@@ -97,7 +97,12 @@ TGeneratedEntityView GeneratedActionSelf(const std::shared_ptr<TActionContext>& 
         throw std::invalid_argument("generated action requires an actor binding");
     }
     auto view = BindGeneratedActionEntity(ctx->game_object_registry->Get<TPlayer>(kSelfId), ctx->battle);
-    if (!view.Player().GetCreature()->IsAlive()) {
+    if (ctx->execution_mode == EActionExecutionMode::System) {
+        if (ctx->battle == nullptr) {
+            throw std::invalid_argument("system execution requires battle membership");
+        }
+    } else if (ctx->execution_mode != EActionExecutionMode::Ordinary ||
+               !view.Player().GetCreature()->CanAct()) {
         throw TAbilityUnavailable();
     }
     return view;

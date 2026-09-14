@@ -6,7 +6,7 @@
 
 void ValidateGeneratedSourceActor(const TGeneratedEntityView& owner)
 {
-    if (!owner.Player().GetCreature()->IsAlive()) {
+    if (!owner.Player().GetCreature()->CanAct()) {
         throw TAbilityUnavailable();
     }
 }

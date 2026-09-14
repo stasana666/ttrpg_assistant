@@ -304,6 +304,11 @@
         "pf2e_creature_data_core": {
             "type": "object",
             "properties": {
+                "zero_hp_rule": {
+                    "type": "string",
+                    "enum": ["Defeat", "Dying", "Death"]
+                },
+                "dead": { "type": "boolean" },
                 "name": { "type": "string" },
                 "traits": {
                     "type": "array",
@@ -459,12 +464,14 @@
             "oneOf": [
                 {
                     "type": "string",
-                    "enum": ["Prone"]
+                    "enum": ["Prone", "Unconscious"]
                 },
                 {
                     "type": "object",
                     "properties": {
-                        "Frightened": { "type": "integer" }
+                        "Frightened": { "type": "integer" },
+                        "Dying": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+                        "Wounded": { "type": "integer", "minimum": 1, "maximum": 2147483647 }
                     },
                     "minProperties": 1,
                     "maxProperties": 1,

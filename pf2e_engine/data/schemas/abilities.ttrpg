@@ -16,6 +16,26 @@ class TStrikeDamageDice {
 
 event TStrikeDamageDice StrikeDamageBonus for TCreature(TCreature Target, TWeapon Weapon);
 
+event int RecoveryDCAdjustment for TCreature();
+
+feature Toughness {
+    on RecoveryDCAdjustment {
+        return -1;
+    }
+}
+
+activity void StartCreatureTurn for TCreature() {
+    if (@self.NeedsRecoveryCheck()) {
+        let Adjustment = 0;
+        for Modifier in RecoveryDCAdjustment(@self) {
+            Adjustment = min(Adjustment, Modifier);
+        }
+        let Natural = roll(1, 20);
+        @self.ApplyRecovery(Natural, Adjustment);
+    }
+    @self.BeginTurn();
+}
+
 action Strike for TCreature using TWeapon Weapon {
     cost @self.Actions = 1;
     choose TCreature Target where Target != @self && Target.IsAlive()
@@ -89,7 +109,10 @@ activity ECheckOutcome ResolveMeleeStrike for TCreature(
                 Amount += Extra;
             }
         }
-        Target.ReceiveDamage(Weapon.DamageType, Amount);
+        Target.ReceiveDamageWithContext(Weapon.DamageType, Amount, TDamageContext {
+            Critical = Outcome == CriticalSuccess;
+            Nonlethal = Weapon.Traits.has(Nonlethal);
+        });
     }
     return Outcome;
 }

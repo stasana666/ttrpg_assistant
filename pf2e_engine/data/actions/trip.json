@@ -92,7 +92,8 @@
                 "type": "function_call",
                 "input": {
                     "dice": "1d6",
-                    "damage_type": "Bludgeoning"
+                    "damage_type": "Bludgeoning",
+                    "critical": 1
                 },
                 "function": "flat_damage_roll",
                 "output": ["damage"]

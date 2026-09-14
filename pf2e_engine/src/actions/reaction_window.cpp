@@ -75,7 +75,7 @@ std::shared_ptr<TActionContext> ActorContext(const TEnvironment& environment,
 bool ActorAvailable(const TEnvironment& environment, const TGeneratedEntityView& actor)
 {
     TGeneratedWorldView(environment.Services->battle).Validate(actor);
-    return actor.Player().GetCreature()->IsAlive();
+    return actor.Player().GetCreature()->CanAct();
 }
 
 TAbilityCollector Collect(const TGeneratedEntityView& actor, const TAbilityRules& rules)

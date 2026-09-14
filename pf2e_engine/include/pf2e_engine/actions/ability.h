@@ -3,6 +3,7 @@
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/reaction.h>
 #include <pf2e_engine/actions/reaction_execution.h>
+#include <pf2e_engine/actions/lifecycle_execution.h>
 #include <pf2e_engine/common/ability.h>
 #include <pf2e_engine/common/feature_event.h>
 
@@ -51,6 +52,7 @@ struct TAbilityRules {
     TAbilityCatalog Catalog;
     TAbilityExecutions Executions;
     TReactionRegistry Reactions;
+    TLifecycleExecutions Lifecycle;
     TFeatureEventRegistry Events;
     std::map<std::string, std::shared_ptr<const TCreatureFeat>, std::less<>> FeatureHooks;
 };

@@ -416,6 +416,11 @@ std::shared_ptr<const TAbilityRules> TGameObjectFactory::AbilityRules() const
     }
     auto rules = std::make_shared<TAbilityRules>();
     RegisterAbilitiesRules(*rules);
+    rules->Lifecycle.Register(ELifecyclePhase::TurnStart,
+        std::make_shared<const TLifecycleExecution>(TLifecycleExecution{
+            .OwnerType = typeid(TCreature),
+            .Run = RunAbilitiesStartCreatureTurn,
+        }));
     for (const auto& [id, hook] : feature_hooks_) {
         rules->Catalog.Register({id, EAbilityKind::Feature, {}});
         rules->FeatureHooks.emplace(id, hook);

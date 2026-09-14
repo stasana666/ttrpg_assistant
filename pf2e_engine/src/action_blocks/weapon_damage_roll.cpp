@@ -55,7 +55,10 @@ void ApplyWeaponDamage(std::shared_ptr<TActionContext> ctx, const TBlockInput& i
     TPlayer* player = std::get<TPlayer*>(input.Get(kAttackerId, ctx));
     const TWeapon* weapon = GetWeapon(input.Get(kWeaponId, ctx));
 
-    auto damage = std::make_shared<TDamage>();
+    auto damage = std::make_shared<TDamage>(TDamageContext::Create({
+        .Critical = crit,
+        .Nonlethal = weapon->Traits().Has(EWeaponTraitKind::Nonlethal),
+    }));
 
     int modifier = player->GetCreature()->DamageModifier(*weapon);
     auto weapon_expr = std::make_unique<TSumExpression>(

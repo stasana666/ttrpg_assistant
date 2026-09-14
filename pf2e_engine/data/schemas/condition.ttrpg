@@ -1,4 +1,7 @@
 variant TCondition {
     Prone;
     Frightened            { int Value; }
+    Dying                 { int Value; }
+    Wounded               { int Value; }
+    Unconscious;
 }

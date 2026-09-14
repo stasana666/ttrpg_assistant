@@ -2,6 +2,7 @@
 
 #include <pf2e_engine/actions/action.h>
 #include <pf2e_engine/actions/ability.h>
+#include <pf2e_engine/actions/generated_action.h>
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/common/errors.h>
 #include <pf2e_engine/common/continuation.h>
@@ -74,6 +75,7 @@ void RunFeatureHook(std::shared_ptr<TActionContext> ctx, const TBoundFeatureHook
 void IActionBlock::Run(std::shared_ptr<TActionContext> ctx)
 {
     ValidateAbilitySource(ctx);
+    ValidateActionActor(ctx);
     if (ctx->battle == nullptr) {
         throw std::invalid_argument("action feature hooks require a battle context");
     }
@@ -110,6 +112,7 @@ void IActionBlock::Run(std::shared_ptr<TActionContext> ctx)
         },
         [this, ctx]() {
             ValidateAbilitySource(ctx);
+            ValidateActionActor(ctx);
             Apply(ctx);
         });
 }

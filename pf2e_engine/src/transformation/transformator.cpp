@@ -21,18 +21,32 @@ TTransformator::TTransformator(IInteractionSystem& io_system)
 
 void TTransformator::DealDamage(TPlayer* player, int damage)
 {
+    DealDamageWithContext(player, damage, TDamageContext::Create({}));
+}
+
+THealthDamageResult TTransformator::DealDamageWithContext(TPlayer* player, int damage,
+                                                        const TDamageContext& context)
+{
+    if (player == nullptr || player->GetCreature() == nullptr) {
+        throw std::invalid_argument("damage requires a creature participant");
+    }
     TCreature* creature = player->GetCreature();
     auto ctx = ExecutionContext();
-    ctx.Invoke(creature->Hitpoints(), &THitPoints::DealDamage, damage);
+    auto result = ctx.Invoke(TGuarded<TCreature>(*creature), &TCreature::ApplyResolvedDamage,
+                             damage, context);
     io_system_.GameLog() << player->GetName() << " takes " << damage << " amount of damage" << std::endl;
     io_system_.GameLog() << "current hp: " << creature->Hitpoints()->Current() << std::endl;
+    return result;
 }
 
 void TTransformator::Heal(TPlayer* player, int value)
 {
+    if (player == nullptr || player->GetCreature() == nullptr) {
+        throw std::invalid_argument("healing requires a creature participant");
+    }
     TCreature* creature = player->GetCreature();
     auto ctx = ExecutionContext();
-    ctx.Invoke(creature->Hitpoints(), &THitPoints::Heal, value);
+    ctx.Invoke(TGuarded<TCreature>(*creature), &TCreature::ReceiveHealing, value);
     io_system_.GameLog() << player->GetName() << " takes " << value << " amount of heal" << std::endl;
     io_system_.GameLog() << "current hp: " << creature->Hitpoints()->Current() << std::endl;
 }

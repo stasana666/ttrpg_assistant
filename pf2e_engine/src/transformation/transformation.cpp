@@ -18,9 +18,14 @@ int GetConditionValue(const TVariantMap<EConditionKind, TCondition>& conditions,
     }
     switch (condition) {
         case EConditionKind::Prone:
+        case EConditionKind::Unconscious:
             return 1;
         case EConditionKind::Frightened:
             return conditions.Get<TConditionFrightened>()->Value;
+        case EConditionKind::Dying:
+            return conditions.Get<TConditionDying>()->Value;
+        case EConditionKind::Wounded:
+            return conditions.Get<TConditionWounded>()->Value;
     }
     throw std::logic_error("unreachable");
 }
@@ -37,8 +42,17 @@ void SetConditionValue(TVariantMap<EConditionKind, TCondition>& conditions,
         case EConditionKind::Prone:
             conditions.Set(TConditionProne{});
             return;
+        case EConditionKind::Unconscious:
+            conditions.Set(TConditionUnconscious{});
+            return;
         case EConditionKind::Frightened:
             conditions.Set(TConditionFrightened{.Value = value});
+            return;
+        case EConditionKind::Dying:
+            conditions.Set(TConditionDying{.Value = value});
+            return;
+        case EConditionKind::Wounded:
+            conditions.Set(TConditionWounded{.Value = value});
             return;
     }
     throw std::logic_error("unreachable");

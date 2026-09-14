@@ -1,0 +1,18 @@
+import "hitpoints.ttrpg";
+
+enum EZeroHpRule {
+    Defeat,
+    Dying,
+    Death,
+}
+
+class TDamageContext {
+    bool Critical = false;
+    bool Nonlethal = false;
+}
+
+class THealthDamageResult {
+    TDamageResult Hitpoints;
+    bool NewlyKnockedOut = false;
+    bool NewlyDead = false;
+}

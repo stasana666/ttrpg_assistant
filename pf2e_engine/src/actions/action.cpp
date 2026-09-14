@@ -3,6 +3,7 @@
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/actions/action_context.h>
 #include <pf2e_engine/actions/ability.h>
+#include <pf2e_engine/actions/generated_action.h>
 #include <pf2e_engine/common/continuation.h>
 #include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/inventory/weapon.h>
@@ -45,6 +46,7 @@ void RunValidatedAbility(const std::shared_ptr<TActionContext>& ctx,
                          const TSavepointCallback& callback)
 {
     ValidateAbilitySource(ctx);
+    ValidateActionActor(ctx);
     try {
         callback();
     } catch (TSavepointStackUnwind& save_point) {
@@ -90,7 +92,12 @@ TAction::TAction(TCompiledBody body, TBoundResources costs, std::string name)
 
 void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
 {
-    if (!Check(player)) {
+    if (!ctx) {
+        throw std::invalid_argument("action requires an execution context");
+    }
+    ctx->execution_mode = EActionExecutionMode::Ordinary;
+    ctx->owned_lifecycle.reset();
+    if (player.GetCreature() == nullptr || !player.GetCreature()->CanAct() || !Check(player)) {
         throw TAbilityUnavailable();
     }
     ValidateAbilitySource(ctx);

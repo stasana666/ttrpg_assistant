@@ -23,6 +23,11 @@ struct TActionContext;
 
 using FActionInputValidator = std::function<void(const std::shared_ptr<TActionContext>&)>;
 
+enum class EActionExecutionMode {
+    Ordinary,
+    System,
+};
+
 struct TActionContext {
     TBattle* battle;
     IRandomGenerator* dice_roller;
@@ -41,4 +46,6 @@ struct TActionContext {
     std::shared_ptr<const std::vector<FActionInputValidator>> input_validators = {};
     std::shared_ptr<const void> owned_reaction = {};
     std::shared_ptr<const std::vector<std::string>> reaction_trace = {};
+    EActionExecutionMode execution_mode = EActionExecutionMode::Ordinary;
+    std::shared_ptr<const void> owned_lifecycle = {};
 };

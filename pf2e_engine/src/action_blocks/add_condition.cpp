@@ -26,6 +26,23 @@ void FAddCondition::operator ()(std::shared_ptr<TActionContext> ctx) const
             return FrightenedHandle(ctx);
         case EConditionKind::Prone:
             return ProneHandle(ctx);
+        case EConditionKind::Dying: {
+            auto* target = std::get<TPlayer*>(input_.Get(kTargetId, ctx));
+            auto execution = ctx->transformator->ExecutionContext();
+            return execution.Invoke(TGuarded<TCreature>(*target->GetCreature()),
+                                    &TCreature::SetDyingValue, input_.GetNumber(kValueId));
+        }
+        case EConditionKind::Wounded: {
+            auto* target = std::get<TPlayer*>(input_.Get(kTargetId, ctx));
+            return ctx->transformator->ChangeCondition(target->GetCreature(), condition,
+                                                      input_.GetNumber(kValueId));
+        }
+        case EConditionKind::Unconscious: {
+            auto* target = std::get<TPlayer*>(input_.Get(kTargetId, ctx));
+            auto execution = ctx->transformator->ExecutionContext();
+            return execution.Invoke(TGuarded<TCreature>(*target->GetCreature()),
+                                    &TCreature::BecomeUnconscious);
+        }
     }
     throw std::runtime_error("invalid EConditionKind value: FAddCondition");
 }

@@ -2,7 +2,7 @@ set(TTRPG_ENGINE_SCHEMA_DIR "${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas")
 set(TTRPG_ENGINE_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated/pf2e_engine")
 set(TTRPG_ENGINE_GENERATED_OUTPUTS)
 
-foreach(SCHEMA_NAME IN ITEMS material armor damage dice statistic_baseline combat_checks abilities weapon skills saving_throws proficiency creature_parts creature_description check_modifiers statistics lore hitpoints creature)
+foreach(SCHEMA_NAME IN ITEMS material armor damage dice statistic_baseline combat_checks abilities weapon skills saving_throws proficiency creature_parts creature_description check_modifiers statistics lore hitpoints health creature)
     set(GENERATED_HEADER "${TTRPG_ENGINE_GENERATED_DIR}/include/pf2e_engine/inventory/${SCHEMA_NAME}.h")
     set(GENERATED_SOURCE "${TTRPG_ENGINE_GENERATED_DIR}/src/inventory/${SCHEMA_NAME}.cpp")
     ttrpg_generate(

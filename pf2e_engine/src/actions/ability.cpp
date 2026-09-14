@@ -102,7 +102,7 @@ bool IsEligible(const TAbilityExecution& execution, const TGrantedAbility& grant
                 const TPlayer& actor, const TTriggerContext* trigger,
                 const TGeneratedWorldView& world)
 {
-    if (actor.GetCreature() == nullptr || !actor.GetCreature()->IsAlive()) {
+    if (actor.GetCreature() == nullptr || !actor.GetCreature()->CanAct()) {
         return false;
     }
     if (world.IsBound()) {
@@ -206,6 +206,10 @@ EAbilityExecutionResult ExecuteAbility(
     const TAbilityCollector& fresh, const TAbilityExecutions& executions,
     TAbilityExecutionBindings bindings)
 {
+    if (ctx) {
+        ctx->execution_mode = EActionExecutionMode::Ordinary;
+        ctx->owned_lifecycle.reset();
+    }
     if (option.ActorId != actor.GetId() || option.ActorIdentity != &actor) {
         return EAbilityExecutionResult::Unavailable;
     }

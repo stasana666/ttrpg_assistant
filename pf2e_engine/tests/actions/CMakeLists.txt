@@ -2,6 +2,7 @@ add_executable(test_actions
     test_action_combat.cpp
     test_granted_combat.cpp
     test_mixed_attack_runtime.cpp
+    test_legacy_damage_context.cpp
 )
 
 target_link_libraries(test_actions

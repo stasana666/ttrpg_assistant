@@ -143,7 +143,11 @@ void TBattle::StartRound()
     initiative_order_.Next(transformator_);
     auto execution = transformator_.ExecutionContext();
     for (auto& player : players_) {
-        execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::BeginRound);
+        if (auto lifecycle = ability_rules_->Lifecycle.Find(ELifecyclePhase::RoundStart)) {
+            RunLifecycleAndDrain(MakeActionContext(), player, std::move(lifecycle));
+        } else {
+            execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::BeginRound);
+        }
     }
     io_system_.GameLog() << "Start round " << initiative_order_.CurrentRound() << " round" << std::endl;
 }
@@ -160,8 +164,12 @@ void TBattle::StartTurn()
     io_system_.GameLog() << "Start turn: player " << player.GetName() << std::endl;
 
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnStart, .context = TEventContext{.player = &player}}, transformator_);
-    auto execution = transformator_.ExecutionContext();
-    execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::BeginTurn);
+    if (auto lifecycle = ability_rules_->Lifecycle.Find(ELifecyclePhase::TurnStart)) {
+        RunLifecycleAndDrain(MakeActionContext(), player, std::move(lifecycle));
+    } else {
+        auto execution = transformator_.ExecutionContext();
+        execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::BeginTurn);
+    }
 }
 
 void TBattle::MakeTurn()
@@ -169,7 +177,7 @@ void TBattle::MakeTurn()
     TPlayer& player = *initiative_order_.CurrentPlayer();
 
     std::optional<TSavepointStackUnwind> last_save_point;
-    while (last_save_point || (!IsBattleEnd() && player.GetCreature()->IsAlive()))
+    while (last_save_point || (!IsBattleEnd() && player.GetCreature()->CanAct()))
     {
         try {
             if (last_save_point.has_value()) {
@@ -198,8 +206,12 @@ void TBattle::EndTurn()
 
     io_system_.GameLog() << "End turn: player " << player.GetName() << std::endl;
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{.player = &player}}, transformator_);
-    auto execution = transformator_.ExecutionContext();
-    execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::EndTurn);
+    if (auto lifecycle = ability_rules_->Lifecycle.Find(ELifecyclePhase::TurnEnd)) {
+        RunLifecycleAndDrain(MakeActionContext(), player, std::move(lifecycle));
+    } else {
+        auto execution = transformator_.ExecutionContext();
+        execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::EndTurn);
+    }
     initiative_order_.Next(transformator_);
 }
 
@@ -207,7 +219,7 @@ std::vector<int> TBattle::LivingTeams() const
 {
     std::unordered_set<int> alive_teams;
     for (const auto& player : players_) {
-        if (player.GetCreature()->IsAlive()) {
+        if (!player.GetCreature()->IsDefeated()) {
             alive_teams.insert(player.GetTeam());
         }
     }
@@ -248,7 +260,7 @@ std::shared_ptr<TActionContext> TBattle::MakeActionContext()
 std::vector<TAbilityOption> TBattle::AvailableActions(const TPlayer& player) const
 {
     const auto& creature = *player.GetCreature();
-    if (!creature.IsAlive()) {
+    if (!creature.CanAct()) {
         return {};
     }
     const TGeneratedWorldView world(this);
@@ -290,7 +302,7 @@ EAbilityExecutionResult TBattle::Execute(const TAbilityOption& option)
     }
     TPlayer& actor = *actors.front();
     const auto& creature = *std::as_const(actor).GetCreature();
-    if (!creature.IsAlive()) {
+    if (!creature.CanAct()) {
         return EAbilityExecutionResult::Unavailable;
     }
     auto fresh = CollectAbilities(creature, ability_rules_->Catalog);
@@ -339,7 +351,7 @@ std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& t
     const TGeneratedWorldView world(this);
     for (const auto& player : players_) {
         const auto& creature = *player.GetCreature();
-        if (!creature.IsAlive()) {
+        if (!creature.CanAct()) {
             continue;
         }
         auto candidates = EnumerateReactions(

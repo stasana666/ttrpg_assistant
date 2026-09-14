@@ -5,6 +5,7 @@ target_sources(pf2e_engine
         action.cpp
         resource_payment.cpp
         reaction_window.cpp
+        lifecycle_execution.cpp
         ability.cpp
         generated_action.cpp
         generated_source.cpp

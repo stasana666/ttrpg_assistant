@@ -50,6 +50,8 @@ IDs and must not be serialized or used after that battle's lifetime.
 The battle adapter resolves source paths and supplies a fresh-grant validator.
 Source validation runs before each block, after feature hooks, and before every
 resumed continuation, including a second suspension inside an earlier resume.
+Legacy wrappers and block entry also check the actor's current `CanAct()` state;
+an action suspended before unconsciousness or death cannot resume its effects.
 An unavailable source raises `TAbilityUnavailable`; previously spent action costs
 are not charged again or automatically refunded. This continuation-aware execution
 does not wrap a yielding action in the synchronous generated-method transaction.
@@ -238,6 +240,28 @@ triggers may nest; an already active trigger is rejected to prevent native cycle
 No trace or scope requires global mutable state or restoration after a suspension.
 Battles and participants must remain alive and at stable addresses for all retained
 contexts and continuations. Pure callbacks must not mutate, roll dice or suspend.
+
+## Generated lifecycle execution (`actions/lifecycle_execution.h`)
+
+`TAbilityRules::Lifecycle` binds round start, turn start and turn end to immutable
+typed-owner activity executors. Battle boundaries dispatch these hooks through a
+fresh service context; rules without a hook retain their previous generated-method
+fallback. The factory currently binds `StartCreatureTurn` to turn start. PF2e recovery,
+feature contributions, dice and resource resets remain in `.ttrpg`.
+
+Lifecycle contexts use internal `System` execution mode so a dead or unconscious
+actor can undergo automatic rule transitions. Identity, current battle membership,
+captured actor and input validation still apply. Ordinary action entry explicitly
+resets that mode and drops the lifecycle owner; reactions construct separate ordinary
+contexts. Being unable to act never grants an ordinary action through a lifecycle.
+
+`InvokeLifecycle` returns immediately without invoking its continuation when the
+body completes synchronously. Only a suspended body may call that continuation;
+completed and failed bodies cannot invoke a retained callback later. Activity frames
+retain all remaining work and copy local values on every resume. `RunLifecycleAndDrain`
+reverts and drains successive savepoints with the original journal without restarting
+the phase or rerolling earlier dice. It does not make synchronous scheduler callbacks
+yield-aware. Participants, battle and journal must outlive retained continuations.
 
 ## Typed feature events (`common/feature_event.h`, `actions/feature_event.h`)
 

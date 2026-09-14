@@ -27,8 +27,13 @@ int ConditionValue(const TCreature& creature, EConditionKind condition)
     }
     switch (condition) {
         case EConditionKind::Prone: return 1;
+        case EConditionKind::Unconscious: return 1;
         case EConditionKind::Frightened:
             return creature.Conditions().Get<TConditionFrightened>()->Value;
+        case EConditionKind::Dying:
+            return creature.Conditions().Get<TConditionDying>()->Value;
+        case EConditionKind::Wounded:
+            return creature.Conditions().Get<TConditionWounded>()->Value;
     }
     throw std::logic_error("unreachable");
 }

@@ -9,6 +9,7 @@
 #include <pf2e_engine/alternatives.h>
 #include <pf2e_engine/i_interaction_system.h>
 
+#include <algorithm>
 #include <sstream>
 #include <variant>
 
@@ -61,6 +62,9 @@ void FGetTargetsInArea::operator()(std::shared_ptr<TActionContext> ctx) const
             targets = GetLineTargets(ctx);
             break;
     }
+    std::erase_if(targets, [](const TPlayer* player) {
+        return player == nullptr || player->GetCreature() == nullptr || player->GetCreature()->IsDead();
+    });
     ctx->game_object_registry->Add(output_, targets);
 }
 
