@@ -464,6 +464,18 @@ an implementation detail used by construction and restore, not a gameplay mutati
 or an author-facing declaration form. A successful generated entity construction
 allocates identity only after all stored field initialization succeeds.
 
+Entity identity allocation assumes the process-wide counter remains below
+`INT64_MAX`, including identities loaded from snapshots. The allocator lives in
+`src/common/entity_id.cpp`; its counter is private and protected by one mutex.
+`NewEntityId` increments it without an exhaustion check. `RestoreEntityId` validates
+the supplied identity and raises the counter to at least that identity plus one.
+Neither operation uses a retry loop. `PeekNextEntityId` returns a synchronized
+copy without allocating or reserving an identity.
+
+The process-wide allocator is not journaled. Undo preserves identities already
+stored in entities and does not rewind this counter; snapshot restore advances it
+so later allocations do not reuse restored identities.
+
 ## Collection snapshots (`id_collection.h`)
 
 `TIdCollection<T>` allocates monotonically increasing typed IDs. Removing an entry

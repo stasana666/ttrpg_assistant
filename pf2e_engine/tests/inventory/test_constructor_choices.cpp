@@ -1,12 +1,12 @@
 #include <pf2e_engine/inventory/constructor_choices.h>
 #include <pf2e_engine/common/construction.h>
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
+#include <pf2e_engine/common/entity_id.h>
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <atomic>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -48,12 +48,12 @@ std::vector<std::string> Features(const TConstructedCreature& creature)
 
 TEST(ConstructorChoicesTest, DefaultsDescribeValidateAndCreateTheSameSelection)
 {
-    const auto identity = EntityIdCounter().load(std::memory_order_relaxed);
+    const auto identity = PeekNextEntityId();
     const auto report = DescribeConfiguredFighter();
     EXPECT_EQ(report, ValidateConfiguredFighter());
     EXPECT_TRUE(report.IsValid());
     EXPECT_EQ(report.Fields.size(), 3u);
-    EXPECT_EQ(EntityIdCounter().load(std::memory_order_relaxed), identity);
+    EXPECT_EQ(PeekNextEntityId(), identity);
     const auto& class_feat = Field(report, "ClassFeat");
     EXPECT_EQ(class_feat.State, EConstructionChoiceState::Enabled);
     EXPECT_EQ(class_feat.Selected, Feature("ConstructorPower"));
@@ -142,14 +142,14 @@ TEST(ConstructorChoicesTest, WrongPoolUnknownActionAndEmptyRequiredSelectionsRej
 
 TEST(ConstructorChoicesTest, CrossChoiceRequirementsRejectDuplicatesWithoutAllocatingIdentity)
 {
-    const auto identity = EntityIdCounter().load(std::memory_order_relaxed);
+    const auto identity = PeekNextEntityId();
     TConfiguredFighterOptions options;
     options.AmbitionFeat = Feature("ConstructorPower");
     const auto report = ValidateConfiguredFighter(options);
     EXPECT_FALSE(report.IsValid());
     EXPECT_FALSE(report.Issues.empty());
     EXPECT_THROW(CreateConfiguredFighter(options), std::invalid_argument);
-    EXPECT_EQ(EntityIdCounter().load(std::memory_order_relaxed), identity);
+    EXPECT_EQ(PeekNextEntityId(), identity);
     options.ClassFeat = Feature("ConstructorRush");
     EXPECT_TRUE(ValidateConfiguredFighter(options).IsValid());
     const auto fighter = CreateConfiguredFighter(options);
@@ -208,7 +208,7 @@ TEST(ConstructorChoicesTest, ParameterDependentPoolsExposeOnlyLegalCandidates)
 
 TEST(ConstructorChoicesTest, ExplicitInitializersAndClassDefaultsFailDuringValidation)
 {
-    const auto identity = EntityIdCounter().load(std::memory_order_relaxed);
+    const auto identity = PeekNextEntityId();
     TCheckedConstructorFieldsOptions fields;
     fields.Divisor = 0;
     const auto explicit_failure = DescribeCheckedConstructorFields(fields);
@@ -224,7 +224,7 @@ TEST(ConstructorChoicesTest, ExplicitInitializersAndClassDefaultsFailDuringValid
     EXPECT_FALSE(default_failure.Issues.empty());
     EXPECT_THROW(CreateCheckedConstructorDefaults(defaults), std::invalid_argument);
     EXPECT_THROW(TConstructedCreature::Create({.Level = 0}), std::domain_error);
-    EXPECT_EQ(EntityIdCounter().load(std::memory_order_relaxed), identity);
+    EXPECT_EQ(PeekNextEntityId(), identity);
     EXPECT_EQ(CreateCheckedConstructorFields().BodyQuotient(), 10);
     EXPECT_EQ(CreateCheckedConstructorDefaults().DefaultQuotient(), 10);
 }
@@ -281,11 +281,11 @@ TEST(ConstructorChoicesTest, RestorePreservesExplicitEmptySelectionsAndSparseCol
 
 TEST(ConstructorChoicesTest, NestedInitializersOverrideInvalidNestedDefaultsBeforeEvaluation)
 {
-    const auto identity = EntityIdCounter().load(std::memory_order_relaxed);
+    const auto identity = PeekNextEntityId();
     const auto report = DescribeNestedConstructorDefaults();
     EXPECT_TRUE(report.IsValid());
     EXPECT_EQ(report, ValidateNestedConstructorDefaults());
-    EXPECT_EQ(EntityIdCounter().load(std::memory_order_relaxed), identity);
+    EXPECT_EQ(PeekNextEntityId(), identity);
     const auto creature = CreateNestedConstructorDefaults();
     EXPECT_EQ(creature.Id().Value, identity);
     EXPECT_EQ(creature.Profile().Value(), 5);

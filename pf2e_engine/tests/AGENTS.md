@@ -201,6 +201,9 @@ Canonical project instructions. CLAUDE.md redirects here.
   field mutation records; attribute edits and whole-collection edits use separate
   scenarios and explicitly reversible journals.
 - `inventory/`: generated schema type and JSON loading tests.
+- `inventory/test_entity_id.cpp` checks allocation after restored identities,
+  monotonic restoration and concurrent allocation while another thread restores
+  identities. Tests observe the next value without resetting the global allocator.
 - `inventory/test_creature_description.cpp` checks generated creature, ancestry and
   class names, typed traits, arbitrary language names and sense descriptions.
   Metadata survives JSON/AST snapshots and sparse collection rollback. Advanced

@@ -1,12 +1,12 @@
 #include <pf2e_engine/inventory/remaster_profiles.h>
 #include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
+#include <pf2e_engine/common/entity_id.h>
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <atomic>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -103,7 +103,7 @@ TEST(RemasterProfilesTest, GeneralTrainingAndHeritageChoicesHaveMechanicalEffect
 
 TEST(RemasterProfilesTest, DuplicateDisabledAndWrongPoolFeatsFailBeforeIdentityAllocation)
 {
-    const auto identity = EntityIdCounter().load(std::memory_order_relaxed);
+    const auto identity = PeekNextEntityId();
     THumanFighter1Options options;
     options.AmbitionFeat = TFeatureSelection("movement.SuddenCharge");
     EXPECT_FALSE(ValidateHumanFighter1(options).IsValid());
@@ -116,7 +116,7 @@ TEST(RemasterProfilesTest, DuplicateDisabledAndWrongPoolFeatsFailBeforeIdentityA
     options.TrainingFeat = TFeatureSelection("remaster_profiles.Fleet");
     EXPECT_FALSE(ValidateHumanFighter1(options).IsValid());
     EXPECT_THROW(CreateHumanFighter1(options), std::invalid_argument);
-    EXPECT_EQ(EntityIdCounter().load(std::memory_order_relaxed), identity);
+    EXPECT_EQ(PeekNextEntityId(), identity);
 }
 
 TEST(RemasterProfilesTest, ArbitraryReadiedEquipmentUsesItsOwnStatsAndValidatesFreeHands)

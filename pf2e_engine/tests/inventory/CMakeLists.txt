@@ -3,6 +3,7 @@ add_executable(test_inventory
     test_armor_material_ref.cpp
     test_weapon_traits.cpp
     test_creature_data.cpp
+    test_entity_id.cpp
     test_id_collection.cpp
     test_rule_entities.cpp
     test_granted_entities.cpp
