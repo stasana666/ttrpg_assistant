@@ -9,132 +9,28 @@
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/inventory/shield_actions.h>
 
-#include "../test_lib/mock_dice_roller.h"
+#include "../test_lib/battle_fixture.h"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
-#include <any>
-#include <deque>
 #include <exception>
 #include <functional>
-#include <initializer_list>
 #include <map>
 #include <memory>
-#include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 namespace {
 
-class TShieldIo final : public IInteractionSystem {
-public:
-    void ExpectName(int actor, std::string kind, std::string name, bool suspend = false,
-                    std::function<void(const TAlternatives&)> observe = {})
-    {
-        expected_.push_back({actor, std::move(kind),
-            [name = std::move(name)](const TAlternative& alternative) {
-                return alternative.name == name;
-            }, suspend, std::move(observe)});
-    }
-
-    template <class T>
-    void ExpectValue(int actor, T value, bool suspend = false,
-                     std::function<void(const TAlternatives&)> observe = {})
-    {
-        expected_.push_back({actor, {}, [value](const TAlternative& alternative) {
-            const auto* actual = std::any_cast<T>(&alternative.value);
-            return actual != nullptr && *actual == value;
-        }, suspend, std::move(observe)});
-    }
-
-    void RequestChoice(int actor, TAlternatives alternatives, TState state,
-                       std::function<void(size_t)> receive) override
-    {
-        if (expected_.empty()) {
-            throw std::logic_error("unexpected shield choice: " + std::string(alternatives.Kind()));
-        }
-        auto expected = std::move(expected_.front());
-        expected_.pop_front();
-        EXPECT_EQ(actor, expected.Actor);
-        if (!expected.Kind.empty()) {
-            EXPECT_EQ(alternatives.Kind(), expected.Kind);
-        }
-        size_t index = 0;
-        while (index < alternatives.Size() && !expected.Matches(alternatives[index])) {
-            ++index;
-        }
-        if (index == alternatives.Size()) {
-            throw std::logic_error("missing shield alternative");
-        }
-        if (expected.Observe) {
-            expected.Observe(alternatives);
-        }
-        ++requests_;
-        if (expected.Suspend) {
-            throw TSavepointStackUnwind(state, [receive = std::move(receive), index]() {
-                receive(index);
-            });
-        }
-        receive(index);
-    }
-
-    void HandleReactionTrigger(const TTriggerContext&, const TState&) override { ++legacy_calls_; }
-    std::ostream& GameLog() override { return log_; }
-    std::ostream& DevLog() override { return log_; }
-    size_t Requests() const { return requests_; }
-    int LegacyCalls() const { return legacy_calls_; }
-    void Verify() const { EXPECT_TRUE(expected_.empty()); }
-
-protected:
-    size_t ChooseAlternativeIndex(int, const TAlternatives&) override
-    {
-        throw std::logic_error("unexpected legacy choice");
-    }
-
-private:
-    struct TExpected {
-        int Actor;
-        std::string Kind;
-        std::function<bool(const TAlternative&)> Matches;
-        bool Suspend;
-        std::function<void(const TAlternatives&)> Observe;
-    };
-    std::deque<TExpected> expected_;
-    std::ostringstream log_;
-    size_t requests_ = 0;
-    int legacy_calls_ = 0;
-};
-
-class TGeneratedShieldTest : public ::testing::Test {
+class TGeneratedShieldTest : public TBattleFixture {
 protected:
     void SetUp() override
     {
-        rules_ = std::make_shared<TAbilityRules>();
-        RegisterShieldActionsRules(*rules_);
-        RegisterShieldActionsRules(*rules_);
-        nlohmann::json map = {{"x_size", 6}, {"y_size", 6}};
-        battle_ = std::make_unique<TBattle>(TBattleMap(map), &rng_, io_, rules_);
-        journal_ = std::make_unique<TTransformator>(io_);
-    }
-
-    void TearDown() override
-    {
-        rng_.Verify();
-        io_.Verify();
-        EXPECT_EQ(io_.LegacyCalls(), 0);
-    }
-
-    static TIdCollection<TFeatureSelection> Features(std::initializer_list<std::string> names)
-    {
-        TIdCollection<TFeatureSelection> result;
-        for (const auto& name : names) {
-            result.Add(TFeatureSelection(name));
-        }
-        return result;
+        shield_rules_ = std::make_shared<TAbilityRules>();
+        RegisterShieldActionsRules(*shield_rules_);
+        StartBattle(shield_rules_, 6);
     }
 
     static TShield Shield(bool raised = true, int hitpoints = 20, bool wielded = true)
@@ -174,54 +70,7 @@ protected:
         initial.ZeroHpRule = health;
         initial.Actions = TResource(3);
         initial.Reactions = TResource(1);
-        creatures_.push_back(TCreature::Create(initial));
-        rng_.ExpectCall(20, 10);
-        battle_->AddPlayer(TPlayer(&creatures_.back(), TPlayerTeam{id}, TPlayerId{id},
-            "Actor " + std::to_string(id), ""), position);
-        return Player(id);
-    }
-
-    TPlayer& Player(int id)
-    {
-        return *battle_->GetIfPlayers([id](const TPlayer* player) {
-            return player->GetId() == id;
-        }).at(0);
-    }
-
-    TCreature& Creature(int id) { return *Player(id).GetCreature(); }
-    const TCreature& Read(int id) { return Creature(id); }
-
-    std::shared_ptr<TActionContext> Context()
-    {
-        return std::make_shared<TActionContext>(TActionContext{
-            .battle = battle_.get(), .dice_roller = &rng_, .transformator = journal_.get(),
-            .io_system = &io_, .scheduler = nullptr, .effect_manager = nullptr,
-        });
-    }
-
-    bool Available(const std::string& name, int id = 0)
-    {
-        return std::ranges::any_of(battle_->AvailableActions(Player(id)),
-            [&](const TAbilityOption& option) { return option.DefinitionId == name; });
-    }
-
-    EAbilityExecutionResult Execute(const std::string& name = "abilities.Strike", int id = 0)
-    {
-        const auto options = battle_->AvailableActions(Player(id));
-        const auto found = std::ranges::find_if(options, [&](const TAbilityOption& option) {
-            return option.DefinitionId == name;
-        });
-        if (found == options.end()) {
-            throw std::logic_error("missing shield action: " + name);
-        }
-        return ExecuteAbility(*found, Context(), Player(id),
-            CollectAbilities(Read(id), rules_->Catalog), rules_->Executions,
-            {.ValidateSource = [this, id, definition = found->DefinitionId, source = found->Source]() {
-                const auto fresh = CollectAbilities(Read(id), rules_->Catalog);
-                return std::ranges::any_of(fresh.Grants(), [&](const TGrantedAbility& grant) {
-                    return grant.DefinitionId == definition && grant.Source == source;
-                });
-            }});
+        return Join(TCreature::Create(initial), id, position);
     }
 
     void Strike(int damage = 9, int natural = 10, bool suspend = false)
@@ -238,31 +87,7 @@ protected:
         io_.ExpectName(1, "reaction", "UseShieldBlock", suspend);
     }
 
-    static TSavepointStackUnwind Pause(const std::function<void()>& work)
-    {
-        try {
-            work();
-        } catch (const TSavepointStackUnwind& point) {
-            return point;
-        }
-        throw std::logic_error("expected a shield suspension");
-    }
-
-    TAstNode Snapshot()
-    {
-        TAstContext context;
-        auto result = TAstNode::MakeObject("generated_shield_test");
-        AddOwnedObject(result, "battle", *battle_, context);
-        AddOwnedObject(result, "journal", *journal_, context);
-        return result;
-    }
-
-    std::shared_ptr<TAbilityRules> rules_;
-    TShieldIo io_;
-    TMockRng rng_;
-    std::deque<TCreature> creatures_;
-    std::unique_ptr<TBattle> battle_;
-    std::unique_ptr<TTransformator> journal_;
+    std::shared_ptr<TAbilityRules> shield_rules_;
 };
 
 TEST_F(TGeneratedShieldTest, DeclaredSteelShieldDefaultsAndNestedSnapshotsRoundTrip)
@@ -376,7 +201,7 @@ TEST_F(TGeneratedShieldTest, StrikeResolvesResistanceThenHardnessThenTemporaryHi
         EXPECT_EQ(Read(1).Hitpoints().Current(), 100);
         EXPECT_EQ(Read(1).Hitpoints().Temporary(), 1);
     });
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("abilities.Strike"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Shield().Hitpoints(), 18);
     EXPECT_EQ(Read(1).Hitpoints().Current(), 99);
     EXPECT_EQ(Read(1).Hitpoints().Temporary(), 0);
@@ -391,7 +216,7 @@ TEST_F(TGeneratedShieldTest, HardnessCanPreventAllDamageWithoutDamagingTheShield
     Add({1, 0}, true);
     Strike(4);
     Block();
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("abilities.Strike"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Hitpoints().Current(), 100);
     EXPECT_EQ(Read(1).Shield().Hitpoints(), 20);
     EXPECT_EQ(Read(1).Reactions().Count(), 0);
@@ -403,7 +228,7 @@ TEST_F(TGeneratedShieldTest, DeclinePreservesTheShieldAndPaysFullResolvedCreatur
     Add({1, 0}, true, true, 100, 1, 2);
     Strike();
     io_.ExpectName(1, "reaction", "Decline");
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("abilities.Strike"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Hitpoints().Current(), 94);
     EXPECT_EQ(Read(1).Hitpoints().Temporary(), 0);
     EXPECT_EQ(Read(1).Shield().Hitpoints(), 20);
@@ -416,7 +241,7 @@ TEST_F(TGeneratedShieldTest, BreakingTheShieldRemovesItsArmorBonusAndFutureBlock
     Add({1, 0}, true, true, 100, 0, 0, EDamageType::Slashing, EZeroHpRule::Defeat, 12);
     Strike(9);
     Block();
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("abilities.Strike"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Shield().Hitpoints(), 8);
     EXPECT_TRUE(Read(1).Shield().IsBroken());
     EXPECT_FALSE(Read(1).Shield().IsRaised());
@@ -425,7 +250,7 @@ TEST_F(TGeneratedShieldTest, BreakingTheShieldRemovesItsArmorBonusAndFutureBlock
     auto execution = journal_->ExecutionContext();
     execution.Invoke(TGuarded<TCreature>(Creature(1)), &TCreature::BeginTurn);
     Strike(3);
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("abilities.Strike"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Shield().Hitpoints(), 8);
     EXPECT_EQ(Read(1).Reactions().Count(), 1);
     EXPECT_EQ(Read(1).Hitpoints().Current(), 93);
@@ -437,7 +262,7 @@ TEST_F(TGeneratedShieldTest, AShieldCanBeDestroyedByACriticalStrikeWhilePassingT
     Add({1, 0}, true, true, 100, 0, 0, EDamageType::Slashing, EZeroHpRule::Defeat, 15);
     Strike(12, 20);
     Block();
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("abilities.Strike"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Shield().Hitpoints(), 0);
     EXPECT_TRUE(Read(1).Shield().IsDestroyed());
     EXPECT_TRUE(Read(1).Shield().IsBroken());
@@ -449,7 +274,7 @@ TEST_F(TGeneratedShieldTest, NonphysicalAttackDoesNotOfferShieldBlock)
     Add({0, 0}, false, true, 100, 0, 0, EDamageType::Fire);
     Add({1, 0}, true);
     Strike();
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("abilities.Strike"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Hitpoints().Current(), 91);
     EXPECT_EQ(Read(1).Shield().Hitpoints(), 20);
     EXPECT_EQ(Read(1).Reactions().Count(), 1);
@@ -460,7 +285,7 @@ TEST_F(TGeneratedShieldTest, ResistanceReducingTheAttackToZeroDoesNotSpendAReact
     Add({0, 0});
     Add({1, 0}, true, true, 100, 0, 20);
     Strike();
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("abilities.Strike"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Hitpoints().Current(), 100);
     EXPECT_EQ(Read(1).Shield().Hitpoints(), 20);
     EXPECT_EQ(Read(1).Reactions().Count(), 1);
@@ -471,7 +296,7 @@ TEST_F(TGeneratedShieldTest, RaisedArmorClassCanTurnTheStrikeIntoAMissBeforeTheW
     Add({0, 0});
     Add({1, 0}, true);
     Strike(0, 5);
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("abilities.Strike"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Hitpoints().Current(), 100);
     EXPECT_EQ(Read(1).Reactions().Count(), 1);
     EXPECT_EQ(Read(0).AttacksMade(), 1);
@@ -484,7 +309,7 @@ TEST_F(TGeneratedShieldTest, OnlyTheAttackedShieldBearerReceivesTheBlockOffer)
     Add({0, 1}, true);
     Strike();
     Block();
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("abilities.Strike"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Hitpoints().Current(), 96);
     EXPECT_EQ(Read(2).Hitpoints().Current(), 100);
     EXPECT_EQ(Read(2).Reactions().Count(), 1);
@@ -498,7 +323,7 @@ TEST_F(TGeneratedShieldTest, SuspendedBlockRechecksRaisedStateBeforeItsOwnPaymen
     const auto initial = journal_->CurrentState();
     Strike();
     Block(true);
-    const auto point = Pause([&] { Execute(); });
+    const auto point = Pause([&] { Execute("abilities.Strike"); });
     EXPECT_EQ(Read(0).Actions().Count(), 2);
     EXPECT_EQ(Read(1).Reactions().Count(), 1);
     TTransformator editor(io_);
@@ -529,7 +354,7 @@ TEST_F(TGeneratedShieldTest, ShieldBlockCompletesBeforeTheRemainderKnocksOutAndD
     const auto initial = journal_->CurrentState();
     Strike();
     Block(true);
-    const auto point = Pause([&] { Execute(); });
+    const auto point = Pause([&] { Execute("abilities.Strike"); });
     point.Resume();
     EXPECT_EQ(Read(1).Shield().Hitpoints(), 16);
     EXPECT_EQ(Read(1).Hitpoints().Current(), 0);
@@ -568,7 +393,7 @@ TEST_F(TGeneratedShieldTest, TurnStartExpirationPrecedesScheduledEffectsAndResou
     Add({1, 0}, true);
     int scheduled_calls = 0;
     struct TReachedScheduledCheck : std::exception {};
-    rules_->Lifecycle.Register(ELifecyclePhase::RoundStart,
+    shield_rules_->Lifecycle.Register(ELifecyclePhase::RoundStart,
         std::make_shared<const TLifecycleExecution>(TLifecycleExecution{
             .OwnerType = typeid(TCreature),
             .Run = [&](std::shared_ptr<TActionContext> context, std::function<void()>) {

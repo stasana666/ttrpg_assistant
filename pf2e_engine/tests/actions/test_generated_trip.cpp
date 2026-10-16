@@ -7,19 +7,13 @@
 #include <pf2e_engine/inventory/shield_actions.h>
 #include <pf2e_engine/inventory/trip.h>
 
-#include "../test_lib/mock_dice_roller.h"
+#include "../test_lib/battle_fixture.h"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
-#include <any>
-#include <deque>
-#include <functional>
 #include <initializer_list>
-#include <map>
 #include <memory>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -27,113 +21,15 @@
 
 namespace {
 
-class TTripIo final : public IInteractionSystem {
-public:
-    void ExpectName(int actor, std::string kind, std::string name, bool suspend = false,
-                    std::function<void(const TAlternatives&)> observe = {})
-    {
-        expected_.push_back({actor, std::move(kind),
-            [name = std::move(name)](const TAlternative& alternative) {
-                return alternative.name == name;
-            }, suspend, std::move(observe)});
-    }
-
-    template <class T>
-    void ExpectValue(int actor, T value, bool suspend = false,
-                     std::function<void(const TAlternatives&)> observe = {})
-    {
-        expected_.push_back({actor, {}, [value](const TAlternative& alternative) {
-            const auto* actual = std::any_cast<T>(&alternative.value);
-            return actual != nullptr && *actual == value;
-        }, suspend, std::move(observe)});
-    }
-
-    void RequestChoice(int actor, TAlternatives alternatives, TState state,
-                       std::function<void(size_t)> receive) override
-    {
-        if (expected_.empty()) {
-            throw std::logic_error("unexpected trip choice: " + std::string(alternatives.Kind()));
-        }
-        auto expected = std::move(expected_.front());
-        expected_.pop_front();
-        EXPECT_EQ(actor, expected.Actor);
-        if (!expected.Kind.empty()) {
-            EXPECT_EQ(alternatives.Kind(), expected.Kind);
-        }
-        size_t index = 0;
-        while (index < alternatives.Size() && !expected.Matches(alternatives[index])) {
-            ++index;
-        }
-        if (index == alternatives.Size()) {
-            throw std::logic_error("missing trip alternative");
-        }
-        if (expected.Observe) {
-            expected.Observe(alternatives);
-        }
-        ++requests_;
-        if (expected.Suspend) {
-            throw TSavepointStackUnwind(state, [receive = std::move(receive), index]() {
-                receive(index);
-            });
-        }
-        receive(index);
-    }
-
-    void HandleReactionTrigger(const TTriggerContext&, const TState&) override { ++legacy_calls_; }
-    std::ostream& GameLog() override { return log_; }
-    std::ostream& DevLog() override { return log_; }
-    size_t Requests() const { return requests_; }
-    int LegacyCalls() const { return legacy_calls_; }
-    void Verify() const { EXPECT_TRUE(expected_.empty()); }
-
-protected:
-    size_t ChooseAlternativeIndex(int, const TAlternatives&) override
-    {
-        throw std::logic_error("unexpected legacy choice");
-    }
-
-private:
-    struct TExpected {
-        int Actor;
-        std::string Kind;
-        std::function<bool(const TAlternative&)> Matches;
-        bool Suspend;
-        std::function<void(const TAlternatives&)> Observe;
-    };
-    std::deque<TExpected> expected_;
-    std::ostringstream log_;
-    size_t requests_ = 0;
-    int legacy_calls_ = 0;
-};
-
-class TGeneratedTripTest : public ::testing::Test {
+class TGeneratedTripTest : public TBattleFixture {
 protected:
     void SetUp() override
     {
         auto rules = std::make_shared<TAbilityRules>();
         RegisterTripRules(*rules);
-        RegisterTripRules(*rules);
         RegisterMovementRules(*rules);
         RegisterShieldActionsRules(*rules);
-        nlohmann::json map = {{"x_size", 8}, {"y_size", 8}};
-        battle_ = std::make_unique<TBattle>(TBattleMap(map), &rng_, io_, std::move(rules));
-        journal_ = std::make_unique<TTransformator>(io_);
-    }
-
-    void TearDown() override
-    {
-        rng_.Verify();
-        io_.Verify();
-        EXPECT_EQ(io_.LegacyCalls(), 0);
-    }
-
-    static TIdCollection<TFeatureSelection> Features(std::initializer_list<std::string> names)
-    {
-        TIdCollection<TFeatureSelection> result;
-        for (const auto& name : names) {
-            result.Add(TFeatureSelection(name));
-        }
-        return result;
+        StartBattle(std::move(rules), 8);
     }
 
     static TWeapon Weapon(bool knockdown = true, bool strike = true,
@@ -189,55 +85,7 @@ protected:
     {
         const int id = static_cast<int>(creatures_.size());
         initial.Name = "Actor " + std::to_string(id);
-        creatures_.push_back(TCreature::Create(initial));
-        rng_.ExpectCall(20, 10);
-        battle_->AddPlayer(TPlayer(&creatures_.back(), TPlayerTeam{id}, TPlayerId{id},
-            "Actor " + std::to_string(id), ""), position);
-        return Player(id);
-    }
-
-    TPlayer& Player(int id)
-    {
-        return *battle_->GetIfPlayers([id](const TPlayer* player) {
-            return player->GetId() == id;
-        }).at(0);
-    }
-
-    TCreature& Creature(int id) { return *Player(id).GetCreature(); }
-    const TCreature& Read(int id) { return Creature(id); }
-
-    std::vector<TAbilityOption> Options(const std::string& name, int actor = 0)
-    {
-        auto result = battle_->AvailableActions(Player(actor));
-        std::erase_if(result, [&](const TAbilityOption& option) { return option.DefinitionId != name; });
-        return result;
-    }
-
-    TAbilityOption Option(const std::string& name, int actor = 0, size_t source = 0)
-    {
-        return Options(name, actor).at(source);
-    }
-
-    EAbilityExecutionResult Execute(const TAbilityOption& option, int actor = 0)
-    {
-        const auto& rules = battle_->AbilityRules();
-        auto context = std::make_shared<TActionContext>(TActionContext{
-            .battle = battle_.get(), .dice_roller = &rng_, .transformator = journal_.get(),
-            .io_system = &io_, .scheduler = nullptr, .effect_manager = nullptr,
-        });
-        return ExecuteAbility(option, context, Player(actor),
-            CollectAbilities(Read(actor), rules.Catalog), rules.Executions,
-            {.ValidateSource = [this, actor, definition = option.DefinitionId, source = option.Source]() {
-                const auto fresh = CollectAbilities(Read(actor), battle_->AbilityRules().Catalog);
-                return std::ranges::any_of(fresh.Grants(), [&](const TGrantedAbility& grant) {
-                    return grant.DefinitionId == definition && grant.Source == source;
-                });
-            }});
-    }
-
-    EAbilityExecutionResult Execute(const std::string& name, int actor = 0, size_t source = 0)
-    {
-        return Execute(Option(name, actor, source), actor);
+        return Join(TCreature::Create(initial), id, position);
     }
 
     void Target(int target = 1, bool suspend = false, int actor = 0)
@@ -257,37 +105,12 @@ protected:
         return battle_->History().Find(Player(actor), TRecordStrikeResult::kId).has_value();
     }
 
-    static TSavepointStackUnwind Pause(const std::function<void()>& work)
-    {
-        try {
-            work();
-        } catch (const TSavepointStackUnwind& point) {
-            return point;
-        }
-        throw std::logic_error("expected a trip suspension");
-    }
-
-    TAstNode Snapshot()
-    {
-        TAstContext context;
-        auto node = TAstNode::MakeObject("generated_trip_test");
-        AddOwnedObject(node, "battle", *battle_, context);
-        AddOwnedObject(node, "journal", *journal_, context);
-        return node;
-    }
-
     static TGuarded<TWeapon> NaturalWeapon(TGeneratedExecutionContext& execution, TCreature& creature)
     {
         return execution.Project(creature.NaturalWeapons(), [](TIdCollection<TWeapon>& values) {
             return TGuarded<TWeapon>(*values.Find(TId<TWeapon>{0}));
         });
     }
-
-    TTripIo io_;
-    TMockRng rng_;
-    std::deque<TCreature> creatures_;
-    std::unique_ptr<TBattle> battle_;
-    std::unique_ptr<TTransformator> journal_;
 };
 
 TEST_F(TGeneratedTripTest, OrdinaryTripResolvesAllFourOutcomesAndRollsBack)

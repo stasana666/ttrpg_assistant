@@ -7,6 +7,7 @@
 #include <pf2e_engine/inventory/weapon.h>
 
 #include "../test_lib/mock_dice_roller.h"
+#include "../test_lib/scripted_io.h"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
@@ -16,7 +17,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -65,98 +65,6 @@ TExecution Definition(TExecution::FRun body = [](auto, TPending value, auto, aut
         .Run = std::move(body),
     };
 }
-
-class TReactionIo final : public IInteractionSystem {
-public:
-    void Expect(int actor, std::string kind, std::string label, bool suspend = false)
-    {
-        choices_.push_back({actor, std::move(kind), std::move(label), suspend});
-    }
-
-    void RequestChoice(int actor, TAlternatives alternatives, TState state,
-                       std::function<void(size_t)> receive) override
-    {
-        if (choices_.empty()) {
-            throw std::logic_error("unexpected reaction choice");
-        }
-        const auto choice = choices_.front();
-        choices_.pop_front();
-        EXPECT_EQ(actor, choice.Actor);
-        EXPECT_EQ(alternatives.Kind(), choice.Kind);
-        ++requests_;
-        if (alternatives.Kind() == "reaction") {
-            last_reactions_.clear();
-            for (std::size_t index = 0; index < alternatives.Size(); ++index) {
-                last_reactions_.push_back(alternatives[index].name);
-            }
-        }
-        if (choice.Suspend) {
-            throw TSavepointStackUnwind(state, [this, alternatives, choice, receive]() {
-                const auto label = resume_label_.value_or(choice.Label);
-                resume_label_.reset();
-                receive(Index(alternatives, label));
-            });
-        }
-        ++depth_;
-        max_depth_ = std::max(depth_, max_depth_);
-        try {
-            receive(Index(alternatives, choice.Label));
-        } catch (...) {
-            --depth_;
-            throw;
-        }
-        --depth_;
-    }
-
-    void ResumeAs(std::string label) { resume_label_ = std::move(label); }
-    int Requests() const { return requests_; }
-    int MaxDepth() const { return max_depth_; }
-    const std::vector<std::string>& LastReactions() const { return last_reactions_; }
-    void Verify() const { EXPECT_TRUE(choices_.empty()); }
-    void HandleReactionTrigger(const TTriggerContext&, const TState&) override { ++legacy_calls_; }
-    int LegacyCalls() const { return legacy_calls_; }
-    std::ostream& GameLog() override { return log_; }
-    std::ostream& DevLog() override { return log_; }
-
-protected:
-    size_t ChooseAlternativeIndex(int actor, const TAlternatives& alternatives) override
-    {
-        if (choices_.empty()) {
-            throw std::logic_error("unexpected synchronous choice");
-        }
-        const auto choice = choices_.front();
-        choices_.pop_front();
-        EXPECT_EQ(actor, choice.Actor);
-        EXPECT_EQ(alternatives.Kind(), choice.Kind);
-        return Index(alternatives, choice.Label);
-    }
-
-private:
-    static std::size_t Index(const TAlternatives& alternatives, const std::string& label)
-    {
-        for (std::size_t index = 0; index < alternatives.Size(); ++index) {
-            if (alternatives[index].name == label) {
-                return index;
-            }
-        }
-        throw std::logic_error("missing reaction choice: " + label);
-    }
-
-    struct TChoice {
-        int Actor;
-        std::string Kind;
-        std::string Label;
-        bool Suspend;
-    };
-    std::deque<TChoice> choices_;
-    std::optional<std::string> resume_label_;
-    std::vector<std::string> last_reactions_;
-    std::ostringstream log_;
-    int requests_ = 0;
-    int depth_ = 0;
-    int max_depth_ = 0;
-    int legacy_calls_ = 0;
-};
 
 TSavepointStackUnwind Pause(const std::function<void()>& work)
 {
@@ -283,7 +191,7 @@ protected:
     void TearDown() override { io_.Verify(); rng_.Verify(); }
 
     std::shared_ptr<TAbilityRules> rules_;
-    TReactionIo io_;
+    TScriptedIo io_;
     TMockRng rng_;
     std::deque<TCreature> creatures_;
     std::unique_ptr<TBattle> battle_;
@@ -343,11 +251,11 @@ TEST_F(TReactionRuntimeTest, RequirementsAreReadonlyAndDeclineDoesNotPayOrRun)
     Register(std::move(execution));
     Start();
     const auto before = Snapshot();
-    io_.Expect(1, "reaction", "Decline");
+    io_.ExpectName(1, "reaction", "Decline");
     int callbacks = 0;
     EXPECT_EQ(Open([&](auto) { ++callbacks; }).Value, TPending{});
     EXPECT_EQ(callbacks, 0);
-    EXPECT_EQ(io_.LastReactions(), (std::vector<std::string>{"Decline", "Counter"}));
+    EXPECT_EQ(io_.Candidates("reaction"), (std::vector<std::string>{"Decline", "Counter"}));
     EXPECT_EQ(io_.LegacyCalls(), 0);
     EXPECT_EQ(Snapshot(), before);
 }
@@ -367,11 +275,11 @@ TEST_F(TReactionRuntimeTest, PreparationPrecedesPaymentAndFailureDoesNotConsume)
     Register(std::move(execution));
     Start();
     const auto before = Snapshot();
-    io_.Expect(1, "reaction", "Counter");
+    io_.ExpectName(1, "reaction", "Counter");
     EXPECT_THROW(Open(), std::runtime_error);
     EXPECT_EQ(Snapshot(), before);
     fail = false;
-    io_.Expect(1, "reaction", "Counter");
+    io_.ExpectName(1, "reaction", "Counter");
     Open();
     EXPECT_EQ(Creature(1).Reactions()->Count(), 3);
 }
@@ -386,16 +294,16 @@ TEST_F(TReactionRuntimeTest, RepeatedSuspensionsReplayCopiedPayloadAndChargeEach
     const auto before = Snapshot();
     int callbacks = 0;
     TPending returned;
-    io_.Expect(1, "reaction", "Counter");
-    io_.Expect(1, "choice", "1", true);
+    io_.ExpectName(1, "reaction", "Counter");
+    io_.ExpectName(1, "choice", "1", true);
     const auto first = Pause([&] { Open([&](auto value) { ++callbacks; returned = value.Value; }); });
     EXPECT_EQ(Creature(1).Reactions()->Count(), 3);
-    io_.Expect(1, "choice", "2", true);
+    io_.ExpectName(1, "choice", "2", true);
     const auto second = Pause([&] { first.Resume(); });
     EXPECT_EQ(Creature(1).Hands()->Count(), 1);
-    io_.Expect(2, "reaction", "Counter");
-    io_.Expect(2, "choice", "1");
-    io_.Expect(2, "choice", "2");
+    io_.ExpectName(2, "reaction", "Counter");
+    io_.ExpectName(2, "choice", "1");
+    io_.ExpectName(2, "choice", "2");
     second.Resume();
     EXPECT_EQ(callbacks, 1);
     EXPECT_EQ(returned.Amount, 4);
@@ -403,9 +311,9 @@ TEST_F(TReactionRuntimeTest, RepeatedSuspensionsReplayCopiedPayloadAndChargeEach
     EXPECT_EQ(Creature(2).Hands()->Count(), 2);
     const auto complete = Snapshot();
     second.Revert(*journal_);
-    io_.Expect(2, "reaction", "Counter");
-    io_.Expect(2, "choice", "1");
-    io_.Expect(2, "choice", "2");
+    io_.ExpectName(2, "reaction", "Counter");
+    io_.ExpectName(2, "choice", "1");
+    io_.ExpectName(2, "choice", "2");
     second.Resume();
     EXPECT_EQ(callbacks, 2);
     EXPECT_EQ(returned.Amount, 4);
@@ -422,13 +330,13 @@ TEST_F(TReactionRuntimeTest, ActorScopeLimitsDistinctWeaponSourcesAcrossSeveralW
     };
     Register(std::move(execution));
     Start(false, true);
-    io_.Expect(1, "reaction", "Counter (2)");
+    io_.ExpectName(1, "reaction", "Counter (2)");
     auto result = Open();
     EXPECT_EQ(Creature(1).Reactions()->Count(), 3);
     result = Open([](auto) {}, result.Scope);
     result = Open([](auto) {}, result.Scope);
-    EXPECT_EQ(io_.Requests(), 1);
-    io_.Expect(1, "reaction", "Counter (1)");
+    EXPECT_EQ(io_.Requests(), 1U);
+    io_.ExpectName(1, "reaction", "Counter (1)");
     Open();
     EXPECT_EQ(Creature(1).Reactions()->Count(), 2);
 }
@@ -437,7 +345,7 @@ TEST_F(TReactionRuntimeTest, SelectedOfferRechecksLiveGrantAndResourcesBeforePay
 {
     Register(Definition());
     Start();
-    io_.Expect(1, "reaction", "Counter", true);
+    io_.ExpectName(1, "reaction", "Counter", true);
     const auto offer = Pause([&] { Open(); });
     TTransformator editor(io_);
     const auto state = editor.CurrentState();
@@ -464,7 +372,7 @@ TEST_F(TReactionRuntimeTest, ForeignArgumentsAndEmptyContinuationFailBeforeInter
     EXPECT_THROW(OpenReactionWindow<TBeforeChange>(context_, {}, {},
         {BindActionEntity<TCreature>(foreign)}, [](auto) {}), TAbilityUnavailable);
     EXPECT_THROW(OpenReactionWindow<TBeforeChange>(context_, {}, {}, Arguments(), {}), std::invalid_argument);
-    EXPECT_EQ(io_.Requests(), 0);
+    EXPECT_EQ(io_.Requests(), 0U);
     EXPECT_EQ(Snapshot(), before);
 }
 
@@ -474,8 +382,8 @@ TEST_F(TReactionRuntimeTest, SuspendedBodyRejectsOwnSourceRemovalAndRestoresForR
         return Adjust(child, value, arguments, 1, std::move(resume));
     }));
     Start();
-    io_.Expect(1, "reaction", "Counter");
-    io_.Expect(1, "choice", "2", true);
+    io_.ExpectName(1, "reaction", "Counter");
+    io_.ExpectName(1, "choice", "2", true);
     int completed = 0;
     const auto point = Pause([&] { Open([&](auto) { ++completed; }); });
     TTransformator editor(io_);
@@ -511,8 +419,8 @@ TEST_F(TReactionRuntimeTest, ParentGrantRemovalDoesNotPreventReactionFromComplet
             {ActionSelf<TCreature>(parent)}, finish);
         finish(value);
     }}, {Cost(1, true)}, "Parent");
-    io_.Expect(1, "reaction", "Counter");
-    io_.Expect(1, "choice", "2", true);
+    io_.ExpectName(1, "reaction", "Counter");
+    io_.ExpectName(1, "choice", "2", true);
     const auto point = Pause([&] { action.Apply(context_, Player(0)); });
     EXPECT_EQ(Creature(0).Actions()->Count(), 2);
     EXPECT_THROW(point.Resume(), TAbilityUnavailable);
@@ -532,9 +440,9 @@ TEST_F(TReactionRuntimeTest, OldOfferReplayCanSelectAnotherSourceWithoutPrevious
         return Adjust(child, value, arguments, 1, std::move(resume));
     }));
     Start(false, true);
-    io_.Expect(1, "reaction", "Counter (1)", true);
+    io_.ExpectName(1, "reaction", "Counter (1)", true);
     const auto offer = Pause([&] { Open(); });
-    io_.Expect(1, "choice", "1");
+    io_.ExpectName(1, "choice", "1");
     offer.Resume();
     EXPECT_EQ(Creature(1).Hands()->Count(), 1);
     offer.Revert(*journal_);
@@ -547,7 +455,7 @@ TEST_F(TReactionRuntimeTest, OldOfferReplayCanSelectAnotherSourceWithoutPrevious
     execution.AssignGuarded(Creature(1).Weapons(), std::move(remaining),
                             TGuarded<TCreature>(Creature(1)), "weapons");
     io_.ResumeAs("Counter (2)");
-    io_.Expect(1, "choice", "2");
+    io_.ExpectName(1, "choice", "2");
     offer.Resume();
     EXPECT_EQ(Creature(1).Hands()->Count(), 1);
     EXPECT_EQ(Creature(1).Reactions()->Count(), 3);
@@ -581,8 +489,8 @@ TEST_F(TReactionRuntimeTest, NestedDifferentTriggersReturnValuesAndActiveTrigger
     auto features = std::as_const(Creature(2)).Features();
     features.Add(TFeatureSelection("native.InnerFeature"));
     execution.AssignGuarded(Creature(2).Features(), std::move(features), TGuarded<TCreature>(Creature(2)), "features");
-    io_.Expect(1, "reaction", "Counter");
-    io_.Expect(2, "reaction", "Inner", true);
+    io_.ExpectName(1, "reaction", "Counter");
+    io_.ExpectName(2, "reaction", "Inner", true);
     TPending result;
     const auto point = Pause([&] { Open([&](auto returned) { result = returned.Value; }); });
     point.Resume();
@@ -603,7 +511,7 @@ TEST_F(TReactionRuntimeTest, ImmediateBodyCannotCallItsSuspendedReturnChannel)
         return value;
     }));
     Start();
-    io_.Expect(1, "reaction", "Counter");
+    io_.ExpectName(1, "reaction", "Counter");
     int callbacks = 0;
     EXPECT_THROW(Open([&](auto) { ++callbacks; }), std::logic_error);
     EXPECT_EQ(callbacks, 0);
@@ -618,12 +526,12 @@ TEST_F(TReactionRuntimeTest, ManyImmediateWindowsDoNotGrowTheContinuationStack)
     Register(std::move(execution));
     Start();
     for (int index = 0; index < 2048; ++index) {
-        io_.Expect(1, "reaction", "Counter");
+        io_.ExpectName(1, "reaction", "Counter");
     }
     for (int index = 0; index < 2048; ++index) {
         Open([](auto) { ADD_FAILURE() << "immediate window invoked continuation"; });
     }
-    EXPECT_EQ(io_.Requests(), 2048);
+    EXPECT_EQ(io_.Requests(), 2048U);
     EXPECT_EQ(io_.MaxDepth(), 1);
     EXPECT_EQ(Creature(1).Reactions()->Count(), 4);
 }
@@ -647,9 +555,9 @@ TEST_F(TReactionRuntimeTest, BattleDrainsSuspendedReactionAfterItsParentDies)
             finish(result);
         }}, TBoundResources{Cost(1, true)}, "Parent"));
     Start();
-    io_.Expect(0, "next action", "Parent");
-    io_.Expect(1, "reaction", "Counter");
-    io_.Expect(1, "choice", "2", true);
+    io_.ExpectName(0, "next action", "Parent");
+    io_.ExpectName(1, "reaction", "Counter");
+    io_.ExpectName(1, "choice", "2", true);
     EXPECT_NO_THROW(battle_->StartBattle());
     EXPECT_FALSE(Creature(0).IsAlive());
     EXPECT_EQ(Creature(1).Hands()->Count(), 1);
@@ -672,12 +580,12 @@ TEST_F(TReactionRuntimeTest, CompletedAndFailedBodiesRejectTheirRetainedCallback
     }));
     Start();
     int completed = 0;
-    io_.Expect(1, "reaction", "Counter");
+    io_.ExpectName(1, "reaction", "Counter");
     Open([&](auto) { ++completed; });
     EXPECT_THROW(late(TPending{}), std::logic_error);
     EXPECT_EQ(completed, 0);
     fail = true;
-    io_.Expect(1, "reaction", "Counter");
+    io_.ExpectName(1, "reaction", "Counter");
     EXPECT_THROW(Open([&](auto) { ++completed; }), std::runtime_error);
     EXPECT_THROW(late(TPending{}), std::logic_error);
     EXPECT_EQ(completed, 0);
@@ -704,7 +612,7 @@ TEST_F(TReactionRuntimeTest, ReplayedOfferCanChooseAnotherDefinitionAfterOldGran
     auto execution = journal_->ExecutionContext();
     execution.AssignGuarded(Creature(1).Features(), std::move(features),
                             TGuarded<TCreature>(Creature(1)), "features");
-    io_.Expect(1, "reaction", "Counter", true);
+    io_.ExpectName(1, "reaction", "Counter", true);
     const auto offer = Pause([&] { Open(); });
     offer.Resume();
     EXPECT_EQ(Creature(1).Reactions()->Count(), 3);
@@ -739,7 +647,7 @@ TEST_F(TReactionRuntimeTest, ReactionMovementInvalidatesParentOriginWithoutRefun
             {ActionSelf<TCreature>(context)}, finish);
         finish(result);
     }}, {Cost(1, true)}, "Parent");
-    io_.Expect(1, "reaction", "Counter");
+    io_.ExpectName(1, "reaction", "Counter");
     EXPECT_THROW(parent.Apply(context_, Player(0)), TAbilityUnavailable);
     EXPECT_EQ(Player(0).GetPosition(), (TPosition{0, 1}));
     EXPECT_EQ(Creature(0).Actions()->Count(), 2);

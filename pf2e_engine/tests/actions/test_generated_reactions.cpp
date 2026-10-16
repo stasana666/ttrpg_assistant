@@ -7,114 +7,26 @@
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/inventory/generated_reactions.h>
 
-#include "../test_lib/mock_dice_roller.h"
+#include "../test_lib/battle_fixture.h"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
-#include <any>
-#include <deque>
-#include <functional>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 namespace {
 
-class TCompiledReactionIo final : public IInteractionSystem {
-public:
-    void ExpectName(int actor, std::string kind, std::string name, bool suspend = false)
-    {
-        expected_.push_back({actor, std::move(kind),
-            [name = std::move(name)](const TAlternative& alternative) {
-                return alternative.name == name;
-            }, suspend});
-    }
-
-    template <class T>
-    void ExpectValue(int actor, T value, bool suspend = false)
-    {
-        expected_.push_back({actor, {}, [value](const TAlternative& alternative) {
-            const auto* actual = std::any_cast<T>(&alternative.value);
-            return actual != nullptr && *actual == value;
-        }, suspend});
-    }
-
-    void RequestChoice(int actor, TAlternatives alternatives, TState state,
-                       std::function<void(size_t)> receive) override
-    {
-        if (expected_.empty()) {
-            throw std::logic_error("unexpected compiled reaction choice: " + std::string(alternatives.Kind()));
-        }
-        auto expected = std::move(expected_.front());
-        expected_.pop_front();
-        EXPECT_EQ(actor, expected.Actor);
-        if (!expected.Kind.empty()) {
-            EXPECT_EQ(alternatives.Kind(), expected.Kind);
-        }
-        size_t index = 0;
-        while (index < alternatives.Size() && !expected.Matches(alternatives[index])) {
-            ++index;
-        }
-        if (index == alternatives.Size()) {
-            throw std::logic_error("missing compiled reaction alternative");
-        }
-        ++requests_;
-        if (expected.Suspend) {
-            throw TSavepointStackUnwind(state, [receive = std::move(receive), index]() {
-                receive(index);
-            });
-        }
-        receive(index);
-    }
-
-    void HandleReactionTrigger(const TTriggerContext&, const TState&) override { ++legacy_calls_; }
-    std::ostream& GameLog() override { return log_; }
-    std::ostream& DevLog() override { return log_; }
-    size_t Requests() const { return requests_; }
-    int LegacyCalls() const { return legacy_calls_; }
-    void Verify() const { EXPECT_TRUE(expected_.empty()); }
-
-protected:
-    size_t ChooseAlternativeIndex(int, const TAlternatives&) override
-    {
-        throw std::logic_error("unexpected legacy choice");
-    }
-
-private:
-    struct TExpected {
-        int Actor;
-        std::string Kind;
-        std::function<bool(const TAlternative&)> Matches;
-        bool Suspend;
-    };
-    std::deque<TExpected> expected_;
-    std::ostringstream log_;
-    size_t requests_ = 0;
-    int legacy_calls_ = 0;
-};
-
-class TGeneratedReactionsTest : public ::testing::Test {
+class TGeneratedReactionsTest : public TBattleFixture {
 protected:
     void SetUp() override
     {
-        rules_ = std::make_shared<TAbilityRules>();
-        RegisterGeneratedReactionsRules(*rules_);
-        RegisterGeneratedReactionsRules(*rules_);
-        nlohmann::json map = {{"x_size", 8}, {"y_size", 4}};
-        battle_ = std::make_unique<TBattle>(TBattleMap(map), &rng_, io_, rules_);
-        journal_ = std::make_unique<TTransformator>(io_);
-    }
-
-    void TearDown() override
-    {
-        rng_.Verify();
-        io_.Verify();
-        EXPECT_EQ(io_.LegacyCalls(), 0);
+        auto rules = std::make_shared<TAbilityRules>();
+        RegisterGeneratedReactionsRules(*rules);
+        StartBattle(std::move(rules), 8, "generated_reactions.");
     }
 
     TPlayer& Add(std::string feature, bool armed = false, bool bound = false, int reach = 1)
@@ -133,81 +45,13 @@ protected:
                 .Reach = reach, .Features = std::move(weapon_features)}));
         }
         const int id = static_cast<int>(creatures_.size());
-        creatures_.push_back(TCreature::Create({
+        return Join(TCreature::Create({
             .Hitpoints = THitPoints::Create({
                 .Maximum = Statistic::Create({.Base = 100}), .Current = 100,
             }),
             .Weapons = std::move(weapons), .Features = std::move(features),
             .Actions = TResource(3), .Reactions = TResource(4), .Hands = TResource(0),
-        }));
-        rng_.ExpectCall(20, 10);
-        battle_->AddPlayer(TPlayer(&creatures_.back(), TPlayerTeam{id}, TPlayerId{id},
-                                   "Actor " + std::to_string(id), ""), {0, id});
-        return Player(id);
-    }
-
-    TPlayer& Player(int id)
-    {
-        return *battle_->GetIfPlayers([id](const TPlayer* player) {
-            return player->GetId() == id;
-        }).at(0);
-    }
-
-    TCreature& Creature(int id) { return *Player(id).GetCreature(); }
-    const TCreature& Read(int id) { return Creature(id); }
-
-    std::shared_ptr<TActionContext> Context(TPlayer* actor = nullptr)
-    {
-        auto context = std::make_shared<TActionContext>(TActionContext{
-            .battle = battle_.get(), .dice_roller = &rng_, .transformator = journal_.get(),
-            .io_system = &io_, .scheduler = nullptr, .effect_manager = nullptr,
-        });
-        if (actor != nullptr) {
-            context->game_object_registry = std::make_shared<TGameObjectRegistry>();
-            context->game_object_registry->Add(
-                TGameObjectIdManager::Instance().Register("self"), actor);
-        }
-        return context;
-    }
-
-    EAbilityExecutionResult Execute(const std::string& name = "ChangeWithWindow")
-    {
-        auto& actor = Player(0);
-        const auto options = battle_->AvailableActions(actor);
-        const auto found = std::ranges::find_if(options, [&](const TAbilityOption& option) {
-            return option.DefinitionId == "generated_reactions." + name;
-        });
-        if (found == options.end()) {
-            throw std::logic_error("missing generated reaction parent action");
-        }
-        last_context_ = Context();
-        return ExecuteAbility(*found, last_context_, actor,
-            CollectAbilities(Read(0), rules_->Catalog), rules_->Executions,
-            {.ValidateSource = [this, definition = found->DefinitionId, source = found->Source]() {
-                const auto fresh = CollectAbilities(Read(0), rules_->Catalog);
-                return std::ranges::any_of(fresh.Grants(), [&](const TGrantedAbility& grant) {
-                    return grant.DefinitionId == definition && grant.Source == source;
-                });
-            }});
-    }
-
-    static TSavepointStackUnwind Pause(const std::function<void()>& work)
-    {
-        try {
-            work();
-        } catch (const TSavepointStackUnwind& point) {
-            return point;
-        }
-        throw std::logic_error("expected a compiled reaction suspension");
-    }
-
-    TAstNode Snapshot()
-    {
-        TAstContext context;
-        auto result = TAstNode::MakeObject("generated_reaction_test");
-        AddOwnedObject(result, "battle", *battle_, context);
-        AddOwnedObject(result, "journal", *journal_, context);
-        return result;
+        }), id, {0, id}, "Actor " + std::to_string(id));
     }
 
     void RemoveFeatures(TTransformator& editor, int id)
@@ -235,14 +79,6 @@ protected:
         });
         execution.AssignGuarded(field, value, weapon, reach ? "reach" : "base_dice_size");
     }
-
-    std::shared_ptr<TAbilityRules> rules_;
-    TCompiledReactionIo io_;
-    TMockRng rng_;
-    std::deque<TCreature> creatures_;
-    std::unique_ptr<TBattle> battle_;
-    std::unique_ptr<TTransformator> journal_;
-    std::shared_ptr<TActionContext> last_context_;
 };
 
 TEST_F(TGeneratedReactionsTest, RegistersTypedBodiesWithoutSyntheticActions)
@@ -264,7 +100,7 @@ TEST_F(TGeneratedReactionsTest, ImmediatePayloadAndExplicitDeclinePayOnlyAccepte
     const auto initial = journal_->CurrentState();
     io_.ExpectName(1, "reaction", "ImmediateCounter");
     io_.ExpectName(2, "reaction", "Decline");
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("ChangeWithWindow"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(0).Hands().Count(), 17);
     EXPECT_EQ(Read(0).Actions().Count(), 2);
     EXPECT_EQ(Read(1).Reactions().Count(), 3);
@@ -282,7 +118,7 @@ TEST_F(TGeneratedReactionsTest, TwoSuspensionsReplayTypedPayloadAndParentTailWit
     const auto initial = journal_->CurrentState();
     io_.ExpectName(1, "reaction", "SlowCounter");
     io_.ExpectValue(1, 2, true);
-    const auto first = Pause([&] { Execute(); });
+    const auto first = Pause([&] { Execute("ChangeWithWindow"); });
     EXPECT_EQ(Read(0).Actions().Count(), 2);
     EXPECT_EQ(Read(1).Reactions().Count(), 3);
     io_.ExpectValue(1, 4, true);
@@ -311,7 +147,7 @@ TEST_F(TGeneratedReactionsTest, SourceRequirementsReadLiveStateBeforeReactionPay
     TTransformator editor(io_);
     const auto edit = editor.CurrentState();
     io_.ExpectName(1, "reaction", "BoundCounter", true);
-    const auto offer = Pause([&] { Execute(); });
+    const auto offer = Pause([&] { Execute("ChangeWithWindow"); });
     EXPECT_EQ(Read(1).Reactions().Count(), 4);
     SetWeapon(editor, 0, true);
     EXPECT_THROW(offer.Resume(), TAbilityUnavailable);
@@ -329,7 +165,7 @@ TEST_F(TGeneratedReactionsTest, MissingBoundSourceAndEmptyLeadingSourceChoiceDoN
     Add("ParentTraining");
     Add("BoundTraining");
     Add("SelectedTraining");
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("ChangeWithWindow"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(io_.Requests(), 0U);
     EXPECT_EQ(Read(0).Hands().Count(), 20);
     EXPECT_EQ(Read(1).Reactions().Count(), 4);
@@ -342,7 +178,7 @@ TEST_F(TGeneratedReactionsTest, BoundSourceValuesRemainSnapshotsAcrossSuspension
     Add("", true, true);
     io_.ExpectName(1, "reaction", "BoundCounter");
     io_.ExpectValue(1, 0, true);
-    const auto point = Pause([&] { Execute(); });
+    const auto point = Pause([&] { Execute("ChangeWithWindow"); });
     TTransformator editor(io_);
     const auto edit = editor.CurrentState();
     SetWeapon(editor, 8);
@@ -360,7 +196,7 @@ TEST_F(TGeneratedReactionsTest, SelectedWeaponNeedsNoGrantAndRemovalAbortsUntilR
     io_.ExpectName(1, "reaction", "SelectedCounter");
     io_.ExpectName(1, "source", "Blade");
     io_.ExpectValue(1, 1, true);
-    const auto point = Pause([&] { Execute(); });
+    const auto point = Pause([&] { Execute("ChangeWithWindow"); });
     TTransformator editor(io_);
     const auto edit = editor.CurrentState();
     RemoveWeapon(editor);
@@ -381,7 +217,7 @@ TEST_F(TGeneratedReactionsTest, ReactionFinishesAfterParentGrantRemovalThenParen
     const auto initial = journal_->CurrentState();
     io_.ExpectName(1, "reaction", "SlowCounter");
     io_.ExpectValue(1, 1, true);
-    const auto point = Pause([&] { Execute(); });
+    const auto point = Pause([&] { Execute("ChangeWithWindow"); });
     TTransformator editor(io_);
     const auto edit = editor.CurrentState();
     RemoveFeatures(editor, 0);
@@ -404,7 +240,7 @@ TEST_F(TGeneratedReactionsTest, ReactionFinishesAfterParentDeathAndPreservesPaid
     const auto initial = journal_->CurrentState();
     io_.ExpectName(1, "reaction", "KillingCounter");
     io_.ExpectValue(1, 2, true);
-    const auto point = Pause([&] { Execute(); });
+    const auto point = Pause([&] { Execute("ChangeWithWindow"); });
     EXPECT_EQ(Read(0).Hitpoints().Current(), 0);
     EXPECT_TRUE(Read(0).IsDead());
     EXPECT_EQ(Read(1).Hands().Count(), 2);
@@ -485,7 +321,7 @@ TEST_F(TGeneratedReactionsTest, NestedDifferentTriggerReturnsThroughBothReaction
     io_.ExpectName(1, "reaction", "NestedCounter");
     io_.ExpectName(2, "reaction", "InnerCounter");
     io_.ExpectValue(2, 2, true);
-    const auto point = Pause([&] { Execute(); });
+    const auto point = Pause([&] { Execute("ChangeWithWindow"); });
     point.Resume();
     EXPECT_EQ(Read(0).Hands().Count(), 18);
     EXPECT_EQ(Read(1).Hands().Count(), 1);
@@ -498,7 +334,7 @@ TEST_F(TGeneratedReactionsTest, NativeBodyEntryRejectsReadonlyForeignAndMissingR
 {
     Add("ParentTraining");
     Add("SlowTraining");
-    auto context = Context(&Player(1));
+    auto context = Context(1);
     const auto before = Snapshot();
     const auto subject = BindActionEntity<TCreature>(Player(0));
     const auto callback = [](TReactionPayload) {};
@@ -518,7 +354,7 @@ TEST_F(TGeneratedReactionsTest, NativeBodyResumeRechecksCurrentWorldBeforeEffect
 {
     Add("ParentTraining");
     Add("SlowTraining");
-    auto context = Context(&Player(1));
+    auto context = Context(1);
     std::optional<TReactionPayload> result;
     io_.ExpectValue(1, 1, true);
     const auto point = Pause([&] {

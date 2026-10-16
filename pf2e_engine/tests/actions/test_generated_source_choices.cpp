@@ -7,134 +7,28 @@
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/inventory/generated_source_choices.h>
 
-#include "../test_lib/mock_dice_roller.h"
+#include "../test_lib/battle_fixture.h"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
-#include <any>
-#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 namespace {
 
-class TSourceChoiceIo final : public IInteractionSystem {
-public:
-    template <class T>
-    void ExpectValue(T value, bool suspend = false)
-    {
-        expected_.push_back({[value](const TAlternative& alternative) {
-            const auto* actual = std::any_cast<T>(&alternative.value);
-            return actual != nullptr && *actual == value;
-        }, suspend});
-    }
-
-    void ExpectTarget(bool suspend = false)
-    {
-        expected_.push_back({[](const TAlternative& alternative) {
-            return alternative.name == "Target";
-        }, suspend});
-    }
-
-    void ExpectSource(std::string name, bool suspend = false)
-    {
-        expected_.push_back({[name = std::move(name)](const TAlternative& alternative) {
-            return alternative.name == name;
-        }, suspend});
-    }
-
-    void RequestChoice(int player_id, TAlternatives alternatives, TState state,
-                       std::function<void(size_t)> receive) override
-    {
-        if (expected_.empty()) {
-            throw std::logic_error("unexpected source choice");
-        }
-        if (alternatives.Kind() == "source") {
-            source_names_.clear();
-            for (size_t index = 0; index < alternatives.Size(); ++index) {
-                source_names_.push_back(alternatives[index].name);
-            }
-        }
-        const bool suspend = expected_.front().Suspend;
-        const auto index = ChooseAlternativeIndex(player_id, alternatives);
-        ++requests_;
-        if (suspend) {
-            throw TSavepointStackUnwind(state,
-                [receive = std::move(receive), index]() { receive(index); });
-        }
-        ++depth_;
-        max_depth_ = std::max(max_depth_, depth_);
-        try {
-            receive(index);
-        } catch (...) {
-            --depth_;
-            throw;
-        }
-        --depth_;
-    }
-
-    void HandleReactionTrigger(const TTriggerContext&, const TState&) override {}
-    std::ostream& GameLog() override { return log_; }
-    std::ostream& DevLog() override { return log_; }
-    void Verify() const { EXPECT_TRUE(expected_.empty()); }
-    size_t Requests() const { return requests_; }
-    int MaxDepth() const { return max_depth_; }
-    const std::vector<std::string>& SourceNames() const { return source_names_; }
-
-protected:
-    size_t ChooseAlternativeIndex(int player_id, const TAlternatives& alternatives) override
-    {
-        EXPECT_EQ(player_id, 0);
-        if (expected_.empty()) {
-            throw std::logic_error("unexpected source alternative");
-        }
-        auto expected = std::move(expected_.front());
-        expected_.pop_front();
-        for (size_t index = 0; index < alternatives.Size(); ++index) {
-            if (expected.Matches(alternatives[index])) {
-                return index;
-            }
-        }
-        throw std::logic_error("expected source alternative is absent");
-    }
-
-private:
-    struct TExpected {
-        std::function<bool(const TAlternative&)> Matches;
-        bool Suspend;
-    };
-
-    std::deque<TExpected> expected_;
-    size_t requests_ = 0;
-    int depth_ = 0;
-    int max_depth_ = 0;
-    std::ostringstream log_;
-    std::vector<std::string> source_names_;
-};
-
-class TGeneratedSourceChoicesTest : public ::testing::Test {
+class TGeneratedSourceChoicesTest : public TBattleFixture {
 protected:
     void SetUp() override
     {
         auto rules = std::make_shared<TAbilityRules>();
         RegisterGeneratedSourceChoicesRules(*rules);
-        RegisterGeneratedSourceChoicesRules(*rules);
-        nlohmann::json map = {{"x_size", 4}, {"y_size", 4}};
-        battle_ = std::make_unique<TBattle>(TBattleMap(map), &rng_, io_, std::move(rules));
-        journal_ = std::make_unique<TTransformator>(io_);
-    }
-
-    void TearDown() override
-    {
-        rng_.Verify();
-        io_.Verify();
+        StartBattle(std::move(rules), 4, "generated_source_choices.");
     }
 
     TPlayer& Add(std::string name, bool trained, int level = 1, bool armed = false)
@@ -150,7 +44,7 @@ protected:
             natural.Add(CreateChoiceFang());
         }
         const int id = static_cast<int>(creatures_.size());
-        creatures_.push_back(TCreature::Create({
+        return Join(TCreature::Create({
             .Level = level,
             .Hitpoints = THitPoints::Create({
                 .Maximum = Statistic::Create({.Base = 100}), .Current = 100,
@@ -160,13 +54,7 @@ protected:
             .Features = std::move(features),
             .Actions = TResource(3),
             .Hands = TResource(2),
-        }));
-        rng_.ExpectCall(20, 10);
-        battle_->AddPlayer(TPlayer(&creatures_.back(), TPlayerTeam{id}, TPlayerId{id},
-                                   std::move(name), ""), {id, 0});
-        return *battle_->GetIfPlayers([id](const TPlayer* player) {
-            return player->GetId() == id;
-        }).at(0);
+        }), id, {id, 0}, std::move(name));
     }
 
     TPlayer& Actor(int level = 1, bool armed = false)
@@ -177,62 +65,6 @@ protected:
     TPlayer& Target()
     {
         return Add("Target", false);
-    }
-
-    std::shared_ptr<TActionContext> Context(TPlayer* actor = nullptr)
-    {
-        auto context = std::make_shared<TActionContext>(TActionContext{
-            .battle = battle_.get(), .dice_roller = &rng_, .transformator = journal_.get(),
-            .io_system = &io_, .scheduler = nullptr, .effect_manager = nullptr,
-        });
-        if (actor != nullptr) {
-            context->game_object_registry = std::make_shared<TGameObjectRegistry>();
-            context->game_object_registry->Add(
-                TGameObjectIdManager::Instance().Register("self"), actor);
-        }
-        return context;
-    }
-
-    EAbilityExecutionResult Execute(TPlayer& actor, const std::string& name)
-    {
-        const auto options = battle_->AvailableActions(actor);
-        const auto found = std::ranges::find_if(options, [&](const TAbilityOption& option) {
-            return option.DefinitionId == "generated_source_choices." + name;
-        });
-        if (found == options.end()) {
-            throw std::logic_error("missing source choice action: " + name);
-        }
-        const auto& rules = battle_->AbilityRules();
-        last_context_ = Context();
-        return ExecuteAbility(*found, last_context_, actor,
-            CollectAbilities(*actor.GetCreature(), rules.Catalog), rules.Executions,
-            {.ValidateSource = [this, &actor, definition = found->DefinitionId,
-                                source = found->Source]() {
-                const auto fresh = CollectAbilities(*actor.GetCreature(),
-                                                     battle_->AbilityRules().Catalog);
-                return std::ranges::any_of(fresh.Grants(), [&](const TGrantedAbility& grant) {
-                    return grant.DefinitionId == definition && grant.Source == source;
-                });
-            }});
-    }
-
-    static TSavepointStackUnwind Suspend(const std::function<void()>& work)
-    {
-        try {
-            work();
-        } catch (const TSavepointStackUnwind& point) {
-            return point;
-        }
-        throw std::logic_error("source choice did not suspend");
-    }
-
-    TAstNode Snapshot() const
-    {
-        TAstContext context;
-        auto node = TAstNode::MakeObject("generated_source_choice_execution");
-        AddOwnedObject(node, "journal", *journal_, context);
-        AddOwnedObject(node, "battle", *battle_, context);
-        return node;
     }
 
     static std::vector<TGeneratedSourceCandidate<TWeapon>> Candidates(TPlayer& actor,
@@ -262,13 +94,6 @@ protected:
         editor.ExecutionContext().AssignGuarded(actor.GetCreature()->Weapons(), std::move(weapons),
             TGuarded<TCreature>(*actor.GetCreature()), "weapons");
     }
-
-    TMockRng rng_;
-    TSourceChoiceIo io_;
-    std::deque<TCreature> creatures_;
-    std::unique_ptr<TBattle> battle_;
-    std::unique_ptr<TTransformator> journal_;
-    std::shared_ptr<TActionContext> last_context_;
 };
 
 TEST_F(TGeneratedSourceChoicesTest, CandidateUnionUsesStableOwnerPathsWithoutRequiringWeaponGrants)
@@ -285,14 +110,14 @@ TEST_F(TGeneratedSourceChoicesTest, CandidateUnionUsesStableOwnerPathsWithoutReq
     EXPECT_EQ(candidates[0].Read().Features().Size(), 0u);
     EXPECT_EQ(candidates[1].Read().BaseDiceSize(), 8);
     EXPECT_EQ(Snapshot(), before);
-    const auto context = Context(&actor);
+    const auto context = Context(actor.GetId());
     int resumed = 0;
-    io_.ExpectSource("Blade (2)");
+    io_.ExpectName(0, {}, "Blade (2)");
     const auto selected = SelectActionSource<TWeapon>(context, candidates, {},
         [&](auto) { ++resumed; });
     EXPECT_EQ(selected.Key(), candidates[1].Key());
     EXPECT_EQ(selected.Read().BaseDiceSize(), 8);
-    EXPECT_EQ(io_.SourceNames(), (std::vector<std::string>{"Blade (1)", "Blade (2)", "Blade (3)"}));
+    EXPECT_EQ(io_.Candidates("source"), (std::vector<std::string>{"Blade (1)", "Blade (2)", "Blade (3)"}));
     EXPECT_EQ(resumed, 0);
     EXPECT_EQ(Snapshot(), before);
 }
@@ -300,11 +125,11 @@ TEST_F(TGeneratedSourceChoicesTest, CandidateUnionUsesStableOwnerPathsWithoutReq
 TEST_F(TGeneratedSourceChoicesTest, ReceiveRechecksCurrentCandidateAndThenOwnsItsSnapshot)
 {
     auto& actor = Actor(1, true);
-    const auto context = Context(&actor);
+    const auto context = Context(actor.GetId());
     const auto candidates = Candidates(actor);
     std::optional<TGeneratedSourceBinding<TWeapon>> selected;
-    io_.ExpectSource("Blade", true);
-    const auto point = Suspend([&] {
+    io_.ExpectName(0, {}, "Blade", true);
+    const auto point = Pause([&] {
         SelectActionSource<TWeapon>(context, candidates,
             [](const auto& candidate) { return candidate.Read().BaseDiceSize() < 10; },
             [&](auto value) { selected.emplace(std::move(value)); });
@@ -330,7 +155,7 @@ TEST_F(TGeneratedSourceChoicesTest, ReceiveRechecksCurrentCandidateAndThenOwnsIt
 TEST_F(TGeneratedSourceChoicesTest, MissingExactEntryCannotFallBackToAnotherProvider)
 {
     auto& actor = Actor(1, true);
-    const auto context = Context(&actor);
+    const auto context = Context(actor.GetId());
     const auto candidate = Candidates(actor).front();
     const auto selected = candidate.Snapshot(context);
     TTransformator editor(io_);
@@ -348,7 +173,7 @@ TEST_F(TGeneratedSourceChoicesTest, MissingExactEntryCannotFallBackToAnotherProv
 TEST_F(TGeneratedSourceChoicesTest, InputForkValidatesCurrentWorldWithoutCyclesOrParentLeakage)
 {
     auto& actor = Actor(1, true);
-    const auto parent = Context(&actor);
+    const auto parent = Context(actor.GetId());
     const auto selected = Candidates(actor).front().Snapshot(parent);
     auto child = ForkActionInputs(parent, {selected.InputValidator()});
     EXPECT_EQ(child->transformator, parent->transformator);
@@ -375,7 +200,7 @@ TEST_F(TGeneratedSourceChoicesTest, InputForkValidatesCurrentWorldWithoutCyclesO
 TEST_F(TGeneratedSourceChoicesTest, InputForkComposesDependenciesAndRejectsForeignOwners)
 {
     auto& actor = Actor(1, true);
-    const auto parent = Context(&actor);
+    const auto parent = Context(actor.GetId());
     const auto first = Candidates(actor).front().Snapshot(parent);
     const auto second = Candidates(actor, true).front().Snapshot(parent);
     const auto child = ForkActionInputs(parent, {first.InputValidator()});
@@ -400,7 +225,7 @@ TEST_F(TGeneratedSourceChoicesTest, CompiledChildResumeChecksItsOwnCurrentContex
 {
     auto& actor = Actor(1, true);
     auto& target = Target();
-    const auto parent = Context(&actor);
+    const auto parent = Context(actor.GetId());
     const auto selected = Candidates(actor).front().Snapshot(parent);
     std::weak_ptr<TActionContext> observed;
     const auto child = ForkActionInputs(parent, {selected.InputValidator(),
@@ -410,8 +235,8 @@ TEST_F(TGeneratedSourceChoicesTest, CompiledChildResumeChecksItsOwnCurrentContex
         EXPECT_EQ(amount, 4);
         ++resumed;
     };
-    io_.ExpectValue(0, true);
-    const auto point = Suspend([&] {
+    io_.ExpectValue(0, 0, true);
+    const auto point = Pause([&] {
         RunGeneratedSourceChoicesChosenWeaponWrapper(child, selected.Read(),
             BindActionEntity<TCreature>(target), on_resume);
     });
@@ -454,11 +279,11 @@ TEST_F(TGeneratedSourceChoicesTest, CompiledSourceUnionSelectsNaturalWeaponWitho
 {
     auto& actor = Actor(1, true);
     auto& target = Target();
-    io_.ExpectSource("Blade (2)");
-    io_.ExpectTarget();
-    io_.ExpectValue(1);
-    EXPECT_EQ(Execute(actor, "ChooseEquipment"), EAbilityExecutionResult::Applied);
-    EXPECT_EQ(io_.SourceNames(), (std::vector<std::string>{"Blade (1)", "Blade (2)"}));
+    io_.ExpectName(0, {}, "Blade (2)");
+    io_.ExpectName(0, {}, "Target");
+    io_.ExpectValue(0, 1);
+    EXPECT_EQ(Execute("ChooseEquipment", actor.GetId()), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(io_.Candidates("source"), (std::vector<std::string>{"Blade (1)", "Blade (2)"}));
     EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 91);
     EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 9);
     EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
@@ -471,14 +296,14 @@ TEST_F(TGeneratedSourceChoicesTest, CompiledChildRetainsSelectedSnapshotAcrossRe
     auto& target = Target();
     const auto before = Snapshot();
     const auto initial = journal_->CurrentState();
-    io_.ExpectSource("Blade (1)", true);
-    const auto source_point = Suspend([&] { Execute(actor, "ChooseEquipment"); });
+    io_.ExpectName(0, {}, "Blade (1)", true);
+    const auto source_point = Pause([&] { Execute("ChooseEquipment", actor.GetId()); });
     TTransformator editor(io_);
     const auto edit_start = editor.CurrentState();
     SetDie(editor, actor, 6);
-    io_.ExpectTarget();
-    io_.ExpectValue(1, true);
-    const auto child_point = Suspend([&] { source_point.Resume(); });
+    io_.ExpectName(0, {}, "Target");
+    io_.ExpectValue(0, 1, true);
+    const auto child_point = Pause([&] { source_point.Resume(); });
     SetDie(editor, actor, 12);
     child_point.Resume();
     EXPECT_EQ(target.GetCreature()->Hitpoints()->Current(), 93);
@@ -499,10 +324,10 @@ TEST_F(TGeneratedSourceChoicesTest, CompiledChildRejectsSourceRemovalAndRestored
     auto& target = Target();
     const auto before = Snapshot();
     const auto initial = journal_->CurrentState();
-    io_.ExpectSource("Blade (1)");
-    io_.ExpectTarget();
-    io_.ExpectValue(0, true);
-    const auto point = Suspend([&] { Execute(actor, "ChooseEquipment"); });
+    io_.ExpectName(0, {}, "Blade (1)");
+    io_.ExpectName(0, {}, "Target");
+    io_.ExpectValue(0, 0, true);
+    const auto point = Pause([&] { Execute("ChooseEquipment", actor.GetId()); });
     TTransformator editor(io_);
     const auto edit_start = editor.CurrentState();
     RemoveWeapon(editor, actor);
@@ -522,9 +347,9 @@ TEST_F(TGeneratedSourceChoicesTest, CompiledChildRejectsSourceRemovalAndRestored
 TEST_F(TGeneratedSourceChoicesTest, CompletedChildInputConstraintsDoNotLeakPastTheParentScope)
 {
     auto& actor = Actor(1, true);
-    io_.ExpectSource("Blade");
-    io_.ExpectValue(1, true);
-    const auto point = Suspend([&] { Execute(actor, "ScopedEquipment"); });
+    io_.ExpectName(0, {}, "Blade");
+    io_.ExpectValue(0, 1, true);
+    const auto point = Pause([&] { Execute("ScopedEquipment", actor.GetId()); });
     EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 4);
     TTransformator editor(io_);
     const auto initial = editor.CurrentState();
@@ -542,9 +367,9 @@ TEST_F(TGeneratedSourceChoicesTest, RepeatedImmediateSourceChoicesAndCallsKeepSt
 {
     auto& actor = Actor(2048, true);
     for (int index = 0; index < 2048; ++index) {
-        io_.ExpectSource("Blade");
+        io_.ExpectName(0, {}, "Blade");
     }
-    EXPECT_EQ(Execute(actor, "RepeatedEquipment"), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("RepeatedEquipment", actor.GetId()), EAbilityExecutionResult::Applied);
     EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 8192);
     EXPECT_EQ(actor.GetCreature()->Actions()->Count(), 2);
     EXPECT_EQ(io_.Requests(), 2048u);

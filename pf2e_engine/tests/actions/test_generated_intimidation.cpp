@@ -1,4 +1,4 @@
-#include "../test_lib/generated_combat_fixture.h"
+#include "../test_lib/battle_fixture.h"
 
 #include <pf2e_engine/action_blocks/add_condition.h>
 #include <pf2e_engine/action_blocks/remove_condition.h>
@@ -13,8 +13,8 @@ class TGeneratedIntimidationTest : public TGeneratedCombatFixture {
 protected:
     void Pair(TPosition target = {1, 0})
     {
-        Add(CreateHumanFighter1(), 0, {0, 0});
-        Add(CreateWolf(), 1, target);
+        Join(CreateHumanFighter1(), 0, {0, 0});
+        Join(CreateWolf(), 1, target);
         BeginTurn();
     }
 
@@ -76,9 +76,9 @@ TEST_F(TGeneratedIntimidationTest, AllFourOutcomesGrantImmunityWithoutApplyingOr
 
 TEST_F(TGeneratedIntimidationTest, SharedSpokenLanguageRemovesPenaltyButSignLanguageDoesNot)
 {
-    Add(CreateHumanFighter1(), 0, {0, 0});
+    Join(CreateHumanFighter1(), 0, {0, 0});
     auto target = CreateHumanFighter1({.Name = "Target"});
-    Add(std::move(target), 1, {1, 0});
+    Join(std::move(target), 1, {1, 0});
     BeginTurn();
     const auto initial = journal_->CurrentState();
     Attempt(11, false);
@@ -138,7 +138,7 @@ TEST_F(TGeneratedIntimidationTest, InabilityToVocalizeLeavesVisualModeAvailable)
 TEST_F(TGeneratedIntimidationTest, FearFromDifferentActorsUsesMaximumAndExpiresOnlyAtTargetsTurnEnd)
 {
     Pair();
-    Add(CreateHumanFighter1({.Name = "Second fighter"}), 0, {0, 1});
+    Join(CreateHumanFighter1({.Name = "Second fighter"}), 0, {0, 1});
     BeginTurn(2);
     const auto initial = journal_->CurrentState();
     const auto before = Snapshot();
@@ -166,7 +166,7 @@ TEST_F(TGeneratedIntimidationTest, FearFromDifferentActorsUsesMaximumAndExpiresO
 TEST_F(TGeneratedIntimidationTest, TwoWolfTargetsHaveIndependentImmunityAndTemporaryImmunityExpiresAtTenMinutes)
 {
     Pair();
-    Add(CreateWolf({.Name = "Second wolf"}), 1, {1, 1});
+    Join(CreateWolf({.Name = "Second wolf"}), 1, {1, 1});
     const auto initial = journal_->CurrentState();
     const auto before = Snapshot();
     Attempt(2);

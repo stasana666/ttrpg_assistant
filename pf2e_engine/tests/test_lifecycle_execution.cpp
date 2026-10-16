@@ -10,17 +10,16 @@
 #include <pf2e_engine/inventory/generated_lifecycle.h>
 
 #include "test_lib/mock_dice_roller.h"
+#include "test_lib/scripted_io.h"
 #include "test_lib/mock_interaction_system.h"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-#include <any>
 #include <deque>
 #include <functional>
 #include <map>
 #include <memory>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -68,54 +67,6 @@ TSavepointStackUnwind Suspend(const std::function<void()>& work)
     }
     throw std::logic_error("lifecycle did not suspend");
 }
-
-class TLifecycleChoiceIo final : public IInteractionSystem {
-public:
-    void Expect(int value, bool suspend = true) { expected_.push_back({value, suspend}); }
-
-    void RequestChoice(int player, TAlternatives alternatives, TState state,
-                       std::function<void(size_t)> receive) override
-    {
-        if (expected_.empty()) {
-            throw std::logic_error("unexpected lifecycle choice");
-        }
-        const bool suspend = expected_.front().second;
-        const auto index = ChooseAlternativeIndex(player, alternatives);
-        if (suspend) {
-            throw TSavepointStackUnwind(state, [receive = std::move(receive), index] {
-                receive(index);
-            });
-        }
-        receive(index);
-    }
-
-    void HandleReactionTrigger(const TTriggerContext&, const TState&) override {}
-    std::ostream& GameLog() override { return log_; }
-    std::ostream& DevLog() override { return log_; }
-    void Verify() const { EXPECT_TRUE(expected_.empty()); }
-
-protected:
-    size_t ChooseAlternativeIndex(int player, const TAlternatives& alternatives) override
-    {
-        EXPECT_EQ(player, 0);
-        if (expected_.empty()) {
-            throw std::logic_error("unexpected lifecycle alternative");
-        }
-        const int expected = expected_.front().first;
-        expected_.pop_front();
-        for (size_t index = 0; index < alternatives.Size(); ++index) {
-            const auto* value = std::any_cast<int>(&alternatives[index].value);
-            if (value != nullptr && *value == expected) {
-                return index;
-            }
-        }
-        throw std::logic_error("missing lifecycle alternative");
-    }
-
-private:
-    std::deque<std::pair<int, bool>> expected_;
-    std::ostringstream log_;
-};
 
 class TLifecycleExecutionTest : public ::testing::Test {
 protected:
@@ -168,7 +119,7 @@ protected:
         return node;
     }
 
-    TLifecycleChoiceIo io_;
+    TScriptedIo io_;
     TMockRng rng_;
     TTransformator journal_{io_};
     std::deque<TCreature> creatures_;
@@ -203,7 +154,7 @@ TEST_F(TLifecycleExecutionTest, TwoSuspensionsKeepInactiveActorAndReplayWithoutR
     const auto before = Snapshot();
     int completions = 0;
     rng_.ExpectCall(20, 7);
-    io_.Expect(2);
+    io_.ExpectValue(0, 2, true);
     const auto first = Suspend([&] {
         InvokeLifecycle(services, actor, Hook(RunGeneratedLifecyclePausedTurnStart),
                         [&] { ++completions; });
@@ -215,7 +166,7 @@ TEST_F(TLifecycleExecutionTest, TwoSuspensionsKeepInactiveActorAndReplayWithoutR
     services->dice_roller = nullptr;
     services->transformator = nullptr;
     services.reset();
-    io_.Expect(3);
+    io_.ExpectValue(0, 3, true);
     const auto second = Suspend([&] { first.Resume(); });
     EXPECT_EQ(creature.Hands()->Count(), 10);
     EXPECT_EQ(completions, 0);
@@ -233,7 +184,7 @@ TEST_F(TLifecycleExecutionTest, TwoSuspensionsKeepInactiveActorAndReplayWithoutR
     EXPECT_EQ(Snapshot(), completed);
     EXPECT_EQ(completions, 2);
     first.Revert(journal_);
-    io_.Expect(3, false);
+    io_.ExpectValue(0, 3, false);
     first.Resume();
     EXPECT_EQ(Snapshot(), completed);
     EXPECT_EQ(completions, 3);
@@ -250,8 +201,8 @@ TEST_F(TLifecycleExecutionTest, DrainCompletesEachSuspensionAndDeadActorCleanup)
     const auto start = journal_.CurrentState();
     const auto before = Snapshot();
     rng_.ExpectCall(20, 7);
-    io_.Expect(4);
-    io_.Expect(5);
+    io_.ExpectValue(0, 4, true);
+    io_.ExpectValue(0, 5, true);
     RunLifecycleAndDrain(Services(), actor, Hook(RunGeneratedLifecyclePausedTurnStart));
     EXPECT_EQ(creature.Hands()->Count(), 17);
     EXPECT_EQ(creature.Actions()->Count(), 0);

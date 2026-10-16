@@ -7,130 +7,27 @@
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/inventory/movement.h>
 
-#include "../test_lib/mock_dice_roller.h"
+#include "../test_lib/battle_fixture.h"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-#include <algorithm>
 #include <any>
-#include <deque>
-#include <functional>
 #include <initializer_list>
 #include <memory>
-#include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
 namespace {
 
-class TMovementIo final : public IInteractionSystem {
-public:
-    void ExpectName(int actor, std::string kind, std::string name, bool suspend = false,
-                    std::function<void(const TAlternatives&)> observe = {})
-    {
-        expected_.push_back({actor, std::move(kind),
-            [name = std::move(name)](const TAlternative& alternative) {
-                return alternative.name == name;
-            }, suspend, std::move(observe)});
-    }
-
-    template <class T>
-    void ExpectValue(int actor, T value, bool suspend = false,
-                     std::function<void(const TAlternatives&)> observe = {})
-    {
-        expected_.push_back({actor, {}, [value](const TAlternative& alternative) {
-            const auto* actual = std::any_cast<T>(&alternative.value);
-            return actual != nullptr && *actual == value;
-        }, suspend, std::move(observe)});
-    }
-
-    void RequestChoice(int actor, TAlternatives alternatives, TState state,
-                       std::function<void(size_t)> receive) override
-    {
-        if (expected_.empty()) {
-            throw std::logic_error("unexpected movement choice: " + std::string(alternatives.Kind()));
-        }
-        auto expected = std::move(expected_.front());
-        expected_.pop_front();
-        EXPECT_EQ(actor, expected.Actor);
-        if (!expected.Kind.empty()) {
-            EXPECT_EQ(alternatives.Kind(), expected.Kind);
-        }
-        size_t index = 0;
-        while (index < alternatives.Size() && !expected.Matches(alternatives[index])) {
-            ++index;
-        }
-        if (index == alternatives.Size()) {
-            throw std::logic_error("missing movement alternative");
-        }
-        if (expected.Observe) {
-            expected.Observe(alternatives);
-        }
-        ++requests_;
-        if (expected.Suspend) {
-            throw TSavepointStackUnwind(state, [receive = std::move(receive), index]() {
-                receive(index);
-            });
-        }
-        receive(index);
-    }
-
-    void HandleReactionTrigger(const TTriggerContext&, const TState&) override { ++legacy_calls_; }
-    std::ostream& GameLog() override { return log_; }
-    std::ostream& DevLog() override { return log_; }
-    size_t Requests() const { return requests_; }
-    int LegacyCalls() const { return legacy_calls_; }
-    void Verify() const { EXPECT_TRUE(expected_.empty()); }
-
-protected:
-    size_t ChooseAlternativeIndex(int, const TAlternatives&) override
-    {
-        throw std::logic_error("unexpected legacy choice");
-    }
-
-private:
-    struct TExpected {
-        int Actor;
-        std::string Kind;
-        std::function<bool(const TAlternative&)> Matches;
-        bool Suspend;
-        std::function<void(const TAlternatives&)> Observe;
-    };
-    std::deque<TExpected> expected_;
-    std::ostringstream log_;
-    size_t requests_ = 0;
-    int legacy_calls_ = 0;
-};
-
-class TGeneratedMovementTest : public ::testing::Test {
+class TGeneratedMovementTest : public TBattleFixture {
 protected:
     void SetUp() override
     {
-        rules_ = std::make_shared<TAbilityRules>();
-        RegisterMovementRules(*rules_);
-        RegisterMovementRules(*rules_);
-        nlohmann::json map = {{"x_size", 10}, {"y_size", 10}};
-        battle_ = std::make_unique<TBattle>(TBattleMap(map), &rng_, io_, rules_);
-        journal_ = std::make_unique<TTransformator>(io_);
-    }
-
-    void TearDown() override
-    {
-        rng_.Verify();
-        io_.Verify();
-        EXPECT_EQ(io_.LegacyCalls(), 0);
-    }
-
-    static TIdCollection<TFeatureSelection> Features(std::initializer_list<std::string> names)
-    {
-        TIdCollection<TFeatureSelection> result;
-        for (const auto& name : names) {
-            result.Add(TFeatureSelection(name));
-        }
-        return result;
+        auto rules = std::make_shared<TAbilityRules>();
+        RegisterMovementRules(*rules);
+        StartBattle(std::move(rules), 10);
     }
 
     TPlayer& Add(TPosition position, std::initializer_list<std::string> features = {},
@@ -164,64 +61,7 @@ protected:
         initial.Actions = TResource(actions);
         initial.Reactions = TResource(4);
         initial.Flourishes = TResource(1);
-        creatures_.push_back(TCreature::Create(initial));
-        rng_.ExpectCall(20, 10);
-        battle_->AddPlayer(TPlayer(&creatures_.back(), TPlayerTeam{team < 0 ? id : team},
-            TPlayerId{id}, "Actor " + std::to_string(id), ""), position);
-        return Player(id);
-    }
-
-    TPlayer& Player(int id)
-    {
-        return *battle_->GetIfPlayers([id](const TPlayer* player) {
-            return player->GetId() == id;
-        }).at(0);
-    }
-
-    TCreature& Creature(int id) { return *Player(id).GetCreature(); }
-    const TCreature& Read(int id) { return Creature(id); }
-
-    std::shared_ptr<TActionContext> Context()
-    {
-        return std::make_shared<TActionContext>(TActionContext{
-            .battle = battle_.get(), .dice_roller = &rng_, .transformator = journal_.get(),
-            .io_system = &io_, .scheduler = nullptr, .effect_manager = nullptr,
-        });
-    }
-
-    bool Available(const std::string& name, int id = 0)
-    {
-        return std::ranges::any_of(battle_->AvailableActions(Player(id)),
-            [&](const TAbilityOption& option) { return option.DefinitionId == name; });
-    }
-
-    TAbilityOption Option(const std::string& name)
-    {
-        const auto options = battle_->AvailableActions(Player(0));
-        const auto found = std::ranges::find_if(options, [&](const TAbilityOption& option) {
-            return option.DefinitionId == name;
-        });
-        if (found == options.end()) {
-            throw std::logic_error("missing movement action: " + name);
-        }
-        return *found;
-    }
-
-    EAbilityExecutionResult Execute(const TAbilityOption& option)
-    {
-        return ExecuteAbility(option, Context(), Player(0),
-            CollectAbilities(Read(0), rules_->Catalog), rules_->Executions,
-            {.ValidateSource = [this, definition = option.DefinitionId, source = option.Source]() {
-                const auto fresh = CollectAbilities(Read(0), rules_->Catalog);
-                return std::ranges::any_of(fresh.Grants(), [&](const TGrantedAbility& grant) {
-                    return grant.DefinitionId == definition && grant.Source == source;
-                });
-            }});
-    }
-
-    EAbilityExecutionResult Execute(const std::string& name = "movement.UseStride")
-    {
-        return Execute(Option(name));
+        return Join(TCreature::Create(initial), team < 0 ? id : team, position);
     }
 
     void Next(TPosition destination, bool suspend = false)
@@ -241,32 +81,6 @@ protected:
             rng_.ExpectCall(6, 2);
         }
     }
-
-    static TSavepointStackUnwind Pause(const std::function<void()>& work)
-    {
-        try {
-            work();
-        } catch (const TSavepointStackUnwind& point) {
-            return point;
-        }
-        throw std::logic_error("expected a movement suspension");
-    }
-
-    TAstNode Snapshot()
-    {
-        TAstContext context;
-        auto result = TAstNode::MakeObject("generated_movement_test");
-        AddOwnedObject(result, "battle", *battle_, context);
-        AddOwnedObject(result, "journal", *journal_, context);
-        return result;
-    }
-
-    std::shared_ptr<TAbilityRules> rules_;
-    TMovementIo io_;
-    TMockRng rng_;
-    std::deque<TCreature> creatures_;
-    std::unique_ptr<TBattle> battle_;
-    std::unique_ptr<TTransformator> journal_;
 };
 
 TEST_F(TGeneratedMovementTest, DiagonalCostsPersistAcrossStridesAndResetAtOwnTurnEnd)
@@ -276,11 +90,11 @@ TEST_F(TGeneratedMovementTest, DiagonalCostsPersistAcrossStridesAndResetAtOwnTur
     const auto initial = journal_->CurrentState();
     Next({2, 2});
     Stop();
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("movement.UseStride"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(0).DiagonalSteps(), 1);
     Next({3, 3});
     Next({4, 3});
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("movement.UseStride"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Player(0).GetPosition(), (TPosition{4, 3}));
     EXPECT_EQ(Read(0).DiagonalSteps(), 2);
     EXPECT_EQ(Read(0).Actions().Count(), 1);
@@ -360,7 +174,7 @@ TEST_F(TGeneratedMovementTest, ClassGrantedReactionOccursBeforeDepartureWithoutM
     rng_.ExpectCall(6, 2);
     Next({2, 0});
     Stop();
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("movement.UseStride"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Player(0).GetPosition(), (TPosition{2, 0}));
     EXPECT_EQ(Read(0).Hitpoints().Current(), 98);
     EXPECT_EQ(Read(1).AttacksMade(), 2);
@@ -374,7 +188,7 @@ TEST_F(TGeneratedMovementTest, MerelyEnteringReachDoesNotOpenAReactionWindow)
     Add({0, 0}, {"movement.MovementActions"}, 1);
     Add({2, 0}, {}, 3, 1, true);
     Next({1, 0});
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("movement.UseStride"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Player(0).GetPosition(), (TPosition{1, 0}));
     EXPECT_EQ(Read(1).Reactions().Count(), 4);
     EXPECT_EQ(Read(0).Hitpoints().Current(), 100);
@@ -386,7 +200,7 @@ TEST_F(TGeneratedMovementTest, ACriticalReactiveStrikeDoesNotDisruptDeparture)
     Add({0, 1}, {}, 3, 1, true);
     Next({1, 0});
     React(20);
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("movement.UseStride"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Player(0).GetPosition(), (TPosition{1, 0}));
     EXPECT_EQ(Read(0).Hitpoints().Current(), 96);
     EXPECT_EQ(Read(1).AttacksMade(), 0);
@@ -398,7 +212,7 @@ TEST_F(TGeneratedMovementTest, AStrideStoppedWithoutLeavingItsSquareTriggersAtTh
     Add({0, 1}, {}, 3, 1, true);
     Stop();
     React(1);
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("movement.UseStride"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Player(0).GetPosition(), (TPosition{0, 0}));
     EXPECT_EQ(Read(0).Actions().Count(), 2);
     EXPECT_EQ(Read(1).Reactions().Count(), 3);
@@ -411,7 +225,7 @@ TEST_F(TGeneratedMovementTest, ACompletelyBlockedStrideStillOpensItsEndingWindow
     Add({1, 0});
     Add({1, 1});
     React(1);
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("movement.UseStride"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Player(0).GetPosition(), (TPosition{0, 0}));
     EXPECT_EQ(Read(0).Actions().Count(), 2);
     EXPECT_EQ(Read(1).Reactions().Count(), 3);
@@ -445,7 +259,7 @@ TEST_F(TGeneratedMovementTest, ReactiveStrikeMayBeAcceptedAgainstAnAlliedCreatur
     Add({0, 1}, {}, 3, 0, true);
     Next({1, 0});
     React();
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("movement.UseStride"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(0).Hitpoints().Current(), 98);
     EXPECT_EQ(Read(1).Reactions().Count(), 3);
 }
@@ -458,7 +272,7 @@ TEST_F(TGeneratedMovementTest, DecliningAnEarlySquareLeavesTheSameStrideReaction
     io_.ExpectName(1, "reaction", "Decline");
     Next({2, 0});
     React(1);
-    EXPECT_EQ(Execute(), EAbilityExecutionResult::Applied);
+    EXPECT_EQ(Execute("movement.UseStride"), EAbilityExecutionResult::Applied);
     EXPECT_EQ(Read(1).Reactions().Count(), 3);
 }
 
@@ -592,7 +406,7 @@ TEST_F(TGeneratedMovementTest, RemovingAReactionGrantDuringWeaponChoiceStopsItsE
     Next({1, 0});
     io_.ExpectName(1, "reaction", "ReactiveStrike");
     io_.ExpectName(1, "source", "Blade", true);
-    const auto point = Pause([&] { Execute(); });
+    const auto point = Pause([&] { Execute("movement.UseStride"); });
     TTransformator editor(io_);
     const auto edit = editor.CurrentState();
     auto execution = editor.ExecutionContext();

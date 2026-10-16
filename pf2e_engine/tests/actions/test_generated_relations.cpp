@@ -1,4 +1,4 @@
-#include "../test_lib/generated_combat_fixture.h"
+#include "../test_lib/battle_fixture.h"
 
 #include <pf2e_engine/actions/feature_event.h>
 #include <pf2e_engine/actions/generated_relation.h>
@@ -17,8 +17,8 @@ protected:
         nlohmann::json map{{"x_size", 5}, {"y_size", 5}};
         battle_ = std::make_unique<TBattle>(TBattleMap(map), &rng_, io_, rules_);
         journal_ = std::make_unique<TTransformator>(io_);
-        Add(Participant(0, false), 0, {0, 0});
-        Add(Participant(1, true), 1, {1, 0});
+        Join(Participant(0, false), 0, {0, 0});
+        Join(Participant(1, true), 1, {1, 0});
     }
 
     static TCreature Participant(int id, bool reactor)

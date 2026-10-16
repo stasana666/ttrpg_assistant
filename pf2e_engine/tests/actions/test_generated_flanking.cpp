@@ -3,7 +3,7 @@
 #include <pf2e_engine/inventory/flanking.h>
 #include <pf2e_engine/inventory/remaster_profiles.h>
 
-#include "../test_lib/generated_combat_fixture.h"
+#include "../test_lib/battle_fixture.h"
 
 #include <gtest/gtest.h>
 
@@ -42,9 +42,9 @@ protected:
 
     void OppositeWolves()
     {
-        Add(CreateWolf({.Name = "Attacker"}), 1, {1, 2});
-        Add(CreateHumanFighter1({.Name = "Target"}), 0, {2, 2});
-        Add(CreateWolf({.Name = "Ally"}), 1, {3, 2});
+        Join(CreateWolf({.Name = "Attacker"}), 1, {1, 2});
+        Join(CreateHumanFighter1({.Name = "Target"}), 0, {2, 2});
+        Join(CreateWolf({.Name = "Ally"}), 1, {3, 2});
     }
 
     void Strike(const std::string& weapon = "Jaws", bool pause_type = false)
@@ -152,9 +152,9 @@ TEST_F(TGeneratedFlankingTest, ProneShieldAndFrightenedMergeWithFlankingByModifi
 
 TEST_F(TGeneratedFlankingTest, FlankerPositionIsReadAfterAVersatileChoiceAndReplaysThroughUndo)
 {
-    Add(CreateHumanFighter1({.Name = "Attacker"}), 0, {1, 2});
-    Add(CreateWolf({.Name = "Target"}), 1, {2, 2});
-    Add(CreateWolf({.Name = "Ally"}), 0, {3, 2});
+    Join(CreateHumanFighter1({.Name = "Attacker"}), 0, {1, 2});
+    Join(CreateWolf({.Name = "Target"}), 1, {2, 2});
+    Join(CreateWolf({.Name = "Ally"}), 0, {3, 2});
     BeginTurn();
     const auto initial = journal_->CurrentState();
     const auto before = Snapshot();
@@ -187,9 +187,9 @@ TEST_F(TGeneratedFlankingTest, FlankerPositionIsReadAfterAVersatileChoiceAndRepl
 
 TEST_F(TGeneratedFlankingTest, AllyThreatUsesHeldAndNaturalProfilesWithoutABodyReachFallback)
 {
-    Add(CreateWolf({.Name = "Attacker"}), 1, {1, 3});
-    Add(CreateHumanFighter1({.Name = "Target"}), 0, {2, 3});
-    Add(Fighter("Ally", 2), 1, {4, 3});
+    Join(CreateWolf({.Name = "Attacker"}), 1, {1, 3});
+    Join(CreateHumanFighter1({.Name = "Target"}), 0, {2, 3});
+    Join(Fighter("Ally", 2), 1, {4, 3});
     EXPECT_EQ(Read(2).Hands().Count(), 0);
     EXPECT_EQ(Modifiers().CircumstancePenalty(), 2);
     TTransformator editor(io_);
@@ -217,8 +217,8 @@ TEST_F(TGeneratedFlankingTest, AllyThreatUsesHeldAndNaturalProfilesWithoutABodyR
 
 TEST_F(TGeneratedFlankingTest, FifteenFootReachRejectsTheThirdDiagonalBeforePayment)
 {
-    Add(Fighter("Attacker", 3), 0, {1, 1});
-    Add(CreateWolf({.Name = "Target"}), 1, {4, 4});
+    Join(Fighter("Attacker", 3), 0, {1, 1});
+    Join(CreateWolf({.Name = "Target"}), 1, {4, 4});
     BeginTurn();
     const auto before = Snapshot();
     EXPECT_FALSE(Available("abilities.UseStrike"));
@@ -241,8 +241,8 @@ TEST_F(TGeneratedFlankingTest, FifteenFootReachRejectsTheThirdDiagonalBeforePaym
 
 TEST_F(TGeneratedFlankingTest, TenFootReachIncludesASecondDiagonalStrike)
 {
-    Add(Fighter("Attacker", 2), 0, {1, 1});
-    Add(CreateWolf({.Name = "Target"}), 1, {3, 3});
+    Join(Fighter("Attacker", 2), 0, {1, 1});
+    Join(CreateWolf({.Name = "Target"}), 1, {3, 3});
     BeginTurn();
     ASSERT_TRUE(Available("abilities.UseStrike"));
     Strike("Reach weapon");

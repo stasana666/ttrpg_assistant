@@ -11,7 +11,10 @@ Canonical project instructions. CLAUDE.md redirects here.
   initiative cycle, preserves the current actor, and leaves death/legacy defeat
   ordering unchanged. Full battle and journal snapshots survive Undo and replay.
 - `test_lib/mock_dice_roller.h`: deterministic RNG expectations for reproducible tests.
-- `test_lib/mock_interaction_system.h`: scripted player choices and optional state checks.
+- `test_lib/mock_interaction_system.h`: scripted player choices and optional state checks for legacy synchronous tests.
+- `test_lib/scripted_io.h`: `TScriptedIo`, the shared scripted choice mock for generated actions. Each expectation names the actor, optional alternatives kind, a name or typed value matcher, and whether the choice suspends through a savepoint. It records requests, suspensions, nesting depth, legacy reaction calls and the last candidate names per kind.
+- `test_lib/battle_fixture.h`: `TBattleFixture` owns the battle, separate journal, RNG, IO and creature storage, and provides player lookup, contexts, option lookup with an optional id prefix, source-validated `Execute`, `Pause` and AST snapshots. `TGeneratedCombatFixture` uses the real factory rules. Test fixtures derive from it and keep only domain-specific creature builders.
+- `CMakeLists.txt` defines `add_engine_test(name SOURCES ... [SCHEMAS ...] [INCLUDES ...])`; schemas are generated into the shared inventory output directory.
 - `test_lifecycle.cpp` builds as `test_lifecycle` and verifies generated round/turn
   methods, separate Flourish and reaction reset boundaries, initial reaction policy,
   scheduler ordering, resource validation and exact JSON/AST rollback. Task removal
@@ -271,10 +274,8 @@ Canonical project instructions. CLAUDE.md redirects here.
   Suspended target choices recheck observations/immunity before dice; replay supplies
   the same dice inputs after the restored choice point and preserves exact AST state.
   Knockout drops a shield and frees its hand once through healing, death and Undo.
-- `test_lib/generated_combat_fixture.h` is a shared fixture for executing individual
-  generated actions with the real factory rules. Its IO scripts asynchronous choice
-  requests and optional savepoints; full StartBattle tests need a separate synchronous
-  next-action policy. Creature storage uses a deque to keep player references stable.
+- `TGeneratedCombatFixture` executes individual generated actions with the real factory
+  rules. Creature storage uses a deque to keep player references stable.
 
 ## Generated Encounter Acceptance
 - `actions/test_generated_encounter.cpp` builds as `test_generated_encounter` and
