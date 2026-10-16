@@ -93,16 +93,7 @@ private:
         declaration.Name = ExpectIdent("relation name");
         ExpectIdentText("for");
         declaration.OwnerType = ExpectIdent("relation owner type");
-        ts_.Expect(ETok::LParen, "'('");
-        if (ts_.Peek().kind != ETok::RParen) {
-            do {
-                TClassDecl::TParameter parameter;
-                parameter.TypeName = ExpectIdent("relation key type");
-                parameter.Name = ExpectIdent("relation key name");
-                declaration.Parameters.push_back(std::move(parameter));
-            } while (ts_.Match(ETok::Comma));
-        }
-        ts_.Expect(ETok::RParen, "')'");
+        declaration.Parameters = ParseParameters("relation key");
         ts_.Expect(ETok::Semi, "';' after relation declaration");
         return declaration;
     }
@@ -179,16 +170,7 @@ private:
         ExpectIdentText("using");
         declaration.SourceType = ExpectIdent("record source type");
         declaration.SourceName = ExpectIdent("record source name");
-        ts_.Expect(ETok::LParen, "'('");
-        if (ts_.Peek().kind != ETok::RParen) {
-            do {
-                TClassDecl::TParameter parameter;
-                parameter.TypeName = ExpectIdent("record parameter type");
-                parameter.Name = ExpectIdent("record parameter name");
-                declaration.Parameters.push_back(std::move(parameter));
-            } while (ts_.Match(ETok::Comma));
-        }
-        ts_.Expect(ETok::RParen, "')'");
+        declaration.Parameters = ParseParameters("record parameter");
         ts_.Expect(ETok::Semi, "';' after record declaration");
         return declaration;
     }
@@ -201,16 +183,7 @@ private:
         declaration.Name = ExpectIdent("event name");
         ExpectIdentText("for");
         declaration.OwnerType = ExpectIdent("event owner type");
-        ts_.Expect(ETok::LParen, "'('");
-        if (ts_.Peek().kind != ETok::RParen) {
-            do {
-                TClassDecl::TParameter parameter;
-                parameter.TypeName = ExpectIdent("event parameter type");
-                parameter.Name = ExpectIdent("event parameter name");
-                declaration.Parameters.push_back(std::move(parameter));
-            } while (ts_.Match(ETok::Comma));
-        }
-        ts_.Expect(ETok::RParen, "')'");
+        declaration.Parameters = ParseParameters("event parameter");
         ts_.Expect(ETok::Semi, "';' after event declaration");
         return declaration;
     }
@@ -221,16 +194,7 @@ private:
         ExpectIdentText("trigger");
         declaration.ReturnType = ExpectIdent("trigger state type");
         declaration.Name = ExpectIdent("trigger name");
-        ts_.Expect(ETok::LParen, "'('");
-        if (ts_.Peek().kind != ETok::RParen) {
-            do {
-                TClassDecl::TParameter parameter;
-                parameter.TypeName = ExpectIdent("trigger parameter type");
-                parameter.Name = ExpectIdent("trigger parameter name");
-                declaration.Parameters.push_back(std::move(parameter));
-            } while (ts_.Match(ETok::Comma));
-        }
-        ts_.Expect(ETok::RParen, "')'");
+        declaration.Parameters = ParseParameters("trigger parameter");
         if (ts_.Peek().text == "once") {
             ExpectIdentText("once");
             ExpectIdentText("per");
@@ -249,16 +213,7 @@ private:
         declaration.Name = ExpectIdent("activity name");
         ExpectIdentText("for");
         declaration.OwnerType = ExpectIdent("activity owner type");
-        ts_.Expect(ETok::LParen, "'('");
-        if (ts_.Peek().kind != ETok::RParen) {
-            do {
-                TClassDecl::TParameter parameter;
-                parameter.TypeName = ExpectIdent("activity parameter type");
-                parameter.Name = ExpectIdent("activity parameter name");
-                declaration.Parameters.push_back(std::move(parameter));
-            } while (ts_.Match(ETok::Comma));
-        }
-        ts_.Expect(ETok::RParen, "')'");
+        declaration.Parameters = ParseParameters("activity parameter");
         declaration.Body = ParseBody();
         ts_.Match(ETok::Semi);
         return declaration;
@@ -499,18 +454,24 @@ private:
         method.Query = ts_.Consume().text == "query";
         method.ReturnType = ExpectIdent("method return type");
         method.Name = ExpectIdent("method name");
+        method.Parameters = ParseParameters("parameter");
+        method.Body = ParseBody();
+        return method;
+    }
+
+    std::vector<TClassDecl::TParameter> ParseParameters(const std::string& what) {
+        std::vector<TClassDecl::TParameter> parameters;
         ts_.Expect(ETok::LParen, "'('");
         if (ts_.Peek().kind != ETok::RParen) {
             do {
                 TClassDecl::TParameter parameter;
-                parameter.TypeName = ExpectIdent("parameter type");
-                parameter.Name = ExpectIdent("parameter name");
-                method.Parameters.push_back(std::move(parameter));
+                parameter.TypeName = ExpectIdent(what + " type");
+                parameter.Name = ExpectIdent(what + " name");
+                parameters.push_back(std::move(parameter));
             } while (ts_.Match(ETok::Comma));
         }
         ts_.Expect(ETok::RParen, "')'");
-        method.Body = ParseBody();
-        return method;
+        return parameters;
     }
 
     std::vector<TClassDecl::TStatement> ParseBody() {

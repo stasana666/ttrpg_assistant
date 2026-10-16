@@ -30,7 +30,7 @@ void FCheckAllyAdjacent::operator()(std::shared_ptr<TActionContext> ctx) const
         {
             return false;
         }
-        int reach = MaxWeaponReach(*player->GetCreature());
+        int reach = player->GetCreature()->MaxWeaponReach();
         return battle_map->InRadius(player->GetPosition(), reach, target_pos);
     });
 

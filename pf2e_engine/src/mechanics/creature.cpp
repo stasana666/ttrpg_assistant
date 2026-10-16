@@ -20,25 +20,26 @@ TGuarded<TResource> ResourceFor(TCreature& creature, EResourceKind kind)
     throw std::logic_error("unreachable");
 }
 
-int ConditionValue(const TCreature& creature, EConditionKind condition)
+int ConditionValue(const TVariantMap<EConditionKind, TCondition>& conditions, EConditionKind condition)
 {
-    if (!creature.Conditions().Has(condition)) {
+    if (!conditions.Has(condition)) {
         return 0;
     }
     switch (condition) {
-        case EConditionKind::Prone: return 1;
-        case EConditionKind::Unconscious: return 1;
+        case EConditionKind::Prone:
+        case EConditionKind::Unconscious:
+            return 1;
         case EConditionKind::Frightened:
-            return creature.Conditions().Get<TConditionFrightened>()->Value;
+            return conditions.Get<TConditionFrightened>()->Value;
         case EConditionKind::Dying:
-            return creature.Conditions().Get<TConditionDying>()->Value;
+            return conditions.Get<TConditionDying>()->Value;
         case EConditionKind::Wounded:
-            return creature.Conditions().Get<TConditionWounded>()->Value;
+            return conditions.Get<TConditionWounded>()->Value;
     }
     throw std::logic_error("unreachable");
 }
 
-int MaxWeaponReach(const TCreature& creature)
+int ConditionValue(const TCreature& creature, EConditionKind condition)
 {
-    return creature.MaxWeaponReach();
+    return ConditionValue(creature.Conditions(), condition);
 }

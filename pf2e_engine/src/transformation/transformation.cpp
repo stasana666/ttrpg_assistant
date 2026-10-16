@@ -2,6 +2,7 @@
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/effect_manager.h>
 #include <pf2e_engine/initiative_order.h>
+#include <pf2e_engine/mechanics/creature.h>
 #include <pf2e_engine/player.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
@@ -9,26 +10,6 @@
 #include <stdexcept>
 
 namespace {
-
-int GetConditionValue(const TVariantMap<EConditionKind, TCondition>& conditions,
-                      EConditionKind condition)
-{
-    if (!conditions.Has(condition)) {
-        return 0;
-    }
-    switch (condition) {
-        case EConditionKind::Prone:
-        case EConditionKind::Unconscious:
-            return 1;
-        case EConditionKind::Frightened:
-            return conditions.Get<TConditionFrightened>()->Value;
-        case EConditionKind::Dying:
-            return conditions.Get<TConditionDying>()->Value;
-        case EConditionKind::Wounded:
-            return conditions.Get<TConditionWounded>()->Value;
-    }
-    throw std::logic_error("unreachable");
-}
 
 void SetConditionValue(TVariantMap<EConditionKind, TCondition>& conditions,
                        EConditionKind condition,
@@ -65,7 +46,7 @@ TChangeCondition::TChangeCondition(TVariantMap<EConditionKind, TCondition>* cond
                                    int new_value)
     : conditions_(conditions)
     , condition_(condition)
-    , prev_value_(GetConditionValue(*conditions_, condition))
+    , prev_value_(ConditionValue(*conditions_, condition))
 {
     SetConditionValue(*conditions_, condition_, new_value);
 }
