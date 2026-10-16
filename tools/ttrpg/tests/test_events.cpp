@@ -196,7 +196,7 @@ TEST(FeatureEventCompilerTest, RejectsConflictingOrUnsupportedDeclarations) {
     Rejects("event int Bonus for TActor(); event int Bonus for TActor();", "duplicate event");
     Rejects("event int TValue for TActor();", "conflicts with existing symbol");
     Rejects("action Bonus; event int Bonus for TActor();", "conflicts with existing symbol");
-    Rejects("class TEventBonus {} event int Bonus for TActor();", "event tag conflicts");
+    Rejects("class TEventBonus {} event int Bonus for TActor();", "conflicts with existing symbol");
     Rejects("event int roll for TActor();", "conflicts with existing symbol");
     Rejects("event int Bonus for TValue();", "owner must be a GameEntity");
     Rejects("event TActor Bonus for TActor();", "result must be");

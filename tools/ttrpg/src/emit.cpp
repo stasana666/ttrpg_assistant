@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <functional>
 #include <filesystem>
+#include <map>
 #include <set>
 #include <string>
 #include <unordered_set>
@@ -79,12 +80,64 @@ std::vector<const TClassDecl*> OrderedClasses(const TLoadedSchemas& loaded) {
     return result;
 }
 
-void ValidateRules(const TLoadedSchemas& loaded) {
-    if (loaded.SymbolTable.contains("TGeneratedConstruction")) throw std::runtime_error("TGeneratedConstruction is reserved for generated construction");
-    if (loaded.SymbolTable.contains("Position")) throw std::runtime_error("Position is a reserved builtin type");
-    if (HasJsonIntegerFields(loaded.Primary) && loaded.SymbolTable.contains("ReadGeneratedRuleInteger")) {
-        throw std::runtime_error("type name 'ReadGeneratedRuleInteger' is reserved for generated JSON parsing");
+void ValidateNames(const TLoadedSchemas& loaded) {
+    std::map<std::string, std::string> owners;
+    const auto add = [&](const std::string& name, const std::string& kind) {
+        const auto [existing, inserted] = owners.emplace(name, kind);
+        if (inserted) return;
+        if (existing->second == kind) throw std::runtime_error("duplicate " + kind + " '" + name + "'");
+        throw std::runtime_error(kind + " '" + name + "' conflicts with existing symbol (" + existing->second + ")");
+    };
+    for (const auto* name : {
+             "void", "int", "bool", "string", "Resource", "BoundedQuantity", "Feature", "Position", "Duration",
+             "roll", "min", "max", "entities", "grid_distance", "same_team", "has_line_of_effect", "sources",
+             "position_x", "position_y", "position", "adjacent_positions", "contains_position", "can_occupy", "move",
+             "move_before_current_turn", "same_source", "seconds", "minutes", "ReadGeneratedRuleInteger",
+             "TGeneratedConstruction", "TConstructionReport", "TConstructionIssue", "TFeatureChoiceDescriptor",
+             "EConstructionChoiceState", "TReactionScope", "TReactionWindowResult", "TReactionExecution",
+             "TActionTicket", "TActionRecordStamp", "TActionRecordRegistry", "TActionHistory", "TRecordedSource",
+             "TRecordedEntity", "TGameDuration", "TGameClock", "TGameTimeRules", "TRelationRegistry",
+             "TTimedRelationStore", "GameSeconds", "GameMinutes", "HasRelation", "GetRelation", "SetRelation",
+             "EraseRelation"}) {
+        add(name, "reserved builtin");
     }
+    const auto modules = AllModules(loaded);
+    for (const auto& [stem, module] : modules) {
+        for (const auto& value : module->Classes) add(value.Name, "type");
+        for (const auto& value : module->Enums) add(value.Name, "type");
+        for (const auto& value : module->Variants) add(value.Name, "type");
+    }
+    for (const auto& [stem, module] : modules) {
+        add(AbilityRegistrationFunction(stem), "generated name");
+        add(RulesRegistrationFunction(stem), "generated name");
+        for (const auto& value : module->Enums) add(value.Name + "FromString", "generated name");
+        for (const auto& value : module->Variants) {
+            add(VariantKindEnum(value.Name), "generated name");
+            for (const auto& alternative : value.Alternatives) add(PayloadStructName(value.Name, alternative.Name), "generated name");
+        }
+        for (const auto& value : module->Abilities) {
+            add(value.Name, "ability definition");
+            if (!value.Triggers.empty()) add(ReactionFunctionName(stem, value), "generated name");
+        }
+        for (const auto& value : module->Events) { add(value.Name, "event"); add(EventTagName(value), "generated name"); }
+        for (const auto& value : module->Triggers) { add(value.Name, "trigger"); add(TriggerTagName(value), "generated name"); }
+        for (const auto& value : module->Records) { add(value.Name, "record"); add(RecordTagName(value), "generated name"); }
+        for (const auto& value : module->Relations) { add(value.Name, "relation"); add(RelationTagName(value), "generated name"); }
+        for (const auto& value : module->Activities) { add(value.Name, "activity"); add(ActivityFunctionName(stem, value), "generated name"); }
+        for (const auto& value : module->Instances) {
+            add(value.Name, "named value");
+            add("Create" + value.Name, "generated name");
+            if (!value.Parameterized) continue;
+            for (const auto& name : {"T" + value.Name + "Options", "TResolved" + value.Name, "Resolve" + value.Name,
+                                     "Describe" + value.Name, "Validate" + value.Name}) {
+                add(name, "generated name");
+            }
+        }
+    }
+}
+
+void ValidateRules(const TLoadedSchemas& loaded) {
+    ValidateNames(loaded);
     ValidateAbilityDefinitions(loaded);
     ValidateRecordDefinitions(loaded);
     ValidateRelationDefinitions(loaded);
@@ -92,20 +145,6 @@ void ValidateRules(const TLoadedSchemas& loaded) {
     ValidateTriggerDefinitions(loaded);
     ValidateActivityDefinitions(loaded);
     ValidateConstructorNames(loaded);
-    std::unordered_set<std::string> variantNames;
-    auto validateVariants = [&](const TSchemaModule& module) {
-        for (const auto& variant : module.Variants) {
-            std::vector<std::string> names{VariantKindEnum(variant.Name)};
-            for (const auto& alternative : variant.Alternatives) names.push_back(PayloadStructName(variant.Name, alternative.Name));
-            for (const auto& name : names) {
-                if (loaded.SymbolTable.contains(name) || !variantNames.insert(name).second) {
-                    throw std::runtime_error("generated variant type name collision '" + name + "'");
-                }
-            }
-        }
-    };
-    for (const auto& [stem, module] : loaded.ByStem) if (stem != loaded.PrimaryStem) validateVariants(module);
-    validateVariants(loaded.Primary);
     (void)OrderedClasses(loaded);
     for (const auto& c : loaded.Primary.Classes) {
         (void)CompileClass(c, loaded);
@@ -118,10 +157,7 @@ void ValidateRules(const TLoadedSchemas& loaded) {
         for (const auto& hook : ability.Hooks) (void)CompileFeatureHook(ability, hook, loaded);
     }
     for (const auto& activity : loaded.Primary.Activities) (void)CompileActivity(activity, loaded);
-    std::unordered_set<std::string> names;
     for (const auto& instance : loaded.Primary.Instances) {
-        if (!names.insert(instance.Name).second) throw std::runtime_error("duplicate instance '" + instance.Name + "'");
-        if (loaded.SymbolTable.contains("Create" + instance.Name)) throw std::runtime_error("instance factory conflicts with type 'Create" + instance.Name + "'");
         if (instance.Parameterized) (void)CompileConstructor(instance, loaded);
         else (void)CompileInstance(instance, loaded);
     }

@@ -299,6 +299,6 @@ TEST(SourceCompilerTest, RejectsMalformedMapsSetsAndPayloadAccess) {
     Rejects("class TProfile { query int Read(TItem Item) { return Item.Traits.get(Fatal, { Die = true; }).Die; } }", "expected 'EDie'");
     Rejects("class TProfile { query int Read(TItem Item) { return Item.Traits.get(Thrown, { Range = 0; }).Missing; } }", "unknown variant payload field");
     Rejects("class TProfile { query bool Read(TItem Item) { return Item.Traits.has(Unknown); } }", "unknown alternative");
-    Rejects("class TTraitFatal {}", "generated variant type name collision");
-    Rejects("enum ETraitKind { Other }", "generated variant type name collision");
+    Rejects("class TTraitFatal {}", "conflicts with existing symbol");
+    Rejects("enum ETraitKind { Other }", "conflicts with existing symbol");
 }

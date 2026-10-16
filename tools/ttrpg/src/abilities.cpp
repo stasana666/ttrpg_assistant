@@ -10,18 +10,6 @@
 
 namespace {
 
-std::vector<std::pair<std::string, const TSchemaModule*>> Modules(const TLoadedSchemas& loaded) {
-    std::vector<std::pair<std::string, const TSchemaModule*>> modules;
-    for (const auto& [stem, module] : loaded.ByStem) {
-        if (stem != loaded.PrimaryStem) modules.emplace_back(stem, &module);
-    }
-    modules.emplace_back(loaded.PrimaryStem, &loaded.Primary);
-    std::sort(modules.begin(), modules.end(), [](const auto& left, const auto& right) {
-        return left.first < right.first;
-    });
-    return modules;
-}
-
 [[noreturn]] void GrantError(const TGrantDecl& grant, const std::string& message) {
     throw std::runtime_error(message + " at line " + std::to_string(grant.Location.line) +
         ", col " + std::to_string(grant.Location.col));
@@ -41,7 +29,7 @@ std::vector<std::string> MemberPath(const expr::TExprNode& value, const TGrantDe
 
 std::unordered_map<std::string, TAbilityInfo> AbilitySymbols(const TLoadedSchemas& loaded) {
     std::unordered_map<std::string, TAbilityInfo> result;
-    for (const auto& [stem, module] : Modules(loaded)) {
+    for (const auto& [stem, module] : AllModules(loaded)) {
         for (const auto& definition : module->Abilities) {
             if (!result.emplace(definition.Name, TAbilityInfo{stem, definition.Kind}).second) {
                 throw std::runtime_error("duplicate ability definition '" + definition.Name + "'");
@@ -78,24 +66,10 @@ std::string AbilityRegistrationFunction(const std::string& stem) {
 }
 
 void ValidateAbilityDefinitions(const TLoadedSchemas& loaded) {
-    if (loaded.SymbolTable.contains("Feature")) {
-        throw std::runtime_error("type name 'Feature' is reserved for feature selections");
-    }
     const auto symbols = AbilitySymbols(loaded);
     std::unordered_map<std::string, const TAbilityDecl*> declarations;
-    std::unordered_set<std::string> functions;
-    for (const auto& [stem, module] : Modules(loaded)) {
-        for (const auto& function : {AbilityRegistrationFunction(stem), RulesRegistrationFunction(stem)}) {
-            if (!functions.insert(function).second || loaded.SymbolTable.contains(function)) {
-                throw std::runtime_error("ability registration name collision '" + function + "'");
-            }
-        }
-        for (const auto& definition : module->Abilities) {
-            if (loaded.SymbolTable.contains(definition.Name) || definition.Name == "Feature") {
-                throw std::runtime_error("ability definition conflicts with type '" + definition.Name + "'");
-            }
-            declarations.emplace(definition.Name, &definition);
-        }
+    for (const auto& [stem, module] : AllModules(loaded)) {
+        for (const auto& definition : module->Abilities) declarations.emplace(definition.Name, &definition);
     }
     std::unordered_map<std::string, int> marks;
     std::function<void(const std::string&)> visit = [&](const std::string& name) {
@@ -115,7 +89,7 @@ void ValidateAbilityDefinitions(const TLoadedSchemas& loaded) {
         }
         marks[name] = 2;
     };
-    for (const auto& [stem, module] : Modules(loaded)) {
+    for (const auto& [stem, module] : AllModules(loaded)) {
         for (const auto& definition : module->Abilities) visit(definition.Name);
     }
 }
@@ -128,7 +102,7 @@ std::string RulesRegistrationFunction(const std::string& stem) {
 
 std::vector<TCompiledGrant> CompileGrants(const TClassDecl& declaration, const TLoadedSchemas& loaded) {
     std::unordered_map<std::string, const TClassDecl*> classes;
-    for (const auto& [stem, module] : Modules(loaded)) {
+    for (const auto& [stem, module] : AllModules(loaded)) {
         for (const auto& value : module->Classes) classes[value.Name] = &value;
     }
     classes[declaration.Name] = &declaration;

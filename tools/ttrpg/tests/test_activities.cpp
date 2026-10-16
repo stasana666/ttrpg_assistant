@@ -144,7 +144,7 @@ TEST(ActivityCompilerTest, RejectsRecursionAndConflictingSymbols) {
     Rejects("activity void F for TActor() { G(); } activity void G for TActor() { F(); }", "recursive activity");
     Rejects("activity void TValue for TActor() {}", "conflicts");
     Rejects("activity void roll for TActor() {}", "conflicts");
-    Rejects("class RunActivitiesF {} activity void F for TActor() {}", "function name collision");
+    Rejects("class RunActivitiesF {} activity void F for TActor() {}", "conflicts with existing symbol");
     Rejects("activity void F for TValue() {}", "GameEntity");
     Rejects("activity void F for TActor(int Value, int Value) {}", "duplicate activity parameter");
     Rejects("GameEntity TOther {} activity void F for TOther() {} action Use for TActor { F(); }", "owner");

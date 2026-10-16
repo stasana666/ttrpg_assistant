@@ -6,17 +6,6 @@
 
 namespace {
 
-const TClassDecl* Class(const std::string& type, const TLoadedSchemas& loaded) {
-    for (const auto& declaration : loaded.Primary.Classes) if (declaration.Name == type) return &declaration;
-    for (const auto& [stem, module] : loaded.ByStem) for (const auto& declaration : module.Classes) if (declaration.Name == type) return &declaration;
-    return nullptr;
-}
-
-bool Entity(const std::string& type, const TLoadedSchemas& loaded) {
-    const auto* declaration = Class(type, loaded);
-    return declaration && declaration->GameEntity;
-}
-
 std::string Type(const std::string& type, const TLoadedSchemas& loaded) {
     return QualifiedCppType(CppTypeFor(type), loaded.SymbolTable);
 }
@@ -45,14 +34,14 @@ void EmitRecordDeclarations(TCppWriter& writer, const TLoadedSchemas& loaded) {
                 writer.Line("::TRecordedSource<TOwner, TSource> " + declaration.SourceName + ";");
                 for (const auto& parameter : declaration.Parameters) {
                     const auto type = Type(parameter.TypeName, loaded);
-                    writer.Line((Entity(parameter.TypeName, loaded) ? "::TRecordedEntity<" + type + ">" : type) + " " + parameter.Name + ";");
+                    writer.Line((IsGameEntity(loaded, parameter.TypeName) ? "::TRecordedEntity<" + type + ">" : type) + " " + parameter.Name + ";");
                 }
             });
             writer.Struct("TInputs", [&] {
                 writer.Line("::TGeneratedSourceBinding<TSource> " + declaration.SourceName + ";");
                 for (const auto& parameter : declaration.Parameters) {
                     const auto type = Type(parameter.TypeName, loaded);
-                    writer.Line((Entity(parameter.TypeName, loaded) ? "::TGeneratedEntityBinding<" + type + ">" : type) + " " + parameter.Name + ";");
+                    writer.Line((IsGameEntity(loaded, parameter.TypeName) ? "::TGeneratedEntityBinding<" + type + ">" : type) + " " + parameter.Name + ";");
                 }
             });
             writer.Line("static TStored Detach(const std::shared_ptr<TActionContext>& context, const ::TGeneratedSourceBinding<TSource>& source, const TArguments& arguments);");
@@ -74,7 +63,7 @@ void EmitRecordImplementations(TCppWriter& writer, const TLoadedSchemas& loaded)
                 for (std::size_t i = 0; i < declaration.Parameters.size(); ++i) {
                     const auto& parameter = declaration.Parameters[i];
                     auto value = "std::get<" + std::to_string(i) + ">(arguments)";
-                    if (Entity(parameter.TypeName, loaded)) value = "::TRecordedEntity<" + Type(parameter.TypeName, loaded) + ">::Capture(context, " + value + ")";
+                    if (IsGameEntity(loaded, parameter.TypeName)) value = "::TRecordedEntity<" + Type(parameter.TypeName, loaded) + ">::Capture(context, " + value + ")";
                     writer.Line("." + parameter.Name + " = " + value + ",");
                 }
             });
@@ -87,7 +76,7 @@ void EmitRecordImplementations(TCppWriter& writer, const TLoadedSchemas& loaded)
                     writer.Line("." + declaration.SourceName + " = stored." + declaration.SourceName + (readonly ? ".ReadOnly(world, owner)," : ".Bind(context),"));
                     for (const auto& parameter : declaration.Parameters) {
                         auto value = "stored." + parameter.Name;
-                        if (Entity(parameter.TypeName, loaded)) value += readonly ? ".ReadOnly(world)" : ".Bind(context)";
+                        if (IsGameEntity(loaded, parameter.TypeName)) value += readonly ? ".ReadOnly(world)" : ".Bind(context)";
                         writer.Line("." + parameter.Name + " = " + value + ",");
                     }
                 });
@@ -95,7 +84,7 @@ void EmitRecordImplementations(TCppWriter& writer, const TLoadedSchemas& loaded)
         }
         writer.Function("void " + tag + "::Validate(const std::shared_ptr<TActionContext>& context, const TInputs& inputs)", [&] {
             writer.Line("inputs." + declaration.SourceName + ".Validate(context);");
-            for (const auto& parameter : declaration.Parameters) if (Entity(parameter.TypeName, loaded)) {
+            for (const auto& parameter : declaration.Parameters) if (IsGameEntity(loaded, parameter.TypeName)) {
                 writer.Line("::ValidateActionEntity(context, inputs." + parameter.Name + ".View());");
             }
         });
@@ -104,8 +93,8 @@ void EmitRecordImplementations(TCppWriter& writer, const TLoadedSchemas& loaded)
             writer.Line("AddOwnedObject(node, " + CppStringLiteral(PascalToSnake(declaration.SourceName)) + ", stored." + declaration.SourceName + ", context);");
             for (const auto& parameter : declaration.Parameters) {
                 const auto label = CppStringLiteral(PascalToSnake(parameter.Name));
-                writer.Line(std::string(Class(parameter.TypeName, loaded) ? "AddOwnedObject" : "AddValueField") + "(node, " + label + ", stored." + parameter.Name +
-                    (Class(parameter.TypeName, loaded) ? ", context);" : ");"));
+                writer.Line(std::string(FindClass(loaded, parameter.TypeName) ? "AddOwnedObject" : "AddValueField") + "(node, " + label + ", stored." + parameter.Name +
+                    (FindClass(loaded, parameter.TypeName) ? ", context);" : ");"));
             }
             writer.Line("return node;");
         });

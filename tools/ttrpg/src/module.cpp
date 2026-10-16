@@ -3,6 +3,8 @@
 #include <ttrpg/parser.h>
 
 #include <fstream>
+#include <functional>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_set>
@@ -114,4 +116,59 @@ std::vector<std::string> ImportedModuleStems(const TLoadedSchemas& loaded,
         result.push_back(fs::path(imported).stem().string());
     }
     return result;
+}
+
+std::map<std::string, const TSchemaModule*> AllModules(const TLoadedSchemas& loaded) {
+    std::map<std::string, const TSchemaModule*> result;
+    for (const auto& [stem, module] : loaded.ByStem) result.emplace(stem, &module);
+    result[loaded.PrimaryStem] = &loaded.Primary;
+    return result;
+}
+
+const TClassDecl* FindClass(const TLoadedSchemas& loaded, const std::string& name) {
+    for (const auto& [stem, module] : AllModules(loaded)) {
+        for (const auto& declaration : module->Classes) if (declaration.Name == name) return &declaration;
+    }
+    return nullptr;
+}
+
+const TVariantDecl* FindVariant(const TLoadedSchemas& loaded, const std::string& name) {
+    for (const auto& [stem, module] : AllModules(loaded)) {
+        for (const auto& declaration : module->Variants) if (declaration.Name == name) return &declaration;
+    }
+    return nullptr;
+}
+
+bool IsGameEntity(const TLoadedSchemas& loaded, const std::string& name) {
+    const auto* declaration = FindClass(loaded, name);
+    return declaration != nullptr && declaration->GameEntity;
+}
+
+bool IsImportedBy(const TLoadedSchemas& loaded, const std::string& callerStem, const std::string& ownerStem) {
+    std::set<std::string> visible;
+    std::function<void(const std::string&)> visit = [&](const std::string& stem) {
+        if (!visible.insert(stem).second) return;
+        for (const auto& imported : ImportedModuleStems(loaded, stem)) visit(imported);
+    };
+    visit(callerStem);
+    return visible.contains(ownerStem);
+}
+
+bool AnyNode(const expr::TExprNode& node, const FNodePredicate& predicate) {
+    if (predicate(node)) return true;
+    if (node.Lhs && AnyNode(*node.Lhs, predicate)) return true;
+    if (node.Rhs && AnyNode(*node.Rhs, predicate)) return true;
+    for (const auto& argument : node.Args) if (AnyNode(argument, predicate)) return true;
+    for (const auto& field : node.Fields) if (AnyNode(field.Value, predicate)) return true;
+    return false;
+}
+
+bool AnyNode(const std::vector<TClassDecl::TStatement>& body, const FNodePredicate& predicate) {
+    for (const auto& statement : body) {
+        for (const auto* expression : {&statement.Value, &statement.Target, &statement.Candidates}) {
+            if (*expression && AnyNode(**expression, predicate)) return true;
+        }
+        if (AnyNode(statement.Body, predicate) || AnyNode(statement.ElseBody, predicate)) return true;
+    }
+    return false;
 }

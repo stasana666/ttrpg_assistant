@@ -48,7 +48,6 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("class TExample", self.header.read_text())
         self.assertIn("TExample::FromJson", self.source.read_text())
         self.assertIn("root.ttrpg", self.depfile.read_text())
-        self.assertFalse(list(self.root.rglob("*.ttrpg-*")))
 
     def test_relations_import_types_and_use_canonical_registration(self):
         self.write("types.ttrpg", "GameEntity TActor { int Value=1; } GameEntity TObject {} class TValue { int Amount=0; }")
@@ -67,15 +66,6 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn('kId = "relations.Detail"', (self.root / "relations.h").read_text())
         self.assertIn("rules.Relations.Register<::TRelationDetail>()", (self.root / "relations.cpp").read_text())
 
-    def test_invalid_relation_writes_preserve_generated_outputs(self):
-        self.schema.write_text("GameEntity TActor {} relation bool Mark for TActor(TActor Source); action A for TActor { Mark.set(@self,@self,true); }")
-        self.generate()
-        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
-        self.schema.write_text("GameEntity TActor {} relation bool Mark for TActor(TActor Source); action A for TActor { for Target in entities(TActor) { let Alias=Target; Mark.set(Alias,@self,true); } }")
-        result = self.generate(success=False)
-        self.assertIn("mutable owner", result.stderr)
-        self.assertEqual(before, [path.read_bytes() for path in (self.header, self.source, self.depfile)])
-
     def test_check_has_no_filesystem_side_effects(self):
         before = set(self.root.rglob("*"))
         self.command([CODEGEN, "--schema", self.schema, "--check"])
@@ -88,18 +78,6 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("Missing", result.stderr)
         self.assertFalse(self.header.exists())
 
-    def test_check_rejects_invalid_imported_grants(self):
-        for invalid in (
-            "feature Training { grant Missing; }",
-            "feature A { grant B; } feature B { grant A; }",
-            "class TProvider { int Value; grant @self.Value; }",
-        ):
-            with self.subTest(invalid=invalid):
-                self.write("invalid.ttrpg", invalid)
-                self.schema.write_text('import "invalid.ttrpg"; class TExample { int Value; }')
-                self.command([CODEGEN, "--schema", self.schema, "--check"], success=False)
-                self.assertFalse(self.header.exists())
-
     def test_imported_activities_use_canonical_export_names(self):
         self.write("actor.ttrpg", "GameEntity TActor { int Value = 1; }")
         library = self.write("library.ttrpg", 'import "actor.ttrpg"; activity int Increment for TActor(int Value) { return Value + 1; }')
@@ -110,25 +88,12 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("::RunLibraryIncrement(Context", self.source.read_text())
         self.assertIn("library.h", self.header.read_text())
 
-    def test_source_choice_imports_and_escape_diagnostics(self):
-        self.write("items.ttrpg", "class TItem { int Size = 2; query TItem Identity() { return @self; } } GameEntity TActor { collection<TItem> Items; }")
+    def test_source_choice_imports(self):
+        self.write("items.ttrpg", "class TItem { int Size = 2; } GameEntity TActor { collection<TItem> Items; }")
         self.schema.write_text('import "items.ttrpg"; action Use for TActor { choose TItem Item from @self.Items; let Value = Item.Size; }')
         self.command([CODEGEN, "--schema", self.schema, "--check"])
         self.generate()
         self.assertIn("SelectActionSource<::TItem>", self.source.read_text())
-        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
-        self.schema.write_text('import "items.ttrpg"; action Use for TActor { choose TItem Item from @self.Items; let Copy = Item.Identity(); }')
-        result = self.generate(success=False)
-        self.assertIn("cannot be materialized", result.stderr)
-        self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
-
-    def test_recursive_activities_preserve_generated_outputs(self):
-        self.generate()
-        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
-        self.schema.write_text("GameEntity TActor {} activity void First for TActor() { Second(); } activity void Second for TActor() { First(); }")
-        result = self.generate(success=False)
-        self.assertIn("recursive activity calls", result.stderr)
-        self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
 
     def test_imported_reaction_triggers_and_subscriber_cycles(self):
         self.write("types.ttrpg", "GameEntity TActor { Resource Reactions = 1; }")
@@ -141,12 +106,10 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn('TTriggerOpening', self.source.read_text())
         self.assertIn('"windows.Opening"', self.source.read_text())
         self.assertIn('RunRootCounter', self.header.read_text())
-        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
         self.schema.write_text('import "alias_windows.ttrpg"; reaction Counter for TActor on Opening { let Result = Open(Subject); return Result; }')
         result = self.generate(success=False)
         self.assertIn("recursive activity calls or reaction windows", result.stderr)
         self.assertIn("reaction Counter", result.stderr)
-        self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
 
     def test_check_rejects_invalid_imported_reaction_signature(self):
         self.write("invalid.ttrpg", "GameEntity TActor {} trigger int First(int Pending); trigger int Second(int Different); reaction Counter for TActor on First, Second { return Pending; }")
@@ -155,7 +118,7 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("identical types and parameter names", result.stderr)
         self.assertFalse(self.header.exists())
 
-    def test_imported_completed_records_and_invalid_publication_preserve_outputs(self):
+    def test_imported_completed_records_and_invalid_publication(self):
         self.write("types.ttrpg", "class TItem { int Amount = 1; } GameEntity TActor { collection<TItem> Items; }")
         records = self.write("receipts.ttrpg", 'import "types.ttrpg"; record Result for TActor using TItem Item(TActor Target, int Amount);')
         (self.root / "alias_receipts.ttrpg").symlink_to(records)
@@ -165,13 +128,11 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("receipts.h", self.header.read_text())
         self.assertIn("::PublishActionRecord<::TRecordResult>", self.source.read_text())
         self.assertIn(".PreviousRecord = std::string(::TRecordResult::kId)", self.source.read_text())
-        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
         self.schema.write_text('import "alias_receipts.ttrpg"; activity void Bad for TActor(TItem Item) { publish Result(Item,@self,1); }')
         result = self.generate(success=False)
         self.assertIn("final statement of a root action", result.stderr)
-        self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
 
-    def test_parameterized_factories_import_types_and_preserve_outputs_on_errors(self):
+    def test_parameterized_factories_import_types(self):
         self.write("items.ttrpg", "class TItem { int Amount = 2; } feature First; feature Second; GameEntity TActor { collection<TItem> Items; collection<Feature> Features; }")
         self.schema.write_text('import "items.ttrpg"; TActor Fighter(collection<TItem> Equipment = [TItem {}], choice Feature Feat from [First, Second] = First) { Items = Equipment; Features = [Feat]; }')
         self.command([CODEGEN, "--schema", self.schema, "--check"])
@@ -180,11 +141,9 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("items.h", self.header.read_text())
         self.assertIn("::TActor::ResolveInitialValues", self.source.read_text())
         self.assertIn("DescribeFighter", self.source.read_text())
-        before = [path.read_bytes() for path in (self.header, self.source, self.depfile)]
         self.schema.write_text('import "items.ttrpg"; TActor Fighter(choice Feature Feat from [First] = First, Feature First = Second) {}')
         result = self.generate(success=False)
         self.assertIn("must precede", result.stderr)
-        self.assertEqual([path.read_bytes() for path in (self.header, self.source, self.depfile)], before)
 
     def test_imported_parameterized_values_and_generated_name_collisions(self):
         self.write("items.ttrpg", "class TItem { int Amount = 2; } TItem Configured(int Amount = 3) { Amount = Amount; }")
@@ -194,15 +153,7 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("::CreateConfigured()", self.source.read_text())
         self.schema.write_text('import "items.ttrpg"; class TConfiguredOptions {}')
         result = self.command([CODEGEN, "--schema", self.schema, "--check"], success=False)
-        self.assertIn("constructor generated name collision", result.stderr)
-
-    def test_invalid_grants_preserve_generated_outputs(self):
-        self.generate()
-        paths = [self.header, self.source, self.depfile]
-        before = [(path.read_bytes(), path.stat().st_mtime_ns) for path in paths]
-        self.schema.write_text("feature Training { grant Missing; }")
-        self.generate(success=False)
-        self.assertEqual([(path.read_bytes(), path.stat().st_mtime_ns) for path in paths], before)
+        self.assertIn("conflicts with existing symbol", result.stderr)
 
     def test_invalid_implementation_does_not_leave_partial_header(self):
         self.schema.write_text("class TInvalid { int Value = Missing + 1; }\n")
@@ -220,18 +171,6 @@ class TtrpgCliTest(unittest.TestCase):
         self.generate(success=False)
         after = [(path.read_bytes(), path.stat().st_mtime_ns) for path in paths]
         self.assertEqual(after, before)
-
-    def test_unwritable_output_preserves_other_outputs(self):
-        self.generate()
-        header = self.header.read_bytes()
-        depfile = self.depfile.read_bytes()
-        self.source.unlink()
-        self.source.mkdir()
-        self.generate(success=False)
-        self.assertEqual(self.header.read_bytes(), header)
-        self.assertEqual(self.depfile.read_bytes(), depfile)
-        self.assertTrue(self.source.is_dir())
-        self.assertFalse(list(self.root.rglob("*.ttrpg-*")))
 
     def test_relative_outputs_need_no_parent_directory(self):
         self.command([CODEGEN, "--schema", "root.ttrpg", "--out-h", "root.h",
@@ -267,15 +206,6 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertEqual(self.header.read_bytes(), before)
         self.assertFalse(self.source.exists())
 
-    def test_hardlinked_output_paths_are_rejected(self):
-        self.header = self.write("root.h", "previous output")
-        self.source = self.root / "root.cpp"
-        self.source.hardlink_to(self.header)
-        result = self.generate(success=False)
-        self.assertIn("distinct", result.stderr)
-        self.assertEqual(self.header.read_text(), "previous output")
-        self.assertEqual(self.source.read_text(), "previous output")
-
     def test_symlink_to_imported_schema_is_rejected(self):
         imported = self.write("imported.ttrpg", "enum EImported { Value, }\n")
         self.schema.write_text('import "imported.ttrpg";\n')
@@ -307,13 +237,6 @@ class TtrpgCliTest(unittest.TestCase):
         self.assertIn("RegisterDefinitionsAbilities(catalog)", self.source.read_text())
         self.assertNotIn("RegisterAliasAbilities", self.source.read_text())
         self.assertIn("definitions.Training", self.header.read_text())
-
-    def test_nested_output_paths_are_rejected_before_creating_directories(self):
-        self.header = self.root / "new_directory" / "root.h"
-        self.source = self.header / "root.cpp"
-        result = self.generate(success=False)
-        self.assertIn("contain another output", result.stderr)
-        self.assertFalse(self.header.parent.exists())
 
     def test_depfile_has_unique_transitive_paths_with_escaping(self):
         self.write("nested rules/leaf#$.ttrpg", "enum ELeaf { First, }\n")

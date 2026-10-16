@@ -1,9 +1,9 @@
 #pragma once
 
-
 #include <ttrpg/module.h>
 #include <ttrpg/schema_ast.h>
 
+#include <set>
 #include <string>
 #include <unordered_map>
 
@@ -22,6 +22,8 @@ bool IsBuiltinBoundedQuantity(const std::string& t);
 bool IsBuiltinResource(const std::string& t);
 bool IsBuiltinFeature(const std::string& t);
 bool IsBuiltinPosition(const std::string& t);
+bool IsValueType(const TLoadedSchemas& loaded, const std::string& type, bool allowEntity);
+const std::set<std::string>& CppKeywords();
 
 std::string CppTypeFor(const std::string& schemaType);
 

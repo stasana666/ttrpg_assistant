@@ -17,25 +17,25 @@ Canonical project instructions. CLAUDE.md redirects here.
 ## Source Layout
 - `include/ttrpg/schema_ast.h`: parsed AST declarations (`TEnumDecl`, `TVariantDecl`, `TClassDecl`, `TFieldDecl`, `TSchemaModule`, `EContainer`).
 - `include/ttrpg/parser.h`, `src/parser.cpp`: tokenization and recursive-descent parser. Expressions are reconstructed with token locations and parsed by shared `expr::Parse`; balanced delimiters preserve nested object initializers and method bodies.
-- `include/ttrpg/module.h`, `src/module.cpp`: file parsing, recursive imports, duplicate type checks, circular import detection, symbol table, and canonical `SourcePaths` for dependency tracking. Distinct files sharing a module stem are rejected.
+- `include/ttrpg/module.h`, `src/module.cpp`: file parsing, recursive imports, duplicate type checks, circular import detection, symbol table, and canonical `SourcePaths` for dependency tracking. Distinct files sharing a module stem are rejected. It also owns the shared helpers used by every declaration kind: `AllModules`, `FindClass`/`FindVariant`, `IsImportedBy`, `CollectDeclarations`/`ResolveDeclaration`, and the `AnyNode` expression/statement walkers.
 - `include/ttrpg/conventions.h`, `src/conventions.cpp`: naming and type lowering (`PascalToSnake`, `CppMemberType`, `ScalarParseExpr`, `DefaultExprToCpp`, `VariantKindEnum`).
 - `include/ttrpg/analyze.h`, `src/analyze.cpp`: legacy computed-default validation and lowering.
 - `include/ttrpg/program.h`, `src/program.cpp`: typed rule expressions, method validation, purity/lvalues, query dependencies, initialization order, and checked lowering.
-- `include/ttrpg/constructors.h`, `src/constructors.cpp`: configurable named-constructor IR and generated-name validation; `src/program.cpp` supplies typed parameter scopes and dependency checking. `include/ttrpg/emit_instance.h`, `src/emit_instance.cpp` emit options, the shared resolver, reports, and factories.
+- `include/ttrpg/constructors.h`, `src/constructors.cpp`: configurable named-constructor IR and parameter-name validation; `src/program.cpp` supplies typed parameter scopes and dependency checking. `include/ttrpg/emit_instance.h`, `src/emit_instance.cpp` emit options, the shared resolver, reports, and factories.
 - `include/ttrpg/abilities.h`, `src/abilities.cpp`: ability symbols, reusable feature grant graphs, registration names, and typed traversal of stored grant sources.
 - `include/ttrpg/activities.h`, `src/activities.cpp`: typed activity symbols, import visibility, exported names, parameter/result validation, and acyclic call graphs.
 - `include/ttrpg/emit_activity.h`, `src/emit_activity.cpp`: exported typed activity functions sharing the action continuation renderer.
-- `include/ttrpg/triggers.h`, `src/triggers.cpp`: typed reaction-window signatures, subscription compatibility, imported symbols, and generated tag/export validation. `include/ttrpg/callable_graph.h`, `src/callable_graph.cpp` validate the combined activity/window/subscriber graph.
+- `include/ttrpg/triggers.h`, `src/triggers.cpp`: typed reaction-window signatures, subscription compatibility, and imported symbols. `include/ttrpg/callable_graph.h`, `src/callable_graph.cpp` validate the combined activity/window/subscriber graph.
 - `include/ttrpg/emit_reaction.h`, `src/emit_reaction.cpp`: typed reaction exports, immutable runtime registration, resource payments, and readonly preflight predicates.
-- `include/ttrpg/records.h`, `src/records.cpp`: completed-action record symbols, owner/source signatures, imported visibility, generated-name validation, and terminal-publication restrictions. `include/ttrpg/emit_record.h`, `src/emit_record.cpp` emit detached payloads, checked input rebinding, and semantic AST traversal.
-- `include/ttrpg/relations.h`, `src/relations.cpp`: entity-pair relation symbols, import visibility, payload/name validation, and duration-expression detection. `include/ttrpg/emit_relation.h`, `src/emit_relation.cpp` emit typed registry tags and payload AST traversal.
+- `include/ttrpg/records.h`, `src/records.cpp`: completed-action record symbols, owner/source signatures, imported visibility, and terminal-publication restrictions. `include/ttrpg/emit_record.h`, `src/emit_record.cpp` emit detached payloads, checked input rebinding, and semantic AST traversal.
+- `include/ttrpg/relations.h`, `src/relations.cpp`: entity-pair relation symbols, import visibility, payload validation, and duration-expression detection. `include/ttrpg/emit_relation.h`, `src/emit_relation.cpp` emit typed registry tags and payload AST traversal.
 - `include/ttrpg/events.h`, `src/events.cpp`: typed feature-event symbols, generated tag names, owner/result/parameter validation, and handler declaration validation.
 - `include/ttrpg/emit_rule_class.h`, `src/emit_rule_class.cpp`: rule classes, methods, entity lifecycle, snapshots, and recursive JSON emission.
 - `include/ttrpg/action_flow.h`, `src/action_flow.cpp`: typed action frames, basic blocks, branch/loop/choice/invocation exits, and direct C++ dispatcher rendering.
 - `include/ttrpg/emit_action.h`, `src/emit_action.cpp`: compiled action executors, bound resource costs, and module rule registration.
 - `include/ttrpg/emit_source.h`, `src/emit_source.cpp`: generated traversal of stored class source providers and their ancestors.
 - `include/ttrpg/cpp_writer.h`, `src/cpp_writer.cpp`: generated-output indentation/braces.
-- `include/ttrpg/emit.h`, `src/emit.cpp`: header/implementation emission.
+- `include/ttrpg/emit.h`, `src/emit.cpp`: header/implementation emission. `ValidateNames` registers every declared and generated top-level name once (builtins, types, generated helpers, abilities, events, triggers, records, relations, activities, named values) and reports `duplicate <kind>` or `conflicts with existing symbol`; the per-kind validators only check shapes.
 - `cli/main.cpp`: argument parsing and orchestration only.
 - `cmake/TtrpgCodegen.cmake`: `ttrpg_generate(SCHEMA ... HEADER ... SOURCE ... [DEPFILE ...] [TARGET ...])`; schema paths resolve against the source directory and output paths against the binary directory. `TARGET` must already exist and places generated-source properties in its directory, so `SKIP_LINTING` applies when generation is declared in a child directory.
 - `tests/`: writer, conventions, parser, analyzer, and golden-output tests.
@@ -179,7 +179,7 @@ Canonical project instructions. CLAUDE.md redirects here.
 ## CLI
 - Generate with `ttrpg_codegen --schema module.ttrpg --out-h module.h --out-cpp module.cpp [--depfile module.d]`.
 - `ttrpg_codegen --schema module.ttrpg --check` validates header and implementation emission for every imported module without creating files; it cannot be combined with output paths.
-- Generation renders both outputs before writing, stages files beside their destinations, and restores existing outputs if publication fails. Schema or emission errors leave existing output contents and timestamps unchanged.
+- Generation renders all outputs before writing any file, so schema or emission errors leave existing outputs unchanged. Each file is replaced through a temporary sibling.
 - `--depfile` writes Make-compatible dependencies for both outputs, including the primary schema and every transitive import. The CMake helper enables `DEPFILE`; Makefile generators require CMake 3.20 or newer.
 
 ## Pitfalls

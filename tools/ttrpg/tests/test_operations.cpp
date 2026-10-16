@@ -103,7 +103,7 @@ TEST(OperationCompilerTest, RejectsPositionTypeAndCapabilityErrors) {
     Rejects("action A for TActor { let P = Position { X = true; Y = 1; }; }", "expected 'int'");
     Rejects("class TBad { Position Location; }", "Position");
     Rejects("class Position {}", "reserved builtin");
-    Rejects("event int move for TActor();", "event name conflicts");
+    Rejects("event int move for TActor();", "conflicts with existing symbol");
     Rejects("action A for TActor { choose int Value from [1, true]; }", "expected 'int'");
 }
 

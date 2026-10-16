@@ -153,9 +153,9 @@ TEST(AbilityCompilerTest, RejectsInvalidDefinitionGraphs) {
     Rejects("action A; reaction A;", "duplicate ability definition");
     Rejects("action A; feature B { grant A; grant A; }", "duplicate feature grant");
     Rejects("feature A { grant @self.Features; }", "feature grants must name");
-    Rejects("class A {} action A;", "conflicts with type");
+    Rejects("class A {} action A;", "conflicts with existing symbol (type)");
     Rejects("class Feature {}", "reserved");
-    Rejects("feature Feature {}", "conflicts with type");
+    Rejects("feature Feature {}", "reserved builtin");
     Rejects("action A {}", "expected ';'");
 }
 
@@ -192,6 +192,6 @@ TEST(AbilityCompilerTest, RejectsAmbiguousRegistrationNames) {
     auto loaded = Rules("");
     loaded.ByStem["a-b"] = {};
     loaded.ByStem["a_b"] = {};
-    EXPECT_THROW(ValidateAbilityDefinitions(loaded), std::runtime_error);
-    Rejects("class RegisterRulesAbilities {}", "registration name collision");
+    EXPECT_THROW(Header(loaded), std::runtime_error);
+    Rejects("class RegisterRulesAbilities {}", "conflicts with existing symbol");
 }

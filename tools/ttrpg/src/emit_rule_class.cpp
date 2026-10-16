@@ -9,41 +9,9 @@
 
 namespace {
 
-const TClassDecl* FindClass(const std::string& name, const TLoadedSchemas& loaded) {
-    for (const auto& [stem, module] : loaded.ByStem) {
-        for (const auto& declaration : module.Classes) {
-            if (declaration.Name == name) {
-                return &declaration;
-            }
-        }
-    }
-    for (const auto& declaration : loaded.Primary.Classes) {
-        if (declaration.Name == name) {
-            return &declaration;
-        }
-    }
-    return nullptr;
-}
-
 bool IsRuleClass(const std::string& name, const TLoadedSchemas& loaded) {
-    const auto* declaration = FindClass(name, loaded);
+    const auto* declaration = FindClass(loaded, name);
     return declaration != nullptr && UsesRuleSyntax(*declaration, loaded);
-}
-
-const TVariantDecl* FindVariant(const std::string& name, const TLoadedSchemas& loaded) {
-    for (const auto& [stem, module] : loaded.ByStem) {
-        for (const auto& declaration : module.Variants) {
-            if (declaration.Name == name) {
-                return &declaration;
-            }
-        }
-    }
-    for (const auto& declaration : loaded.Primary.Variants) {
-        if (declaration.Name == name) {
-            return &declaration;
-        }
-    }
-    return nullptr;
 }
 
 TFieldDecl ElementField(const TFieldDecl& field) {
@@ -239,7 +207,7 @@ void EmitJsonValue(TCppWriter& writer, const TFieldDecl& field,
                     writer.Line(result + " = " + value + ".ToJson();");
                     return;
                 }
-                const auto* declaration = FindClass(field.TypeName, loaded);
+                const auto* declaration = FindClass(loaded, field.TypeName);
                 if (declaration == nullptr) {
                     throw std::runtime_error("Unknown class while emitting JSON: " + field.TypeName);
                 }
@@ -253,7 +221,7 @@ void EmitJsonValue(TCppWriter& writer, const TFieldDecl& field,
                 return;
             }
             case EFieldKind::Variant: {
-                const auto* declaration = FindVariant(field.TypeName, loaded);
+                const auto* declaration = FindVariant(loaded, field.TypeName);
                 if (declaration == nullptr) {
                     throw std::runtime_error("Unknown variant while emitting JSON: " + field.TypeName);
                 }

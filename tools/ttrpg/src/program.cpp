@@ -31,53 +31,24 @@ using TEnums = std::unordered_map<std::string, const TEnumDecl*>;
 using TVariants = std::unordered_map<std::string, const TVariantDecl*>;
 using TInstances = std::unordered_map<std::string, const TInstanceDecl*>;
 
-TInstances InstanceTable(const TLoadedSchemas& loaded) {
-    TInstances result;
-    auto add = [&](const TSchemaModule& module) {
-        for (const auto& instance : module.Instances) {
-            if (!result.emplace(instance.Name, &instance).second) throw std::runtime_error("duplicate named value '" + instance.Name + "'");
-            if (loaded.SymbolTable.contains("Create" + instance.Name)) throw std::runtime_error("named value factory conflicts with type 'Create" + instance.Name + "'");
-        }
-    };
-    for (const auto& [stem, module] : loaded.ByStem) if (stem != loaded.PrimaryStem) add(module);
-    add(loaded.Primary);
+template <class TTable, class TDecl>
+TTable DeclarationTable(const TLoadedSchemas& loaded, std::vector<TDecl> TSchemaModule::*member) {
+    TTable result;
+    for (const auto& [stem, module] : AllModules(loaded)) {
+        for (const auto& declaration : module->*member) result.emplace(declaration.Name, &declaration);
+    }
     return result;
 }
+
+TInstances InstanceTable(const TLoadedSchemas& loaded) { return DeclarationTable<TInstances>(loaded, &TSchemaModule::Instances); }
+TVariants VariantTable(const TLoadedSchemas& loaded) { return DeclarationTable<TVariants>(loaded, &TSchemaModule::Variants); }
+TEnums EnumTable(const TLoadedSchemas& loaded) { return DeclarationTable<TEnums>(loaded, &TSchemaModule::Enums); }
+TClasses ClassTable(const TLoadedSchemas& loaded) { return DeclarationTable<TClasses>(loaded, &TSchemaModule::Classes); }
 
 bool ContainsNamedValue(const expr::TExprNode& expression, const TInstances& instances) {
-    if (expression.Kind == expr::ENodeKind::Var && !expression.HasDollar && instances.contains(expression.Text)) return true;
-    if (expression.Lhs && ContainsNamedValue(*expression.Lhs, instances)) return true;
-    if (expression.Rhs && ContainsNamedValue(*expression.Rhs, instances)) return true;
-    for (const auto& argument : expression.Args) if (ContainsNamedValue(argument, instances)) return true;
-    for (const auto& field : expression.Fields) if (ContainsNamedValue(field.Value, instances)) return true;
-    return false;
-}
-
-TVariants VariantTable(const TLoadedSchemas& loaded) {
-    TVariants result;
-    for (const auto& [stem, module] : loaded.ByStem) {
-        for (const auto& variant : module.Variants) result[variant.Name] = &variant;
-    }
-    for (const auto& variant : loaded.Primary.Variants) result[variant.Name] = &variant;
-    return result;
-}
-
-TEnums EnumTable(const TLoadedSchemas& loaded) {
-    TEnums result;
-    for (const auto& [stem, module] : loaded.ByStem) {
-        for (const auto& enumeration : module.Enums) result.emplace(enumeration.Name, &enumeration);
-    }
-    for (const auto& enumeration : loaded.Primary.Enums) result[enumeration.Name] = &enumeration;
-    return result;
-}
-
-TClasses ClassTable(const TLoadedSchemas& loaded) {
-    TClasses result;
-    for (const auto& [stem, module] : loaded.ByStem) {
-        for (const auto& c : module.Classes) result.emplace(c.Name, &c);
-    }
-    for (const auto& c : loaded.Primary.Classes) result[c.Name] = &c;
-    return result;
+    return AnyNode(expression, [&](const expr::TExprNode& node) {
+        return node.Kind == expr::ENodeKind::Var && !node.HasDollar && instances.contains(node.Text);
+    });
 }
 
 const TFieldDecl* Field(const TClassDecl& c, const std::string& name) {
@@ -87,15 +58,14 @@ const TFieldDecl* Field(const TClassDecl& c, const std::string& name) {
 
 bool NewExpression(const expr::TExprNode& value) {
     using K = expr::ENodeKind;
-    if (value.Kind == K::ContextVar || value.Kind == K::ObjectInit || value.Kind == K::Call ||
-        value.Kind == K::Unary || value.Kind == K::Index || value.Kind == K::StringLiteral ||
-        value.Kind == K::ListLiteral) return true;
-    if (value.Kind == K::Binary && value.BinOp != expr::EBinaryOp::Add && value.BinOp != expr::EBinaryOp::Sub &&
-        value.BinOp != expr::EBinaryOp::Mul && value.BinOp != expr::EBinaryOp::Div) return true;
-    if (value.Lhs && NewExpression(*value.Lhs)) return true;
-    if (value.Rhs && NewExpression(*value.Rhs)) return true;
-    for (const auto& arg : value.Args) if (NewExpression(arg)) return true;
-    return false;
+    using O = expr::EBinaryOp;
+    return AnyNode(value, [](const expr::TExprNode& node) {
+        return node.Kind == K::ContextVar || node.Kind == K::ObjectInit || node.Kind == K::Call ||
+            node.Kind == K::Unary || node.Kind == K::Index || node.Kind == K::StringLiteral ||
+            node.Kind == K::ListLiteral ||
+            (node.Kind == K::Binary && node.BinOp != O::Add && node.BinOp != O::Sub &&
+             node.BinOp != O::Mul && node.BinOp != O::Div);
+    });
 }
 
 std::string Operator(expr::EBinaryOp op) {
@@ -1877,17 +1847,7 @@ private:
 
     void ValidateNames() {
         std::unordered_set<std::string> names;
-        const std::unordered_set<std::string> keywords{
-            "alignas", "alignof", "and", "and_eq", "asm", "auto", "bitand", "bitor", "bool", "break",
-            "case", "catch", "char", "char8_t", "char16_t", "char32_t", "class", "compl", "concept",
-            "const", "consteval", "constexpr", "constinit", "const_cast", "continue", "co_await", "co_return", "co_yield",
-            "decltype", "default", "delete", "do", "double", "dynamic_cast", "else", "enum", "explicit", "export", "extern",
-            "false", "float", "for", "friend", "goto", "if", "inline", "int", "long", "mutable", "namespace", "new", "noexcept",
-            "not", "not_eq", "nullptr", "operator", "or", "or_eq", "private", "protected", "public", "register", "reinterpret_cast",
-            "requires", "return", "short", "signed", "sizeof", "static", "static_assert", "static_cast", "struct", "switch",
-            "template", "this", "thread_local", "throw", "true", "try", "typedef", "typeid", "typename", "union", "unsigned",
-            "using", "virtual", "void", "volatile", "wchar_t", "while", "xor", "xor_eq"
-        };
+        const auto& keywords = CppKeywords();
         if (keywords.contains(self_.Name)) Fail("reserved class name '" + self_.Name + "'");
         const std::unordered_set<std::string> reserved{"Create", "ResolveInitialValues", "FromJson", "Restore", "ToJson", "GetAst", "RegisterDslProperties", "TInitialValues", "TUninitialized", "VisitGrantedAbilities", "VisitAbilitySources"};
         for (const auto& field : self_.Fields) {
@@ -2129,7 +2089,6 @@ std::string CompileInstance(const TInstanceDecl& declaration, const TLoadedSchem
 }
 
 TCompiledConstructor CompileConstructor(const TInstanceDecl& declaration, const TLoadedSchemas& loaded) {
-    ValidateConstructorNames(loaded);
     const auto classes = ClassTable(loaded);
     if (!classes.contains(declaration.TypeName)) throw std::runtime_error("unknown instance type '" + declaration.TypeName + "'");
     TClassDecl scope;
@@ -2138,8 +2097,6 @@ TCompiledConstructor CompileConstructor(const TInstanceDecl& declaration, const 
 }
 
 TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded) {
-    ValidateRecordDefinitions(loaded);
-    ValidateRelationDefinitions(loaded);
     if (declaration.Kind != EAbilityDeclarationKind::Action || declaration.OwnerType.empty()) {
         throw std::runtime_error("compiled action requires an owner type");
     }
@@ -2150,8 +2107,6 @@ TCompiledAction CompileAction(const TAbilityDecl& declaration, const TLoadedSche
 }
 
 TCompiledActivity CompileActivity(const TActivityDecl& declaration, const TLoadedSchemas& loaded) {
-    ValidateActivityDefinitions(loaded);
-    ValidateRelationDefinitions(loaded);
     const auto classes = ClassTable(loaded);
     const auto owner = classes.find(declaration.OwnerType);
     if (owner == classes.end()) throw std::runtime_error("unknown activity owner type '" + declaration.OwnerType + "'");
@@ -2159,9 +2114,6 @@ TCompiledActivity CompileActivity(const TActivityDecl& declaration, const TLoade
 }
 
 TCompiledReaction CompileReaction(const TAbilityDecl& declaration, const TLoadedSchemas& loaded) {
-    ValidateRelationDefinitions(loaded);
-    ValidateTriggerDefinitions(loaded);
-    ValidateActivityDefinitions(loaded);
     const auto classes = ClassTable(loaded);
     if (declaration.Kind != EAbilityDeclarationKind::Reaction || declaration.OwnerType.empty() || declaration.Triggers.empty()) {
         throw std::runtime_error("compiled reaction requires a trigger and owner");
@@ -2171,7 +2123,6 @@ TCompiledReaction CompileReaction(const TAbilityDecl& declaration, const TLoaded
 
 std::vector<std::string> CompileFeatureHook(const TAbilityDecl& feature, const TAbilityDecl::THook& hook,
                                           const TLoadedSchemas& loaded) {
-    ValidateRelationDefinitions(loaded);
     const auto events = EventSymbols(loaded);
     const auto event = events.find(hook.EventName);
     if (event == events.end()) throw std::runtime_error("unknown hook event '" + hook.EventName + "'");

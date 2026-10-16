@@ -3,14 +3,10 @@
 #include <ttrpg/module.h>
 
 #include <string>
-#include <unordered_map>
 
-struct TRelationInfo {
-    std::string OwnerStem;
-    const TRelationDecl* Declaration;
-};
+using TRelationInfo = TDeclarationInfo<TRelationDecl>;
 
-std::unordered_map<std::string, TRelationInfo> RelationSymbols(const TLoadedSchemas& loaded);
+TDeclarations<TRelationDecl> RelationSymbols(const TLoadedSchemas& loaded);
 TRelationInfo ResolveRelation(const std::string& name, const std::string& callerStem, const TLoadedSchemas& loaded);
 std::string RelationTagName(const TRelationDecl& declaration);
 void ValidateRelationDefinitions(const TLoadedSchemas& loaded);
