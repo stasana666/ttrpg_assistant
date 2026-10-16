@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "compile_helpers.h"
+
 #include <ttrpg/activities.h>
 #include <ttrpg/emit.h>
 #include <ttrpg/parser.h>
@@ -13,30 +15,19 @@
 namespace {
 
 TLoadedSchemas Rules(const std::string& source) {
-    TLoadedSchemas loaded;
-    loaded.PrimaryStem = "activities";
-    loaded.Primary = TParser(Tokenize(R"(
+    return LoadRules("activities", R"(
         enum EOutcome { Yes, No }
         class TValue { int Amount = 1; }
         GameEntity TActor { int Level = 1; Resource Effort = 3; }
-    )" + source)).Parse();
-    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
-    return loaded;
+    )" + source);
 }
 
 std::string Emit(const TLoadedSchemas& loaded) {
-    std::ostringstream output;
-    EmitImpl(output, loaded, "activities.ttrpg", "activities.h");
-    return output.str();
+    return EmitImplText(loaded, "activities");
 }
 
 void Rejects(const std::string& source, const std::string& diagnostic) {
-    try {
-        (void)Emit(Rules(source));
-        FAIL() << "accepted invalid activity: " << source;
-    } catch (const std::runtime_error& error) {
-        EXPECT_NE(std::string(error.what()).find(diagnostic), std::string::npos) << error.what();
-    }
+    ExpectRejected(source, diagnostic, [&] { (void)Emit(Rules(source)); });
 }
 
 }

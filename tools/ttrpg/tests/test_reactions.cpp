@@ -1,11 +1,10 @@
 #include <gtest/gtest.h>
 
-#include <ttrpg/emit.h>
-#include <ttrpg/parser.h>
+#include "compile_helpers.h"
+
 #include <ttrpg/program.h>
 #include <ttrpg/triggers.h>
 
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -23,23 +22,15 @@ const std::string kTypes = R"(
 )";
 
 TLoadedSchemas Rules(const std::string& source) {
-    TLoadedSchemas loaded;
-    loaded.PrimaryStem = "reactions";
-    loaded.Primary = TParser(Tokenize(kTypes + source)).Parse();
-    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
-    return loaded;
+    return LoadRules("reactions", kTypes + source);
 }
 
 std::string Header(const TLoadedSchemas& loaded) {
-    std::ostringstream result;
-    EmitHeader(result, loaded, "reactions.ttrpg", "reactions.h");
-    return result.str();
+    return EmitHeaderText(loaded, "reactions");
 }
 
 std::string Implementation(const TLoadedSchemas& loaded) {
-    std::ostringstream result;
-    EmitImpl(result, loaded, "reactions.ttrpg", "reactions.h");
-    return result.str();
+    return EmitImplText(loaded, "reactions");
 }
 
 const std::string kOpening = "trigger TPending Opening(TPending Pending, TActor Subject, int Kind); ";

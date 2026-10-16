@@ -1,18 +1,14 @@
 #include <gtest/gtest.h>
 
-#include <ttrpg/emit.h>
-#include <ttrpg/parser.h>
+#include "compile_helpers.h"
 
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
 namespace {
 
 std::string Implementation(const std::string& source) {
-    TLoadedSchemas loaded;
-    loaded.PrimaryStem = "operations";
-    loaded.Primary = TParser(Tokenize(R"(
+    return EmitImplText(LoadRules("operations", R"(
         enum EDecision { Continue, Finish }
         variant TStatus { Prone; Frightened { int Value; } }
         class TItem { Resource Effort = 0; set<TStatus> Conditions; }
@@ -22,20 +18,11 @@ std::string Implementation(const std::string& source) {
             TItem Item;
             query bool IsAlive() { return true; }
         }
-    )" + source)).Parse();
-    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
-    std::ostringstream output;
-    EmitImpl(output, loaded, "operations.ttrpg", "operations.h");
-    return output.str();
+    )" + source), "operations");
 }
 
 void Rejects(const std::string& source, const std::string& diagnostic) {
-    try {
-        Implementation(source);
-        FAIL() << "expected rejection: " << source;
-    } catch (const std::runtime_error& error) {
-        EXPECT_NE(std::string(error.what()).find(diagnostic), std::string::npos) << error.what();
-    }
+    ExpectRejected(source, diagnostic, [&] { Implementation(source); });
 }
 
 }

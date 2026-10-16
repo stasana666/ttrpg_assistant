@@ -1,11 +1,10 @@
 #include <gtest/gtest.h>
 
-#include <ttrpg/emit.h>
-#include <ttrpg/parser.h>
+#include "compile_helpers.h"
+
 #include <ttrpg/program.h>
 #include <ttrpg/records.h>
 
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -27,23 +26,15 @@ const std::string kTypes = R"(
 const std::string kRecord = "record HitResult for TActor using TItem Item(TActor Target, EOutcome Outcome); ";
 
 TLoadedSchemas Rules(const std::string& source) {
-    TLoadedSchemas result;
-    result.PrimaryStem = "records";
-    result.Primary = TParser(Tokenize(kTypes + source)).Parse();
-    RegisterModuleSymbols(result.PrimaryStem, result.Primary, result.SymbolTable);
-    return result;
+    return LoadRules("records", kTypes + source);
 }
 
 std::string Header(const TLoadedSchemas& loaded) {
-    std::ostringstream output;
-    EmitHeader(output, loaded, "records.ttrpg", "records.h");
-    return output.str();
+    return EmitHeaderText(loaded, "records");
 }
 
 std::string Implementation(const TLoadedSchemas& loaded) {
-    std::ostringstream output;
-    EmitImpl(output, loaded, "records.ttrpg", "records.h");
-    return output.str();
+    return EmitImplText(loaded, "records");
 }
 
 }

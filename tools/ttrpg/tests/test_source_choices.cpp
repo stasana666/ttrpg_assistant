@@ -1,49 +1,31 @@
 #include <gtest/gtest.h>
 
-#include <ttrpg/emit.h>
-#include <ttrpg/parser.h>
+#include "compile_helpers.h"
+
 #include <ttrpg/program.h>
 
 #include <algorithm>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
 namespace {
 
 TLoadedSchemas Rules(const std::string& source) {
-    TLoadedSchemas loaded;
-    loaded.PrimaryStem = "source_choices";
-    loaded.Primary = TParser(Tokenize(R"(
+    return LoadRules("source_choices", R"(
         enum EResult { Success, Failure }
         class TItem { string Name = "Item"; int Size = 2; method void SetSize(int Value) { @self.Size = Value; } query TItem Identity() { return @self; } }
         class TOther { int Value = 1; }
         class TInventory { collection<TItem> Items; }
         GameEntity TActor { int Level = 1; Resource Effort = 3; collection<TItem> Items; collection<TItem> NaturalItems; TInventory Inventory; }
-    )" + source)).Parse();
-    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
-    return loaded;
-}
-
-std::string Join(const std::vector<std::string>& lines) {
-    std::string result;
-    for (const auto& line : lines) result += line + "\n";
-    return result;
+    )" + source);
 }
 
 std::string Emit(const TLoadedSchemas& loaded) {
-    std::ostringstream output;
-    EmitImpl(output, loaded, "source_choices.ttrpg", "source_choices.h");
-    return output.str();
+    return EmitImplText(loaded, "source_choices");
 }
 
 void Rejects(const std::string& source, const std::string& diagnostic) {
-    try {
-        (void)Emit(Rules(source));
-        FAIL() << "accepted invalid source choice: " << source;
-    } catch (const std::runtime_error& error) {
-        EXPECT_NE(std::string(error.what()).find(diagnostic), std::string::npos) << error.what();
-    }
+    ExpectRejected(source, diagnostic, [&] { (void)Emit(Rules(source)); });
 }
 
 }

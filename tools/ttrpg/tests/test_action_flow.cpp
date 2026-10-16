@@ -1,25 +1,20 @@
 #include <gtest/gtest.h>
 
-#include <ttrpg/emit.h>
-#include <ttrpg/parser.h>
+#include "compile_helpers.h"
+
 #include <ttrpg/program.h>
 
 #include <algorithm>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
 namespace {
 
 TLoadedSchemas Rules(const std::string& source) {
-    TLoadedSchemas loaded;
-    loaded.PrimaryStem = "flow";
-    loaded.Primary = TParser(Tokenize(R"(
+    return LoadRules("flow", R"(
         enum EDecision { Continue, Finish }
         GameEntity TActor { int Level = 1; Resource Effort = 3; }
-    )" + source)).Parse();
-    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
-    return loaded;
+    )" + source);
 }
 
 TCompiledAction Compile(const std::string& source) {
@@ -27,21 +22,8 @@ TCompiledAction Compile(const std::string& source) {
     return CompileAction(loaded.Primary.Abilities.front(), loaded);
 }
 
-std::string Join(const std::vector<std::string>& lines) {
-    std::string result;
-    for (const auto& line : lines) result += line + "\n";
-    return result;
-}
-
 void Rejects(const std::string& source, const std::string& diagnostic) {
-    try {
-        const auto loaded = Rules(source);
-        std::ostringstream output;
-        EmitImpl(output, loaded, "flow.ttrpg", "flow.h");
-        FAIL() << "accepted invalid action: " << source;
-    } catch (const std::runtime_error& error) {
-        EXPECT_NE(std::string(error.what()).find(diagnostic), std::string::npos) << error.what();
-    }
+    ExpectRejected(source, diagnostic, [&] { (void)EmitImplText(Rules(source), "flow"); });
 }
 
 }

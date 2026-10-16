@@ -1,11 +1,10 @@
 #include <gtest/gtest.h>
 
+#include "compile_helpers.h"
+
 #include <ttrpg/constructors.h>
-#include <ttrpg/emit.h>
-#include <ttrpg/parser.h>
 #include <ttrpg/program.h>
 
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -34,23 +33,15 @@ const std::string kTypes = R"(
 )";
 
 TLoadedSchemas Rules(const std::string& source) {
-    TLoadedSchemas loaded;
-    loaded.PrimaryStem = "constructors";
-    loaded.Primary = TParser(Tokenize(kTypes + source)).Parse();
-    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
-    return loaded;
+    return LoadRules("constructors", kTypes + source);
 }
 
 std::string Header(const TLoadedSchemas& loaded) {
-    std::ostringstream result;
-    EmitHeader(result, loaded, "constructors.ttrpg", "constructors.h");
-    return result.str();
+    return EmitHeaderText(loaded, "constructors");
 }
 
 std::string Implementation(const TLoadedSchemas& loaded) {
-    std::ostringstream result;
-    EmitImpl(result, loaded, "constructors.ttrpg", "constructors.h");
-    return result.str();
+    return EmitImplText(loaded, "constructors");
 }
 
 const TInstanceDecl& Last(const TLoadedSchemas& loaded) {

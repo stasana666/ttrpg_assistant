@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
 
-#include <ttrpg/emit.h>
+#include "compile_helpers.h"
+
 #include <ttrpg/parser.h>
 #include <ttrpg/program.h>
 
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -38,38 +38,19 @@ const std::string kTypes = R"(
 )";
 
 TLoadedSchemas Rules(const std::string& source) {
-    TLoadedSchemas loaded;
-    loaded.PrimaryStem = "sources";
-    loaded.Primary = TParser(Tokenize(kTypes + source)).Parse();
-    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
-    return loaded;
+    return LoadRules("sources", kTypes + source);
 }
 
 std::string Header(const TLoadedSchemas& loaded) {
-    std::ostringstream result;
-    EmitHeader(result, loaded, "sources.ttrpg", "sources.h");
-    return result.str();
+    return EmitHeaderText(loaded, "sources");
 }
 
 std::string Implementation(const TLoadedSchemas& loaded) {
-    std::ostringstream result;
-    EmitImpl(result, loaded, "sources.ttrpg", "sources.h");
-    return result.str();
-}
-
-std::string Join(const std::vector<std::string>& lines) {
-    std::string result;
-    for (const auto& line : lines) result += line + "\n";
-    return result;
+    return EmitImplText(loaded, "sources");
 }
 
 void Rejects(const std::string& source, const std::string& diagnostic) {
-    try {
-        Implementation(Rules(source));
-        FAIL() << "expected rejection: " << source;
-    } catch (const std::runtime_error& error) {
-        EXPECT_NE(std::string(error.what()).find(diagnostic), std::string::npos) << error.what();
-    }
+    ExpectRejected(source, diagnostic, [&] { Implementation(Rules(source)); });
 }
 
 }

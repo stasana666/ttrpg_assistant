@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include "compile_helpers.h"
+
 #include <ttrpg/abilities.h>
 #include <ttrpg/emit.h>
 #include <ttrpg/parser.h>
@@ -29,17 +31,11 @@ const std::string kTypes = R"(
 )";
 
 TLoadedSchemas Rules(const std::string& source) {
-    TLoadedSchemas loaded;
-    loaded.PrimaryStem = "compiled_actions";
-    loaded.Primary = TParser(Tokenize(kTypes + source)).Parse();
-    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
-    return loaded;
+    return LoadRules("compiled_actions", kTypes + source);
 }
 
 std::string Implementation(const TLoadedSchemas& loaded) {
-    std::ostringstream result;
-    EmitImpl(result, loaded, "compiled_actions.ttrpg", "compiled_actions.h");
-    return result.str();
+    return EmitImplText(loaded, "compiled_actions");
 }
 
 std::string Body(const TCompiledAction& action) {
@@ -49,12 +45,7 @@ std::string Body(const TCompiledAction& action) {
 }
 
 void Rejects(const std::string& source, const std::string& diagnostic) {
-    try {
-        Implementation(Rules(source));
-        FAIL() << "expected rejection: " << source;
-    } catch (const std::runtime_error& error) {
-        EXPECT_NE(std::string(error.what()).find(diagnostic), std::string::npos) << error.what();
-    }
+    ExpectRejected(source, diagnostic, [&] { Implementation(Rules(source)); });
 }
 
 }

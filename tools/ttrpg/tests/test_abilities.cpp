@@ -1,43 +1,30 @@
 #include <gtest/gtest.h>
 
+#include "compile_helpers.h"
+
 #include <ttrpg/abilities.h>
-#include <ttrpg/emit.h>
 #include <ttrpg/parser.h>
 #include <ttrpg/program.h>
 
-#include <sstream>
 #include <stdexcept>
 #include <string>
 
 namespace {
 
 TLoadedSchemas Rules(const std::string& source, const std::string& stem = "rules") {
-    TLoadedSchemas loaded;
-    loaded.PrimaryStem = stem;
-    loaded.Primary = TParser(Tokenize(source)).Parse();
-    RegisterModuleSymbols(stem, loaded.Primary, loaded.SymbolTable);
-    return loaded;
+    return LoadRules(stem, source);
 }
 
 std::string Header(const TLoadedSchemas& loaded) {
-    std::ostringstream output;
-    EmitHeader(output, loaded, "rules.ttrpg", "rules.h");
-    return output.str();
+    return EmitHeaderText(loaded, "rules");
 }
 
 std::string Implementation(const TLoadedSchemas& loaded) {
-    std::ostringstream output;
-    EmitImpl(output, loaded, "rules.ttrpg", "rules.h");
-    return output.str();
+    return EmitImplText(loaded, "rules");
 }
 
 void Rejects(const std::string& source, const std::string& diagnostic) {
-    try {
-        Header(Rules(source));
-        FAIL() << "expected rejection: " << source;
-    } catch (const std::runtime_error& error) {
-        EXPECT_NE(std::string(error.what()).find(diagnostic), std::string::npos) << error.what();
-    }
+    ExpectRejected(source, diagnostic, [&] { Header(Rules(source)); });
 }
 
 }
