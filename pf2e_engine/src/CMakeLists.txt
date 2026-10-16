@@ -1,5 +1,6 @@
 target_sources(pf2e_engine
     PRIVATE
+        alternatives.cpp
         battle_map.cpp
         battle.cpp
         combat_calculator.cpp

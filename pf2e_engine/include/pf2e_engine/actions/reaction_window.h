@@ -6,9 +6,7 @@
 #include <pf2e_engine/actions/generated_history.h>
 #include <pf2e_engine/actions/save_point.h>
 
-#include <algorithm>
 #include <memory>
-#include <set>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -220,20 +218,13 @@ TResult<TTrigger> Run(const std::shared_ptr<const TEnvironment>& environment,
         }
         auto alternatives = TAlternatives::Create<std::size_t>("reaction");
         alternatives.AddAlternative("Decline", 0);
-        std::set<std::string> used_labels{"Decline"};
-        for (std::size_t index = 0; index < options->size(); ++index) {
-            const auto& name = (*options)[index].Execution->Name;
-            auto label = name;
-            if (std::ranges::count_if(*options, [&](const auto& option) {
-                    return option.Execution->Name == label;
-                }) > 1 || label == "Decline") {
-                label += " (" + std::to_string(index + 1) + ")";
-            }
-            std::size_t suffix = index + 1;
-            while (!used_labels.insert(label).second) {
-                label = name + " (" + std::to_string(++suffix) + ")";
-            }
-            alternatives.AddAlternative(std::move(label), index + 1);
+        std::vector<std::string> labels;
+        for (const auto& option : *options) {
+            labels.push_back(option.Execution->Name);
+        }
+        labels = NumberDuplicateLabels(std::move(labels), {"Decline"});
+        for (std::size_t index = 0; index < labels.size(); ++index) {
+            alternatives.AddAlternative(std::move(labels[index]), index + 1);
         }
         auto remainder = [environment, arguments, cursor, on_resume](TResult<TTrigger> next) {
             on_resume(Run<TTrigger>(environment, std::move(next), arguments, cursor, on_resume));

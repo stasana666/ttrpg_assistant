@@ -14,7 +14,6 @@
 
 #include <cassert>
 #include <algorithm>
-#include <map>
 #include <utility>
 #include <iostream>
 #include <stdexcept>
@@ -354,21 +353,22 @@ std::optional<TAbilityOption> TBattle::ChooseAction(TPlayer& player) const
         return std::nullopt;
     }
 
-    auto alternatives = TAlternatives::Create<std::optional<TAbilityOption>>("next action");
-    alternatives.AddAlternative("End of turn", std::optional<TAbilityOption>{});
-    std::map<std::string, size_t> labels;
+    std::vector<std::string> labels;
     for (const auto& action : actions) {
         std::string name(action.Action->Name());
         if (std::ranges::count_if(actions, [&](const TAbilityOption& other) {
                 return other.Action->Name() == action.Action->Name();
             }) > 1) {
             name += " (" + SourceName(*std::as_const(player).GetCreature(), action.Source) + ")";
-            const auto occurrence = ++labels[name];
-            if (occurrence > 1) {
-                name += " " + std::to_string(occurrence);
-            }
         }
-        alternatives.AddAlternative(std::move(name), std::optional<TAbilityOption>{action});
+        labels.push_back(std::move(name));
+    }
+    labels = NumberDuplicateLabels(std::move(labels), {"End of turn"});
+    auto alternatives = TAlternatives::Create<std::optional<TAbilityOption>>("next action");
+    alternatives.AddAlternative("End of turn", std::optional<TAbilityOption>{});
+    for (size_t index = 0; index < actions.size(); ++index) {
+        alternatives.AddAlternative(std::move(labels[index]),
+                                    std::optional<TAbilityOption>{actions[index]});
     }
     return io_system_.ChooseAlternative<std::optional<TAbilityOption>>(player.GetId(), alternatives);
 }

@@ -6,9 +6,7 @@
 #include <algorithm>
 #include <functional>
 #include <memory>
-#include <map>
 #include <optional>
-#include <set>
 #include <stdexcept>
 #include <string>
 #include <typeindex>
@@ -241,31 +239,20 @@ TGeneratedSourceBinding<TSource> SelectActionSource(
         throw std::invalid_argument("source choice requires a continuation");
     }
     std::vector<TGeneratedSourceCandidate<TSource>> eligible;
-    std::vector<std::string> descriptions;
-    std::map<std::string, std::size_t> totals;
+    std::vector<std::string> labels;
     for (const auto& candidate : candidates) {
         candidate.Validate(ctx);
         if (!predicate || predicate(candidate)) {
-            descriptions.push_back(candidate.Description());
-            ++totals[descriptions.back()];
+            labels.push_back(candidate.Description());
             eligible.push_back(candidate);
         }
     }
+    labels = NumberDuplicateLabels(std::move(labels));
     auto values = std::make_shared<const std::vector<TGeneratedSourceCandidate<TSource>>>(
         std::move(eligible));
     auto alternatives = TAlternatives::Create<TGeneratedSourceCandidate<TSource>>("source");
-    std::map<std::string, std::size_t> occurrences;
-    std::set<std::string> used_labels;
     for (std::size_t index = 0; index < values->size(); ++index) {
-        auto label = descriptions[index];
-        if (totals[label] > 1) {
-            label += " (" + std::to_string(++occurrences[descriptions[index]]) + ")";
-        }
-        while (!used_labels.insert(label).second) {
-            label = descriptions[index] + " (" +
-                std::to_string(++occurrences[descriptions[index]]) + ")";
-        }
-        alternatives.AddAlternative(std::move(label), (*values)[index]);
+        alternatives.AddAlternative(std::move(labels[index]), (*values)[index]);
     }
     auto selected = [ctx, values, predicate = std::move(predicate)](std::size_t index) {
         ValidateActionActor(ctx);

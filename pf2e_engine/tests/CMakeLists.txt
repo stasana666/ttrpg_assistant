@@ -17,7 +17,8 @@ function(add_engine_test name)
 endfunction()
 
 add_engine_test(test_pf2_engine
-    SOURCES test_armor.cpp test_resources.cpp test_random.cpp test_continuation.cpp test_battle_map.cpp)
+    SOURCES test_alternatives.cpp test_armor.cpp test_resources.cpp test_random.cpp test_continuation.cpp
+        test_battle_map.cpp)
 add_engine_test(test_lifecycle SOURCES test_lifecycle.cpp)
 add_engine_test(test_lifecycle_execution
     SOURCES test_lifecycle_execution.cpp
