@@ -401,10 +401,7 @@ EAbilityExecutionResult TBattle::Execute(const TAbilityOption& option)
     }
     bindings.ValidateSource = [&creature, rules = ability_rules_,
                               definition = option.DefinitionId, source = option.Source]() {
-        const auto grants = CollectAbilities(creature, rules->Catalog);
-        return std::ranges::any_of(grants.Grants(), [&](const TGrantedAbility& grant) {
-            return grant.DefinitionId == definition && grant.Source == source;
-        });
+        return CollectAbilities(creature, rules->Catalog).FindGrant(definition, source) != nullptr;
     };
     return ExecuteAbility(option, MakeActionContext(), actor, fresh,
                           ability_rules_->Executions, std::move(bindings));

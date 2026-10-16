@@ -349,8 +349,10 @@ definition. Generated event tags retain their C++ owner, argument and result typ
 the registry rejects conflicting tag types or handlers and permits registration
 of the same shared handler more than once. Feature hooks do not require terminal
 action grants: dispatch reads `CollectAbilities(owner, Catalog).Features()`.
-The common registry has no dependency on creature or action types. Generated
-registrars retain static shared handlers so repeated imports preserve identity.
+This registry and `TReactionRegistry` validate their values, then store them in
+the shared `TTaggedRegistry` (`common/tagged_registry.h`), which has no dependency
+on creature or action types. Generated registrars retain static shared handlers so
+repeated imports preserve identity.
 
 Each feature definition and source contributes once, while the same definition
 selected through different sources contributes separately. Results retain the

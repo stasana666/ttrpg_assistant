@@ -176,6 +176,15 @@ const std::vector<TGrantedAbility>& TAbilityCollector::Features() const
     return features_;
 }
 
+const TGrantedAbility* TAbilityCollector::FindGrant(std::string_view definition,
+                                                    const TAbilitySourcePath& source) const
+{
+    const auto found = std::ranges::find_if(grants_, [&](const TGrantedAbility& grant) {
+        return grant.DefinitionId == definition && grant.Source == source;
+    });
+    return found == grants_.end() ? nullptr : &*found;
+}
+
 void TAbilityCollector::Expand(std::string_view definition, const TAbilitySourcePath& path,
                                std::vector<std::string>& chain,
                                const std::vector<std::string>& sites,

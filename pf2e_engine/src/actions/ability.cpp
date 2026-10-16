@@ -218,11 +218,8 @@ EAbilityExecutionResult ExecuteAbility(
     if (option.ActorId != actor.GetId() || option.ActorIdentity != &actor) {
         return EAbilityExecutionResult::Unavailable;
     }
-    const auto& grants = fresh.Grants();
-    const auto grant = std::find_if(grants.begin(), grants.end(), [&](const auto& current) {
-        return current.DefinitionId == option.DefinitionId && current.Source == option.Source;
-    });
-    if (grant == grants.end()) {
+    const auto* grant = fresh.FindGrant(option.DefinitionId, option.Source);
+    if (grant == nullptr) {
         return EAbilityExecutionResult::Unavailable;
     }
     const auto& execution = executions.Require(option.DefinitionId);

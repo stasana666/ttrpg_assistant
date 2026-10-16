@@ -101,6 +101,7 @@ public:
 
     const std::vector<TGrantedAbility>& Grants() const;
     const std::vector<TGrantedAbility>& Features() const;
+    const TGrantedAbility* FindGrant(std::string_view definition, const TAbilitySourcePath& source) const;
 
 private:
     void Expand(std::string_view definition, const TAbilitySourcePath& path,

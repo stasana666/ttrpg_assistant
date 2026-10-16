@@ -152,10 +152,8 @@ TResult<TTrigger> Execute(const std::shared_ptr<const TEnvironment>& environment
     auto context = ActorContext(*environment, actor);
     ValidateArguments(context, arguments);
     const auto abilities = Collect(actor, *environment->Rules);
-    const auto current = std::ranges::find_if(abilities.Grants(), [&](const auto& grant) {
-        return grant.DefinitionId == option.Grant.DefinitionId && grant.Source == option.Grant.Source;
-    });
-    if (current == abilities.Grants().end() ||
+    const auto* current = abilities.FindGrant(option.Grant.DefinitionId, option.Grant.Source);
+    if (current == nullptr ||
         RequireGrantImplementation(*environment->Rules, *current) != EAbilityImplementation::TypedReaction ||
         environment->Rules->Reactions.template Find<TTrigger>(current->DefinitionId) != option.Execution ||
         !Eligible<TTrigger>(*environment, actor, option, pending, arguments)) {

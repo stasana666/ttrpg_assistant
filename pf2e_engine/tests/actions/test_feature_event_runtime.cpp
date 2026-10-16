@@ -2,13 +2,11 @@
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 
-#include "../test_lib/mock_dice_roller.h"
-#include "../test_lib/mock_interaction_system.h"
+#include "../test_lib/battle_fixture.h"
 
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 
-#include <deque>
 #include <functional>
 #include <memory>
 #include <string>
@@ -78,63 +76,23 @@ std::shared_ptr<const TAbilityRules> MakeRules(TTestBonus::FHandler handler)
     return rules;
 }
 
-class TFeatureEventRuntimeTest : public ::testing::Test {
+class TFeatureEventRuntimeTest : public TBattleFixture {
 protected:
-    void Start(std::shared_ptr<const TAbilityRules> rules)
-    {
-        rules_ = std::move(rules);
-        nlohmann::json map = {{"x_size", 8}, {"y_size", 8}};
-        battle_ = std::make_unique<TBattle>(TBattleMap(map), &rng_, io_, rules_);
-        transformator_ = std::make_unique<TTransformator>(io_);
-    }
+    void Start(std::shared_ptr<const TAbilityRules> rules) { StartBattle(std::move(rules), 8); }
 
     TPlayer& Add(std::string feature = {}, std::string class_feature = {},
                  int level = 1, int current = 10)
     {
         const int id = static_cast<int>(creatures_.size());
-        creatures_.push_back(TCreature::Create({
+        return Join(TCreature::Create({
             .Level = level,
             .Class = TClass::Create({.Features = Selection(std::move(class_feature))}),
             .Hitpoints = THitPoints::Create({
                 .Maximum = Statistic::Create({.Base = 10}), .Current = current,
             }),
             .Features = Selection(std::move(feature)),
-        }));
-        rng_.ExpectCall(20, 10);
-        battle_->AddPlayer(TPlayer(&creatures_.back(), TPlayerTeam{id}, TPlayerId{id},
-                                   "Player " + std::to_string(id), ""), {id, 0});
-        return *battle_->GetIfPlayers([id](const TPlayer* player) {
-            return player->GetId() == id;
-        }).at(0);
+        }), id, {id, 0}, "Player " + std::to_string(id));
     }
-
-    std::shared_ptr<TActionContext> Context(TPlayer& actor)
-    {
-        auto context = std::make_shared<TActionContext>(TActionContext{
-            .battle = battle_.get(),
-            .dice_roller = &rng_,
-            .transformator = transformator_.get(),
-            .io_system = &io_,
-            .scheduler = nullptr,
-            .effect_manager = nullptr,
-        });
-        context->game_object_registry = std::make_shared<TGameObjectRegistry>();
-        context->game_object_registry->Add(
-            TGameObjectIdManager::Instance().Register("self"), &actor);
-        return context;
-    }
-
-    void TearDown() override
-    {
-        rng_.Verify();
-    }
-
-    TMockRng rng_;
-    TMockInteractionSystem io_;
-    std::deque<TCreature> creatures_;
-    std::shared_ptr<const TAbilityRules> rules_;
-    std::unique_ptr<TBattle> battle_;
-    std::unique_ptr<TTransformator> transformator_;
 };
 
 TEST(FeatureEventRegistryTest, TypedHandlersAreImmutableAndRegistrationIsIdempotent)
@@ -181,7 +139,7 @@ TEST_F(TFeatureEventRuntimeTest, HandlersReceiveReadonlyOwnerAndArgumentsWithSta
     const auto before = battle_->GetAst(before_context);
     const auto actor_binding = BindActionEntity<TCreature>(actor);
     const auto target_binding = BindActionEntity<TCreature>(target);
-    const auto result = DispatchFeatureEvent<TTestBonus>(Context(actor), actor_binding,
+    const auto result = DispatchFeatureEvent<TTestBonus>(Context(actor.GetId()), actor_binding,
                                                         {target_binding, 7});
     ASSERT_EQ(result.size(), 1);
     EXPECT_EQ(result[0].Value, 12);
@@ -213,8 +171,8 @@ TEST_F(TFeatureEventRuntimeTest, CurrentOwnerSourcesDeduplicateDiamondsAndPreser
     EXPECT_TRUE(DispatchFeatureEvent<TTestBonus>(*rules_,
         BindActionEntity<TCreature>(unrelated), arguments).empty());
 
-    const auto before = transformator_->CurrentState();
-    auto execution = transformator_->ExecutionContext();
+    const auto before = journal_->CurrentState();
+    auto execution = journal_->ExecutionContext();
     execution.AssignGuarded(actor.GetCreature()->Class(), TClass::Create({}),
                             TGuarded<TCreature>(*actor.GetCreature()), "class");
     const auto current = DispatchFeatureEvent<TTestBonus>(*rules_, owner, arguments);
@@ -222,7 +180,7 @@ TEST_F(TFeatureEventRuntimeTest, CurrentOwnerSourcesDeduplicateDiamondsAndPreser
     EXPECT_EQ(current[0].Source, snapshot[0].Source);
     EXPECT_EQ(snapshot.size(), 2);
     EXPECT_EQ(snapshot[1].Value, 2);
-    transformator_->Undo(before);
+    journal_->Undo(before);
     EXPECT_EQ(DispatchFeatureEvent<TTestBonus>(*rules_, owner, arguments).size(), 2);
 }
 
@@ -234,7 +192,7 @@ TEST_F(TFeatureEventRuntimeTest, OrdinaryClassContributionsAreIndependentValueSn
     const auto result = DispatchFeatureEvent<TTestValueBonus>(*rules_, owner, {});
     ASSERT_EQ(result.size(), 1);
     EXPECT_EQ(result[0].Value.Base(), 2);
-    auto execution = transformator_->ExecutionContext();
+    auto execution = journal_->ExecutionContext();
     execution.AssignGuarded(actor.GetCreature()->Level(), 4,
                             TGuarded<TCreature>(*actor.GetCreature()), "level");
     const auto current = DispatchFeatureEvent<TTestValueBonus>(*rules_, owner, {});
@@ -251,7 +209,7 @@ TEST_F(TFeatureEventRuntimeTest, ContextRejectsForeignArgumentsBeforeCallingHand
     auto foreign_creature = TCreature::Create({.Level = 1});
     TPlayer foreign(&foreign_creature, TPlayerTeam{0}, TPlayerId{0}, "Foreign", "");
     const auto foreign_binding = BindActionEntity<TCreature>(foreign);
-    EXPECT_THROW(DispatchFeatureEvent<TTestBonus>(Context(actor),
+    EXPECT_THROW(DispatchFeatureEvent<TTestBonus>(Context(actor.GetId()),
         BindActionEntity<TCreature>(actor), {foreign_binding, 1}), TAbilityUnavailable);
     EXPECT_EQ(calls, 0);
     const auto result = DispatchFeatureEvent<TTestBonus>(*rules_,
@@ -294,7 +252,7 @@ TEST_F(TFeatureEventRuntimeTest, NestedDispatchFailsAndRestoresTheDispatchScope)
 TEST_F(TFeatureEventRuntimeTest, SuspendingHandlerIsRejectedAndLaterDispatchStillWorks)
 {
     Start(MakeRules([&](const auto&, const auto&, const auto&) -> int {
-        throw TSavepointStackUnwind(transformator_->CurrentState(), []() {});
+        throw TSavepointStackUnwind(journal_->CurrentState(), []() {});
     }));
     auto& actor = Add("test.Helpful");
     const auto owner = BindActionEntity<TCreature>(actor);

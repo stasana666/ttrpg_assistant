@@ -93,10 +93,7 @@ void BindExecution(const std::shared_ptr<TActionContext>& context,
     context->ability_source = grant.Source;
     context->validate_ability = [actor, catalog = &rules.Catalog,
                                 definition = grant.DefinitionId, source = grant.Source]() {
-        const auto abilities = CollectAbilities(*actor.Player().GetCreature(), *catalog);
-        return std::ranges::any_of(abilities.Grants(), [&](const TGrantedAbility& current) {
-            return current.DefinitionId == definition && current.Source == source;
-        });
+        return CollectAbilities(*actor.Player().GetCreature(), *catalog).FindGrant(definition, source) != nullptr;
     };
 }
 

@@ -318,10 +318,7 @@ void PrepareActionSource(const std::shared_ptr<TActionContext>& ctx, TPlayer& ac
         if (!current_source || current_source->Path != provider) {
             throw TAbilityUnavailable();
         }
-        const auto abilities = CollectAbilities(owner.Read(), *catalog);
-        if (!std::ranges::any_of(abilities.Grants(), [&](const TGrantedAbility& current) {
-                return current.DefinitionId == definition && current.Source == source;
-            })) {
+        if (CollectAbilities(owner.Read(), *catalog).FindGrant(definition, source) == nullptr) {
             throw TAbilityUnavailable();
         }
     };

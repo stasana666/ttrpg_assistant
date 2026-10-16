@@ -968,22 +968,8 @@ public:
         method_ = &body_method;
         TCompiledAction result;
         ConfigureFlow(result.Flow);
-        std::size_t first = 0;
-        while (first < declaration.Body.size() &&
-               (declaration.Body[first].Kind == TStatement::EKind::Cost || declaration.Body[first].Kind == TStatement::EKind::Requires)) {
-            if (declaration.Body[first].Kind == TStatement::EKind::Cost) {
-                result.Costs.push_back(ActionCost(declaration.Body[first]));
-            }
-            ++first;
-        }
-        if (!declaration.SourceType.empty()) {
-            const auto source = classes_.find(declaration.SourceType);
-            if (source == classes_.end() || source->second->GameEntity) Fail("action source requires an ordinary class type");
-            const auto binding = "source_" + declaration.SourceName;
-            result.Flow.Environment.push_back("[[maybe_unused]] auto " + binding + " = ActionSource<" + CppRuleType(self_.Name) + ", " + CppRuleType(declaration.SourceType) + ">(Context);");
-            locals_.emplace(declaration.SourceName, TValue{.Type = declaration.SourceType, .Code = binding + ".Read()",
-                .LocalCode = binding, .SourceBinding = binding});
-        }
+        const auto first = CompilePrefix(declaration.Body, result.Costs);
+        BindAbilitySource(declaration, result.Flow);
         if (!declaration.PreviousRecord.empty()) {
             const auto& record = *ResolveRecord(declaration.PreviousRecord, callableStem_, loaded_).Declaration;
             const auto slot = AddFrameLocal(result.Flow, declaration.PreviousName,
@@ -1065,25 +1051,31 @@ public:
                 compiled.Flow.EntryChecks.push_back("(void)" + input + ".Guard();");
             }
         }
-        std::size_t first = 0;
-        while (first < declaration.Body.size() && (declaration.Body[first].Kind == TStatement::EKind::Cost ||
-               declaration.Body[first].Kind == TStatement::EKind::Requires)) {
-            if (declaration.Body[first].Kind == TStatement::EKind::Cost) compiled.Costs.push_back(ActionCost(declaration.Body[first]));
-            ++first;
-        }
-        if (!declaration.SourceType.empty()) {
-            const auto source = classes_.find(declaration.SourceType);
-            if (source == classes_.end() || source->second->GameEntity) Fail("reaction source requires an ordinary class type");
-            const auto binding = "source_" + declaration.SourceName;
-            compiled.Flow.Environment.push_back("[[maybe_unused]] auto " + binding + " = ActionSource<" + CppRuleType(self_.Name) + ", " + CppRuleType(declaration.SourceType) + ">(Context);");
-            if (!locals_.emplace(declaration.SourceName, SourceValue(declaration.SourceType, binding, false)).second) Fail("duplicate reaction source name");
-        }
+        const auto first = CompilePrefix(declaration.Body, compiled.Costs);
+        BindAbilitySource(declaration, compiled.Flow);
         compiled.Requirement = CompileActionRequirement(declaration, first, &trigger);
         compiled.Flow.Blocks.resize(2);
         if (!ActionFlowStatements(declaration.Body, first, compiled.Flow, 0, 1)) Fail("reaction must return a value on every path");
         compiled.Body = RenderActionFlow(compiled.Flow);
         method_ = nullptr;
         return result;
+    }
+
+    std::size_t CompilePrefix(const std::vector<TStatement>& body, std::vector<TCompiledActionCost>& costs) {
+        std::size_t first = 0;
+        for (; first < body.size() && (body[first].Kind == TStatement::EKind::Cost || body[first].Kind == TStatement::EKind::Requires); ++first) {
+            if (body[first].Kind == TStatement::EKind::Cost) costs.push_back(ActionCost(body[first]));
+        }
+        return first;
+    }
+
+    void BindAbilitySource(const TAbilityDecl& declaration, TCompiledActionFlow& flow) {
+        if (declaration.SourceType.empty()) return;
+        const auto source = classes_.find(declaration.SourceType);
+        if (source == classes_.end() || source->second->GameEntity) Fail("ability source requires an ordinary class type");
+        const auto binding = "source_" + declaration.SourceName;
+        flow.Environment.push_back("[[maybe_unused]] auto " + binding + " = ActionSource<" + CppRuleType(self_.Name) + ", " + CppRuleType(declaration.SourceType) + ">(Context);");
+        if (!locals_.emplace(declaration.SourceName, SourceValue(declaration.SourceType, binding, false)).second) Fail("duplicate ability source name");
     }
 
     std::vector<std::string> CompileHookBody(const TAbilityDecl& feature, const TAbilityDecl::THook& hook) {

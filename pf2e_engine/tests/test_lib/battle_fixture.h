@@ -101,10 +101,7 @@ protected:
         return ExecuteAbility(option, last_context_, Player(actor), CollectAbilities(Read(actor), rules_->Catalog),
             rules_->Executions,
             {.ValidateSource = [this, actor, definition = option.DefinitionId, source = option.Source] {
-                const auto fresh = CollectAbilities(Read(actor), rules_->Catalog);
-                return std::ranges::any_of(fresh.Grants(), [&](const TGrantedAbility& grant) {
-                    return grant.DefinitionId == definition && grant.Source == source;
-                });
+                return CollectAbilities(Read(actor), rules_->Catalog).FindGrant(definition, source) != nullptr;
             }});
     }
 
