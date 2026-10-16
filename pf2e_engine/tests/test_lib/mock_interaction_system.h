@@ -7,6 +7,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <queue>
+#include <utility>
 #include <variant>
 
 struct TTooManyCallsError : public std::logic_error {
@@ -117,17 +118,13 @@ public:
 private:
     void ExecutePendingCallbacks() {
         while (!expectations_.empty()) {
-            bool should_stop = std::visit(VisitorHelper{
-                [](const ExpectedChoice&) { return true; },
-                [this](const CheckCallback& callback) {
-                    expectations_.pop();
-                    callback();
-                    return false;
-                }
-            }, expectations_.front());
-            if (should_stop) {
+            auto* pending = std::get_if<CheckCallback>(&expectations_.front());
+            if (pending == nullptr) {
                 break;
             }
+            auto callback = std::move(*pending);
+            expectations_.pop();
+            callback();
         }
     }
 

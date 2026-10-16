@@ -1,0 +1,79 @@
+class TShield {
+    string Name;
+    int ArmorClassBonus = 0;
+    int Hardness = 0;
+    int MaximumHitpoints = 0;
+    int Hitpoints = @self.MaximumHitpoints;
+    int BrokenThreshold = 0;
+    bool Wielded = false;
+    bool Raised = false;
+
+    query bool IsValid() {
+        return @self.ArmorClassBonus >= 0 && @self.Hardness >= 0
+            && @self.MaximumHitpoints >= 0 && @self.Hitpoints >= 0
+            && @self.Hitpoints <= @self.MaximumHitpoints
+            && @self.BrokenThreshold >= 0
+            && @self.BrokenThreshold <= @self.MaximumHitpoints;
+    }
+
+    query bool IsPresent() {
+        return @self.MaximumHitpoints > 0;
+    }
+
+    query bool IsBroken() {
+        return @self.IsPresent() && @self.Hitpoints <= @self.BrokenThreshold;
+    }
+
+    query bool IsDestroyed() {
+        return @self.IsPresent() && @self.Hitpoints == 0;
+    }
+
+    query bool CanRaise() {
+        return @self.IsValid() && @self.IsPresent() && @self.Wielded
+            && !@self.IsBroken() && !@self.IsDestroyed();
+    }
+
+    query bool IsRaised() {
+        return @self.Raised && @self.CanRaise();
+    }
+
+    query int ArmorClassBonusWhenRaised() {
+        if (@self.IsRaised()) {
+            return @self.ArmorClassBonus;
+        }
+        return 0;
+    }
+
+    method void Raise() {
+        require @self.CanRaise();
+        @self.Raised = true;
+    }
+
+    method void Lower() {
+        @self.Raised = false;
+    }
+
+    method void Drop() {
+        @self.Lower();
+        @self.Wielded = false;
+    }
+
+    method int Block(int Amount) {
+        require @self.IsRaised() && Amount > 0;
+        let Remaining = max(0, Amount - @self.Hardness);
+        @self.Hitpoints = max(0, @self.Hitpoints - Remaining);
+        if (@self.IsBroken() || @self.IsDestroyed()) {
+            @self.Lower();
+        }
+        return Remaining;
+    }
+}
+
+TShield SteelShield {
+    Name = "Steel shield";
+    ArmorClassBonus = 2;
+    Hardness = 5;
+    MaximumHitpoints = 20;
+    BrokenThreshold = 10;
+    Wielded = true;
+}

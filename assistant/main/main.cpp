@@ -101,7 +101,8 @@ int main(int argc, char** argv)
     TCreature player_2 = CreateCreature(factory, interaction_system);
 
     TRandomGenerator dice_roller(666);
-    TBattle battle(CreateBattleMap(factory, interaction_system), &dice_roller, interaction_system);
+    TBattle battle(CreateBattleMap(factory, interaction_system), &dice_roller, interaction_system,
+                   factory.AbilityRules());
     TBoardGUI board(battle.BattleMapMutable(), kPathToImages, chan.MakeProducer());
 
     battle.AddPlayer(TPlayer(
@@ -117,9 +118,9 @@ int main(int argc, char** argv)
         });
 
     battle.AddPlayer(TPlayer(
-            &player_1,
+            &player_2,
             TPlayerTeam{2},
-            TPlayerId{1},
+            TPlayerId{2},
             "Oown",
             "warrior2.png"
         ),

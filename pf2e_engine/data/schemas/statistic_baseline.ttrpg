@@ -1,0 +1,4 @@
+class TStatisticBaseline {
+    bool IsFixed = false;
+    int Value = 0;
+}

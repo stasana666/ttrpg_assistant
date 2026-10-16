@@ -12,3 +12,5 @@ add_subdirectory(src)
 add_executable(analyzer main/analyzer_main.cpp)
 
 target_link_libraries(analyzer analyzer_lib)
+
+add_subdirectory(tests)

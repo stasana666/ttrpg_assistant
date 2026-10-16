@@ -1,0 +1,193 @@
+import "../../../data/schemas/creature.ttrpg";
+
+enum EFlowDecision {
+    Continue,
+    Finish,
+}
+
+class TFlow {
+    int Value = 1;
+    query int Read() { return @self.Value; }
+}
+
+class TFrame {
+    int Value = 2;
+    query int Read() { return @self.Value; }
+}
+
+class Run {
+    int Value = 3;
+    query int Read() { return @self.Value; }
+}
+
+class Context {
+    int Value = 4;
+    query int Read() { return @self.Value; }
+}
+
+class frame {
+    int Value = 5;
+    query int Read() { return @self.Value; }
+}
+
+class pc {
+    int Value = 6;
+    query int Read() { return @self.Value; }
+}
+
+action BranchFlow for TCreature {
+    cost @self.Actions = 1;
+    let Total = 2;
+    choose EFlowDecision Decision from [Continue, Finish];
+    if (Decision == Continue) {
+        let Amount = roll(1, 6);
+        choose TCreature Target where Target.IsAlive() && Target != @self;
+        if (Target.Level > 1) {
+            choose EFlowDecision Boost from [Continue, Finish];
+            if (Boost == Continue) {
+                Amount += 3;
+            } else {
+                Amount += 1;
+            }
+        } else {
+            Amount += 2;
+        }
+        Target.Hitpoints.DealDamage(Amount);
+        Total += Amount;
+    } else {
+        return;
+    }
+    @self.Hands.SetCount(Total);
+}
+
+action LoopFlow for TCreature {
+    cost @self.Actions = 1;
+    let Remaining = @self.Level;
+    let Total = roll(1, 6);
+    while (Remaining > 0) {
+        choose EFlowDecision Decision from [Continue, Finish];
+        if (Decision == Finish) {
+            @self.Hands.SetCount(Total);
+            return;
+        }
+        let Step = Remaining;
+        choose TCreature Target where Target.IsAlive() && Target != @self;
+        Target.Hitpoints.DealDamage(Total);
+        Total += Step;
+        Remaining -= 1;
+    }
+    @self.Hands.SetCount(Total);
+}
+
+action ImmediateFlow for TCreature {
+    cost @self.Actions = 1;
+    let Remaining = @self.Level;
+    let Total = 0;
+    while (Remaining > 0) {
+        choose EFlowDecision Decision from [Continue];
+        if (Decision == Continue) {
+            Total += 1;
+        }
+        Remaining -= 1;
+    }
+    @self.Hands.SetCount(Total);
+}
+
+action TraverseFlow for TCreature {
+    cost @self.Actions = 1;
+    let Budget = 2;
+    while (Budget > 0) {
+        let Origin = position(@self);
+        choose Position Next from adjacent_positions(position(@self))
+            where can_occupy(@self, Next);
+        move(@self, Origin, Next);
+        @self.Hands.SetCount(Next.X + Next.Y);
+        Budget -= 1;
+    }
+}
+
+action MutationFlow for TCreature {
+    cost @self.Actions = 1;
+    @self.Conditions.set(Prone);
+    @self.Conditions.set(Frightened { Value = 2; });
+    @self.Conditions.set(Frightened { Value = 5; });
+    @self.Conditions.erase(Prone);
+    @self.Conditions.erase(Prone);
+    @self.Actions.Add(2);
+    @self.Actions.Spend(1);
+    @self.Actions.SetCount(1);
+    @self.Hands.SetCount(7);
+    choose EFlowDecision Decision from [Continue, Finish];
+    if (Decision == Continue) {
+        @self.Conditions.erase(Frightened);
+        @self.Actions.Add(1);
+    }
+}
+
+action InvalidSpendFlow for TCreature {
+    cost @self.Actions = 1;
+    @self.Conditions.set(Frightened { Value = 4; });
+    @self.Hands.Spend(@self.Level);
+}
+
+action OverflowFlow for TCreature {
+    cost @self.Actions = 1;
+    @self.Actions.SetCount(max_int);
+    @self.Actions.Add(1);
+}
+
+action NegativeSetFlow for TCreature {
+    cost @self.Actions = 1;
+    @self.Actions.SetCount(-1);
+}
+
+action NameCollisionFlow for TCreature {
+    cost @self.Actions = 1;
+    if (true) {
+        let A = 1;
+        @self.Hands.SetCount(A);
+    }
+    if (true) {
+        let A_2 = 2;
+        @self.Hands.SetCount(A_2);
+    }
+    if (true) {
+        let A = 3;
+        @self.Hands.SetCount(A);
+    }
+    let A = 7;
+    for A_3 in entities(TCreature) {
+        @self.Hands.Add(A);
+    }
+    choose EFlowDecision Decision from [Continue, Finish];
+    if (Decision == Continue) {
+        @self.Hands.Add(A);
+    }
+}
+
+action TypeCollisionFlow for TCreature {
+    cost @self.Actions = 1;
+    let A = TFlow {};
+    let B = TFrame {};
+    let C = Run {};
+    let D = Context {};
+    let E = frame {};
+    let F = pc {};
+    choose EFlowDecision Decision from [Continue, Finish];
+    if (Decision == Continue) {
+        @self.Hands.SetCount(A.Read() + B.Read() + C.Read() + D.Read() + E.Read() + F.Read());
+    }
+}
+
+feature FlowTraining {
+    grant BranchFlow;
+    grant LoopFlow;
+    grant ImmediateFlow;
+    grant TraverseFlow;
+    grant MutationFlow;
+    grant InvalidSpendFlow;
+    grant OverflowFlow;
+    grant NegativeSetFlow;
+    grant NameCollisionFlow;
+    grant TypeCollisionFlow;
+}

@@ -2,6 +2,7 @@
     "type": "pf2e_action",
     "name": "demoralize",
     "pf2e_action": {
+        "ability": "abilities.Demoralize",
         "name": "demoralize",
         "resources": [
             {

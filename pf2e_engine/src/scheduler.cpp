@@ -78,8 +78,18 @@ void TTaskScheduler::RemoveTaskById(TTaskId id)
 
 void TTaskScheduler::RestoreTask(TTaskId id, TTask task, size_t progress_index)
 {
-    tasks_.emplace_back(id, std::move(task), std::vector<TEvent>::iterator{});
-    auto& [stored_id, stored_task, current] = tasks_.back();
+    if (id >= next_task_id_ || task.events_before_call.empty()
+        || progress_index > task.events_before_call.size()) {
+        throw std::invalid_argument("TTaskScheduler: invalid restored task progress");
+    }
+    const auto position = std::find_if(tasks_.begin(), tasks_.end(), [id](const auto& entry) {
+        return std::get<0>(entry) >= id;
+    });
+    if (position != tasks_.end() && std::get<0>(*position) == id) {
+        throw std::invalid_argument("TTaskScheduler: duplicate restored task id");
+    }
+    const auto restored = tasks_.emplace(position, id, std::move(task), std::vector<TEvent>::iterator{});
+    auto& [stored_id, stored_task, current] = *restored;
     current = stored_task.events_before_call.begin() + static_cast<std::ptrdiff_t>(progress_index);
 }
 

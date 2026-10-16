@@ -2,6 +2,18 @@
 
 #include <pf2e_engine/expressions/math_expression.h>
 
+#include <utility>
+
+TDamage::TDamage(TDamageContext context)
+    : context_(std::move(context))
+{
+}
+
+const TDamageContext& TDamage::Context() const
+{
+    return context_;
+}
+
 void TDamage::Add(EDamageType type, std::unique_ptr<IExpression>&& damage)
 {
     auto it = damage_expressions_.find(type);

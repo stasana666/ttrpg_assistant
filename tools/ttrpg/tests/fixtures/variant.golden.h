@@ -3,6 +3,7 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/ability.h>
 #include <pf2e_engine/common/guarded.h>
 
 #include <nlohmann/json_fwd.hpp>
@@ -10,12 +11,15 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <optional>
+#include <pf2e_engine/common/rule_integer.h>
 #include <type_traits>
 #include <utility>
 #include <variant>
 #include <pf2e_engine/common/variant_map.h>
 
 class TGameObjectFactory;
+class TSpell;
 
 enum class EColor {
     Red,
@@ -88,6 +92,20 @@ struct TIsAstRecursive<TEffect> : std::true_type {};
 
 class TSpell {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+    }
+    struct TInitialValues {
+        std::optional<std::string> Name{};
+        std::optional<TVariantMap<EEffectKind, TEffect>> Effects{};
+    };
+    static TSpell Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
+
     const std::string& Name() const { return Name_; }
     TGuarded<std::string> Name() { return TGuarded<std::string>(Name_); }
     const TVariantMap<EEffectKind, TEffect>& Effects() const { return Effects_; }
@@ -106,3 +124,6 @@ private:
 template <>
 struct TIsAstRecursive<TSpell> : std::true_type {};
 
+void RegisterVariantAbilities(TAbilityCatalog& catalog);
+struct TAbilityRules;
+void RegisterVariantRules(TAbilityRules& rules);

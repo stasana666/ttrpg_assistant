@@ -1,3 +1,5 @@
+#include <pf2e_engine/mechanics/creature.h>
+
 #include <check_ally_adjacent.h>
 
 #include <pf2e_engine/actions/action_context.h>

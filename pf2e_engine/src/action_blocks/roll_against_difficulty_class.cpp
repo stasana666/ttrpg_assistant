@@ -1,6 +1,6 @@
 #include <roll_against_difficulty_class.h>
 
-#include <pf2e_engine/condition.h>
+#include <pf2e_engine/common/rule_integer.h>
 #include <pf2e_engine/success_level.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
@@ -63,8 +63,9 @@ void FRollAgainstDifficultyClass::WeaponAttackHandle(std::shared_ptr<TActionCont
     TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
     const TWeapon* weapon = GetWeapon(input_.Get(kWeaponId, ctx));
     int armor_class = std::get<int>(input_.Get(kDifficultyClassValueId, ctx));
-    int attack_bonus = calculator_.AttackRollBonus(*attacker.GetCreature(), *weapon)
-        - MultipleAttackPenaltyFor(attacker);
+    int attack_bonus = TRuleInteger::Subtract(
+        calculator_.AttackRollBonus(*attacker.GetCreature(), *weapon),
+        MultipleAttackPenaltyFor(attacker, weapon));
 
     ctx->io_system->GameLog() << attacker.GetName() << " attack with " << weapon->Name() << std::endl;
 
@@ -81,8 +82,9 @@ void FRollAgainstDifficultyClass::SkillHandle(std::shared_ptr<TActionContext> ct
     ESkill skill = SkillFromString(input_.GetString(kSkillId));
 
     int difficulty_class = std::get<int>(input_.Get(kDifficultyClassValueId, ctx));
-    int roll_bonus = calculator_.RollBonus(*attacker.GetCreature(), skill)
-        - MultipleAttackPenaltyFor(attacker);
+    int roll_bonus = TRuleInteger::Subtract(
+        calculator_.RollBonus(*attacker.GetCreature(), skill),
+        MultipleAttackPenaltyFor(attacker));
 
     ctx->io_system->GameLog() << attacker.GetName() << " roll " << ToString(skill) << std::endl;
     ESuccessLevel result = calculator_.RollD20(ctx->dice_roller, roll_bonus, difficulty_class);
@@ -92,7 +94,8 @@ void FRollAgainstDifficultyClass::SkillHandle(std::shared_ptr<TActionContext> ct
     ctx->game_object_registry->Add(output_, result);
 }
 
-int FRollAgainstDifficultyClass::MultipleAttackPenaltyFor(const TPlayer& attacker) const
+int FRollAgainstDifficultyClass::MultipleAttackPenaltyFor(
+    const TPlayer& attacker, const TWeapon* weapon) const
 {
     if (!input_.Has(kAppliesMultipleAttackPenaltyId)) {
         return 0;
@@ -100,5 +103,7 @@ int FRollAgainstDifficultyClass::MultipleAttackPenaltyFor(const TPlayer& attacke
     if (input_.GetNumber(kAppliesMultipleAttackPenaltyId) == 0) {
         return 0;
     }
-    return attacker.GetCreature()->Get(EConditionKind::MultipleAttackPenalty);
+    return weapon != nullptr
+        ? attacker.GetCreature()->MultipleAttackPenalty(*weapon)
+        : attacker.GetCreature()->AttackCountPenalty(false);
 }

@@ -2,6 +2,7 @@
     "type": "pf2e_action",
     "name": "fireball",
     "pf2e_action": {
+        "ability": "abilities.Fireball",
         "name": "fireball",
         "resources": [
             {

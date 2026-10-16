@@ -1,0 +1,147 @@
+import "../../../data/schemas/weapon.ttrpg";
+
+action ConstructorStrike;
+action ConstructorStride;
+action ConstructorPowerAttack;
+action ConstructorRushAttack;
+
+feature ConstructorPower {
+    grant ConstructorPowerAttack;
+}
+
+feature ConstructorRush {
+    grant ConstructorRushAttack;
+}
+
+feature ConstructorAmbition;
+feature ConstructorSkilled;
+
+feature ConstructorTraining {
+    grant ConstructorPower;
+}
+
+class TConstructorFeaturePool {
+    collection<Feature> Values;
+
+    query TConstructorFeaturePool RequirePositive(int Value) {
+        require Value > 0;
+        return @self;
+    }
+
+    query TConstructorFeaturePool AtLevel(int Level) {
+        if (Level >= 2) {
+            return TConstructorFeaturePool { Values = [ConstructorPower, ConstructorRush]; };
+        }
+        return TConstructorFeaturePool { Values = [ConstructorPower]; };
+    }
+}
+
+TConstructorFeaturePool ConstructorFighterChoices {
+    Values = [ConstructorPower, ConstructorRush];
+}
+
+TConstructorFeaturePool ConstructorAncestryChoices {
+    Values = [ConstructorAmbition, ConstructorSkilled];
+}
+
+class TConstructorProfile {
+    int Divisor = 1;
+    int Value = 10 / @self.Divisor;
+}
+
+TWeapon ConstructorBlade {
+    Name = "Longsword";
+    BaseDiceSize = 8;
+    Features = [];
+}
+
+GameEntity TConstructedCreature {
+    string Name;
+    int Level = 1;
+    int DefaultQuotient = 10 / @self.Level;
+    int BodyQuotient;
+    bool HasDirectTraining;
+    TConstructorProfile Profile;
+    collection<TWeapon> Weapons;
+    collection<Feature> Features;
+
+    grant ConstructorStride;
+    grant @self.Weapons;
+    grant @self.Features;
+}
+
+TConstructedCreature ConfiguredFighter(
+    collection<TWeapon> Equipment = [ConstructorBlade],
+    choice Feature ClassFeat from ConstructorFighterChoices.Values = ConstructorPower,
+    choice Feature AncestryFeat from ConstructorAncestryChoices.Values = ConstructorAmbition,
+    choice Feature AmbitionFeat from ConstructorFighterChoices.Values
+        when AncestryFeat == ConstructorAmbition = ConstructorRush,
+    int CharacterLevel = 1
+) {
+    requires ClassFeat != AmbitionFeat;
+    requires CharacterLevel >= 1;
+    Name = "Human fighter";
+    Level = CharacterLevel;
+    Weapons = Equipment;
+    Features = [ClassFeat, AncestryFeat, AmbitionFeat];
+}
+
+TConstructedCreature ConstructedWolf {
+    Name = "Wolf";
+    Weapons = [TWeapon { Name = "Jaws"; BaseDiceSize = 6; Features = [ConstructorTraining]; }];
+}
+
+TConstructedCreature RequiredConstructorChoice(
+    choice Feature AncestryFeat from ConstructorAncestryChoices.Values,
+    choice Feature BonusFeat from ConstructorFighterChoices.RequirePositive(0).Values
+        when AncestryFeat == ConstructorAmbition
+) {
+    Features = [AncestryFeat, BonusFeat];
+}
+
+TConstructedCreature ConditionalConstructorChoice(
+    bool Enable = false,
+    choice Feature BonusFeat from ConstructorFighterChoices.RequirePositive(0).Values
+        when Enable = ConstructorPower
+) {
+    Features = [BonusFeat];
+}
+
+TConstructedCreature LeveledConstructorChoice(
+    int CharacterLevel = 1,
+    choice Feature ClassFeat from ConstructorFighterChoices.AtLevel(CharacterLevel).Values = ConstructorPower
+) {
+    Level = CharacterLevel;
+    Features = [ClassFeat];
+}
+
+TConstructedCreature CheckedConstructorFields(int Divisor = 1) {
+    BodyQuotient = 10 / Divisor;
+}
+
+TConstructedCreature CheckedConstructorDefaults(int CharacterLevel = 1) {
+    Level = CharacterLevel;
+}
+
+TConstructedCreature ConstructorMembership(
+    collection<Feature> Selected = [ConstructorTraining],
+    TConstructorProfile SelectedProfile = TConstructorProfile { Divisor = 2; }
+) {
+    HasDirectTraining = Selected.has(ConstructorPower);
+    Features = Selected;
+    Profile = SelectedProfile;
+}
+
+class TConstructorRequiredProfile {
+    int Divisor;
+    int Value = 10 / @self.Divisor;
+}
+
+GameEntity TNestedConstructedCreature {
+    int Divisor = 2;
+    TConstructorRequiredProfile Profile = TConstructorRequiredProfile { Divisor = @self.Divisor; };
+}
+
+TNestedConstructedCreature NestedConstructorDefaults(int Divisor = 2) {
+    Divisor = Divisor;
+}

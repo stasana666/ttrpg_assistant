@@ -2,6 +2,7 @@
 
 #include <pf2e_engine/expressions/base_expression.h>
 #include <pf2e_engine/inventory/damage.h>
+#include <pf2e_engine/inventory/health.h>
 
 #include <memory>
 #include <unordered_map>
@@ -11,6 +12,9 @@ private:
     using Container = std::unordered_map<EDamageType, std::unique_ptr<IExpression>>;
 
 public:
+    explicit TDamage(TDamageContext context = TDamageContext::Create({}));
+
+    const TDamageContext& Context() const;
     void Add(EDamageType type, std::unique_ptr<IExpression>&& damage);
 
     class TIterator {
@@ -33,4 +37,5 @@ public:
 private:
 
     Container damage_expressions_;
+    TDamageContext context_;
 };

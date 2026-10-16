@@ -1,149 +1,33 @@
-set(ARMOR_SCHEMA     ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/armor.ttrpg)
-set(MATERIAL_SCHEMA  ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/material.ttrpg)
-set(WEAPON_SCHEMA    ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/weapon.ttrpg)
-set(DAMAGE_SCHEMA    ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/damage.ttrpg)
-set(DICE_SCHEMA      ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/dice.ttrpg)
-set(CREATURE_DATA_SCHEMA ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/creature_data.ttrpg)
-set(CREATURE_PARTS_SCHEMA ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/creature_parts.ttrpg)
-set(CONDITION_SCHEMA ${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas/condition.ttrpg)
+set(TTRPG_ENGINE_SCHEMA_DIR "${CMAKE_SOURCE_DIR}/pf2e_engine/data/schemas")
+set(TTRPG_ENGINE_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated/pf2e_engine")
+set(TTRPG_ENGINE_GENERATED_OUTPUTS)
 
-set(ARMOR_GEN_H      ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/armor.h)
-set(ARMOR_GEN_CPP    ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/armor.cpp)
-set(MATERIAL_GEN_H   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/material.h)
-set(MATERIAL_GEN_CPP ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/material.cpp)
-set(WEAPON_GEN_H     ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/weapon.h)
-set(WEAPON_GEN_CPP   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/weapon.cpp)
-set(DAMAGE_GEN_H     ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/damage.h)
-set(DAMAGE_GEN_CPP   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/damage.cpp)
-set(DICE_GEN_H       ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/dice.h)
-set(DICE_GEN_CPP     ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/dice.cpp)
-set(CREATURE_DATA_GEN_H   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/creature_data.h)
-set(CREATURE_DATA_GEN_CPP ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/creature_data.cpp)
-set(CREATURE_PARTS_GEN_H   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/inventory/creature_parts.h)
-set(CREATURE_PARTS_GEN_CPP ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/inventory/creature_parts.cpp)
-set(CONDITION_GEN_H   ${CMAKE_BINARY_DIR}/generated/pf2e_engine/include/pf2e_engine/condition.h)
-set(CONDITION_GEN_CPP ${CMAKE_BINARY_DIR}/generated/pf2e_engine/src/condition.cpp)
+foreach(SCHEMA_NAME IN ITEMS material armor shield shield_actions intimidation trip remaster_profiles damage dice statistic_baseline combat_checks combat_geometry combat_timing abilities flanking movement weapon skills saving_throws proficiency creature_parts creature_description check_modifiers statistics lore hitpoints health creature)
+    set(GENERATED_HEADER "${TTRPG_ENGINE_GENERATED_DIR}/include/pf2e_engine/inventory/${SCHEMA_NAME}.h")
+    set(GENERATED_SOURCE "${TTRPG_ENGINE_GENERATED_DIR}/src/inventory/${SCHEMA_NAME}.cpp")
+    ttrpg_generate(
+        TARGET pf2e_engine
+        SCHEMA "${TTRPG_ENGINE_SCHEMA_DIR}/${SCHEMA_NAME}.ttrpg"
+        HEADER "${GENERATED_HEADER}"
+        SOURCE "${GENERATED_SOURCE}"
+    )
+    list(APPEND TTRPG_ENGINE_GENERATED_OUTPUTS "${GENERATED_HEADER}" "${GENERATED_SOURCE}")
+    target_sources(pf2e_engine PRIVATE "${GENERATED_SOURCE}")
+endforeach()
 
-add_custom_command(
-    OUTPUT  ${MATERIAL_GEN_H} ${MATERIAL_GEN_CPP}
-    COMMAND $<TARGET_FILE:ttrpg_codegen>
-            --schema  ${MATERIAL_SCHEMA}
-            --out-h   ${MATERIAL_GEN_H}
-            --out-cpp ${MATERIAL_GEN_CPP}
-    DEPENDS ttrpg_codegen ${MATERIAL_SCHEMA}
-    VERBATIM
+set(CONDITION_GEN_H "${TTRPG_ENGINE_GENERATED_DIR}/include/pf2e_engine/condition.h")
+set(CONDITION_GEN_CPP "${TTRPG_ENGINE_GENERATED_DIR}/src/condition.cpp")
+ttrpg_generate(
+    TARGET pf2e_engine
+    SCHEMA "${TTRPG_ENGINE_SCHEMA_DIR}/condition.ttrpg"
+    HEADER "${CONDITION_GEN_H}"
+    SOURCE "${CONDITION_GEN_CPP}"
 )
+list(APPEND TTRPG_ENGINE_GENERATED_OUTPUTS "${CONDITION_GEN_H}" "${CONDITION_GEN_CPP}")
+target_sources(pf2e_engine PRIVATE "${CONDITION_GEN_CPP}")
 
-# armor.ttrpg imports material.ttrpg, so editing material.ttrpg must rebuild armor.
-add_custom_command(
-    OUTPUT  ${ARMOR_GEN_H} ${ARMOR_GEN_CPP}
-    COMMAND $<TARGET_FILE:ttrpg_codegen>
-            --schema  ${ARMOR_SCHEMA}
-            --out-h   ${ARMOR_GEN_H}
-            --out-cpp ${ARMOR_GEN_CPP}
-    DEPENDS ttrpg_codegen ${ARMOR_SCHEMA} ${MATERIAL_SCHEMA}
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT  ${DAMAGE_GEN_H} ${DAMAGE_GEN_CPP}
-    COMMAND $<TARGET_FILE:ttrpg_codegen>
-            --schema  ${DAMAGE_SCHEMA}
-            --out-h   ${DAMAGE_GEN_H}
-            --out-cpp ${DAMAGE_GEN_CPP}
-    DEPENDS ttrpg_codegen ${DAMAGE_SCHEMA}
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT  ${CONDITION_GEN_H} ${CONDITION_GEN_CPP}
-    COMMAND $<TARGET_FILE:ttrpg_codegen>
-            --schema  ${CONDITION_SCHEMA}
-            --out-h   ${CONDITION_GEN_H}
-            --out-cpp ${CONDITION_GEN_CPP}
-    DEPENDS ttrpg_codegen ${CONDITION_SCHEMA}
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT  ${DICE_GEN_H} ${DICE_GEN_CPP}
-    COMMAND $<TARGET_FILE:ttrpg_codegen>
-            --schema  ${DICE_SCHEMA}
-            --out-h   ${DICE_GEN_H}
-            --out-cpp ${DICE_GEN_CPP}
-    DEPENDS ttrpg_codegen ${DICE_SCHEMA}
-    VERBATIM
-)
-
-# weapon.ttrpg imports damage.ttrpg and dice.ttrpg, so editing either must rebuild weapon.
-add_custom_command(
-    OUTPUT  ${WEAPON_GEN_H} ${WEAPON_GEN_CPP}
-    COMMAND $<TARGET_FILE:ttrpg_codegen>
-            --schema  ${WEAPON_SCHEMA}
-            --out-h   ${WEAPON_GEN_H}
-            --out-cpp ${WEAPON_GEN_CPP}
-    DEPENDS ttrpg_codegen ${WEAPON_SCHEMA} ${DAMAGE_SCHEMA} ${DICE_SCHEMA}
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT  ${CREATURE_PARTS_GEN_H} ${CREATURE_PARTS_GEN_CPP}
-    COMMAND $<TARGET_FILE:ttrpg_codegen>
-            --schema  ${CREATURE_PARTS_SCHEMA}
-            --out-h   ${CREATURE_PARTS_GEN_H}
-            --out-cpp ${CREATURE_PARTS_GEN_CPP}
-    DEPENDS ttrpg_codegen ${CREATURE_PARTS_SCHEMA}
-    VERBATIM
-)
-
-# creature_data.ttrpg imports armor.ttrpg, weapon.ttrpg, creature_parts.ttrpg, condition.ttrpg
-# and damage.ttrpg (transitively material and dice), so editing any of them must rebuild it.
-add_custom_command(
-    OUTPUT  ${CREATURE_DATA_GEN_H} ${CREATURE_DATA_GEN_CPP}
-    COMMAND $<TARGET_FILE:ttrpg_codegen>
-            --schema  ${CREATURE_DATA_SCHEMA}
-            --out-h   ${CREATURE_DATA_GEN_H}
-            --out-cpp ${CREATURE_DATA_GEN_CPP}
-    DEPENDS ttrpg_codegen ${CREATURE_DATA_SCHEMA}
-            ${ARMOR_SCHEMA} ${WEAPON_SCHEMA} ${MATERIAL_SCHEMA} ${DAMAGE_SCHEMA} ${DICE_SCHEMA}
-            ${CREATURE_PARTS_SCHEMA} ${CONDITION_SCHEMA}
-    VERBATIM
-)
-
-set_source_files_properties(
-    ${ARMOR_GEN_CPP} ${MATERIAL_GEN_CPP} ${WEAPON_GEN_CPP} ${DAMAGE_GEN_CPP} ${DICE_GEN_CPP}
-    ${CREATURE_DATA_GEN_CPP} ${CREATURE_PARTS_GEN_CPP} ${CONDITION_GEN_CPP}
-    PROPERTIES GENERATED ON SKIP_LINTING ON
-)
-set_source_files_properties(
-    ${ARMOR_GEN_H} ${MATERIAL_GEN_H} ${WEAPON_GEN_H} ${DAMAGE_GEN_H} ${DICE_GEN_H}
-    ${CREATURE_DATA_GEN_H} ${CREATURE_PARTS_GEN_H} ${CONDITION_GEN_H}
-    PROPERTIES GENERATED ON
-)
-
-add_custom_target(pf2e_engine_generated_headers
-    DEPENDS ${ARMOR_GEN_H} ${ARMOR_GEN_CPP}
-            ${MATERIAL_GEN_H} ${MATERIAL_GEN_CPP}
-            ${WEAPON_GEN_H} ${WEAPON_GEN_CPP}
-            ${DAMAGE_GEN_H} ${DAMAGE_GEN_CPP}
-            ${DICE_GEN_H} ${DICE_GEN_CPP}
-            ${CREATURE_DATA_GEN_H} ${CREATURE_DATA_GEN_CPP}
-            ${CREATURE_PARTS_GEN_H} ${CREATURE_PARTS_GEN_CPP}
-            ${CONDITION_GEN_H} ${CONDITION_GEN_CPP}
-)
+add_custom_target(pf2e_engine_generated_headers DEPENDS ${TTRPG_ENGINE_GENERATED_OUTPUTS})
 add_dependencies(pf2e_engine pf2e_engine_generated_headers)
-
-target_sources(pf2e_engine
-    PRIVATE
-        ${ARMOR_GEN_CPP}
-        ${MATERIAL_GEN_CPP}
-        ${WEAPON_GEN_CPP}
-        ${DAMAGE_GEN_CPP}
-        ${DICE_GEN_CPP}
-        ${CREATURE_DATA_GEN_CPP}
-        ${CREATURE_PARTS_GEN_CPP}
-        ${CONDITION_GEN_CPP}
-)
 
 target_include_directories(pf2e_engine
     PRIVATE ${CMAKE_SOURCE_DIR}/pf2e_engine/include/pf2e_engine/inventory

@@ -1,0 +1,70 @@
+import "../../../data/schemas/creature.ttrpg";
+
+activity int ChosenWeaponAmount for TCreature(TWeapon Weapon, TCreature Target) {
+    choose int Extra from [0, 1];
+    let Amount = Weapon.BaseDiceSize + Extra;
+    Target.Hitpoints.DealDamage(Amount);
+    return Amount;
+}
+
+activity int ChosenWeaponWrapper for TCreature(TWeapon Weapon, TCreature Target) {
+    let Amount = ChosenWeaponAmount(Weapon, Target);
+    return Amount;
+}
+
+activity int ReadChosenWeapon for TCreature(TWeapon Weapon) {
+    return Weapon.BaseDiceSize;
+}
+
+action ChooseEquipment for TCreature {
+    cost @self.Actions = 1;
+    choose TWeapon Weapon from sources(@self.Weapons, @self.NaturalWeapons, @self.Weapons)
+        where Weapon.Reach > 0;
+    choose TCreature Target where Target != @self && Target.IsAlive();
+    let Amount = ChosenWeaponWrapper(Weapon, Target);
+    @self.Hands.SetCount(Amount);
+}
+
+action ScopedEquipment for TCreature {
+    cost @self.Actions = 1;
+    if (true) {
+        choose TWeapon Weapon from @self.Weapons;
+        let Amount = ReadChosenWeapon(Weapon);
+        @self.Hands.SetCount(Amount);
+    }
+    choose int Extra from [1];
+    @self.Hands.Add(Extra);
+}
+
+action RepeatedEquipment for TCreature {
+    cost @self.Actions = 1;
+    let Remaining = @self.Level;
+    let Total = 0;
+    while (Remaining > 0) {
+        choose TWeapon Weapon from @self.Weapons;
+        let Amount = ReadChosenWeapon(Weapon);
+        Total += Amount;
+        Remaining -= 1;
+    }
+    @self.Hands.SetCount(Total);
+}
+
+feature EquipmentTraining {
+    grant ChooseEquipment;
+    grant ScopedEquipment;
+    grant RepeatedEquipment;
+}
+
+TWeapon ChoiceBlade {
+    Name = "Blade";
+    BaseDiceSize = 4;
+    Reach = 1;
+    Features = [];
+}
+
+TWeapon ChoiceFang {
+    Name = "Blade";
+    BaseDiceSize = 8;
+    Reach = 2;
+    Features = [];
+}

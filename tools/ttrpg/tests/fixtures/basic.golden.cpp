@@ -2,6 +2,8 @@
 #include <basic.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
+#include <pf2e_engine/common/rule_integer.h>
+#include <pf2e_engine/actions/ability.h>
 #include <pf2e_engine/dsl/property_registry.h>
 #include <pf2e_engine/dsl/value.h>
 #include <pf2e_engine/game_object_logic/game_object_factory.h>
@@ -11,7 +13,20 @@
 
 #include <stdexcept>
 #include <string>
+#include <cstdint>
 #include <utility>
+
+namespace {
+    int ReadGeneratedRuleInteger(const nlohmann::json& value) {
+        if (!value.is_number_integer()) {
+            throw std::invalid_argument("rule integer JSON must be an integer");
+        }
+        if (value.is_number_unsigned() && value.get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {
+            throw std::overflow_error("rule integer overflow");
+        }
+        return TRuleInteger::Checked(value.get<std::int64_t>());
+    }
+}
 
 std::string ToString(EColor v) {
     switch (v) {
@@ -35,10 +50,33 @@ EColor EColorFromString(const std::string& s) {
     throw std::runtime_error("unknown EColor: \"" + s + "\"");
 }
 
+TThing::TInitialValues TThing::ResolveInitialValues(const TInitialValues& initial) {
+    TThing result;
+    [[maybe_unused]] auto& self = result;
+    (void)initial;
+    result.Name_ = initial.Name ? *initial.Name : std::string{};
+    result.Count_ = initial.Count ? *initial.Count : 3;
+    result.Color_ = initial.Color ? *initial.Color : EColor{};
+    result.Charges_ = initial.Charges ? *initial.Charges : TBoundedQuantity{};
+    result.Tags_ = initial.Tags ? *initial.Tags : std::set<EColor>{};
+    return TInitialValues{.Name = std::move(result.Name_), .Count = std::move(result.Count_), .Color = std::move(result.Color_), .Charges = std::move(result.Charges_), .Tags = std::move(result.Tags_), };
+}
+
+TThing TThing::Create(const TInitialValues& initial) {
+    [[maybe_unused]] auto values = ResolveInitialValues(initial);
+    TThing r;
+    r.Name_ = std::move(*values.Name);
+    r.Count_ = std::move(*values.Count);
+    r.Color_ = std::move(*values.Color);
+    r.Charges_ = std::move(*values.Charges);
+    r.Tags_ = std::move(*values.Tags);
+    return r;
+}
+
 TThing TThing::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
     TThing r;
     r.Name_ = j.at("name").get<std::string>();
-    r.Count_ = j.value("count", int{3});
+    r.Count_ = j.contains("count") ? ::ReadGeneratedRuleInteger(j.at("count")) : int{3};
     r.Color_ = EColorFromString(j.at("color").get<std::string>());
     r.Charges_ = TBoundedQuantity::FromJson(j.at("charges"), factory);
     if (j.contains("tags")) {
@@ -70,5 +108,13 @@ void TThing::RegisterDslProperties() {
     r.Register("count", [](const TThing* obj, TEvalContext&) {
         return TDslValue(obj->Count());
     });
+}
+
+void RegisterBasicAbilities(TAbilityCatalog& catalog) {
+    (void)catalog;
+}
+
+void RegisterBasicRules(TAbilityRules& rules) {
+    RegisterBasicAbilities(rules.Catalog);
 }
 

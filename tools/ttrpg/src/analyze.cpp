@@ -83,6 +83,11 @@ std::string InferAndValidate(const expr::TExprNode& e,
             }
             return "int";
         }
+        case K::ContextVar:
+        case K::ObjectInit:
+        case K::Index:
+        case K::StringLiteral:
+        case K::ListLiteral:
         case K::Call:
             throw std::runtime_error("function calls are not supported in computed defaults" + where);
         case K::Unary:
@@ -100,6 +105,11 @@ bool InitIsComputed(const expr::TExprNode& e, const std::unordered_set<std::stri
             return false;
         case K::Var:
             return fieldNames.count(e.Text) != 0;
+        case K::ContextVar:
+        case K::ObjectInit:
+        case K::Index:
+        case K::StringLiteral:
+        case K::ListLiteral:
         case K::Member:
         case K::Call:
         case K::Unary:
@@ -121,6 +131,11 @@ std::string InitExprToCpp(const expr::TExprNode& e, const std::string& selfPrefi
         case K::Binary:
             return "(" + InitExprToCpp(*e.Lhs, selfPrefix) + " " + BinOpToCpp(e.BinOp) + " " +
                    InitExprToCpp(*e.Rhs, selfPrefix) + ")";
+        case K::ContextVar:
+        case K::ObjectInit:
+        case K::Index:
+        case K::StringLiteral:
+        case K::ListLiteral:
         case K::Call:
         case K::Unary:
             break;

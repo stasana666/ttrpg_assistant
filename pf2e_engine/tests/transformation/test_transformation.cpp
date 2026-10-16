@@ -1,3 +1,5 @@
+#include <pf2e_engine/mechanics/creature.h>
+
 #include <gtest/gtest.h>
 
 #include <pf2e_engine/transformation/transformation.h>
@@ -45,14 +47,14 @@ TEST_F(TransformationTest, ChangeConditionUndoRestoresPreviousValue) {
 }
 
 TEST_F(TransformationTest, ChangeConditionUndoFromZero) {
-    EXPECT_FALSE(conditions_.Has(EConditionKind::MultipleAttackPenalty));
+    EXPECT_FALSE(conditions_.Has(EConditionKind::Frightened));
 
-    TChangeCondition change(&conditions_, EConditionKind::MultipleAttackPenalty, 5);
-    ASSERT_TRUE(conditions_.Has(EConditionKind::MultipleAttackPenalty));
-    EXPECT_EQ(conditions_.Get<TConditionMultipleAttackPenalty>()->Value, 5);
+    TChangeCondition change(&conditions_, EConditionKind::Frightened, 5);
+    ASSERT_TRUE(conditions_.Has(EConditionKind::Frightened));
+    EXPECT_EQ(conditions_.Get<TConditionFrightened>()->Value, 5);
 
     change.Undo();
-    EXPECT_FALSE(conditions_.Has(EConditionKind::MultipleAttackPenalty));
+    EXPECT_FALSE(conditions_.Has(EConditionKind::Frightened));
 }
 
 TEST(ChangeResourceTest, AddResourceAppliesValue) {
@@ -142,67 +144,67 @@ protected:
 };
 
 TEST_F(TransformatorTest, ChangeConditionViaTransformator) {
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
 
     transformator_->ChangeCondition(creature_.get(), EConditionKind::Frightened, 3);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 3);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 3);
 }
 
 TEST_F(TransformatorTest, ChangeConditionUndoViaTransformator) {
     TState initial_state = transformator_->CurrentState();
 
     transformator_->ChangeCondition(creature_.get(), EConditionKind::Frightened, 3);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 3);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 3);
 
     transformator_->Undo(initial_state);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
 }
 
 TEST_F(TransformatorTest, AddResourceViaTransformator) {
-    EXPECT_EQ(creature_->ResourceFor(EResourceKind::Action)->Count(), 0);
+    EXPECT_EQ(ResourceFor(*creature_, EResourceKind::Action)->Count(), 0);
 
-    transformator_->AddResource(creature_->ResourceFor(EResourceKind::Action), 5);
-    EXPECT_EQ(creature_->ResourceFor(EResourceKind::Action)->Count(), 5);
+    transformator_->AddResource(ResourceFor(*creature_, EResourceKind::Action), 5);
+    EXPECT_EQ(ResourceFor(*creature_, EResourceKind::Action)->Count(), 5);
 }
 
 TEST_F(TransformatorTest, ReduceResourceViaTransformator) {
-    transformator_->AddResource(creature_->ResourceFor(EResourceKind::Action), 10);
+    transformator_->AddResource(ResourceFor(*creature_, EResourceKind::Action), 10);
 
-    transformator_->ReduceResource(creature_->ResourceFor(EResourceKind::Action), 3);
-    EXPECT_EQ(creature_->ResourceFor(EResourceKind::Action)->Count(), 7);
+    transformator_->ReduceResource(ResourceFor(*creature_, EResourceKind::Action), 3);
+    EXPECT_EQ(ResourceFor(*creature_, EResourceKind::Action)->Count(), 7);
 }
 
 TEST_F(TransformatorTest, ResourceUndoViaTransformator) {
-    transformator_->AddResource(creature_->ResourceFor(EResourceKind::Action), 10);
+    transformator_->AddResource(ResourceFor(*creature_, EResourceKind::Action), 10);
 
     TState initial_state = transformator_->CurrentState();
 
-    transformator_->ReduceResource(creature_->ResourceFor(EResourceKind::Action), 3);
-    EXPECT_EQ(creature_->ResourceFor(EResourceKind::Action)->Count(), 7);
+    transformator_->ReduceResource(ResourceFor(*creature_, EResourceKind::Action), 3);
+    EXPECT_EQ(ResourceFor(*creature_, EResourceKind::Action)->Count(), 7);
 
-    transformator_->AddResource(creature_->ResourceFor(EResourceKind::Action), 2);
-    EXPECT_EQ(creature_->ResourceFor(EResourceKind::Action)->Count(), 9);
+    transformator_->AddResource(ResourceFor(*creature_, EResourceKind::Action), 2);
+    EXPECT_EQ(ResourceFor(*creature_, EResourceKind::Action)->Count(), 9);
 
     transformator_->Undo(initial_state);
-    EXPECT_EQ(creature_->ResourceFor(EResourceKind::Action)->Count(), 10);
+    EXPECT_EQ(ResourceFor(*creature_, EResourceKind::Action)->Count(), 10);
 }
 
 TEST_F(TransformatorTest, MixedTransformationsUndo) {
     TState initial_state = transformator_->CurrentState();
 
     transformator_->ChangeCondition(creature_.get(), EConditionKind::Frightened, 2);
-    transformator_->AddResource(creature_->ResourceFor(EResourceKind::Action), 5);
-    transformator_->ChangeCondition(creature_.get(), EConditionKind::MultipleAttackPenalty, 5);
+    transformator_->AddResource(ResourceFor(*creature_, EResourceKind::Action), 5);
+    transformator_->ChangeCondition(creature_.get(), EConditionKind::Prone, 1);
 
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 2);
-    EXPECT_EQ(creature_->ResourceFor(EResourceKind::Action)->Count(), 5);
-    EXPECT_EQ(creature_->Get(EConditionKind::MultipleAttackPenalty), 5);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 2);
+    EXPECT_EQ(ResourceFor(*creature_, EResourceKind::Action)->Count(), 5);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Prone), 1);
 
     transformator_->Undo(initial_state);
 
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
-    EXPECT_EQ(creature_->ResourceFor(EResourceKind::Action)->Count(), 0);
-    EXPECT_EQ(creature_->Get(EConditionKind::MultipleAttackPenalty), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
+    EXPECT_EQ(ResourceFor(*creature_, EResourceKind::Action)->Count(), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Prone), 0);
 }
 
 class EffectTransformationTest : public ::testing::Test {
@@ -266,7 +268,7 @@ TEST_F(EffectTransformationTest, RemoveEffectUndoRestoresValue) {
 }
 
 TEST_F(EffectTransformationTest, EffectManagerAddEffectWithTransformator) {
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 0);
 
     TState initial_state = transformator_->CurrentState();
@@ -278,12 +280,12 @@ TEST_F(EffectTransformationTest, EffectManagerAddEffectWithTransformator) {
     }, *transformator_);
 
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 3);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 3);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 3);
 
     transformator_->Undo(initial_state);
 
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 0);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
 }
 
 TEST_F(EffectTransformationTest, MultipleEffectsWithUndo) {
@@ -296,7 +298,7 @@ TEST_F(EffectTransformationTest, MultipleEffectsWithUndo) {
     }, *transformator_);
 
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 2);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 2);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 2);
 
     effect_manager_->AddEffect(TPlayerConditionSet{
         .player = player_.get(),
@@ -305,12 +307,12 @@ TEST_F(EffectTransformationTest, MultipleEffectsWithUndo) {
     }, *transformator_);
 
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 5);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 5);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 5);
 
     transformator_->Undo(initial_state);
 
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 0);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
 }
 
 
@@ -475,7 +477,7 @@ protected:
 };
 
 TEST_F(IntegrationRollbackTest, FullConditionEffectWithScheduledDecay) {
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 0);
 
     TState initial_state = transformator_->CurrentState();
@@ -486,7 +488,7 @@ TEST_F(IntegrationRollbackTest, FullConditionEffectWithScheduledDecay) {
         .value = 3,
     }, *transformator_);
 
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 3);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 3);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 3);
 
     transformator_->AddTask(scheduler_.get(), TTask{
@@ -495,16 +497,16 @@ TEST_F(IntegrationRollbackTest, FullConditionEffectWithScheduledDecay) {
     });
 
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 2);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 2);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 2);
 
     transformator_->Undo(initial_state);
 
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 0);
 
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
 }
 
 TEST_F(IntegrationRollbackTest, MultipleEffectsAndTasksRollback) {
@@ -523,8 +525,8 @@ TEST_F(IntegrationRollbackTest, MultipleEffectsAndTasksRollback) {
 
     auto canceler2 = effect_manager_->AddEffect(TPlayerConditionSet{
         .player = player_.get(),
-        .condition = EConditionKind::MultipleAttackPenalty,
-        .value = 5,
+        .condition = EConditionKind::Prone,
+        .value = 1,
     }, *transformator_);
 
     transformator_->AddTask(scheduler_.get(), TTask{
@@ -532,15 +534,15 @@ TEST_F(IntegrationRollbackTest, MultipleEffectsAndTasksRollback) {
         .callback = [canceler2]() { return canceler2(EEffectCancelPolicy::Cancel); },
     });
 
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 2);
-    EXPECT_EQ(creature_->Get(EConditionKind::MultipleAttackPenalty), 5);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 2);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Prone), 1);
 
     transformator_->Undo(initial_state);
 
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
-    EXPECT_EQ(creature_->Get(EConditionKind::MultipleAttackPenalty), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Prone), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 0);
-    EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::MultipleAttackPenalty), 0);
+    EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Prone), 0);
 }
 
 TEST_F(IntegrationRollbackTest, ClearConditionStopsScheduledRevival) {
@@ -554,19 +556,19 @@ TEST_F(IntegrationRollbackTest, ClearConditionStopsScheduledRevival) {
         .callback = [canceler]() { return canceler(EEffectCancelPolicy::ReduceUntilZero); },
     });
 
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 2);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 2);
 
     effect_manager_->ClearCondition(player_.get(), EConditionKind::Frightened, *transformator_);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 0);
 
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
     EXPECT_EQ(effect_manager_->GetHighestValue(player_.get(), EConditionKind::Frightened), 0);
 
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
 }
 
 TEST_F(IntegrationRollbackTest, FrightenedNaturalDecayUnaffected) {
@@ -580,19 +582,19 @@ TEST_F(IntegrationRollbackTest, FrightenedNaturalDecayUnaffected) {
         .callback = [canceler]() { return canceler(EEffectCancelPolicy::ReduceUntilZero); },
     });
 
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 2);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 2);
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 1);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 1);
     scheduler_->TriggerEvent({EEvent::OnTurnStart, TEventContext{player_.get()}}, *transformator_);
-    EXPECT_EQ(creature_->Get(EConditionKind::Frightened), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Frightened), 0);
 }
 
 TEST_F(IntegrationRollbackTest, ClearConditionFallbackForDirectSet) {
     transformator_->ChangeCondition(creature_.get(), EConditionKind::Prone, 1);
-    EXPECT_EQ(creature_->Get(EConditionKind::Prone), 1);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Prone), 1);
 
     effect_manager_->ClearCondition(player_.get(), EConditionKind::Prone, *transformator_);
-    EXPECT_EQ(creature_->Get(EConditionKind::Prone), 0);
+    EXPECT_EQ(ConditionValue(*creature_, EConditionKind::Prone), 0);
 }
 
 TEST(SchedulerReentrancy, CallbackAddingTaskDuringTriggerIsSafe) {

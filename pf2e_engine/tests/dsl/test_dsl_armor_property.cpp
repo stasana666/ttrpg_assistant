@@ -8,6 +8,12 @@
 #include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/inventory/armor.h>
 #include <pf2e_engine/inventory/material.h>
+#include <pf2e_engine/creature.h>
+#include <pf2e_engine/common/generated_execution.h>
+#include <pf2e_engine/player.h>
+#include <pf2e_engine/transformation/transformator.h>
+
+#include "mock_interaction_system.h"
 
 #include <cpp_config.h>
 
@@ -70,4 +76,21 @@ TEST_F(DslArmorPropertyTest, DefaultsApplied) {
     EXPECT_EQ(armor.Category(), EArmorCategory::Unarmored);
     EXPECT_EQ(armor.ArmorClassBonus(), 0);
     EXPECT_EQ(armor.DexterityCap(), std::numeric_limits<int>::max());
+}
+
+TEST_F(DslArmorPropertyTest, GeneratedCreaturePropertiesFollowStateAndRollback) {
+    auto creature = TCreature::Create({.Level = 1, .Movement = 5});
+    TPlayer player(&creature, TPlayerTeam{1}, TPlayerId{1}, "Fighter", "");
+    ctx_.scope.emplace("actor", TDslValue(&player));
+    TMockInteractionSystem io;
+    TTransformator transformator(io);
+    TGeneratedExecutionContext execution(transformator);
+    const auto before = transformator.CurrentState();
+
+    EXPECT_EQ(Eval("$actor.creature.level").AsInt(), 1);
+    EXPECT_EQ(Eval("$actor.creature.movement").AsInt(), 5);
+    execution.AssignGuarded(creature.Level(), 4, TGuarded<TCreature>(creature), "level");
+    EXPECT_EQ(Eval("$actor.creature.level").AsInt(), 4);
+    transformator.Undo(before);
+    EXPECT_EQ(Eval("$actor.creature.level").AsInt(), 1);
 }

@@ -1,6 +1,5 @@
 #include <pf2e_engine/success_level.h>
 
-#include <algorithm>
 #include <stdexcept>
 
 std::string ToString(ESuccessLevel success_level)
@@ -17,14 +16,4 @@ std::string ToString(ESuccessLevel success_level)
             return "critical_success";
     }
     throw std::logic_error("unknown enum ESuccessLevel value");
-}
-
-ESuccessLevel IncreaseSuccessLevel(ESuccessLevel lvl)
-{
-    return static_cast<ESuccessLevel>(std::min(3, static_cast<int>(lvl) + 1));
-}
-
-ESuccessLevel DecreaseSuccessLevel(ESuccessLevel lvl)
-{
-    return static_cast<ESuccessLevel>(std::max(0, static_cast<int>(lvl) - 1));
 }

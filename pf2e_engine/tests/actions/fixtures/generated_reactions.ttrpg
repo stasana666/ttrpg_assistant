@@ -1,0 +1,170 @@
+import "../../../data/schemas/creature.ttrpg";
+
+class TReactionPayload {
+    int Amount = 20;
+    bool Disrupted = false;
+}
+
+trigger TReactionPayload FixtureChange(TReactionPayload Pending, TCreature Subject, int Kind);
+trigger TReactionPayload FixtureInner(TReactionPayload Pending, TCreature Subject, int Kind);
+trigger TReactionPayload FixtureMove(TReactionPayload Pending, TCreature Subject, int Kind) once per activity;
+trigger TReactionPayload FixtureOtherMove(TReactionPayload Pending, TCreature Subject, int Kind) once per activity;
+
+reaction ImmediateCounter for TCreature on FixtureChange {
+    cost @self.Reactions = 1;
+    requires Subject != @self && Kind >= 0 && Pending.Amount > 0;
+    @self.Hands.Add(1);
+    return TReactionPayload { Amount = Pending.Amount - 3; Disrupted = Pending.Disrupted; };
+}
+
+reaction SlowCounter for TCreature on FixtureChange {
+    cost @self.Reactions = 1;
+    requires Subject != @self && Pending.Amount > 0;
+    choose int First from [1, 2];
+    @self.Hands.Add(First);
+    let Amount = Pending.Amount - First;
+    choose int Second from [3, 4];
+    @self.Hands.Add(Second);
+    return TReactionPayload { Amount = Amount - Second; Disrupted = Pending.Disrupted; };
+}
+
+reaction BoundCounter for TCreature using TWeapon Weapon on FixtureChange {
+    cost @self.Reactions = 1;
+    requires Subject != @self && Weapon.Reach >= Kind;
+    choose int Extra from [0, 1];
+    @self.Hands.Add(1);
+    return TReactionPayload { Amount = Pending.Amount - Weapon.BaseDiceSize - Extra; Disrupted = Pending.Disrupted; };
+}
+
+reaction SelectedCounter for TCreature on FixtureChange {
+    cost @self.Reactions = 1;
+    requires Subject != @self;
+    choose TWeapon Weapon from sources(@self.Weapons, @self.NaturalWeapons)
+        where Weapon.Reach >= Kind;
+    choose int Extra from [0, 1];
+    @self.Hands.Add(1);
+    return TReactionPayload { Amount = Pending.Amount - Weapon.BaseDiceSize - Extra; Disrupted = Pending.Disrupted; };
+}
+
+reaction KillingCounter for TCreature on FixtureChange {
+    cost @self.Reactions = 1;
+    requires Subject != @self;
+    @self.Hands.SetCount(Subject.Actions.Count());
+    Subject.Die();
+    choose int Extra from [1, 2];
+    @self.Hands.Add(Extra);
+    return TReactionPayload { Amount = Pending.Amount; Disrupted = true; };
+}
+
+reaction LimitedFirst for TCreature on FixtureMove, FixtureOtherMove {
+    cost @self.Reactions = 1;
+    requires Subject != @self;
+    @self.Hands.Add(1);
+    return TReactionPayload { Amount = Pending.Amount - 1; Disrupted = Pending.Disrupted; };
+}
+
+reaction LimitedSecond for TCreature on FixtureMove {
+    cost @self.Reactions = 1;
+    requires Subject != @self;
+    @self.Hands.Add(10);
+    return TReactionPayload { Amount = Pending.Amount - 10; Disrupted = Pending.Disrupted; };
+}
+
+reaction InnerCounter for TCreature on FixtureInner {
+    cost @self.Reactions = 1;
+    requires Subject != @self;
+    choose int Extra from [2, 3];
+    @self.Hands.Add(Extra);
+    return TReactionPayload { Amount = Pending.Amount - Extra; Disrupted = Pending.Disrupted; };
+}
+
+reaction NestedCounter for TCreature on FixtureChange {
+    cost @self.Reactions = 1;
+    requires Subject != @self;
+    let Result = FixtureInner(Pending, @self, Kind);
+    @self.Hands.Add(1);
+    return Result;
+}
+
+activity int WalkWithWindows for TCreature(int Count) {
+    let Remaining = Count;
+    let Pending = TReactionPayload {};
+    while (Remaining > 0) {
+        let Origin = position(@self);
+        choose Position Next from adjacent_positions(Origin)
+            where Next.X == Origin.X + 1 && Next.Y == Origin.Y && can_occupy(@self, Next);
+        let Result = FixtureMove(Pending, @self, 0);
+        Pending = Result;
+        if (!Pending.Disrupted) {
+            move(@self, Origin, Next);
+        }
+        Remaining -= 1;
+    }
+    return Pending.Amount;
+}
+
+action ChangeWithWindow for TCreature {
+    cost @self.Actions = 1;
+    let Result = FixtureChange(TReactionPayload {}, @self, 1);
+    @self.Hands.SetCount(Result.Amount);
+}
+
+action WalkOnce for TCreature {
+    cost @self.Actions = 1;
+    let Result = WalkWithWindows(3);
+    @self.Hands.SetCount(Result);
+}
+
+action WalkTwice for TCreature {
+    cost @self.Actions = 1;
+    let First = WalkWithWindows(2);
+    let Second = WalkWithWindows(2);
+    @self.Hands.SetCount(First + Second);
+}
+
+action OtherWindow for TCreature {
+    cost @self.Actions = 1;
+    let First = FixtureMove(TReactionPayload {}, @self, 0);
+    let Second = FixtureOtherMove(First, @self, 0);
+    @self.Hands.SetCount(Second.Amount);
+}
+
+feature ParentTraining {
+    grant ChangeWithWindow;
+    grant WalkOnce;
+    grant WalkTwice;
+    grant OtherWindow;
+}
+
+feature ImmediateTraining {
+    grant ImmediateCounter;
+}
+
+feature SlowTraining {
+    grant SlowCounter;
+}
+
+feature BoundTraining {
+    grant BoundCounter;
+}
+
+feature SelectedTraining {
+    grant SelectedCounter;
+}
+
+feature KillingTraining {
+    grant KillingCounter;
+}
+
+feature LimitedTraining {
+    grant LimitedFirst;
+    grant LimitedSecond;
+}
+
+feature NestedTraining {
+    grant NestedCounter;
+}
+
+feature InnerTraining {
+    grant InnerCounter;
+}

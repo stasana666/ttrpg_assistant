@@ -8,7 +8,6 @@
 
 static const TGameObjectId kTypeId = TGameObjectIdManager::Instance().Register("type");
 static const TGameObjectId kTargetId = TGameObjectIdManager::Instance().Register("creature");
-static const TGameObjectId kAttackerId = TGameObjectIdManager::Instance().Register("attacker");
 static const TGameObjectId kSkillId = TGameObjectIdManager::Instance().Register("skill");
 static const TGameObjectId kSavethrowId = TGameObjectIdManager::Instance().Register("savethrow");
 
@@ -47,8 +46,7 @@ void FCalculateDifficultyClass::operator() (std::shared_ptr<TActionContext> ctx)
 void FCalculateDifficultyClass::ArmorClassHandle(std::shared_ptr<TActionContext> ctx) const
 {
     TPlayer& target = *std::get<TPlayer*>(input_.Get(kTargetId, ctx));
-    TPlayer& attacker = *std::get<TPlayer*>(input_.Get(kAttackerId, ctx));
-    int armor_class = calculator_.ArmorClass(*target.GetCreature(), *attacker.GetCreature());
+    int armor_class = target.GetCreature()->ArmorClass();
     ctx->game_object_registry->Add(output_, armor_class);
 }
 

@@ -2,6 +2,7 @@
     "type": "pf2e_action",
     "name": "trip",
     "pf2e_action": {
+        "ability": "abilities.Trip",
         "name": "trip",
         "resources": [
             {
@@ -91,7 +92,8 @@
                 "type": "function_call",
                 "input": {
                     "dice": "1d6",
-                    "damage_type": "Bludgeoning"
+                    "damage_type": "Bludgeoning",
+                    "critical": 1
                 },
                 "function": "flat_damage_roll",
                 "output": ["damage"]

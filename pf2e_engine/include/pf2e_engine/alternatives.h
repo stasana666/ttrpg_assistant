@@ -5,8 +5,12 @@
 #include <any>
 #include <cassert>
 #include <functional>
+#include <set>
 #include <string>
 #include <vector>
+
+std::vector<std::string> NumberDuplicateLabels(std::vector<std::string> labels,
+                                               const std::set<std::string>& reserved = {});
 
 enum class EAskingStrategy {
     Console,

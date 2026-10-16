@@ -1,0 +1,31 @@
+enum ECreatureTrait {
+    Human,
+    Humanoid,
+    Animal,
+}
+
+enum ESenseKind {
+    Vision,
+    LowLightVision,
+    Darkvision,
+    Scent,
+    Other,
+}
+
+enum ESensePrecision {
+    Precise,
+    Imprecise,
+    Vague,
+}
+
+class TLanguage {
+    string Name;
+    bool Spoken = true;
+}
+
+class TSense {
+    ESenseKind Kind = Vision;
+    string Name = "";
+    int RangeFeet = 0;
+    ESensePrecision Precision = Precise;
+}

@@ -55,7 +55,7 @@ inline std::unique_ptr<TTestBattle> MakeTwoWarriorBattle()
     TBattleMap map = fixture->factory.Create<TBattleMap>(map_id);
 
     fixture->battle = std::make_unique<TBattle>(
-        std::move(map), &fixture->rng, fixture->io);
+        std::move(map), &fixture->rng, fixture->io, fixture->factory.AbilityRules());
 
     fixture->rng.ExpectCall(20, 10);
     fixture->battle->AddPlayer(std::move(p1), TPosition{0, 0});

@@ -1,6 +1,8 @@
 #pragma once
 
 
+#include <parse/scanner.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -15,6 +17,7 @@ enum class EBinaryOp {
 
 enum class EUnaryOp {
     Not,
+    Negate,
 };
 
 enum class ENodeKind {
@@ -24,7 +27,14 @@ enum class ENodeKind {
     Call,
     Unary,
     Binary,
+    ContextVar,
+    ObjectInit,
+    Index,
+    StringLiteral,
+    ListLiteral,
 };
+
+struct TFieldInitializer;
 
 struct TExprNode {
     ENodeKind Kind = ENodeKind::IntLiteral;
@@ -35,6 +45,14 @@ struct TExprNode {
     std::shared_ptr<TExprNode> Lhs;
     std::shared_ptr<TExprNode> Rhs;
     std::vector<TExprNode> Args;
+    std::vector<TFieldInitializer> Fields;
+    parse::TSourceLocation Location;
+};
+
+struct TFieldInitializer {
+    std::string Name;
+    TExprNode Value;
+    parse::TSourceLocation Location;
 };
 
 }

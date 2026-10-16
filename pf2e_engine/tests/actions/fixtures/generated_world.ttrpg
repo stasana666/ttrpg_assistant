@@ -1,0 +1,77 @@
+import "../../../data/schemas/creature.ttrpg";
+
+class TWorldBonusDice {
+    int Count = 0;
+    int Size = 4;
+}
+
+event TWorldBonusDice NearbyAllies for TCreature(TCreature Target);
+
+action WorldProbe for TCreature using TWeapon Weapon {
+    requires @self.Level > 0;
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive()
+        && Target != @self
+        && !same_team(@self, Target)
+        && grid_distance(@self, Target) <= Weapon.Reach
+        && has_line_of_effect(@self, Target);
+    let Amount = roll(1, Weapon.BaseDiceSize);
+    for Bonus in NearbyAllies(@self, Target) {
+        if (Bonus.Count > 0) {
+            Amount += roll(Bonus.Count, Bonus.Size);
+        }
+    }
+    Target.Hitpoints.DealDamage(Amount);
+}
+
+action CoordinateProbe for TCreature {
+    cost @self.Actions = 1;
+    requires position_x(@self) == 0 && position_y(@self) == 0;
+    choose TCreature Target where Target.IsAlive() && !same_team(@self, Target);
+    let Amount = position_x(Target) * 10 + position_y(Target);
+    Target.Hitpoints.DealDamage(Amount);
+}
+
+action BudgetProbe for TCreature {
+    requires @self.Actions.Count() >= 3;
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive() && !same_team(@self, Target);
+    Target.Hitpoints.DealDamage(1);
+}
+
+feature WorldTraining {
+    grant WorldProbe;
+}
+
+feature CoordinateTraining {
+    grant CoordinateProbe;
+}
+
+feature BudgetTraining {
+    grant BudgetProbe;
+}
+
+feature TwoOtherAllies {
+    on NearbyAllies {
+        let Count = 0;
+        for Ally in entities(TCreature) {
+            if (Ally != @self && Ally != Target && Ally.IsAlive()
+                && same_team(@self, Ally) && grid_distance(Ally, Target) <= 1) {
+                Count += 1;
+            }
+        }
+        if (Count >= 2) {
+            return TWorldBonusDice { Count = 1; };
+        }
+        return TWorldBonusDice {};
+    }
+}
+
+TWeapon WorldBlade {
+    Name = "World blade";
+    BaseDiceSize = 6;
+    DamageType = Slashing;
+    Category = Simple;
+    Reach = 1;
+    Features = [WorldTraining];
+}

@@ -1,7 +1,6 @@
 #include <weapon_damage_roll.h>
 
 #include <pf2e_engine/expressions/expressions.h>
-#include <pf2e_engine/mechanics/characteristics.h>
 #include <pf2e_engine/mechanics/damage.h>
 #include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/inventory/weapon.h>
@@ -56,12 +55,15 @@ void ApplyWeaponDamage(std::shared_ptr<TActionContext> ctx, const TBlockInput& i
     TPlayer* player = std::get<TPlayer*>(input.Get(kAttackerId, ctx));
     const TWeapon* weapon = GetWeapon(input.Get(kWeaponId, ctx));
 
-    auto damage = std::make_shared<TDamage>();
+    auto damage = std::make_shared<TDamage>(TDamageContext::Create({
+        .Critical = crit,
+        .Nonlethal = weapon->Traits().Has(EWeaponTraitKind::Nonlethal),
+    }));
 
-    int str = player->GetCreature()->GetCharacteristic(ECharacteristic::Strength).Modifier();
+    int modifier = player->GetCreature()->DamageModifier(*weapon);
     auto weapon_expr = std::make_unique<TSumExpression>(
-        std::make_unique<TDiceExpression>(weapon->BaseDiceSize()),
-        std::make_unique<TNumberExpression>(str));
+        std::make_unique<TMultiDiceExpression>(weapon->DamageDiceCount(), weapon->BaseDiceSize()),
+        std::make_unique<TNumberExpression>(modifier));
     damage->Add(weapon->DamageType(), MaybeDouble(std::move(weapon_expr), crit));
 
     if (ctx->game_object_registry->Contains(kDamageBonusId)) {

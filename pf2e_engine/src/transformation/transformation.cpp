@@ -2,6 +2,7 @@
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/effect_manager.h>
 #include <pf2e_engine/initiative_order.h>
+#include <pf2e_engine/mechanics/creature.h>
 #include <pf2e_engine/player.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
@@ -9,23 +10,6 @@
 #include <stdexcept>
 
 namespace {
-
-int GetConditionValue(const TVariantMap<EConditionKind, TCondition>& conditions,
-                      EConditionKind condition)
-{
-    if (!conditions.Has(condition)) {
-        return 0;
-    }
-    switch (condition) {
-        case EConditionKind::Prone:
-            return 1;
-        case EConditionKind::Frightened:
-            return conditions.Get<TConditionFrightened>()->Value;
-        case EConditionKind::MultipleAttackPenalty:
-            return conditions.Get<TConditionMultipleAttackPenalty>()->Value;
-    }
-    throw std::logic_error("unreachable");
-}
 
 void SetConditionValue(TVariantMap<EConditionKind, TCondition>& conditions,
                        EConditionKind condition,
@@ -39,11 +23,17 @@ void SetConditionValue(TVariantMap<EConditionKind, TCondition>& conditions,
         case EConditionKind::Prone:
             conditions.Set(TConditionProne{});
             return;
+        case EConditionKind::Unconscious:
+            conditions.Set(TConditionUnconscious{});
+            return;
         case EConditionKind::Frightened:
             conditions.Set(TConditionFrightened{.Value = value});
             return;
-        case EConditionKind::MultipleAttackPenalty:
-            conditions.Set(TConditionMultipleAttackPenalty{.Value = value});
+        case EConditionKind::Dying:
+            conditions.Set(TConditionDying{.Value = value});
+            return;
+        case EConditionKind::Wounded:
+            conditions.Set(TConditionWounded{.Value = value});
             return;
     }
     throw std::logic_error("unreachable");
@@ -51,28 +41,12 @@ void SetConditionValue(TVariantMap<EConditionKind, TCondition>& conditions,
 
 }
 
-TChangeHitPoints::TChangeHitPoints(TBoundedQuantity* hitpoints, int value)
-    : hitpoints_(hitpoints)
-    , prev_(*hitpoints_)
-{
-    if (value < 0) {
-        hitpoints_->Reduce(-value);
-    } else {
-        hitpoints_->Restore(value);
-    }
-}
-
-void TChangeHitPoints::Undo()
-{
-    *hitpoints_ = prev_;
-}
-
 TChangeCondition::TChangeCondition(TVariantMap<EConditionKind, TCondition>* conditions,
                                    EConditionKind condition,
                                    int new_value)
     : conditions_(conditions)
     , condition_(condition)
-    , prev_value_(GetConditionValue(*conditions_, condition))
+    , prev_value_(ConditionValue(*conditions_, condition))
 {
     SetConditionValue(*conditions_, condition_, new_value);
 }
@@ -193,24 +167,38 @@ void TChangeRound::Undo()
     order_->SetRound(prev_round_);
 }
 
+TMoveInitiativePlayer::TMoveInitiativePlayer(TInitiativeOrder* order, TPlayer* target, TPlayer* anchor)
+    : order_(order)
+    , target_(target)
+    , previous_successor_(nullptr)
+{
+    if (order_ == nullptr) {
+        throw std::invalid_argument("initiative relocation requires an order");
+    }
+    order_->ValidateMoveBefore(target, anchor);
+    previous_successor_ = order_->Successor(target);
+    order_->Relocate(target, anchor);
+}
+
+void TMoveInitiativePlayer::Undo()
+{
+    order_->Relocate(target_, previous_successor_);
+}
+
 TMovePlayer::TMovePlayer(TPlayer* player, TPosition new_position)
     : player_(player)
-    , prev_position_(player->GetPosition())
+    , prev_position_{}
 {
+    if (player_ == nullptr) {
+        throw std::invalid_argument("movement requires a player");
+    }
+    prev_position_ = player_->GetPosition();
     player_->SetPosition(new_position);
 }
 
 void TMovePlayer::Undo()
 {
     player_->SetPosition(prev_position_);
-}
-
-TAstNode TChangeHitPoints::GetAst(TAstContext& ctx) const
-{
-    TAstNode node = TAstNode::MakeObject("TChangeHitPoints");
-    AddReference(node, "hitpoints_ref", hitpoints_, ctx);
-    AddOwnedObject(node, "prev", prev_, ctx);
-    return node;
 }
 
 TAstNode TChangeCondition::GetAst(TAstContext&) const
@@ -296,5 +284,14 @@ TAstNode TMovePlayer::GetAst(TAstContext& ctx) const
     TAstNode node = TAstNode::MakeObject("TMovePlayer");
     AddReference(node, "player_ref", player_, ctx);
     AddValueField(node, "prev_position", prev_position_);
+    return node;
+}
+
+TAstNode TMoveInitiativePlayer::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TMoveInitiativePlayer");
+    AddReference(node, "order_ref", order_, ctx);
+    AddReference(node, "target_ref", target_, ctx);
+    AddReference(node, "previous_successor_ref", previous_successor_, ctx);
     return node;
 }

@@ -112,3 +112,15 @@ TEST(ConventionsTest, BuiltinPrimitives) {
     EXPECT_TRUE(IsBuiltinPrimitive("string"));
     EXPECT_FALSE(IsBuiltinPrimitive("EColor"));
 }
+
+TEST(ConventionsTest, ExplicitEnumDefaultsApplyOnlyToMissingJsonFields) {
+    auto field = Field("EColor", "Color");
+    EXPECT_EQ(LoadFieldCall(field, EFieldKind::Enum, "color"),
+        "EColorFromString(j.at(\"color\").get<std::string>())");
+    expr::TExprNode value;
+    value.Kind = expr::ENodeKind::Var;
+    value.Text = "Blue";
+    field.Init = value;
+    EXPECT_EQ(LoadFieldCall(field, EFieldKind::Enum, "color"),
+        "j.contains(\"color\") ? EColorFromString(j.at(\"color\").get<std::string>()) : EColor::Blue");
+}

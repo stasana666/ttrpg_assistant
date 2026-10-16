@@ -1,0 +1,70 @@
+import "armor.ttrpg";
+import "weapon.ttrpg";
+import "skills.ttrpg";
+import "saving_throws.ttrpg";
+
+enum EProficiencyRank {
+    Untrained,
+    Trained,
+    Expert,
+    Master,
+    Legendary,
+}
+
+class TProficiencyValue {
+    EProficiencyRank Rank = Untrained;
+    bool IsFixed = false;
+    int FixedBonus = 0;
+
+    query int Bonus(int Level) {
+        if (@self.IsFixed) {
+            return @self.FixedBonus;
+        }
+        if (@self.Rank == Untrained) {
+            return 0;
+        }
+        if (@self.Rank == Trained) {
+            return Level + 2;
+        }
+        if (@self.Rank == Expert) {
+            return Level + 4;
+        }
+        if (@self.Rank == Master) {
+            return Level + 6;
+        }
+        require @self.Rank == Legendary;
+        return Level + 8;
+    }
+}
+
+class TProficiency {
+    map<EArmorCategory, TProficiencyValue> ArmorCategory;
+    map<EWeaponCategory, TProficiencyValue> WeaponCategory;
+    map<ESavethrow, TProficiencyValue> Savethrow;
+    map<ESkill, TProficiencyValue> Skill;
+    TProficiencyValue Perception;
+
+    query int ArmorBonus(EArmorCategory Category, int Level) {
+        let Value = @self.ArmorCategory.get(Category, TProficiencyValue {});
+        return Value.Bonus(Level);
+    }
+
+    query int WeaponBonus(EWeaponCategory Category, int Level) {
+        let Value = @self.WeaponCategory.get(Category, TProficiencyValue {});
+        return Value.Bonus(Level);
+    }
+
+    query int SaveBonus(ESavethrow Save, int Level) {
+        let Value = @self.Savethrow.get(Save, TProficiencyValue {});
+        return Value.Bonus(Level);
+    }
+
+    query int SkillBonus(ESkill Skill, int Level) {
+        let Value = @self.Skill.get(Skill, TProficiencyValue {});
+        return Value.Bonus(Level);
+    }
+
+    query int PerceptionBonus(int Level) {
+        return @self.Perception.Bonus(Level);
+    }
+}

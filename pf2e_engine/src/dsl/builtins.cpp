@@ -8,9 +8,11 @@
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/creature.h>
 #include <pf2e_engine/inventory/armor.h>
+#include <pf2e_engine/inventory/shield.h>
 #include <pf2e_engine/inventory/weapon.h>
-#include <pf2e_engine/inventory/creature_data.h>
 #include <pf2e_engine/inventory/creature_parts.h>
+#include <pf2e_engine/inventory/creature_description.h>
+#include <pf2e_engine/inventory/health.h>
 #include <pf2e_engine/player.h>
 
 #include <algorithm>
@@ -27,12 +29,17 @@ TPlayer* RequirePlayer(const TDslValue& v, const char* fn) {
 
 void RegisterAll() {
     TArmor::RegisterDslProperties();
+    TShield::RegisterDslProperties();
     TWeapon::RegisterDslProperties();
     TRace::RegisterDslProperties();
     TClass::RegisterDslProperties();
     TAbilityScore::RegisterDslProperties();
     TAbilityScores::RegisterDslProperties();
-    TCreatureData::RegisterDslProperties();
+    TLanguage::RegisterDslProperties();
+    TSense::RegisterDslProperties();
+    TDamageContext::RegisterDslProperties();
+    THealthDamageResult::RegisterDslProperties();
+    TCreature::RegisterDslProperties();
 
     auto& player_props = TPropertyRegistry<TPlayer>::Instance();
     player_props.Register("creature", [](const TPlayer* p, TEvalContext&) {

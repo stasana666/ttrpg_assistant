@@ -1,10 +1,12 @@
 import "damage.ttrpg";
 import "dice.ttrpg";
+import "statistic_baseline.ttrpg";
 
 enum EWeaponCategory {
     Unarmed,
     Simple,
     Martial,
+    Advanced,
 }
 
 variant TWeaponTrait {
@@ -21,8 +23,36 @@ variant TWeaponTrait {
 class TWeapon {
     string Name;
     int BaseDiceSize;
+    int DamageDiceCount = 1;
+    TStatisticBaseline AttackBonusBaseline;
+    TStatisticBaseline DamageModifierBaseline;
     EDamageType DamageType;
     EWeaponCategory Category;
     int Reach = 1;
+    int HandsRequired = 1;
     set<TWeaponTrait> Traits;
+    collection<Feature> Features;
+
+    query int ReachFeet() {
+        return @self.Reach * 5;
+    }
+
+    query int DieFaces(EDieSize Size) {
+        if (Size == D4) {
+            return 4;
+        }
+        if (Size == D6) {
+            return 6;
+        }
+        if (Size == D8) {
+            return 8;
+        }
+        if (Size == D10) {
+            return 10;
+        }
+        require Size == D12;
+        return 12;
+    }
+
+    grant @self.Features;
 }

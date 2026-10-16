@@ -43,13 +43,13 @@ TEST_F(ActionCombatTest, TwoWarriorsAttackEachOther) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
     
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{1, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -65,7 +65,7 @@ TEST_F(ActionCombatTest, TwoWarriorsAttackEachOther) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 12);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->Current(), 12);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
@@ -75,7 +75,7 @@ TEST_F(ActionCombatTest, TwoWarriorsAttackEachOther) {
 
     auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
     ASSERT_FALSE(players.empty());
-    EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 12);
+    EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->Current(), 12);
 }
 
 TEST_F(ActionCombatTest, AttackMiss) {
@@ -89,13 +89,13 @@ TEST_F(ActionCombatTest, AttackMiss) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{1, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -108,7 +108,7 @@ TEST_F(ActionCombatTest, AttackMiss) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 21);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->Current(), 21);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
@@ -128,13 +128,13 @@ TEST_F(ActionCombatTest, AttackCriticalHit) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{1, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -148,7 +148,7 @@ TEST_F(ActionCombatTest, AttackCriticalHit) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 3);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->Current(), 3);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
@@ -168,13 +168,13 @@ TEST_F(ActionCombatTest, WarriorKillsOtherBattleEnds) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{1, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -187,7 +187,7 @@ TEST_F(ActionCombatTest, WarriorKillsOtherBattleEnds) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 11);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->Current(), 11);
     });
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
@@ -198,7 +198,7 @@ TEST_F(ActionCombatTest, WarriorKillsOtherBattleEnds) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 1);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->Current(), 1);
     });
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
@@ -231,13 +231,13 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{1, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -250,7 +250,7 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 14);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->Current(), 14);
     });
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
@@ -260,7 +260,7 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 14);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->Current(), 14);
     });
 
     EXPECT_THROW(battle.StartBattle(), TTooManyCallsError);
@@ -270,7 +270,7 @@ TEST_F(ActionCombatTest, MultipleAttackPenalty) {
 
     auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
     ASSERT_FALSE(players.empty());
-    EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 14);
+    EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->Current(), 14);
 }
 
 TEST_F(ActionCombatTest, WizardCastsFireball) {
@@ -285,13 +285,13 @@ TEST_F(ActionCombatTest, WizardCastsFireball) {
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
 
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player1), TPosition{0, 0});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player2), TPosition{5, 5});
     EXPECT_EQ(mock_rng_.RemainingCalls(), 0);
 
@@ -310,7 +310,7 @@ TEST_F(ActionCombatTest, WizardCastsFireball) {
     mock_interaction_.AddCheckCallback([&battle]() {
         auto players = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 1; });
         ASSERT_FALSE(players.empty());
-        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->CurrentValue(), 0);
+        EXPECT_EQ(players[0]->GetCreature()->Hitpoints()->Current(), 0);
     });
 
     battle.StartBattle();
@@ -336,15 +336,13 @@ TEST_F(ActionCombatTest, FireballDamagesEveryTargetInArea) {
 
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    // Wizard acts first (lowest initiative). It sits outside the blast so only
-    // the two warriors are targets.
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(player_wizard), TPosition{0, 0});
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player_w1), TPosition{5, 5});
-    mock_rng_.ExpectCall(20, 20);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(player_w2), TPosition{5, 6});
 
     mock_interaction_.ExpectChoice(0, "next action", "fireball");
@@ -362,8 +360,8 @@ TEST_F(ActionCombatTest, FireballDamagesEveryTargetInArea) {
         ASSERT_FALSE(w1.empty());
         ASSERT_FALSE(w2.empty());
         // Both targets took damage; the second is not skipped by a stale binding.
-        EXPECT_EQ(w1[0]->GetCreature()->Hitpoints()->CurrentValue(), 15);
-        EXPECT_EQ(w2[0]->GetCreature()->Hitpoints()->CurrentValue(), 15);
+        EXPECT_EQ(w1[0]->GetCreature()->Hitpoints()->Current(), 15);
+        EXPECT_EQ(w2[0]->GetCreature()->Hitpoints()->Current(), 15);
     });
     mock_interaction_.ExpectChoice(0, "next action", "End of turn");
 
@@ -373,8 +371,8 @@ TEST_F(ActionCombatTest, FireballDamagesEveryTargetInArea) {
     auto w2 = battle.GetIfPlayers([](const TPlayer* p) { return p->GetId() == 2; });
     ASSERT_FALSE(w1.empty());
     ASSERT_FALSE(w2.empty());
-    EXPECT_EQ(w1[0]->GetCreature()->Hitpoints()->CurrentValue(), 15);
-    EXPECT_EQ(w2[0]->GetCreature()->Hitpoints()->CurrentValue(), 15);
+    EXPECT_EQ(w1[0]->GetCreature()->Hitpoints()->Current(), 15);
+    EXPECT_EQ(w2[0]->GetCreature()->Hitpoints()->Current(), 15);
 }
 
 TEST_F(ActionCombatTest, ReachFilterExcludesOutOfRangeTargets) {
@@ -389,19 +387,25 @@ TEST_F(ActionCombatTest, ReachFilterExcludesOutOfRangeTargets) {
 
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
     mock_rng_.ExpectCall(20, 20);
     battle.AddPlayer(std::move(attacker), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 10);
     battle.AddPlayer(std::move(near_target), TPosition{1, 0});
-    mock_rng_.ExpectCall(20, 0);
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(far_target), TPosition{5, 0});
 
     mock_interaction_.ExpectChoice(0, "next action", "attack_with_weapon");
     mock_interaction_.ExpectChoice(0, "target", "Far");
 
-    EXPECT_THROW(battle.StartBattle(), std::logic_error);
+    try {
+        battle.StartBattle();
+        FAIL() << "out-of-range target was unexpectedly selectable";
+    } catch (const std::logic_error& error) {
+        EXPECT_NE(std::string(error.what()).find("choice name \"Far\" not found in alternatives"),
+                  std::string::npos);
+    }
 }
 
 // Drives a move while the interaction system defers reaction triggers the way
@@ -419,12 +423,11 @@ TEST_F(ActionCombatTest, MoveResumesAfterDeferredReactionTrigger) {
 
     auto battle_map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
     TBattleMap battle_map = factory_.Create<TBattleMap>(battle_map_id);
-    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_);
+    TBattle battle(std::move(battle_map), &mock_rng_, mock_interaction_, factory_.AbilityRules());
 
-    // Lower initiative acts first in this engine, so Mover (id 0) goes first.
-    mock_rng_.ExpectCall(20, 0);
-    battle.AddPlayer(std::move(mover), TPosition{0, 0});
     mock_rng_.ExpectCall(20, 20);
+    battle.AddPlayer(std::move(mover), TPosition{0, 0});
+    mock_rng_.ExpectCall(20, 1);
     battle.AddPlayer(std::move(other), TPosition{5, 0});
 
     mock_interaction_.SetReactionSuspends(true);

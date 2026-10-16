@@ -3,6 +3,7 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/ability.h>
 #include <pf2e_engine/common/guarded.h>
 
 #include <nlohmann/json_fwd.hpp>
@@ -10,10 +11,13 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <optional>
+#include <pf2e_engine/common/rule_integer.h>
 #include <set>
 #include <pf2e_engine/common/bounded_quantity.h>
 
 class TGameObjectFactory;
+class TThing;
 
 enum class EColor {
     Red,
@@ -26,6 +30,23 @@ EColor EColorFromString(const std::string& s);
 
 class TThing {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+    }
+    struct TInitialValues {
+        std::optional<std::string> Name{};
+        std::optional<int> Count{};
+        std::optional<EColor> Color{};
+        std::optional<TBoundedQuantity> Charges{};
+        std::optional<std::set<EColor>> Tags{};
+    };
+    static TThing Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
+
     const std::string& Name() const { return Name_; }
     TGuarded<std::string> Name() { return TGuarded<std::string>(Name_); }
     const int& Count() const { return Count_; }
@@ -53,3 +74,6 @@ private:
 template <>
 struct TIsAstRecursive<TThing> : std::true_type {};
 
+void RegisterBasicAbilities(TAbilityCatalog& catalog);
+struct TAbilityRules;
+void RegisterBasicRules(TAbilityRules& rules);

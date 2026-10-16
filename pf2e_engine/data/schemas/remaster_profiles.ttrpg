@@ -1,0 +1,227 @@
+import "movement.ttrpg";
+import "trip.ttrpg";
+import "shield_actions.ttrpg";
+import "intimidation.ttrpg";
+import "flanking.ttrpg";
+
+feature NaturalAmbition;
+feature GeneralTraining;
+feature Fleet;
+
+feature CombatBasics {
+    grant BasicStrike;
+    grant MovementActions;
+    grant TripActions;
+    grant ShieldActions;
+    grant IntimidationActions;
+    grant Flanking;
+}
+
+class TFeaturePool {
+    collection<Feature> Values;
+}
+
+TFeaturePool FighterLevelOneFeats {
+    Values = [ViciousSwing, SuddenCharge];
+}
+
+TFeaturePool HumanLevelOneFeats {
+    Values = [NaturalAmbition, GeneralTraining];
+}
+
+TFeaturePool GeneralLevelOneFeats {
+    Values = [Toughness, Fleet];
+}
+
+class TLevelOneBuildRules {
+    collection<Feature> GeneralFeats;
+    collection<TWeapon> Equipment;
+    TShield Shield;
+    query int AdditionalHitpoints() {
+        if (@self.GeneralFeats.has(Toughness)) {
+            return 1;
+        }
+        return 0;
+    }
+
+    query int Speed() {
+        if (@self.GeneralFeats.has(Fleet)) {
+            return 6;
+        }
+        return 5;
+    }
+
+    query int FreeHands() {
+        require @self.Shield.IsValid();
+        let Used = 0;
+        if (@self.Shield.IsPresent() && @self.Shield.Wielded) {
+            Used += 1;
+        }
+        for Weapon in @self.Equipment {
+            require Weapon.HandsRequired >= 0 && Weapon.HandsRequired <= 2;
+            require Weapon.BaseDiceSize > 0 && Weapon.DamageDiceCount > 0 && Weapon.Reach > 0;
+            Used += Weapon.HandsRequired;
+        }
+        require Used <= 2;
+        return 2 - Used;
+    }
+}
+
+TWeapon Longsword {
+    Name = "Longsword";
+    BaseDiceSize = 8;
+    DamageType = Slashing;
+    Category = Martial;
+    HandsRequired = 1;
+    Traits = [Versatile { Type = Piercing; }];
+}
+
+TWeapon Fist {
+    Name = "Fist";
+    BaseDiceSize = 4;
+    DamageType = Bludgeoning;
+    Category = Unarmed;
+    HandsRequired = 0;
+    Traits = [Agile, Finesse, Nonlethal];
+}
+
+TWeapon WolfJaws {
+    Name = "Jaws";
+    BaseDiceSize = 6;
+    AttackBonusBaseline = TStatisticBaseline { IsFixed = true; Value = 9; };
+    DamageModifierBaseline = TStatisticBaseline { IsFixed = true; Value = 2; };
+    DamageType = Piercing;
+    Category = Unarmed;
+    HandsRequired = 0;
+    Features = [Knockdown];
+}
+
+TCreature HumanFighter1(
+    string Name = "Human fighter 1",
+    collection<TWeapon> Equipment = [Longsword],
+    TArmor WornArmor = TArmor {},
+    TShield ReadiedShield = SteelShield,
+    choice Feature ClassFeat from FighterLevelOneFeats.Values = SuddenCharge,
+    choice Feature AncestryFeat from HumanLevelOneFeats.Values = NaturalAmbition,
+    choice Feature AmbitionFeat from FighterLevelOneFeats.Values
+        when AncestryFeat == NaturalAmbition = ViciousSwing,
+    choice Feature HeritageFeat from GeneralLevelOneFeats.Values = Toughness,
+    choice Feature TrainingFeat from GeneralLevelOneFeats.Values
+        when AncestryFeat == GeneralTraining = Fleet,
+    TLanguage AdditionalLanguage = TLanguage { Name = "Dwarven"; }
+) {
+    requires ClassFeat != AmbitionFeat;
+    requires HeritageFeat != TrainingFeat;
+    requires AdditionalLanguage.Name != "" && AdditionalLanguage.Name != "Common";
+    Name = Name;
+    Traits = [Human, Humanoid];
+    Languages = [TLanguage { Name = "Common"; }, AdditionalLanguage];
+    Senses = [TSense { Kind = Vision; Precision = Precise; }];
+    Level = 1;
+    Size = Medium;
+    Race = TRace {
+        Name = "Versatile human";
+        Hitpoints = 8;
+        Features = [AncestryFeat, HeritageFeat, TrainingFeat];
+    };
+    Class = TClass {
+        Name = "Fighter";
+        Hitpoints = 10;
+        Features = [ReactiveStrikeTraining, ShieldBlockTraining, ClassFeat, AmbitionFeat];
+    };
+    Characteristic = TAbilityScores {
+        Strength = TAbilityScore { Value = 18; };
+        Dexterity = TAbilityScore { Value = 14; };
+        Constitution = TAbilityScore { Value = 14; };
+        Intelligence = TAbilityScore { Value = 10; };
+        Wisdom = TAbilityScore { Value = 12; };
+        Charisma = TAbilityScore { Value = 10; };
+    };
+    Proficiency = TProficiency {
+        ArmorCategory = {
+            Unarmored = TProficiencyValue { Rank = Trained; };
+            Light = TProficiencyValue { Rank = Trained; };
+            Medium = TProficiencyValue { Rank = Trained; };
+            Heavy = TProficiencyValue { Rank = Trained; };
+        };
+        WeaponCategory = {
+            Unarmed = TProficiencyValue { Rank = Expert; };
+            Simple = TProficiencyValue { Rank = Expert; };
+            Martial = TProficiencyValue { Rank = Expert; };
+            Advanced = TProficiencyValue { Rank = Trained; };
+        };
+        Savethrow = {
+            Fortitude = TProficiencyValue { Rank = Expert; };
+            Reflex = TProficiencyValue { Rank = Expert; };
+            Will = TProficiencyValue { Rank = Trained; };
+        };
+        Skill = {
+            Athletics = TProficiencyValue { Rank = Trained; };
+            Acrobatics = TProficiencyValue { Rank = Trained; };
+            Medicine = TProficiencyValue { Rank = Trained; };
+            Survival = TProficiencyValue { Rank = Trained; };
+            Intimidation = TProficiencyValue { Rank = Trained; };
+        };
+        Perception = TProficiencyValue { Rank = Expert; };
+    };
+    ClassDcProfile = TClassDCProfile {
+        Enabled = true;
+        KeyAttribute = Strength;
+        Proficiency = TProficiencyValue { Rank = Trained; };
+    };
+    LoreSkills = [TLoreSkill {
+        Name = "Warfare";
+        Proficiency = TProficiencyValue { Rank = Trained; };
+    }];
+    Movement = TLevelOneBuildRules { GeneralFeats = [HeritageFeat, TrainingFeat]; }.Speed();
+    Hitpoints = THitPoints {
+        Maximum = Statistic {
+            Base = 8 + 10 + 2
+                + TLevelOneBuildRules { GeneralFeats = [HeritageFeat, TrainingFeat]; }.AdditionalHitpoints();
+        };
+    };
+    Armor = WornArmor;
+    Shield = ReadiedShield;
+    Weapons = Equipment;
+    NaturalWeapons = [Fist];
+    Features = [CombatBasics, IntimidatingGlare];
+    ZeroHpRule = Dying;
+    Hands = TLevelOneBuildRules { Equipment = Equipment; Shield = ReadiedShield; }.FreeHands();
+}
+
+TCreature Wolf(string Name = "Wolf") {
+    Name = Name;
+    Traits = [Animal];
+    Senses = [
+        TSense { Kind = LowLightVision; Precision = Precise; },
+        TSense { Kind = Scent; RangeFeet = 30; Precision = Imprecise; },
+    ];
+    Level = 1;
+    Size = Medium;
+    Characteristic = TAbilityScores {
+        Strength = TAbilityScore { Value = 14; };
+        Dexterity = TAbilityScore { Value = 18; };
+        Constitution = TAbilityScore { Value = 12; };
+        Intelligence = TAbilityScore { Value = 2; };
+        Wisdom = TAbilityScore { Value = 14; };
+        Charisma = TAbilityScore { Value = 6; };
+    };
+    PerceptionBaseline = TStatisticBaseline { IsFixed = true; Value = 7; };
+    SaveBaselines = {
+        Fortitude = TStatisticBaseline { IsFixed = true; Value = 6; };
+        Reflex = TStatisticBaseline { IsFixed = true; Value = 9; };
+        Will = TStatisticBaseline { IsFixed = true; Value = 5; };
+    };
+    SkillBaselines = {
+        Acrobatics = TStatisticBaseline { IsFixed = true; Value = 7; };
+        Athletics = TStatisticBaseline { IsFixed = true; Value = 6; };
+        Stealth = TStatisticBaseline { IsFixed = true; Value = 7; };
+        Survival = TStatisticBaseline { IsFixed = true; Value = 7; };
+    };
+    ArmorClassBaseline = TStatisticBaseline { IsFixed = true; Value = 15; };
+    Movement = 7;
+    Hitpoints = THitPoints { Maximum = Statistic { Base = 24; }; };
+    NaturalWeapons = [WolfJaws];
+    Features = [CombatBasics, PackAttack];
+    ZeroHpRule = Death;
+}

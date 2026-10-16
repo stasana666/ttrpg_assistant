@@ -2,6 +2,11 @@
 
 #include <pf2e_engine/actions/action_block.h>
 #include <pf2e_engine/actions/action_context.h>
+#include <pf2e_engine/actions/resource_payment.h>
+#include <pf2e_engine/common/guarded.h>
+#include <pf2e_engine/common/resource.h>
+
+#include <functional>
 
 class TWeapon;
 
@@ -21,25 +26,38 @@ public:
 
     using TResources = std::vector<TResourceCost>;
 
+    using FBody = std::function<void(std::shared_ptr<TActionContext>)>;
+
+    using TBoundResourceCost = ::TBoundResourceCost;
+    using TBoundResources = ::TBoundResources;
+
+    struct TCompiledBody {
+        FBody Run;
+    };
+
     // TODO: only weapon variables for now; generalise to other object types.
     struct TActionVariable {
         TGameObjectId id;
-        std::shared_ptr<TWeapon> weapon;
+        std::shared_ptr<const TWeapon> weapon;
     };
 
     using TVariables = std::vector<TActionVariable>;
 
     TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name,
             TVariables&& variables = {});
+    TAction(FBody body, TBoundResources costs, std::string name);
+    TAction(TCompiledBody body, TBoundResources costs, std::string name);
 
-    void Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player);
-    void Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player);
-    bool Check(const TPlayer& self);
+    void Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const;
+    void Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player) const;
+    bool Check(const TPlayer& self) const;
     std::string_view Name() const;
 
 private:
     TPipeline pipeline_;
-    TResources consume_;
+    FBody body_;
+    TResourcePayment payment_;
+    bool compiled_body_ = false;
     std::string name_;
     TVariables variables_;
 };

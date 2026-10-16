@@ -16,7 +16,7 @@ private:
     void WeaponAttackHandle(std::shared_ptr<TActionContext> ctx) const;
     void SkillHandle(std::shared_ptr<TActionContext> ctx) const;
 
-    int MultipleAttackPenaltyFor(const TPlayer& attacker) const;
+    int MultipleAttackPenaltyFor(const TPlayer& attacker, const TWeapon* weapon = nullptr) const;
 
     TCombatCalculator calculator_;
 };

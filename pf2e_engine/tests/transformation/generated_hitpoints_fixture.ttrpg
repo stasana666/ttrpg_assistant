@@ -1,0 +1,15 @@
+import "../../data/schemas/hitpoints.ttrpg";
+
+class TGeneratedHitpointOwner {
+    THitPoints Hitpoints;
+
+    method int DealDamageAndReport(int Amount) {
+        let Result = @self.Hitpoints.DealDamage(Amount);
+        return Result.LostCurrent;
+    }
+
+    method void DealDamageAndFail(int Amount) {
+        @self.Hitpoints.DealDamage(Amount);
+        require false;
+    }
+}

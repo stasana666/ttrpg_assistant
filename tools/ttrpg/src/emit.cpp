@@ -1,12 +1,169 @@
 #include <ttrpg/emit.h>
+#include <ttrpg/emit_rule_class.h>
+#include <ttrpg/emit_action.h>
+#include <ttrpg/emit_activity.h>
+#include <ttrpg/activities.h>
+#include <ttrpg/abilities.h>
+#include <ttrpg/events.h>
+#include <ttrpg/emit_source.h>
+#include <ttrpg/emit_instance.h>
+#include <ttrpg/emit_reaction.h>
+#include <ttrpg/triggers.h>
+#include <ttrpg/records.h>
+#include <ttrpg/relations.h>
+#include <ttrpg/emit_relation.h>
+#include <ttrpg/emit_record.h>
 
 #include <ttrpg/analyze.h>
 #include <ttrpg/conventions.h>
 #include <ttrpg/cpp_writer.h>
 
+#include <algorithm>
+#include <functional>
+#include <filesystem>
+#include <map>
+#include <set>
 #include <string>
 #include <unordered_set>
 #include <vector>
+
+namespace {
+
+bool HasJsonIntegerFields(const TSchemaModule& module) {
+    const auto integer = [](const TFieldDecl& field) {
+        return !field.Derived && IsBuiltinInt(field.Container == EContainer::Map ? field.ValueTypeName : field.TypeName);
+    };
+    for (const auto& declaration : module.Classes) {
+        if (std::any_of(declaration.Fields.begin(), declaration.Fields.end(), integer)) return true;
+    }
+    for (const auto& variant : module.Variants) {
+        for (const auto& alternative : variant.Alternatives) {
+            if (std::any_of(alternative.Fields.begin(), alternative.Fields.end(), integer)) return true;
+        }
+    }
+    return false;
+}
+
+void EmitJsonIntegerReader(TCppWriter& writer) {
+    writer.Block("namespace {", "}", [&] {
+        writer.Function("int ReadGeneratedRuleInteger(const nlohmann::json& value)", [&] {
+            writer.Block("if (!value.is_number_integer()) {", "}", [&] {
+                writer.Line("throw std::invalid_argument(\"rule integer JSON must be an integer\");");
+            });
+            writer.Block("if (value.is_number_unsigned() && value.get<std::uint64_t>() > static_cast<std::uint64_t>(std::numeric_limits<int>::max())) {", "}", [&] {
+                writer.Line("throw std::overflow_error(\"rule integer overflow\");");
+            });
+            writer.Line("return TRuleInteger::Checked(value.get<std::int64_t>());");
+        });
+    });
+    writer.EmptyLine();
+}
+
+std::vector<const TClassDecl*> OrderedClasses(const TLoadedSchemas& loaded) {
+    std::unordered_map<std::string, const TClassDecl*> classes;
+    for (const auto& c : loaded.Primary.Classes) classes[c.Name] = &c;
+    std::unordered_map<std::string, int> marks;
+    std::vector<const TClassDecl*> result;
+    std::function<void(const TClassDecl&)> visit = [&](const TClassDecl& c) {
+        if (marks[c.Name] == 2) return;
+        if (marks[c.Name] == 1) throw std::runtime_error("recursive value type '" + c.Name + "'");
+        marks[c.Name] = 1;
+        for (const auto& field : c.Fields) {
+            const auto type = field.Container == EContainer::Map ? field.ValueTypeName : field.TypeName;
+            auto it = classes.find(type);
+            if (it != classes.end()) visit(*it->second);
+        }
+        marks[c.Name] = 2;
+        result.push_back(&c);
+    };
+    for (const auto& c : loaded.Primary.Classes) visit(c);
+    return result;
+}
+
+void ValidateNames(const TLoadedSchemas& loaded) {
+    std::map<std::string, std::string> owners;
+    const auto add = [&](const std::string& name, const std::string& kind) {
+        const auto [existing, inserted] = owners.emplace(name, kind);
+        if (inserted) return;
+        if (existing->second == kind) throw std::runtime_error("duplicate " + kind + " '" + name + "'");
+        throw std::runtime_error(kind + " '" + name + "' conflicts with existing symbol (" + existing->second + ")");
+    };
+    for (const auto* name : {
+             "void", "int", "bool", "string", "Resource", "BoundedQuantity", "Feature", "Position", "Duration",
+             "roll", "min", "max", "entities", "grid_distance", "same_team", "has_line_of_effect", "sources",
+             "position_x", "position_y", "position", "adjacent_positions", "contains_position", "can_occupy", "move",
+             "move_before_current_turn", "same_source", "seconds", "minutes", "ReadGeneratedRuleInteger",
+             "TGeneratedConstruction", "TConstructionReport", "TConstructionIssue", "TFeatureChoiceDescriptor",
+             "EConstructionChoiceState", "TReactionScope", "TReactionWindowResult", "TReactionExecution",
+             "TActionTicket", "TActionRecordStamp", "TActionRecordRegistry", "TActionHistory", "TRecordedSource",
+             "TRecordedEntity", "TGameDuration", "TGameClock", "TGameTimeRules", "TRelationRegistry",
+             "TTimedRelationStore", "GameSeconds", "GameMinutes", "HasRelation", "GetRelation", "SetRelation",
+             "EraseRelation"}) {
+        add(name, "reserved builtin");
+    }
+    const auto modules = AllModules(loaded);
+    for (const auto& [stem, module] : modules) {
+        for (const auto& value : module->Classes) add(value.Name, "type");
+        for (const auto& value : module->Enums) add(value.Name, "type");
+        for (const auto& value : module->Variants) add(value.Name, "type");
+    }
+    for (const auto& [stem, module] : modules) {
+        add(AbilityRegistrationFunction(stem), "generated name");
+        add(RulesRegistrationFunction(stem), "generated name");
+        for (const auto& value : module->Enums) add(value.Name + "FromString", "generated name");
+        for (const auto& value : module->Variants) {
+            add(VariantKindEnum(value.Name), "generated name");
+            for (const auto& alternative : value.Alternatives) add(PayloadStructName(value.Name, alternative.Name), "generated name");
+        }
+        for (const auto& value : module->Abilities) {
+            add(value.Name, "ability definition");
+            if (!value.Triggers.empty()) add(ReactionFunctionName(stem, value), "generated name");
+        }
+        for (const auto& value : module->Events) { add(value.Name, "event"); add(EventTagName(value), "generated name"); }
+        for (const auto& value : module->Triggers) { add(value.Name, "trigger"); add(TriggerTagName(value), "generated name"); }
+        for (const auto& value : module->Records) { add(value.Name, "record"); add(RecordTagName(value), "generated name"); }
+        for (const auto& value : module->Relations) { add(value.Name, "relation"); add(RelationTagName(value), "generated name"); }
+        for (const auto& value : module->Activities) { add(value.Name, "activity"); add(ActivityFunctionName(stem, value), "generated name"); }
+        for (const auto& value : module->Instances) {
+            add(value.Name, "named value");
+            add("Create" + value.Name, "generated name");
+            if (!value.Parameterized) continue;
+            for (const auto& name : {"T" + value.Name + "Options", "TResolved" + value.Name, "Resolve" + value.Name,
+                                     "Describe" + value.Name, "Validate" + value.Name}) {
+                add(name, "generated name");
+            }
+        }
+    }
+}
+
+void ValidateRules(const TLoadedSchemas& loaded) {
+    ValidateNames(loaded);
+    ValidateAbilityDefinitions(loaded);
+    ValidateRecordDefinitions(loaded);
+    ValidateRelationDefinitions(loaded);
+    ValidateEventDefinitions(loaded);
+    ValidateTriggerDefinitions(loaded);
+    ValidateActivityDefinitions(loaded);
+    ValidateConstructorNames(loaded);
+    (void)OrderedClasses(loaded);
+    for (const auto& c : loaded.Primary.Classes) {
+        (void)CompileClass(c, loaded);
+    }
+    for (const auto& ability : loaded.Primary.Abilities) {
+        if (!ability.OwnerType.empty()) {
+            if (ability.Kind == EAbilityDeclarationKind::Reaction) (void)CompileReaction(ability, loaded);
+            else (void)CompileAction(ability, loaded);
+        }
+        for (const auto& hook : ability.Hooks) (void)CompileFeatureHook(ability, hook, loaded);
+    }
+    for (const auto& activity : loaded.Primary.Activities) (void)CompileActivity(activity, loaded);
+    for (const auto& instance : loaded.Primary.Instances) {
+        if (instance.Parameterized) (void)CompileConstructor(instance, loaded);
+        else (void)CompileInstance(instance, loaded);
+    }
+}
+
+}
 
 void EmitEnumDecl(TCppWriter& w, const TEnumDecl& e) {
     w.Block("enum class " + e.Name + " {", "};", [&] {
@@ -32,6 +189,15 @@ void EmitClassDecl(TCppWriter& w, const TClassDecl& c,
                    const std::unordered_map<std::string, TTypeInfo>& symbols) {
     w.Class(c.Name, [&] {
         w.PublicSection([&] {
+            EmitAbilitySourceVisitor(w, c, symbols);
+            w.Struct("TInitialValues", [&] {
+                for (const auto& f : c.Fields) {
+                    if (!f.Derived) w.Line("std::optional<" + CppMemberType(f, symbols) + "> " + f.Name + "{};");
+                }
+            });
+            w.Line("static " + c.Name + " Create(const TInitialValues& initial);");
+            w.Line("static TInitialValues ResolveInitialValues(const TInitialValues& initial);");
+            w.EmptyLine();
             for (const auto& f : c.Fields) {
                 std::string mt = CppMemberType(f, symbols);
                 if (f.Derived) {
@@ -164,6 +330,7 @@ void EmitHeader(std::ostream& os,
                 const std::string& sourceName,
                 const std::string& primaryOutH)
 {
+    ValidateRules(loaded);
     TCppWriter w(os);
     const TSchemaModule& mod = loaded.Primary;
 
@@ -172,6 +339,7 @@ void EmitHeader(std::ostream& os,
     w.Line("#pragma once");
     w.EmptyLine();
     w.Include("pf2e_engine/common/ast/ast_constructable.h");
+    w.Include("pf2e_engine/common/ability.h");
     if (!mod.Classes.empty()) {
         w.Include("pf2e_engine/common/guarded.h");
     }
@@ -180,8 +348,38 @@ void EmitHeader(std::ostream& os,
     w.EmptyLine();
     w.Include("limits");
     w.Include("string");
+    if (!mod.Records.empty()) {
+        w.Include("pf2e_engine/actions/generated_history.h");
+        w.Include("tuple");
+        w.Include("string_view");
+    }
+    if (!mod.Relations.empty()) {
+        w.Include("pf2e_engine/actions/generated_relation.h");
+        w.Include("string_view");
+    }
+    if (!mod.Activities.empty()) {
+        w.Include("functional");
+        w.Include("memory");
+        w.Include("optional");
+        w.Include("utility");
+        w.Include("pf2e_engine/position.h");
+    }
+    if (!mod.Events.empty()) {
+        w.Include("functional");
+        w.Include("tuple");
+        w.Include("string_view");
+    }
+    const bool reactions = std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.Triggers.empty(); });
+    if (!mod.Triggers.empty() || reactions) {
+        w.Include("functional");
+        w.Include("memory");
+        w.Include("tuple");
+        w.Include("string_view");
+        w.Include("pf2e_engine/position.h");
+    }
     if (!mod.Classes.empty()) {
         w.Include("utility");
+        w.Include("optional");
     }
 
     bool anyEnumSet = false;
@@ -192,7 +390,10 @@ void EmitHeader(std::ostream& os,
     bool anyCollection = false;
     bool anyMap = false;
 
-    std::unordered_set<std::string> externalStems;
+    std::set<std::string> externalStems;
+    for (const auto& imported : ImportedModuleStems(loaded, loaded.PrimaryStem)) {
+        externalStems.insert(imported);
+    }
 
     auto inspectField = [&](const TFieldDecl& f, const std::string& ownerDesc) {
         if (f.Container == EContainer::Map) {
@@ -235,6 +436,13 @@ void EmitHeader(std::ostream& os,
             return;
         }
         if (IsBuiltinPrimitive(f.TypeName)) {
+            return;
+        }
+        if (IsBuiltinFeature(f.TypeName)) {
+            if (f.Container != EContainer::None && f.Container != EContainer::Collection) {
+                throw std::runtime_error("Feature supports scalar and collection fields only");
+            }
+            anyCollection = anyCollection || f.Container == EContainer::Collection;
             return;
         }
         if (IsBuiltinBoundedQuantity(f.TypeName)) {
@@ -286,6 +494,9 @@ void EmitHeader(std::ostream& os,
     for (const auto& v : mod.Variants) {
         for (const auto& alt : v.Alternatives) {
             for (const auto& f : alt.Fields) {
+                if (IsBuiltinFeature(f.TypeName) || IsBuiltinFeature(f.ValueTypeName)) {
+                    throw std::runtime_error("Feature selections are supported in class fields, not variant payloads");
+                }
                 inspectField(f, "variant '" + v.Name + "' alternative '" + alt.Name + "'");
             }
         }
@@ -295,6 +506,70 @@ void EmitHeader(std::ostream& os,
             inspectField(f, "class '" + c.Name + "'");
         }
     }
+
+    bool ruleClasses = false;
+    bool entities = false;
+    for (const auto& c : mod.Classes) {
+        ruleClasses = ruleClasses || UsesRuleSyntax(c, loaded);
+        entities = entities || c.GameEntity;
+        for (const auto& method : c.Methods) {
+            if (method.ReturnType != "void") {
+                TFieldDecl field;
+                field.TypeName = method.ReturnType;
+                inspectField(field, "method '" + c.Name + "." + method.Name + "'");
+            }
+        }
+    }
+    for (const auto& instance : mod.Instances) {
+        TFieldDecl field;
+        field.TypeName = instance.TypeName;
+        inspectField(field, "instance '" + instance.Name + "'");
+        for (const auto& parameter : instance.Parameters) inspectField(parameter.Field, "constructor parameter '" + parameter.Field.Name + "'");
+    }
+    for (const auto& trigger : mod.Triggers) {
+        for (const auto& parameter : trigger.Parameters) {
+            if (IsBuiltinPosition(parameter.TypeName)) continue;
+            TFieldDecl field;
+            field.TypeName = parameter.TypeName;
+            inspectField(field, "trigger '" + trigger.Name + "'");
+        }
+    }
+    for (const auto& record : mod.Records) {
+        std::vector<TClassDecl::TParameter> types = record.Parameters;
+        types.push_back({record.OwnerType, "owner"});
+        types.push_back({record.SourceType, "source"});
+        for (const auto& parameter : types) {
+            if (IsBuiltinPosition(parameter.TypeName)) continue;
+            TFieldDecl field;
+            field.TypeName = parameter.TypeName;
+            inspectField(field, "record '" + record.Name + "'");
+        }
+    }
+    for (const auto& relation : mod.Relations) {
+        for (const auto& type : {relation.OwnerType, relation.Parameters.front().TypeName, relation.ValueType}) {
+            if (IsBuiltinPosition(type)) continue;
+            TFieldDecl field;
+            field.TypeName = type;
+            inspectField(field, "relation '" + relation.Name + "'");
+        }
+    }
+    if (std::any_of(mod.Instances.begin(), mod.Instances.end(), [](const auto& instance) { return instance.Parameterized; })) {
+        w.Include("pf2e_engine/common/construction.h");
+        w.Include("pf2e_engine/common/rule_integer.h");
+        w.Include("algorithm");
+    }
+    if (!mod.Classes.empty()) {
+        w.Include("pf2e_engine/common/rule_integer.h");
+    }
+    if (ruleClasses) {
+        w.Include("pf2e_engine/common/generated_execution.h");
+        w.Include("pf2e_engine/common/generated_construction.h");
+        w.Include("pf2e_engine/common/rule_integer.h");
+        w.Include("algorithm");
+        w.Include("type_traits");
+        w.Include("cstdint");
+    }
+    if (entities) w.Include("pf2e_engine/common/entity_id.h");
 
     if (anyEnumSet) {
         w.Include("set");
@@ -329,6 +604,7 @@ void EmitHeader(std::ostream& os,
     }
 
     w.Line("class TGameObjectFactory;");
+    for (const auto& declaration : mod.Classes) w.Line("class " + declaration.Name + ";");
     w.EmptyLine();
 
     for (const auto& e : mod.Enums) {
@@ -337,9 +613,24 @@ void EmitHeader(std::ostream& os,
     for (const auto& v : mod.Variants) {
         EmitVariantDecl(w, v, loaded.SymbolTable);
     }
-    for (const auto& c : mod.Classes) {
-        EmitClassDecl(w, c, loaded.SymbolTable);
+    for (const auto* c : OrderedClasses(loaded)) {
+        if (UsesRuleSyntax(*c, loaded)) {
+            EmitRuleClassDecl(w, *c, CompileClass(*c, loaded), loaded);
+        } else {
+            EmitClassDecl(w, *c, loaded.SymbolTable);
+        }
     }
+    for (const auto& instance : mod.Instances) {
+        EmitInstanceDeclaration(w, instance, loaded);
+    }
+    EmitEventDeclarations(w, loaded);
+    EmitRecordDeclarations(w, loaded);
+    EmitRelationDeclarations(w, loaded);
+    EmitActivityDeclarations(w, loaded);
+    EmitReactionDeclarations(w, loaded);
+    w.Line("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog);");
+    w.Line("struct TAbilityRules;");
+    w.Line("void " + RulesRegistrationFunction(loaded.PrimaryStem) + "(TAbilityRules& rules);");
 }
 
 void EmitEnumImpl(TCppWriter& w, const TEnumDecl& e) {
@@ -366,7 +657,8 @@ void EmitEnumImpl(TCppWriter& w, const TEnumDecl& e) {
 void EmitClassImpl(TCppWriter& w,
                    const TClassDecl& c,
                    const std::unordered_map<std::string, TTypeInfo>& symbols,
-                   const std::unordered_map<std::string, const TClassDecl*>& classes)
+                   const std::unordered_map<std::string, const TClassDecl*>& classes,
+                   const TLoadedSchemas& loaded)
 {
     std::vector<EFieldKind> kinds;
     kinds.reserve(c.Fields.size());
@@ -404,6 +696,18 @@ void EmitClassImpl(TCppWriter& w,
         fieldNames.insert(f.Name);
     }
     std::vector<size_t> initOrder = FieldInitOrder(c, classes);
+
+    EmitInitialValueResolver(w, c, CompileClass(c, loaded), loaded, false);
+    w.Function(c.Name + " " + c.Name + "::Create(const TInitialValues& initial)", [&] {
+        w.Line("[[maybe_unused]] auto values = ResolveInitialValues(initial);");
+        w.Line(c.Name + " r;");
+        for (size_t idx : initOrder) {
+            const auto& f = c.Fields[idx];
+            w.Line("r." + f.Name + "_ = std::move(*values." + f.Name + ");");
+        }
+        w.Line("return r;");
+    });
+    w.EmptyLine();
 
     w.Function(c.Name + " " + c.Name +
                "::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory)", [&] {
@@ -490,6 +794,7 @@ void EmitClassImpl(TCppWriter& w,
             } else if (f.Container == EContainer::Collection) {
                 w.Block("{", "}", [&] {
                     w.Line("TAstNode coll_node = TAstNode::MakeObject(\"container\");");
+                    w.Line("AddValueField(coll_node, \"next_id\", " + f.Name + "_.NextId().Value);");
                     w.Block("for (auto entry : " + f.Name + "_) {", "}", [&] {
                         w.Line("AddOwnedObject(coll_node, std::to_string(entry.Id().Value), "
                                "*entry, ctx);");
@@ -684,6 +989,7 @@ void EmitImpl(std::ostream& os,
               const TLoadedSchemas& loaded,
               const std::string& sourceName,
               const std::string& headerInclude) {
+    ValidateRules(loaded);
     TCppWriter w(os);
     const TSchemaModule& mod = loaded.Primary;
 
@@ -691,6 +997,22 @@ void EmitImpl(std::ostream& os,
     w.Include(headerInclude);
     w.EmptyLine();
     w.Include("pf2e_engine/common/ast/ast_helpers.h");
+    if (HasJsonIntegerFields(mod)) w.Include("pf2e_engine/common/rule_integer.h");
+    w.Include("pf2e_engine/actions/ability.h");
+    if (!RelationSymbols(loaded).empty()) w.Include("pf2e_engine/actions/generated_relation.h");
+    if (UsesDurationSyntax(mod)) w.Include("pf2e_engine/common/game_time.h");
+    if (!mod.Activities.empty() || std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty() || !ability.Hooks.empty(); })) {
+        w.Include("pf2e_engine/actions/generated_action.h");
+        w.Include("pf2e_engine/actions/generated_world.h");
+        w.Include("pf2e_engine/actions/generated_movement.h");
+        w.Include("pf2e_engine/actions/generated_initiative.h");
+        w.Include("pf2e_engine/actions/generated_history.h");
+        w.Include("pf2e_engine/actions/reaction_window.h");
+        w.Include("pf2e_engine/actions/feature_event.h");
+    }
+    if (!mod.Activities.empty() || std::any_of(mod.Abilities.begin(), mod.Abilities.end(), [](const auto& ability) { return !ability.OwnerType.empty(); })) {
+        w.Include("pf2e_engine/actions/generated_source.h");
+    }
     w.Include("pf2e_engine/dsl/property_registry.h");
     w.Include("pf2e_engine/dsl/value.h");
     w.Include("pf2e_engine/game_object_logic/game_object_factory.h");
@@ -700,10 +1022,13 @@ void EmitImpl(std::ostream& os,
     w.EmptyLine();
     w.Include("stdexcept");
     w.Include("string");
+    if (HasJsonIntegerFields(mod)) w.Include("cstdint");
     if (!mod.Classes.empty()) {
         w.Include("utility");
     }
     w.EmptyLine();
+
+    if (HasJsonIntegerFields(mod)) EmitJsonIntegerReader(w);
 
     std::unordered_map<std::string, const TClassDecl*> classes;
     for (const auto& [stem, module] : loaded.ByStem) {
@@ -718,7 +1043,37 @@ void EmitImpl(std::ostream& os,
     for (const auto& v : mod.Variants) {
         EmitVariantImpl(w, v, loaded.SymbolTable);
     }
-    for (const auto& c : mod.Classes) {
-        EmitClassImpl(w, c, loaded.SymbolTable, classes);
+    for (const auto* c : OrderedClasses(loaded)) {
+        if (UsesRuleSyntax(*c, loaded)) {
+            EmitRuleClassImpl(w, *c, CompileClass(*c, loaded), loaded);
+        } else {
+            EmitClassImpl(w, *c, loaded.SymbolTable, classes, loaded);
+        }
     }
+    for (const auto& instance : mod.Instances) {
+        EmitInstanceImplementation(w, instance, loaded);
+    }
+    w.Function("void " + AbilityRegistrationFunction(loaded.PrimaryStem) + "(TAbilityCatalog& catalog)", [&] {
+        w.Line("(void)catalog;");
+        for (const auto& imported : ImportedModuleStems(loaded, loaded.PrimaryStem)) {
+            w.Line(AbilityRegistrationFunction(imported) + "(catalog);");
+        }
+        for (const auto& ability : mod.Abilities) {
+            const std::string kind = ability.Kind == EAbilityDeclarationKind::Action ? "Action" :
+                ability.Kind == EAbilityDeclarationKind::Reaction ? "Reaction" : "Feature";
+            std::string grants = "{";
+            for (std::size_t i = 0; i < ability.Grants.size(); ++i) {
+                if (i != 0) grants += ", ";
+                grants += CppStringLiteral(AbilityId(ability.Grants[i].Source.Text, loaded));
+            }
+            w.Line("catalog.Register(TAbilityDefinition{" + CppStringLiteral(AbilityId(ability.Name, loaded)) +
+                ", EAbilityKind::" + kind + ", " + grants + "}});");
+        }
+    });
+    w.EmptyLine();
+    EmitActivityImplementations(w, loaded);
+    EmitRecordImplementations(w, loaded);
+    EmitRelationImplementations(w, loaded);
+    EmitReactionImplementations(w, loaded);
+    EmitActionRegistration(w, loaded);
 }

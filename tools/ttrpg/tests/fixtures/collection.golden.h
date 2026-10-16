@@ -3,6 +3,7 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
+#include <pf2e_engine/common/ability.h>
 #include <pf2e_engine/common/guarded.h>
 
 #include <nlohmann/json_fwd.hpp>
@@ -10,12 +11,29 @@
 #include <limits>
 #include <string>
 #include <utility>
+#include <optional>
+#include <pf2e_engine/common/rule_integer.h>
 #include <pf2e_engine/common/id_collection.h>
 
 class TGameObjectFactory;
+class TThing;
+class THolder;
 
 class TThing {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+    }
+    struct TInitialValues {
+        std::optional<int> X{};
+    };
+    static TThing Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
+
     const int& X() const { return X_; }
     TGuarded<int> X() { return TGuarded<int>(X_); }
 
@@ -33,6 +51,23 @@ struct TIsAstRecursive<TThing> : std::true_type {};
 
 class THolder {
 public:
+    template <class TVisitor>
+    void VisitAbilitySources(TVisitor& visitor, const TAbilitySourcePath& path = {}) const {
+        if constexpr (requires { static_cast<bool>(visitor.ShouldVisit(path)); }) {
+            if (!visitor.ShouldVisit(path)) { return; }
+        }
+        visitor(*this, path);
+        for (auto entry : Things_) {
+            entry->VisitAbilitySources(visitor, path.Field("things").Entry(entry.Id().Value));
+        }
+    }
+    struct TInitialValues {
+        std::optional<int> Count{};
+        std::optional<TIdCollection<TThing>> Things{};
+    };
+    static THolder Create(const TInitialValues& initial);
+    static TInitialValues ResolveInitialValues(const TInitialValues& initial);
+
     const int& Count() const { return Count_; }
     TGuarded<int> Count() { return TGuarded<int>(Count_); }
     const TIdCollection<TThing>& Things() const { return Things_; }
@@ -51,3 +86,6 @@ private:
 template <>
 struct TIsAstRecursive<THolder> : std::true_type {};
 
+void RegisterCollectionAbilities(TAbilityCatalog& catalog);
+struct TAbilityRules;
+void RegisterCollectionRules(TAbilityRules& rules);

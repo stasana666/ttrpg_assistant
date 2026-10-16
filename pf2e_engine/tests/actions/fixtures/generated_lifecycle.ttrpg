@@ -1,0 +1,23 @@
+import "../../../data/schemas/abilities.ttrpg";
+
+activity void PausedTurnStart for TCreature() {
+    @self.Hands.Add(1);
+    let Natural = roll(1, 20);
+    choose int First from [2, 4];
+    @self.Hands.Add(Natural + First);
+    choose int Second from [3, 5];
+    @self.Hands.Add(Second);
+    @self.BeginTurn();
+}
+
+feature InheritedToughness {
+    grant Toughness;
+}
+
+action TurnProbe for TCreature {
+    @self.Hands.Add(1);
+}
+
+feature LifecycleTraining {
+    grant TurnProbe;
+}
