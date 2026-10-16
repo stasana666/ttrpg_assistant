@@ -93,7 +93,6 @@ protected:
             .Source = grant.Source,
             .Provenance = grant.Provenance,
             .Action = battle_->AbilityRules().Executions.Require(grant.DefinitionId).Action,
-            .Trigger = {},
         };
     }
 };

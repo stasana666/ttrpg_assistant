@@ -8,7 +8,6 @@ action Demoralize;
 action Trip;
 action Stand;
 action Fireball;
-reaction AttackOfOpportunity;
 
 class TStrikeDamageDice {
     int Count = 0;
@@ -229,8 +228,4 @@ feature WolfActions {
 
 feature WeaponStrike {
     grant Strike;
-}
-
-feature FighterReaction {
-    grant AttackOfOpportunity;
 }

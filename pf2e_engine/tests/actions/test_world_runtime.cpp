@@ -82,7 +82,7 @@ TAction::TBoundResources ProbeCosts()
 }
 
 bool HasNearbyTarget(const TGeneratedWorldView& world, const TPlayer& actor,
-                      const TAbilitySourcePath&, const TTriggerContext*)
+                      const TAbilitySourcePath&)
 {
     const auto self = world.Bind<TCreature>(actor);
     for (const auto& target : world.Entities<TCreature>()) {
@@ -105,7 +105,7 @@ protected:
         rules_->Executions.Register("world.Probe",
             std::make_shared<const TAbilityExecution>(TAbilityExecution{
                 .Action = std::make_shared<const TAction>(std::move(body), ProbeCosts(), "probe"),
-                .Trigger = {}, .Requirement = std::move(requirement),
+                .Requirement = std::move(requirement),
             }));
         if (handler) {
             rules_->Events.Register<TWorldBonus>("world.Selected",
@@ -165,7 +165,7 @@ protected:
             .ActorId = actor.GetId(), .ActorIdentity = &actor,
             .DefinitionId = grant.DefinitionId, .Source = grant.Source,
             .Provenance = grant.Provenance,
-            .Action = rules_->Executions.Require(grant.DefinitionId).Action, .Trigger = {},
+            .Action = rules_->Executions.Require(grant.DefinitionId).Action,
         };
     }
 
@@ -471,7 +471,7 @@ TEST_F(TWorldRuntimeTest, WorldRequirementsRemainPreflightConditionsAcrossPaidCo
 {
     int requirements = 0;
     int resumed = 0;
-    Start([&](const TGeneratedWorldView& world, const TPlayer& actor, const auto&, const auto*) {
+    Start([&](const TGeneratedWorldView& world, const TPlayer& actor, const auto&) {
         ++requirements;
         return world.Bind<TCreature>(actor).Read().Hands().Count() == 3;
     }, [&](auto ctx) {
@@ -497,7 +497,7 @@ TEST_F(TWorldRuntimeTest, WorldRequirementsRemainPreflightConditionsAcrossPaidCo
     EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 2);
 }
 
-TEST_F(TWorldRuntimeTest, BoundEligibilityRejectsForeignActorsAndReactionTriggers)
+TEST_F(TWorldRuntimeTest, BoundEligibilityRejectsForeignActors)
 {
     Start();
     auto& actor = Add({0, 0});
@@ -509,22 +509,6 @@ TEST_F(TWorldRuntimeTest, BoundEligibilityRejectsForeignActorsAndReactionTrigger
     EXPECT_THROW(ExecuteAbility(option, Context(), alias, Collect(alias), rules_->Executions),
                  TAbilityUnavailable);
     EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 3);
-
-    TAbilityCatalog catalog;
-    catalog.Register({"world.Counter", EAbilityKind::Reaction, {}});
-    TAbilityCollector collector(catalog);
-    collector.Grant("world.Counter", {}, "test");
-    TAbilityExecutions executions;
-    executions.Register("world.Counter", rules_->Executions.Require("world.Probe").Action,
-                         ETrigger::OnMove);
-    const TTriggerContext trigger{ETrigger::OnMove, &alias};
-    EXPECT_THROW(EnumerateReactions(actor.GetId(), collector, executions, actor, trigger, &world),
-                 TAbilityUnavailable);
-    const auto unbound_option = EnumerateReactions(actor.GetId(), collector, executions,
-                                                   actor, trigger).at(0);
-    EXPECT_THROW(ExecuteAbility(unbound_option, Context(), actor, collector, executions,
-                                {.TriggerActor = &alias}), TAbilityUnavailable);
-    EXPECT_EQ(actor.GetCreature()->Hands()->Count(), 3);
 }
 
 TEST_F(TWorldRuntimeTest, LegacyRequirementAdapterPreservesWorldlessCallersAndConflictChecks)
@@ -534,16 +518,14 @@ TEST_F(TWorldRuntimeTest, LegacyRequirementAdapterPreservesWorldlessCallersAndCo
     const auto action = rules_->Executions.Require("world.Probe").Action;
     TAbilityExecutions executions;
     int calls = 0;
-    const FLegacyAbilityRequirement requirement = [&](const TPlayer& current, const auto& source,
-                                                     const auto* trigger) {
+    const FLegacyAbilityRequirement requirement = [&](const TPlayer& current, const auto& source) {
         ++calls;
         EXPECT_EQ(&current, &actor);
         EXPECT_EQ(source, BoundOption(actor).Source);
-        EXPECT_EQ(trigger, nullptr);
         return true;
     };
-    executions.Register("world.Probe", action, {}, requirement);
-    EXPECT_THROW(executions.Register("world.Probe", action, {}, requirement), std::invalid_argument);
+    executions.Register("world.Probe", action, requirement);
+    EXPECT_THROW(executions.Register("world.Probe", action, requirement), std::invalid_argument);
     EXPECT_EQ(EnumerateActions(actor.GetId(), Collect(actor), executions, actor).size(), 1);
     EXPECT_EQ(calls, 1);
     const TGeneratedWorldView world(battle_.get());

@@ -220,23 +220,19 @@ TEST(ReactionRegistryTest, ImmutableRegistrationRejectsConflictsAndSupportsMulti
     EXPECT_NE(registry.Find<TInnerChange>("reaction"), nullptr);
 }
 
-TEST_F(TReactionRuntimeTest, TypedGrantsValidateWithoutActionsAndLegacyEnumerationStaysSeparate)
+TEST_F(TReactionRuntimeTest, TypedGrantsValidateWithoutActions)
 {
     Register(Definition());
     Start();
     EXPECT_EQ(rules_->Executions.Find("native.Counter"), nullptr);
     const auto abilities = CollectAbilities(Creature(1), rules_->Catalog);
     EXPECT_EQ(RequireGrantImplementation(*rules_, abilities.Grants().at(0)), EAbilityImplementation::TypedReaction);
-    EXPECT_TRUE(battle_->AvailableReactions({ETrigger::OnMove, &Player(0)}).empty());
     auto invalid = *rules_;
-    invalid.Executions.Register("native.Counter", std::make_shared<TAction>([](auto) {}, TBoundResources{}, "Legacy"), ETrigger::OnMove);
+    invalid.Executions.Register("native.Counter", std::make_shared<TAction>([](auto) {}, TBoundResources{}, "Wrong kind"));
     EXPECT_THROW(RequireGrantImplementation(invalid, abilities.Grants().at(0)), std::invalid_argument);
     invalid.Reactions = {};
-    EXPECT_EQ(RequireGrantImplementation(invalid, abilities.Grants().at(0)), EAbilityImplementation::LegacyReaction);
-    EXPECT_EQ(EnumerateReactions(1, abilities, invalid, Player(1), {ETrigger::OnMove, &Player(0)}).size(), 1);
-    invalid.Executions = {};
     EXPECT_THROW(RequireGrantImplementation(invalid, abilities.Grants().at(0)), std::invalid_argument);
-    invalid.Executions.Register("native.Counter", std::make_shared<TAction>([](auto) {}, TBoundResources{}, "Wrong kind"));
+    invalid.Executions = {};
     EXPECT_THROW(RequireGrantImplementation(invalid, abilities.Grants().at(0)), std::invalid_argument);
 }
 

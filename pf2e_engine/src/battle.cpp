@@ -18,7 +18,6 @@
 #include <utility>
 #include <iostream>
 #include <stdexcept>
-#include "reaction.h"
 #include "save_point.h"
 #include <pf2e_engine/actions/generated_world.h>
 
@@ -390,15 +389,6 @@ EAbilityExecutionResult TBattle::Execute(const TAbilityOption& option)
     if (const auto* weapon = SourceWeapon(creature, option.Source)) {
         bindings.SourceWeapon = std::make_shared<const TWeapon>(*weapon);
     }
-    if (option.Trigger) {
-        auto triggered = GetIfPlayers([&](const TPlayer* player) {
-            return player->GetId() == option.Trigger->ActorId;
-        });
-        if (triggered.size() != 1) {
-            return EAbilityExecutionResult::Unavailable;
-        }
-        bindings.TriggerActor = triggered.front();
-    }
     bindings.ValidateSource = [&creature, rules = ability_rules_,
                               definition = option.DefinitionId, source = option.Source]() {
         return CollectAbilities(creature, rules->Catalog).FindGrant(definition, source) != nullptr;
@@ -420,23 +410,6 @@ std::shared_ptr<const TBattleMap> TBattle::BattleMap() const
 THolder<TBattleMap>& TBattle::BattleMapMutable()
 {
     return battle_map_;
-}
-
-std::vector<TAbilityOption> TBattle::AvailableReactions(const TTriggerContext& trigger) const
-{
-    std::vector<TAbilityOption> reactions;
-    const TGeneratedWorldView world(this);
-    for (const auto& player : players_) {
-        const auto& creature = *player.GetCreature();
-        if (!creature.CanAct()) {
-            continue;
-        }
-        auto candidates = EnumerateReactions(
-            player.GetId(), CollectAbilities(creature, ability_rules_->Catalog),
-            *ability_rules_, player, trigger, &world);
-        reactions.insert(reactions.end(), candidates.begin(), candidates.end());
-    }
-    return reactions;
 }
 
 TAstNode TBattle::GetAst(TAstContext& ctx) const

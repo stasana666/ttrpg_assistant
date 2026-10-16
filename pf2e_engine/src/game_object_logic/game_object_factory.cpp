@@ -403,16 +403,12 @@ void TGameObjectFactory::ReadAction(nlohmann::json& json, TGameObjectId id)
     auto action = std::make_shared<TAction>(action_reader_.ReadAction(json, *this));
     const auto definition = json.value("ability", "legacy_action." +
         std::string(TGameObjectIdManager::Instance().Name(id)));
-    std::optional<ETrigger> trigger;
-    if (json.contains("trigger")) {
-        trigger = TriggerFromString(json.at("trigger").get<std::string>());
-    }
     const auto source = json.value("source", std::string{});
     if (!source.empty() && source != "weapon") {
         throw std::invalid_argument("unsupported action source: " + source);
     }
     actions_.emplace(id, [action]([[maybe_unused]] const TGameObjectFactory& factory) { return action; });
-    ability_bindings_.emplace(id, TAbilityBinding{definition, trigger, source == "weapon"});
+    ability_bindings_.emplace(id, TAbilityBinding{definition, source == "weapon"});
     ability_rules_.reset();
 }
 
@@ -450,20 +446,18 @@ std::shared_ptr<const TAbilityRules> TGameObjectFactory::AbilityRules() const
     });
     for (auto id : ids) {
         const auto& binding = ability_bindings_.at(id);
-        const auto kind = binding.Trigger ? EAbilityKind::Reaction : EAbilityKind::Action;
         if (binding.Definition.starts_with("legacy_action.")) {
-            rules->Catalog.Register({binding.Definition, kind, {}});
+            rules->Catalog.Register({binding.Definition, EAbilityKind::Action, {}});
         }
         const auto& definition = rules->Catalog.Require(binding.Definition);
-        if (definition.Kind != kind) {
+        if (definition.Kind != EAbilityKind::Action) {
             throw std::invalid_argument("action implementation kind mismatch: " + binding.Definition);
         }
         const auto name = std::string(TGameObjectIdManager::Instance().Name(id));
         rules->Catalog.Register({"legacy_feature." + name, EAbilityKind::Feature, {binding.Definition}});
         FLegacyAbilityRequirement requirement;
         if (binding.RequiresWeaponSource) {
-            requirement = [](const TPlayer& actor, const TAbilitySourcePath& source,
-                             const TTriggerContext*) {
+            requirement = [](const TPlayer& actor, const TAbilitySourcePath& source) {
                 const auto& creature = *actor.GetCreature();
                 for (const auto& [field, weapons] : {
                         std::pair{"weapons", &creature.Weapons()},
@@ -477,8 +471,7 @@ std::shared_ptr<const TAbilityRules> TGameObjectFactory::AbilityRules() const
                 return false;
             };
         }
-        rules->Executions.Register(binding.Definition, Create<TAction>(id), binding.Trigger,
-                                   std::move(requirement));
+        rules->Executions.Register(binding.Definition, Create<TAction>(id), std::move(requirement));
     }
     ability_rules_ = std::move(rules);
     return ability_rules_;

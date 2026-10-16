@@ -142,9 +142,8 @@ protected:
         rules_->Executions.Register(std::move(name), std::make_shared<const TAbilityExecution>(
             TAbilityExecution{
                 .Action = std::move(action),
-                .Trigger = {},
                 .Requirement = [previous](const TGeneratedWorldView& world, const TPlayer& actor,
-                                           const TAbilitySourcePath& source, const auto*) {
+                                           const TAbilitySourcePath& source) {
                     return RequiredSource<TCreature, TWeapon>(actor, source)
                         && (!previous || FindActionRecord<TNativeRecord>(world, actor).has_value());
                 },

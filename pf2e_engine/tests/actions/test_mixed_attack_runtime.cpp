@@ -75,7 +75,6 @@ protected:
             weapons.Add(MixedWeapon("Ordinary", false));
             weapons.Add(MixedWeapon("Agile", true));
             features.Add(TFeatureSelection("abilities.HumanWarriorActions"));
-            features.Add(TFeatureSelection("abilities.FighterReaction"));
         } else {
             features.Add(TFeatureSelection("abilities.WolfActions"));
         }
@@ -115,15 +114,15 @@ protected:
         return *found;
     }
 
-    void Execute(const TAbilityOption& option, TAbilityExecutionBindings bindings = {})
+    void Execute(const TAbilityOption& option)
     {
         auto context = std::make_shared<TActionContext>(TActionContext{
             .battle = battle_.get(), .dice_roller = &rng_, .transformator = journal_.get(),
             .io_system = &io_, .scheduler = nullptr, .effect_manager = nullptr,
         });
         EXPECT_EQ(ExecuteAbility(option, context, *actor_,
-            CollectAbilities(*actor_->GetCreature(), rules_->Catalog), rules_->Executions,
-            std::move(bindings)), EAbilityExecutionResult::Applied);
+            CollectAbilities(*actor_->GetCreature(), rules_->Catalog), rules_->Executions),
+            EAbilityExecutionResult::Applied);
     }
 
     void NativeAttack(std::string_view weapon, int natural, bool hit)
@@ -224,27 +223,6 @@ TEST_F(TMixedAttackRuntimeTest, MissesInBothImplementationsStillCount)
     EXPECT_EQ(actor_->GetCreature()->AttacksMade().Get(), 2);
     EXPECT_EQ(target_->GetCreature()->Hitpoints()->Current(), 100);
     EXPECT_EQ(actor_->GetCreature()->Actions()->Count(), 4);
-}
-
-TEST_F(TMixedAttackRuntimeTest, OpportunityIgnoresExistingPenaltyAndDoesNotRecordAttack)
-{
-    Record(*actor_, 2);
-    const auto initial = journal_->CurrentState();
-    const auto options = battle_->AvailableReactions({ETrigger::OnMove, target_});
-    ASSERT_EQ(options.size(), 1);
-    io_.ExpectChoice(0, "weapon", "Ordinary");
-    rng_.ExpectCall(20, 10);
-    rng_.ExpectCall(4, 2);
-    rng_.ExpectCall(4, 3);
-    Execute(options.front(), {.TriggerActor = target_});
-    EXPECT_EQ(target_->GetCreature()->Hitpoints()->Current(), 92);
-    EXPECT_EQ(actor_->GetCreature()->AttacksMade().Get(), 2);
-    EXPECT_EQ(actor_->GetCreature()->Actions()->Count(), 6);
-    EXPECT_EQ(actor_->GetCreature()->Reactions()->Count(), 0);
-    journal_->Undo(initial);
-    EXPECT_EQ(target_->GetCreature()->Hitpoints()->Current(), 100);
-    EXPECT_EQ(actor_->GetCreature()->AttacksMade().Get(), 2);
-    EXPECT_EQ(actor_->GetCreature()->Reactions()->Count(), 1);
 }
 
 TEST_F(TMixedAttackRuntimeTest, BattleResetsAttacksBeforeStartAndAfterEndOfEachTurn)

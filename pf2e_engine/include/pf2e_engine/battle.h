@@ -8,7 +8,6 @@
 #include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/scheduler.h>
 #include <pf2e_engine/transformation/transformator.h>
-#include <pf2e_engine/actions/reaction.h>
 #include <pf2e_engine/actions/ability.h>
 
 #include <deque>
@@ -38,7 +37,6 @@ public:
     std::optional<TAbilityOption> ChooseAction(TPlayer&) const;
 
     std::vector<TAbilityOption> AvailableActions(const TPlayer&) const;
-    std::vector<TAbilityOption> AvailableReactions(const TTriggerContext& trigger) const;
     EAbilityExecutionResult Execute(const TAbilityOption& option);
     const TAbilityRules& AbilityRules() const;
     const TActionHistory& History() const;

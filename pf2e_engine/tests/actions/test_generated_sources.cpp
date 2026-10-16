@@ -243,7 +243,6 @@ TEST_F(TGeneratedSourcesTest, RootFeatureCannotSatisfyTheDeclaredWeaponSource)
         .Source = grant.Source,
         .Provenance = grant.Provenance,
         .Action = battle_->AbilityRules().Executions.Require(grant.DefinitionId).Action,
-        .Trigger = {},
     };
     EXPECT_EQ(battle_->Execute(forged), EAbilityExecutionResult::Unavailable);
     EXPECT_EQ(Execute(forged), EAbilityExecutionResult::Unavailable);

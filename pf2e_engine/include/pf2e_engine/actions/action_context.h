@@ -41,7 +41,6 @@ struct TActionContext {
     std::shared_ptr<const TAction> owned_action = {};
     std::shared_ptr<const TWeapon> source_weapon = {};
     std::shared_ptr<const TGeneratedSourceView> generated_source = {};
-    TPlayer* trigger_actor = nullptr;
     TAbilitySourcePath ability_source = {};
     std::function<bool()> validate_ability = {};
     std::shared_ptr<const std::vector<FActionInputValidator>> input_validators = {};

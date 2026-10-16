@@ -251,7 +251,6 @@ TEST_F(TGrantedCombatTest, WeaponRequiredAbilityIsUnavailableFromCreatureFeature
         .Source = grant.Source,
         .Provenance = grant.Provenance,
         .Action = battle_->AbilityRules().Executions.Require(grant.DefinitionId).Action,
-        .Trigger = {},
     };
     EXPECT_EQ(battle_->Execute(forged), EAbilityExecutionResult::Unavailable);
     EXPECT_EQ(ResourceFor(*fighter.GetCreature(), EResourceKind::Action)->Count(), 3);

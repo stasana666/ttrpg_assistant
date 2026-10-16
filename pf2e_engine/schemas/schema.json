@@ -832,7 +832,6 @@
             "properties": {
                 "ability": { "type": "string", "minLength": 1 },
                 "source": { "type": "string", "enum": ["weapon"] },
-                "trigger": { "type": "string", "enum": ["on_move"] },
                 "variables": {
                     "type": "object",
                     "additionalProperties": {

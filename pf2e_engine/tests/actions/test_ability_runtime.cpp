@@ -315,10 +315,6 @@ TEST(AbilityExecutionTest, EnumerationIsPureAndMissingOrMismatchedExecutionsAreE
     EXPECT_EQ(ResourceFor(*actor.GetCreature(), EResourceKind::Action)->Count(), 3);
     TAstContext after_context;
     EXPECT_EQ(fixture->battle->GetAst(after_context), before);
-
-    TAbilityExecutions mismatch;
-    mismatch.Register("test.Strike", MakeAction({}), ETrigger::OnMove);
-    EXPECT_THROW(EnumerateActions(0, collector, mismatch, actor), std::invalid_argument);
 }
 
 TEST(AbilityExecutionTest, StaleSourceAndChangedRequirementsRejectBeforeResourceConsumption)
@@ -335,8 +331,8 @@ TEST(AbilityExecutionTest, StaleSourceAndChangedRequirementsRejectBeforeResource
     int calls = 0;
     TAbilityExecutions executions;
     executions.Register("test.Strike",
-        MakeAction({{EResourceKind::Action, 1}}, [&calls](auto) { ++calls; }), {},
-        [&enabled](const auto&, const auto&, const auto*) { return enabled; });
+        MakeAction({{EResourceKind::Action, 1}}, [&calls](auto) { ++calls; }),
+        [&enabled](const auto&, const auto&) { return enabled; });
     const auto option = EnumerateActions(0, initial, executions, actor).at(0);
     TAbilityCollector removed(catalog);
     EXPECT_EQ(ExecuteAbility(option, MakeContext(*fixture, transformator), actor,
@@ -401,37 +397,6 @@ TEST(AbilityExecutionTest, SourceWeaponBindingUsesOwnedSnapshotAndCannotBeOverri
 
     TAction::TVariables variables{{weapon_id, std::make_shared<TWeapon>(*weapon)}};
     EXPECT_THROW(TAction({}, {}, "reserved", std::move(variables)), std::invalid_argument);
-}
-
-TEST(AbilityExecutionTest, ReactionCandidatesBindBothActorsWithoutExecuting)
-{
-    auto fixture = MakeTwoWarriorBattle();
-    auto& reactor = Actor(*fixture);
-    auto& trigger_actor = Actor(*fixture, 1);
-    TTransformator transformator(fixture->io);
-    transformator.AddResource(ResourceFor(*reactor.GetCreature(), EResourceKind::Reaction), 1);
-    const auto catalog = MakeCatalog();
-    TAbilityCollector collector(catalog);
-    collector.Grant("test.Counter", {}, "feature");
-    int calls = 0;
-    TAbilityExecutions executions;
-    executions.Register("test.Counter", MakeAction({{EResourceKind::Reaction, 1}},
-        [&calls](auto) { ++calls; }), ETrigger::OnMove);
-    const TTriggerContext trigger{ETrigger::OnMove, &trigger_actor};
-    const auto options = EnumerateReactions(0, collector, executions, reactor, trigger);
-    ASSERT_EQ(options.size(), 1);
-    EXPECT_EQ(options[0].ActorId, reactor.GetId());
-    ASSERT_TRUE(options[0].Trigger.has_value());
-    EXPECT_EQ(options[0].Trigger->ActorId, trigger_actor.GetId());
-    EXPECT_EQ(calls, 0);
-    EXPECT_TRUE(EnumerateActions(0, collector, executions, reactor).empty());
-    EXPECT_EQ(ExecuteAbility(options[0], MakeContext(*fixture, transformator), reactor,
-                             collector, executions), EAbilityExecutionResult::Unavailable);
-    EXPECT_EQ(ExecuteAbility(options[0], MakeContext(*fixture, transformator), reactor,
-                             collector, executions, {.TriggerActor = &trigger_actor}),
-              EAbilityExecutionResult::Applied);
-    EXPECT_EQ(calls, 1);
-    EXPECT_EQ(ResourceFor(*reactor.GetCreature(), EResourceKind::Reaction)->Count(), 0);
 }
 
 TEST(AbilityExecutionTest, SamePlayerIdInDifferentBattleDoesNotReuseActorBinding)

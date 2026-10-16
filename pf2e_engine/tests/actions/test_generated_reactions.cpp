@@ -87,7 +87,6 @@ TEST_F(TGeneratedReactionsTest, RegistersTypedBodiesWithoutSyntheticActions)
     Add("ImmediateTraining");
     EXPECT_EQ(rules_->Executions.Find("generated_reactions.ImmediateCounter"), nullptr);
     EXPECT_NE(rules_->Reactions.Find<TTriggerFixtureChange>("generated_reactions.ImmediateCounter"), nullptr);
-    EXPECT_TRUE(battle_->AvailableReactions({ETrigger::OnMove, &Player(0)}).empty());
     EXPECT_TRUE(battle_->AvailableActions(Player(1)).empty());
 }
 

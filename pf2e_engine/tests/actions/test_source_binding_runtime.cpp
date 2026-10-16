@@ -81,9 +81,8 @@ std::shared_ptr<const TAbilityExecution> UsingExecution(TAction::FBody body)
 {
     return std::make_shared<const TAbilityExecution>(TAbilityExecution{
         .Action = std::make_shared<const TAction>(std::move(body), Costs(), "using source"),
-        .Trigger = {},
         .Requirement = [](const TGeneratedWorldView&, const TPlayer& actor,
-                           const TAbilitySourcePath& source, const auto*) {
+                           const TAbilitySourcePath& source) {
             return RequiredSource<TCreature, TWeapon>(actor, source);
         },
         .Prepare = [](auto ctx, TPlayer& actor, const TGrantedAbility& grant) {
@@ -230,20 +229,16 @@ TEST(AbilityExecutionRegistrationTest, SharedExecutionsHaveStableIdentityWithout
                  std::invalid_argument);
     EXPECT_THROW(executions.Register("", execution), std::invalid_argument);
     auto invalid = *execution;
-    invalid.Trigger = ETrigger::COUNT;
-    EXPECT_THROW(executions.Register("test.Invalid",
-        std::make_shared<const TAbilityExecution>(invalid)), std::invalid_argument);
-    invalid = *execution;
     invalid.Action.reset();
     EXPECT_THROW(executions.Register("test.Invalid",
         std::make_shared<const TAbilityExecution>(invalid)), std::invalid_argument);
     executions.Register("test.Plain", execution->Action);
     EXPECT_NO_THROW(executions.Register("test.Plain", execution->Action));
-    EXPECT_THROW(executions.Register("test.Required", nullptr, {},
-        [](const auto&, const auto&, const auto*) { return true; }), std::invalid_argument);
-    const auto required = [](const auto&, const auto&, const auto*) { return true; };
-    executions.Register("test.Required", execution->Action, {}, required);
-    EXPECT_THROW(executions.Register("test.Required", execution->Action, {}, required),
+    EXPECT_THROW(executions.Register("test.Required", nullptr,
+        [](const auto&, const auto&) { return true; }), std::invalid_argument);
+    const auto required = [](const auto&, const auto&) { return true; };
+    executions.Register("test.Required", execution->Action, required);
+    EXPECT_THROW(executions.Register("test.Required", execution->Action, required),
                  std::invalid_argument);
     auto only_preparation = *execution;
     only_preparation.Requirement = {};
@@ -283,7 +278,7 @@ TEST_F(TSourceBindingRuntimeTest, MissingTypedProviderIsExcludedAndCannotConsume
     const TAbilityOption option{
         .ActorId = actor.GetId(), .ActorIdentity = &actor, .DefinitionId = grant.DefinitionId,
         .Source = grant.Source, .Provenance = grant.Provenance,
-        .Action = rules_->Executions.Require(grant.DefinitionId).Action, .Trigger = {},
+        .Action = rules_->Executions.Require(grant.DefinitionId).Action,
     };
     EXPECT_EQ(ExecuteAbility(option, Context(), actor, collector, rules_->Executions),
                EAbilityExecutionResult::Unavailable);
@@ -296,7 +291,7 @@ TEST_F(TSourceBindingRuntimeTest, PreparationFailureLeavesPaymentAndJournalUntou
 {
     Start(std::make_shared<const TAbilityExecution>(TAbilityExecution{
         .Action = std::make_shared<const TAction>([](auto) { FAIL(); }, Costs(), "fails preparation"),
-        .Trigger = {}, .Requirement = {},
+        .Requirement = {},
         .Prepare = [](auto, auto&, const auto&) { throw std::runtime_error("cannot snapshot"); },
     }));
     auto& actor = Add();
@@ -319,7 +314,7 @@ TEST_F(TSourceBindingRuntimeTest, PreparationCapturesResourceBeforePaymentAndRun
                 observed = source.Read().Count();
             });
         }, Costs(), "snapshot payment"),
-        .Trigger = {}, .Requirement = {},
+        .Requirement = {},
         .Prepare = [&](auto ctx, auto& actor, const auto&) {
             ++prepared;
             ctx->generated_source = std::make_shared<const TGeneratedSourceView>(

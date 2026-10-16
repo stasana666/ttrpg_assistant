@@ -101,7 +101,6 @@ private:
     TFactoryStorage<std::shared_ptr<TAction>> actions_;
     struct TAbilityBinding {
         std::string Definition;
-        std::optional<ETrigger> Trigger;
         bool RequiresWeaponSource;
     };
     std::unordered_map<TGameObjectId, TAbilityBinding, TGameObjectIdHash> ability_bindings_;

@@ -88,8 +88,7 @@ void EmitActionRegistration(TCppWriter& writer, const TLoadedSchemas& loaded) {
                 writer.Line("static const auto execution_" + ability.Name + " = std::make_shared<const TAbilityExecution>(TAbilityExecution{");
                 writer.Indented([&] {
                     writer.Line(".Action = action_" + ability.Name + ",");
-                    writer.Line(".Trigger = {},");
-                    writer.Block(".Requirement = []([[maybe_unused]] const TGeneratedWorldView& world, [[maybe_unused]] const TPlayer& actor, [[maybe_unused]] const TAbilitySourcePath& source, const TTriggerContext*) {", "},", [&] {
+                    writer.Block(".Requirement = []([[maybe_unused]] const TGeneratedWorldView& world, [[maybe_unused]] const TPlayer& actor, [[maybe_unused]] const TAbilitySourcePath& source) {", "},", [&] {
                         for (const auto& line : compiled.Requirement) writer.Line(line);
                     });
                     if (!ability.PreviousRecord.empty()) {

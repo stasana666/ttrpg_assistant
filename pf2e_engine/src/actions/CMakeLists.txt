@@ -17,7 +17,6 @@ target_sources(pf2e_engine
         timed_relation.cpp
         generated_relation.cpp
         feature_event.cpp
-        reaction.cpp
         save_point.cpp
 )
 

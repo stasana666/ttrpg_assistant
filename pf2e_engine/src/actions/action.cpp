@@ -19,8 +19,6 @@ namespace {
 const TGameObjectId kSelf = TGameObjectIdManager::Instance().Register("self");
 const TGameObjectId kSource = TGameObjectIdManager::Instance().Register("source");
 const TGameObjectId kWeapon = TGameObjectIdManager::Instance().Register("weapon");
-const TGameObjectId kTriggerActor = TGameObjectIdManager::Instance().Register("trigger_actor");
-const TGameObjectId kTarget = TGameObjectIdManager::Instance().Register("target");
 
 TAction::TBoundResources BindLegacyCosts(const TAction::TResources& costs)
 {
@@ -68,8 +66,7 @@ TAction::TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name,
     , variables_(std::move(variables))
 {
     for (const auto& variable : variables_) {
-        if (variable.id == kSelf || variable.id == kSource || variable.id == kWeapon
-            || variable.id == kTriggerActor || variable.id == kTarget || !variable.weapon) {
+        if (variable.id == kSelf || variable.id == kSource || variable.id == kWeapon || !variable.weapon) {
             throw std::invalid_argument("invalid or reserved action variable");
         }
     }
@@ -113,10 +110,6 @@ void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
     if (ctx->source_weapon) {
         ctx->game_object_registry->Add(kSource, ctx->source_weapon.get());
         ctx->game_object_registry->Add(kWeapon, ctx->source_weapon.get());
-    }
-    if (ctx->trigger_actor != nullptr) {
-        ctx->game_object_registry->Add(kTriggerActor, ctx->trigger_actor);
-        ctx->game_object_registry->Add(kTarget, ctx->trigger_actor);
     }
 
     for (const auto& variable : variables_) {
