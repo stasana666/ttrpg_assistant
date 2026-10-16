@@ -10,7 +10,3 @@ enum class ESuccessLevel {
 };
 
 std::string ToString(ESuccessLevel success_level);
-
-ESuccessLevel IncreaseSuccessLevel(ESuccessLevel lvl);
-
-ESuccessLevel DecreaseSuccessLevel(ESuccessLevel lvl);

@@ -22,13 +22,3 @@ ETrigger TriggerFromString(const std::string& trigger_str)
     }
     throw std::invalid_argument("unknown ETrigger: \"" + trigger_str + "\"");
 }
-
-ETrigger TReaction::TriggerType() const
-{
-    return trigger_;
-}
-
-bool TReaction::Check(std::shared_ptr<TActionContext>) const
-{
-    return true;
-}

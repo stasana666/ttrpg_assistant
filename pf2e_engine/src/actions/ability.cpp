@@ -56,11 +56,6 @@ const TAbilityExecution* TAbilityExecutions::Find(std::string_view id) const
     return found == executions_.end() ? nullptr : found->second.get();
 }
 
-void TAbilityExecutions::Register(std::string, std::nullptr_t)
-{
-    throw std::invalid_argument("invalid ability execution binding");
-}
-
 const TAbilityExecution& TAbilityExecutions::Require(std::string_view id) const
 {
     const auto* found = Find(id);

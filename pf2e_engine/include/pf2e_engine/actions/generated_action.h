@@ -32,16 +32,12 @@ std::shared_ptr<TActionContext> ForkActionInputs(
 const TAbilityRules& GeneratedActionRules(const std::shared_ptr<TActionContext>& ctx);
 std::vector<TGeneratedEntityView> GeneratedActionEntities(const std::shared_ptr<TActionContext>& ctx,
                                                         std::type_index type);
-void RequestActionEntity(const std::shared_ptr<TActionContext>& ctx,
-                         std::vector<TGeneratedEntityView> candidates,
-                         std::function<void(TGeneratedEntityView)> receive);
 int RollActionDice(const std::shared_ptr<TActionContext>& ctx, int count, int size);
 std::size_t SelectActionIndex(const std::shared_ptr<TActionContext>& ctx,
                               TAlternatives alternatives,
                               std::function<void(std::size_t)> on_resume);
 TGeneratedEntityView MutableSelectedActionEntity(const std::shared_ptr<TActionContext>& ctx,
                                                  const TGeneratedEntityView& selected);
-std::string DescribeActionEntity(const TGeneratedEntityView& entity);
 
 class TGeneratedEntityView {
 public:
@@ -163,32 +159,6 @@ std::vector<TGeneratedEntityBinding<T>> ActionEntities(const std::shared_ptr<TAc
 }
 
 template <class T>
-void ChooseActionEntity(const std::shared_ptr<TActionContext>& ctx,
-                        std::vector<TGeneratedEntityBinding<T>> candidates,
-                        std::function<bool(const TGeneratedEntityBinding<T>&)> predicate,
-                        std::function<void(TGeneratedEntityBinding<T>)> receive)
-{
-    if (!receive) {
-        throw std::invalid_argument("entity choice requires a receiver");
-    }
-    std::vector<TGeneratedEntityView> eligible;
-    for (const auto& candidate : candidates) {
-        candidate.View().Validate();
-        if (!predicate || predicate(candidate)) {
-            eligible.push_back(candidate.View());
-        }
-    }
-    RequestActionEntity(ctx, std::move(eligible),
-        [predicate = std::move(predicate), receive = std::move(receive)](TGeneratedEntityView view) {
-            TGeneratedEntityBinding<T> selected(std::move(view));
-            if (predicate && !predicate(selected)) {
-                throw TAbilityUnavailable();
-            }
-            receive(std::move(selected));
-        });
-}
-
-template <class T>
 T SelectActionValue(const std::shared_ptr<TActionContext>& ctx, std::vector<T> candidates,
                      std::function<bool(const T&)> predicate, std::function<void(T)> on_resume)
 {
@@ -254,7 +224,7 @@ TGeneratedEntityBinding<T> SelectActionEntity(
         ValidateActionEntity(ctx, candidate.View());
         if (!predicate || predicate(candidate)) {
             const auto mutable_view = MutableSelectedActionEntity(ctx, candidate.View());
-            alternatives.AddAlternative(DescribeActionEntity(mutable_view),
+            alternatives.AddAlternative(std::string(mutable_view.Player().GetName()),
                                          &mutable_view.MutablePlayer());
             eligible.push_back(candidate.ReadOnly());
         }

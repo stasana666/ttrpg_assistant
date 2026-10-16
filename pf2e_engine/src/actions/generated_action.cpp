@@ -204,43 +204,6 @@ std::vector<TGeneratedEntityView> GeneratedActionEntities(const std::shared_ptr<
     return result;
 }
 
-void RequestActionEntity(const std::shared_ptr<TActionContext>& ctx,
-                         std::vector<TGeneratedEntityView> candidates,
-                         std::function<void(TGeneratedEntityView)> receive)
-{
-    RequireContext(ctx);
-    if (ctx->io_system == nullptr || !receive) {
-        throw std::invalid_argument("entity choice requires interaction and a receiver");
-    }
-    if (candidates.empty()) {
-        throw TAbilityUnavailable();
-    }
-    const auto actor = GeneratedActionSelf(ctx);
-    auto alternatives = TAlternatives::Create<TPlayer*>("target");
-    for (const auto& candidate : candidates) {
-        ValidateActionEntity(ctx, candidate);
-        const auto& player = candidate.Player();
-        alternatives.AddAlternative(std::string(player.GetName()), &candidate.MutablePlayer());
-    }
-    const auto received = std::make_shared<bool>(false);
-    auto choose = [ctx, actor, candidates = std::move(candidates), receive = std::move(receive),
-                   received](size_t index) {
-        ValidateActionActor(ctx);
-        actor.Validate();
-        if (index >= candidates.size()) {
-            throw std::out_of_range("selected entity is outside the alternatives");
-        }
-        ValidateActionEntity(ctx, candidates[index]);
-        *received = true;
-        receive(candidates[index]);
-    };
-    ctx->io_system->RequestChoice(actor.Player().GetId(), std::move(alternatives),
-                                  ctx->transformator->CurrentState(), std::move(choose));
-    if (!*received) {
-        throw std::logic_error("choice request must complete or suspend through a savepoint");
-    }
-}
-
 std::size_t SelectActionIndex(const std::shared_ptr<TActionContext>& ctx,
                               TAlternatives alternatives,
                               std::function<void(std::size_t)> on_resume)
@@ -310,11 +273,6 @@ TGeneratedEntityView MutableSelectedActionEntity(const std::shared_ptr<TActionCo
         return BindGeneratedActionEntity(*player, ctx->battle);
     }
     throw TAbilityUnavailable();
-}
-
-std::string DescribeActionEntity(const TGeneratedEntityView& entity)
-{
-    return std::string(entity.Player().GetName());
 }
 
 int RollActionDice(const std::shared_ptr<TActionContext>& ctx, int count, int size)

@@ -44,7 +44,6 @@ public:
     void Register(std::string id, std::shared_ptr<const TAction> action,
                   std::optional<ETrigger> trigger = {}, FLegacyAbilityRequirement requirement = {});
     void Register(std::string id, std::shared_ptr<const TAbilityExecution> execution);
-    void Register(std::string id, std::nullptr_t);
     const TAbilityExecution* Find(std::string_view id) const;
     const TAbilityExecution& Require(std::string_view id) const;
 

@@ -221,13 +221,8 @@ void TBattle::StartRound()
 {
     assert(initiative_order_.CurrentPlayer() == nullptr);
     initiative_order_.Next(transformator_);
-    auto execution = transformator_.ExecutionContext();
     for (auto& player : players_) {
-        if (auto lifecycle = ability_rules_->Lifecycle.Find(ELifecyclePhase::RoundStart)) {
-            RunLifecycleAndDrain(MakeActionContext(), player, std::move(lifecycle));
-        } else {
-            execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::BeginRound);
-        }
+        RunPhase(player, ELifecyclePhase::RoundStart, &TCreature::BeginRound);
     }
     io_system_.GameLog() << "Start round " << initiative_order_.CurrentRound() << " round" << std::endl;
 }
@@ -246,19 +241,9 @@ void TBattle::StartTurn()
     TPlayer& player = *initiative_order_.CurrentPlayer();
     io_system_.GameLog() << "Start turn: player " << player.GetName() << std::endl;
 
-    if (auto lifecycle = ability_rules_->Lifecycle.Find(ELifecyclePhase::TurnStartExpiration)) {
-        RunLifecycleAndDrain(MakeActionContext(), player, std::move(lifecycle));
-    } else {
-        auto execution = transformator_.ExecutionContext();
-        execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::ExpireTurnStartEffects);
-    }
+    RunPhase(player, ELifecyclePhase::TurnStartExpiration, &TCreature::ExpireTurnStartEffects);
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnStart, .context = TEventContext{.player = &player}}, transformator_);
-    if (auto lifecycle = ability_rules_->Lifecycle.Find(ELifecyclePhase::TurnStart)) {
-        RunLifecycleAndDrain(MakeActionContext(), player, std::move(lifecycle));
-    } else {
-        auto execution = transformator_.ExecutionContext();
-        execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::BeginTurn);
-    }
+    RunPhase(player, ELifecyclePhase::TurnStart, &TCreature::BeginTurn);
 }
 
 void TBattle::MakeTurn()
@@ -295,12 +280,7 @@ void TBattle::EndTurn()
 
     io_system_.GameLog() << "End turn: player " << player.GetName() << std::endl;
     scheduler_.TriggerEvent(TEvent{.type = EEvent::OnTurnEnd, .context = TEventContext{.player = &player}}, transformator_);
-    if (auto lifecycle = ability_rules_->Lifecycle.Find(ELifecyclePhase::TurnEnd)) {
-        RunLifecycleAndDrain(MakeActionContext(), player, std::move(lifecycle));
-    } else {
-        auto execution = transformator_.ExecutionContext();
-        execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), &TCreature::EndTurn);
-    }
+    RunPhase(player, ELifecyclePhase::TurnEnd, &TCreature::EndTurn);
     initiative_order_.Next(transformator_);
 }
 
@@ -344,6 +324,17 @@ std::shared_ptr<TActionContext> TBattle::MakeActionContext()
         .scheduler = &scheduler_,
         .effect_manager = &effect_manager_,
     });
+}
+
+void TBattle::RunPhase(TPlayer& player, ELifecyclePhase phase,
+                       void (TCreature::*fallback)(TGeneratedExecutionContext&))
+{
+    if (auto lifecycle = ability_rules_->Lifecycle.Find(phase)) {
+        RunLifecycleAndDrain(MakeActionContext(), player, std::move(lifecycle));
+    } else {
+        auto execution = transformator_.ExecutionContext();
+        execution.Invoke(TGuarded<TCreature>(*player.GetCreature()), fallback);
+    }
 }
 
 std::vector<TAbilityOption> TBattle::AvailableActions(const TPlayer& player) const

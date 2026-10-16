@@ -228,7 +228,6 @@ TEST(AbilityExecutionRegistrationTest, SharedExecutionsHaveStableIdentityWithout
     EXPECT_THROW(executions.Register("test.Using", execution->Action), std::invalid_argument);
     EXPECT_THROW(executions.Register("test.Using", std::shared_ptr<const TAbilityExecution>{}),
                  std::invalid_argument);
-    EXPECT_THROW(executions.Register("test.Using", nullptr), std::invalid_argument);
     EXPECT_THROW(executions.Register("", execution), std::invalid_argument);
     auto invalid = *execution;
     invalid.Trigger = ETrigger::COUNT;

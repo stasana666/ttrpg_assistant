@@ -140,23 +140,13 @@ TEST_F(TGeneratedActionsTest, EntityChoiceRejectsParticipantFromAnotherBattleBef
     auto& foreign_actor = *foreign_battle.GetIfPlayers([](const TPlayer*) {
         return true;
     }).at(0);
-    auto context = std::make_shared<TActionContext>(TActionContext{
-        .battle = battle_.get(),
-        .dice_roller = &rng_,
-        .transformator = journal_.get(),
-        .io_system = &io_,
-        .scheduler = nullptr,
-        .effect_manager = nullptr,
-        .game_object_registry = std::make_shared<TGameObjectRegistry>(),
-    });
-    context->game_object_registry->Add(TGameObjectIdManager::Instance().Register("self"), &actor);
-    const auto candidate = BindGeneratedActionEntity(foreign_actor, &foreign_battle);
+    const TGeneratedEntityBinding<TCreature> candidate(BindGeneratedActionEntity(foreign_actor, &foreign_battle));
     const auto before = Snapshot();
     const auto foreign_before = foreign_creature.ToJson();
     bool called = false;
 
-    EXPECT_THROW(RequestActionEntity(context, {candidate},
-        [&called](TGeneratedEntityView) { called = true; }), TAbilityUnavailable);
+    EXPECT_THROW(SelectActionEntity<TCreature>(Context(actor.GetId()), {candidate}, {},
+        [&called](TGeneratedEntityBinding<TCreature>) { called = true; }), TAbilityUnavailable);
 
     EXPECT_FALSE(called);
     EXPECT_EQ(Snapshot(), before);

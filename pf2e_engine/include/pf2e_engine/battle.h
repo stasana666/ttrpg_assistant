@@ -67,6 +67,7 @@ private:
     bool IsRoundEnd() const;
 
     std::shared_ptr<TActionContext> MakeActionContext();
+    void RunPhase(TPlayer& player, ELifecyclePhase phase, void (TCreature::*fallback)(TGeneratedExecutionContext&));
 
     THolder<TBattleMap> battle_map_;
     IRandomGenerator* dice_roller_;
