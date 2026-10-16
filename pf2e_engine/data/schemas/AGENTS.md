@@ -3,332 +3,56 @@
 Canonical project instructions. CLAUDE.md redirects here.
 
 ## Purpose
-- Source of truth for generated engine types such as armor, material, weapon, damage, dice, creature data, creature parts, and condition.
-- Current generated condition schema includes `Prone`, `Frightened`, `Dying`, `Wounded`, and `Unconscious`. Attack history is the separate `TCreature.AttacksMade` field.
-- `TCreature` stores passive damage data as `set<EDamageType> Immunities`, `map<EDamageType, int> Resistances`, and `map<EDamageType, int> Vulnerabilities`. Its generated `DamageAmount` query applies defenses; creature damage methods then perform declared HP and health transitions.
-- CMake generates C++ into `build/generated/pf2e_engine/...` through `ttrpg_codegen`.
-
-## Key Concepts
-- `creature.ttrpg` declares the flat `GameEntity TCreature`; all creature storage, identity, JSON snapshots, AST traversal, characteristic queries, and grant traversal are generated. The public `creature.h` only forwards to the generated `inventory/creature.h`.
-- Language forms include `GameEntity`, named instances, `method`, and `query` in addition to the existing fields/containers/defaults. See `tools/ttrpg/AGENTS.md` for the currently supported rule syntax.
-- `hitpoints.ttrpg` is the source of truth for `Statistic`, `TDamageResult`, and `THitPoints`: damage, healing, and temporary HP replacement are compiled methods. `TCreature.Hitpoints` constructs this type after race/class/level/attributes are initialized.
-- `proficiency.ttrpg` defines proficiency ranks, fixed contributions, and bonus queries. `TProficiencyValue.Bonus(Level)` keeps rank arithmetic in the schema; `TProficiency` stores category maps and perception without storing another level. Missing map entries use an untrained value and do not insert a map entry.
-- `skills.ttrpg` and `saving_throws.ttrpg` own `ESkill` and `ESavethrow`; armor and weapon categories remain in their existing schemas. Canonical generated JSON uses PascalCase enum tokens. The factory normalizes legacy lowercase proficiency ranks and fixed integer contributions before loading generated types.
-- Damage input is the resolved amount after defenses. The result retains incoming damage, temporary absorption, before/after HP, and remaining damage. Dying/wounded/death rules are not part of this value type.
-- Temporary HP replacement accepts an explicitly selected pool; choosing between sources and scheduling expiration remain action/ruleset work.
-- Built-ins include `int`, `bool`, `string`, `BoundedQuantity`, `Resource`, `max_int`, and `min_int`.
-- `Resource` lowers to the runtime `TResource` (count with `Count`/`Has`/`Add`/`Reduce`); `TCreature` uses it for `Actions`, `Reactions`, `Hands`, and `map<ESpellSlotRank, Resource> SpellSlots`.
-- Imports are relative to the importing schema. `ttrpg_generate` in `pf2e_engine/src/inventory/CMakeLists.txt` tracks transitive imports through generated depfiles.
-- Generated JSON keys use `PascalToSnake`.
-- Class fields load from either string refs through `TGameObjectFactory` or inline JSON objects. New by-name types use `RegisterType<T>(jsonType)`; inline-only classes need no factory registration.
-- `collection<Class>` lowers to `TIdCollection<Class>`; `TCreature` currently uses it for weapons and natural weapons.
-- `map<Enum, V>` lowers to `std::map`; JSON object keys are parsed through the generated enum `FromString`.
+- Source of truth for generated engine types and the PF2e rules compiled from them. CMake generates C++ into `build/generated/pf2e_engine/...` through `ttrpg_codegen`; see `tools/ttrpg/AGENTS.md` for the language.
+- `creature.ttrpg` declares the flat `GameEntity TCreature`; its storage, identity, JSON, AST, queries and grant traversal are all generated. The public `creature.h` only forwards to the generated header.
+- Conditions are `Prone`, `Frightened`, `Dying`, `Wounded` and `Unconscious`. Attack history is the separate `TCreature.AttacksMade` counter.
 
 ## Build/Test
-- Build generated headers: `cmake --build build --target pf2e_engine_generated_headers`.
-- Validate language/codegen behavior: `cmake --build build --target test_ttrpg`.
-- Then run data-backed engine tests such as `test_inventory`.
+- `cmake --build build --target pf2e_engine_generated_headers test_ttrpg`, then run data-backed engine tests such as `test_inventory`.
 
 ## Pitfalls
 - Do not edit `build/generated`.
-- If adding a schema file, wire it into CMake generation, `pf2e_engine_generated_headers`, target sources, imports, and generated include paths.
-- If adding a generated class with DSL-visible fields, register its `RegisterDslProperties()` in `pf2e_engine/src/dsl/builtins.cpp`.
-- Keep `.ttrpg` language behavior changes in `tools/ttrpg/`, not here.
-- Keep `pf2e_engine/schemas/schema.json` synchronized when JSON input shape changes.
+- A new schema file needs `ttrpg_generate` in `pf2e_engine/src/inventory/CMakeLists.txt`, `pf2e_engine_generated_headers`, target sources and imports.
+- Register generated classes with DSL-visible fields through `RegisterDslProperties()` in `pf2e_engine/src/dsl/builtins.cpp`.
+- Keep language behavior in `tools/ttrpg/` and keep `pf2e_engine/schemas/schema.json` in sync with JSON input shapes.
+- Ability names share one compiler namespace across imported modules, so feature groups need distinct names such as `MovementActions` and `TripActions`.
+- `abilities.ttrpg` imports creature types while creature, ancestry, class and weapon modules use only the built-in `Feature`; the factory calls `RegisterAbilitiesRules` explicitly to avoid an import cycle.
+- Legacy JSON creatures, weapons and action pipelines keep their historical data and tests. New declarations follow the Remaster rules.
 
-## Ability Grants
-- `abilities.ttrpg` declares action symbols and reusable feature groups. `TCreature`, `TRace`, `TClass`, and `TWeapon` store `collection<Feature>` and expose their providers with `grant @self.Features`.
-- `TCreature` also grants its race, class, weapon collection, and natural-weapon collection. Traversal reads their current selections; it does not copy action lists during construction.
-- `feature WeaponStrike { grant Strike; }` can be selected on any declared weapon. Its compiled action binds that weapon as a readonly `TWeapon` snapshot; the original `AttackWithWeapon` action retains the legacy weapon-selection prompt.
-- Configurable named factories can constrain feature choices with declared pools, parameter-dependent availability and `requires` expressions. The complete PF2e feat catalogue and its prerequisites are not supplied by the compiler.
-- `tests/inventory/fixtures/granted_entities.ttrpg` shows named fighter/wolf factories with collection literals and imported feature definitions. These are language fixtures, not complete PF2e statblocks.
+## Core Values
+- `hitpoints.ttrpg` owns `Statistic`, `TDamageResult` and `THitPoints`; damage takes the amount after defenses, and temporary HP replacement takes an explicit pool.
+- `proficiency.ttrpg` keeps rank arithmetic in `TProficiencyValue.Bonus(Level)`. Missing map entries count as untrained without inserting entries. The factory normalizes legacy lowercase ranks and integer bonuses.
+- `statistic_baseline.ttrpg` represents a fixed complete NPC total, including zero and negative values. A fixed total skips attribute and proficiency additions but keeps the proficiency rank for eligibility; a wolf's +9 attack already includes its attributes.
+- `statistics.ttrpg` and `lore.ttrpg` define attribute bindings, Class DC and named Lore skills. `Bonus`/`DC` queries merge conditions with explicit `TCheckModifiers`: Item, Status and Circumstance keep their strongest bonus and penalty, untyped penalties stack, and Frightened joins Status.
+- `combat_checks.ttrpg` owns the four degrees of success, natural 1/20 shifts and the weapon damage minimum. Clamp penalized damage to the minimum before critical doubling, then add critical-only dice and apply defenses once per damage type.
+- Initiative sorts by descending total, then by explicit `TInitiativeOptions.TieOrder`, then insertion. Later stat changes never reroll or reorder.
+- `creature_description.ttrpg` adds names, traits, named languages and senses. Movement and reach stay in grid cells; `SpeedFeet` and `ReachFeet` convert for display.
+
+## Abilities and Strike
+- `abilities.ttrpg` declares the action catalog and feature groups. `TCreature`, `TRace`, `TClass` and `TWeapon` grant through `collection<Feature>`, and the creature also grants race, class, weapons and natural weapons.
+- `BasicStrike` grants `UseStrike`, which picks a current weapon or natural attack; `WeaponStrike` on a weapon grants a bound `Strike`. Both use `ResolveMeleeStrike`, which checks the target before payment and on selection, rolls once, records misses, applies Fatal, Deadly and Versatile, and returns the outcome.
+- Multiple attack penalty uses `AttacksMade` and the current weapon's Agile trait, capped after two attacks, and resets at turn boundaries. Vicious Swing counts two attacks; Reactive Strike and monster Knockdown neither apply nor increase it.
+- Pack Attack needs two other living allies with reach and line of effect, so two wolves alone cannot trigger it. `ViciousSwing` pays two actions and the shared Flourishes resource and adds one, two or three weapon dice by level.
+- `combat_geometry.ttrpg` defines `InReach` as `max(dx, dy) + min(dx, dy) / 2` cells, with the ten-foot reach exception, plus the closed-edge single-cell `Flanks` test. `flanking.Flanking` adds the off-guard penalty through `MeleeTargetModifiers` without changing stored AC or conditions. See [Reach](https://2e.aonprd.com/Rules.aspx?ID=2379) and [Flanking](https://2e.aonprd.com/Rules.aspx?ID=2375).
+
+## Movement, Shields, Trip and Intimidation
+- `movement.ttrpg` declares Stride, Step, Stand, Sudden Charge and Reactive Strike. Stride opens `MovementOpening` before leaving each square within one reaction scope. Diagonals alternate one and two cells through `TCreature.DiagonalSteps`, which resets at the creature's own turn end. Step needs two cells of Speed and an affordable free destination. See [movement reactions](https://2e.aonprd.com/Rules.aspx?ID=2355).
+- `shield.ttrpg` and `shield_actions.ttrpg` declare `TShield`, Raise a Shield and Shield Block. `ApplyAttackDamage` resolves defenses once, opens `BeforeAttackDamage`, subtracts Hardness once, and both shield and creature take the remainder. The shield lowers in the turn-start expiration phase and drops on knockout.
+- `trip.ttrpg` declares Trip, which needs a free hand, uses body reach, Athletics against Reflex DC and non-Agile MAP. Monster Knockdown follows a successful Strike with the same exact source, costs one action and ignores MAP. Strike publishes `StrikeResult` only after damage and reaction windows finish.
+- `intimidation.ttrpg` declares Demoralize and Intimidating Glare with a ten-minute immunity relation. `Awareness`, `Visibility` and `Audibility` relations default to true, and scenarios can override them. Frightened keeps its highest value and decreases at the creature's own turn end.
+- `combat_timing.ttrpg` sets six seconds per completed round for the encounter clock.
+
+## Health and Turns
+- `health.ttrpg` defines `EZeroHpRule`. `Defeat` keeps historical HP-zero defeat; `Dying` adds knockout, dying, wounded and recovery; `Death` kills on lethal damage at zero HP. Nonlethal knockout leaves a creature unconscious.
+- `ReceiveDamageWithContext` applies defenses once, and `ApplyResolvedDamage` performs transitions. Critical damage raises dying by two and ordinary damage by one; massive damage uses the resolved blow before temporary HP. See [knockout](https://2e.aonprd.com/Rules.aspx?ID=2324) and [recovery](https://2e.aonprd.com/Rules.aspx?ID=2326).
+- A new nonfatal knockout moves the creature before the current turn with `move_before_current_turn`. Unconscious creatures regain resources but cannot use them; dead creatures regain nothing.
+- `BeginRound` restores Flourishes; `BeginTurn` restores three actions and one reaction and resets attack counting; `EndTurn` clears them. The factory binds `StartCreatureTurn`, which resolves recovery with `RecoveryDCAdjustment` contributions such as Toughness before `BeginTurn`.
+
+## Remaster Profiles
+- `remaster_profiles.ttrpg` defines the production `HumanFighter1` and `Wolf` factories. The fighter's readied weapons, armor, shield, extra language and declared feats are configurable. The default class feat is Sudden Charge, Natural Ambition supplies Vicious Swing, and General Training swaps in Toughness or Fleet.
+- Hands come from `TWeapon.HandsRequired` and the wielded shield; a two-handed weapon with a shield is rejected. Wolves have fixed baselines and Knockdown jaws, and each factory call creates independent entities.
+- `CombatBasics` grants the five action groups and `Flanking`.
+- Reference statblocks: [Fighter](https://2e.aonprd.com/Classes.aspx?ID=35), [Human](https://2e.aonprd.com/Ancestries.aspx?ID=64), [Wolf](https://2e.aonprd.com/Monsters.aspx?ID=3241), [Knockdown](https://2e.aonprd.com/MonsterAbilities.aspx?ID=46), [Vicious Swing](https://2e.aonprd.com/Feats.aspx?ID=4775), [Sudden Charge](https://2e.aonprd.com/Feats.aspx?ID=4774), [Shield Block](https://2e.aonprd.com/Feats.aspx?ID=5212), [Intimidating Glare](https://2e.aonprd.com/Feats.aspx?ID=5162). Expected fighter values: modifiers +4/+2/+2/+0/+1/+0, HP 21, AC 15, Perception +6, Fortitude +7, Reflex +7, Will +4, Class DC 17.
 
 ## Not Yet Implemented
-- Additional PF2e actions and feat catalogues, ranged/grip/equipment rules, multi-cell footprints, terrain and perception, contextual modifiers for other check families, cross-encounter persistence, and an explicit whole-action cancellation/refund policy. JSON pipelines remain compatibility adapters for unmigrated content.
-
-## Remaining Integration Boundaries
-- `abilities.ttrpg` imports creature types. Creature, ancestry/class and weapon modules depend only on the built-in `Feature`, without importing the action catalog. The factory explicitly calls `RegisterAbilitiesRules`, so production action bodies can use creature types without an import cycle.
-- `movement.ttrpg` implements movement budgets and predeparture reaction windows for the flat land grid. Its new action IDs coexist with legacy JSON movement until creature declarations select the new feature groups. World queries expose generic grid coordinates and Chebyshev distance; PF2e movement costs remain in the rules module.
-- Configurable factories support one feature per enabled `choice`, conditional extra choices and declared combination requirements. The production remaster_profiles module supplies the selected level-one feat pools, prerequisites and fighter/wolf declarations; compiler fixtures remain separate from that content.
-- NPC final-stat baselines must be separate from fixed proficiency contributions: a wolf's fixed attack +9 already includes its attributes. Keep `TProficiencyValue.FixedBonus` as a proficiency contribution. Legacy JSON baselines remain covered by their own tests while new Remaster profiles receive separate expectations.
-- Attack penalties use attacks made and the current weapon's Agile trait, capped after two prior attacks. Legacy JSON `add_condition("MultipleAttackPenalty")` is only an import shim that records an attack. Turn boundaries reset the count through the journal. Vicious Swing counts as two attacks, including a miss; monster Knockdown consumes a qualifying completed Strike record without applying or increasing MAP.
-- World visibility is incomplete: `TBattleMap::HasLine` currently returns true. A compiled call to that adapter does not by itself implement obstacles or line of effect.
-- When migrating damage, clamp a penalized weapon damage roll to its minimum before critical doubling, then add critical-only dice and apply defenses once to each accumulated damage type. General incoming-damage methods must not turn an already resolved zero into one point of damage. The legacy resolver currently clamps after evaluating its combined expression; keep that compatibility behavior separate until its callers migrate.
-
-## Compiled Combat
-- `combat_checks.ttrpg` owns four degrees of success, natural 1/20 adjustments, and the weapon-damage minimum. `statistic_baseline.ttrpg` represents an explicitly fixed complete statistic, including zero and negative values, separately from proficiency contributions.
-- `TCreature.ArmorClass` and `AttackBonus` calculate character statistics or use fixed baselines, then apply conditions. `TWeapon.DamageModifierBaseline` similarly replaces the Strength contribution for a fixed natural attack. Changing creature level continues to affect rank-based proficiency without changing a fixed NPC total.
-- Strike checks live target eligibility before payment and again on selection, rolls once for the attack, records a miss as an attack, and applies one accumulated damage amount. Pack Attack counts two other living allies with reach and line of effect; two wolves alone cannot activate it.
-- Critical Strike replaces the base die for Fatal, doubles the minimum-adjusted base damage and Pack Attack dice, then adds Fatal/Deadly critical-only dice. Deadly currently adds one die: striking rune tiers are not represented, and arbitrary `DamageDiceCount` must not be interpreted as a rune tier.
-- `ResolveMeleeStrike` returns the check outcome. Extra weapon dice use the Fatal die size and critical doubling; zero attacks counted leaves attack history untouched. Movement's Reactive Strike uses zero attacks counted and disables MAP through this same activity.
-- `feature ViciousSwing` grants `UseViciousSwing`. It pays two Actions and one shared Flourishes resource, selects a live target and a suitable weapon from equipment or natural attacks, then calls `ResolveMeleeStrike`. It uses the current MAP, records two attacks, and adds one weapon die before level 10, two through level 17, and three thereafter. The chosen item need not grant any action itself. Character-level eligibility and feat selection belong to constructor validation; the production level-one factory supplies a constrained legal feat pool.
-- Source choices retain an exact owner/field/entry locator until selection, then an immutable snapshot plus live presence checks. Aliases preserve the binding; child activities inherit scoped input checks without changing their parent's context. Class-valued results that could discard selected-source provenance are conservatively restricted; see the compiler documentation for these temporary authoring boundaries.
-- This Strike represents a melee profile. It passes critical and Nonlethal weapon-trait metadata to the declared health rules. Versatile offers the base and alternate damage types before the attack roll, then repeats target validation before rolling. A suspended source retains its values, and the selected damage type continues through defenses and Shield Block. A redundant alternate type adds no prompt. Thrown range/mode, TwoHand grip and ranged ammunition remain subsequent work.
-- Historical JSON creatures, weapons and legacy Pack Attack hooks retain their previous data. The compiled Strike tests use separate fixtures with explicit baselines; production Remaster declarations are separately covered by the profile and encounter tests.
-
-## Contextual Melee Defense
-- `combat_geometry.ttrpg` defines pure `TCombatGeometry.InReach` and `Flanks`
-  queries in grid cells. Reach uses `max(dx, dy) + min(dx, dy) / 2`, except that
-  ten-foot reach includes the second diagonal. Strike, Vicious Swing, Sudden
-  Charge, Reactive Strike and Pack Attack use this helper; `TTripRules.InReach`
-  delegates to it for ordinary Trip and historical Knockdown. Movement costs and
-  non-melee range checks retain their separate policies.
-  [Reach](https://2e.aonprd.com/Rules.aspx?ID=2379) defines the exception.
-- `flanking.Flanking`, granted by `CombatBasics`, contributes a two-point
-  circumstance penalty through `MeleeTargetModifiers(Target)`. The melee activity
-  checks its actual weapon snapshot and target, then collects these modifiers
-  after all target/damage-type choices and before rolling. The target's ordinary
-  AC query and stored conditions are unchanged; `ArmorClassWithModifiers` merges
-  flanking with prone/unconscious off-guard, frightened and raised-shield bonuses.
-- A flanking ally must be on the attacker's team, able to act, have a readied
-  weapon or natural attack reaching the target, and pass the line-of-effect
-  adapter. Free hands, remaining Actions and Reactions do not determine this
-  eligibility. `BodyReach` is not a substitute for a declared melee profile.
-  This hook assumes its caller already validated the attacking weapon's reach;
-  it does not replace that snapshot with current equipment statistics.
-- Flanking currently covers Small/Medium attackers, allies and targets occupying
-  one cell. Relative to the target center, let `A` and `B` be the flanker centers,
-  `D = B - A`, and `C = Ax*By - Ay*Bx`. Opposite vertical edges qualify when the
-  x coordinates have opposite signs and `2*abs(C) + abs(Dy) <= abs(Dx)`; horizontal
-  edges use the exchanged axes. This includes opposite corners and off-center
-  crossings. The implementation treats square edges as closed: a corner counts
-  as belonging to both adjacent edges. The source rule does not separately resolve
-  the corner-to-opposite-edge boundary, so this is an explicit geometry convention.
-  Integer operations are checked and ally reach is tested before cross-products.
-  [Flanking](https://2e.aonprd.com/Rules.aspx?ID=2375) supplies the eligibility and
-  opposite-side/corner rule; larger footprints, three-dimensional positioning,
-  attack-preventing conditions beyond `CanAct`, and flanking immunity need further
-  modeling. Two wolves can flank, but cannot meet Pack Attack's two-other-allies
-  requirement.
-
-## Compiled Land Movement
-- `movement.ttrpg` imports the combat abilities module and declares `UseStride`,
-  `UseStep`, `UseStand` and `UseSuddenCharge`. `MovementActions` grants the first three;
-  `SuddenCharge` and `ReactiveStrikeTraining` are independent selectable features.
-  Legacy `abilities.Stride` and `abilities.Stand` keep their existing JSON bindings.
-- `StrideMovement(Budget)` is a free activity. Its loop opens `MovementOpening`
-  before leaving each square, retaining one implicit reaction scope across the
-  entire Stride. A move action that leaves no square opens its window at the end.
-  Step opens no movement window; Stand removes Prone before its end window.
-  These timings follow [Reactions to Movement](https://2e.aonprd.com/Rules.aspx?ID=2355).
-- `TMovementRules.CellCost` declares alternating diagonal costs of one and two
-  grid cells. The persistent `TCreature.DiagonalSteps` counter spans multiple move
-  actions and resets in the creature's own `EndTurn`, matching the explicit reset
-  in [Diagonal Movement](https://2e.aonprd.com/Rules.aspx?ID=2355). That paragraph
-  does not separately resolve counter carry-over between movements outside the
-  creature's turn on different opponents' turns; no additional reset is inferred.
-- Reactive Strike selects equipment or a natural weapon independently of its
-  granting feature. It neither applies nor increases MAP. Its trigger permits any
-  other creature in reach, including an ally; taking the reaction remains an
-  explicit choice. A critical hit disrupts only a manipulate opening, not movement.
-  `ActionOpening` has the matching payload for future manipulate/ranged callpoints;
-  those actions do not yet open it automatically.
-- [Sudden Charge](https://2e.aonprd.com/Feats.aspx?ID=4774) pays two Actions and one
-  shared Flourishes resource, invokes two separate Stride activities, and permits
-  a final melee Strike against an enemy in reach. Each Stride gets a fresh reaction
-  scope, while both share the creature's diagonal count. It can start without an
-  enemy in reach and may finish without making the optional Strike.
-- Step requires at least two cells of Speed and an affordable adjacent destination.
-  Its pure Origin/Rules prefix participates in availability preflight; an empty
-  destination set consumes no action. Origin is captured again at execution before
-  prompting, and the checked move rejects relocation or newly occupied destinations
-  after suspension. [Step](https://2e.aonprd.com/Actions.aspx?ID=2304) also excludes
-  difficult terrain, but terrain, passage through willing creatures, shared occupied
-  spaces, footprints and alternate movement modes are not modeled by this adapter.
-  These declarations currently support free cells on a flat land grid.
-
-## Statistic Profiles
-- `statistics.ttrpg` owns attribute bindings and `TClassDCProfile`; `lore.ttrpg` owns independent named `TLoreSkill` values. Lore queries require a nonempty specialization name. A disabled Class DC profile has no usable DC and its query rejects the request.
-- Creature Perception, save and skill baselines hold complete totals, including zero and negative values. Proficiency rank remains independent for rule eligibility; a fixed NPC total does not imply untrained proficiency. Legacy integer proficiency overrides retain their meaning as contributions.
-- `Base` queries exclude conditions. `Bonus`/`DC` queries and their `WithModifiers` companions merge generated condition modifiers with the supplied `TCheckModifiers`. Each of Item, Status and Circumstance keeps its strongest bonus and strongest penalty independently; untyped penalties accumulate. Frightened enters the same Status aggregation and is not subtracted twice.
-- Queries read current level, attributes and conditions without modifying stored state. Complete baselines skip attribute and proficiency additions; absent skill/save map entries use the existing untrained fallback without insertion. Lore specializations retain their own ranks and baselines.
-- Extra modifier values are explicit query inputs. Queries do not implicitly dispatch feature events or access battle rules. The melee activity collects `MeleeTargetModifiers` from active features and passes the merged value to `ArmorClassWithModifiers`; attack bonus queries retain their separate condition and MAP rules. Initiative defaults to the generated Perception query; a scenario can explicitly choose a skill and modifiers. The Remaster statistic tests construct separate profiles; they do not replace production creature definitions.
-- Initiative sorts by descending total. Explicit `TInitiativeOptions.TieOrder` resolves equal totals, with smaller values first and stable insertion for remaining ties; the bonus does not break ties. Encounter setup must specify PC/enemy tie priority when needed. Natural 1 and 20 are ordinary initiative roll values, and later statistic changes do not reroll or reorder an existing initiative result.
-
-## Configurable Named Factories
-- `TCreature Fighter(collection<TWeapon> Equipment = [Longsword], choice Feature ClassFeat from FighterChoices.Values = ViciousSwing) { ... }` declares a factory with defaults and optional overrides. Parameters may also be ordinary primitive, enum or class values and supported collections. Generated C++ exposes `TFighterOptions`, `CreateFighter`, `DescribeFighter` and `ValidateFighter`; a declaration without parameter parentheses keeps its existing zero-argument factory.
-- `choice Feature BonusFeat from FighterChoices.Values when AncestryFeat == NaturalAmbition = SuddenCharge` requires one nonempty feature while enabled. Disabled choices skip their pool and default, reject any explicit override and contribute no entry to a constructed Feature collection. Dependencies resolve in declaration order; unresolved predecessors leave dependent choices pending without evaluating their expressions.
-- `requires ClassFeat != BonusFeat;` validates a combination. Pool membership and combination requirements are distinct: the report exposes the declared candidates, while `Validate` evaluates the complete selected combination. `collection<Feature>.has(Feature)` checks direct selections; it does not expand grants transitively.
-- Native collection overrides use optional vectors. An explicitly empty vector is different from an omitted override. Existing snapshot restore preserves empty entries, sparse collection IDs and the allocator position; omission of disabled choices applies to construction, not restore.
-- All three factory APIs use the same resolver, including checked field initialization and nested defaults. Describe and Validate create no entity identity. Generated construction helpers initialize temporary storage without running nested rule defaults early; explicit nested values therefore override defaults before their evaluation. Invalid Create throws a diagnostic before publishing an entity.
-- `tests/inventory/fixtures/constructor_choices.ttrpg` exercises this language contract with fighter/wolf examples and independent equipment. These remain compiler integration fixtures rather than the completed Remaster creatures.
-
-## Round and Turn Resources
-- `Flourishes` is an ordinary declared `Resource`, initially one. Flourish actions share a cost against it. `BeginRound` restores it for every participant; beginning another turn within that round does not restore it. Resources and attack counters participate in snapshots and the same rollback journal as combat effects.
-- Native start-of-turn scheduled effects run before `BeginTurn`, matching the final resource-replenishment step in [Start Your Turn](https://2e.aonprd.com/Rules.aspx?ID=2428). End-of-turn effects run before `EndTurn` and before advancing initiative. The old native action-grant constant and scheduled action-clearing task are removed.
-- Reactions persist after a turn and across a round boundary until the creature's next `BeginTurn`. Before its first turn, a creature retains its explicitly initialized reaction count; the default is zero. Scenarios can initialize one when the GM permits reactions before the first turn.
-- The factory binds the generated `StartCreatureTurn` activity to the runtime turn-start hook. It resolves recovery first, collecting `RecoveryDCAdjustment` feature contributions, then calls `BeginTurn`. `Toughness` contributes -1 through the pure event and can be granted transitively by any provider; HP from Toughness belongs to creature construction. Duplicate reductions use the lowest contribution. No named feat is hard-coded into the creature's health methods.
-- Automatic phases retain actor identity and journaled state across choices. They use an internal system execution mode so unconscious creatures can make recovery checks and dead creatures can finish cleanup. Ordinary actions and reactions require `CanAct()`. Unconscious creatures still regain resources but cannot use them; dead creatures do not regain actions or reactions.
-- Slowed/stunned, persistent damage and condition expiration remain separate work. The movement module uses a journaled diagonal counter reset at the creature's own turn end; knockout initiative repositioning is integrated separately with damage results.
-
-## Creature Description
-- `creature_description.ttrpg` declares `ECreatureTrait`, `TLanguage`, `TSense`, sense kinds and precision. `TCreature` stores its name, trait set, languages and senses; race and class values also have names. Languages use named class values so a setting can declare arbitrary languages without changing a fixed language enum.
-- Sense ranges are in feet; zero means no range was specified. A Scent entry with Imprecise precision does not itself add detection mechanics. Traits currently cover the human/fighter and wolf acceptance data and can be extended in this PF2e rules module.
-- Existing creature Movement and weapon Reach remain measured in grid cells. Pure `SpeedFeet` and `ReachFeet` queries perform checked multiplication by five for display. Do not add a second stored speed/reach value with different units.
-- Advanced weapons have a distinct category and proficiency entry. Fighter's trained Advanced rank must remain independent of its expert simple/martial/unarmed ranks. Historical JSON omits the new descriptive fields and remains loadable.
-
-## Creature Health Transitions
-- `health.ttrpg` defines `EZeroHpRule`, the critical/nonlethal damage context, and the health result containing HP accounting plus new-knockout/death flags. `THitPoints` remains the arithmetic value; `TCreature.ApplyResolvedDamage` owns health transitions after defenses, while `ReceiveDamageWithContext` applies defenses exactly once. Native damage/healing adapters call generated creature methods. The legacy damage signature supplies an ordinary lethal context; callers with critical or nonlethal effects must use the contextual API.
-- The default `Defeat` policy preserves historical HP-zero defeat and healing, without dying or massive-damage death. `Dying` opts into character recovery; `Death` kills on lethal damage at zero HP. Nonlethal knockout under either strict policy leaves the creature unconscious. Creating a `Death` creature at zero HP defaults its stored `Dead` flag to true unless unconscious was explicitly supplied. Snapshots preserve the stored flag and conditions. A dying value at or above four also makes `IsDead()` true.
-- `IsAlive()` retains HP-positive semantics for `Defeat`; under the strict policies it includes living unconscious creatures. `CanAct()` requires positive HP and excludes dead, dying and unconscious creatures. `IsDefeated()` currently means inability to act for encounter completion; it does not mean death. A sole unconscious combatant has lost the encounter, so automatic recovery during an ongoing battle requires another active ally.
-- Knockout creates unconscious and prone conditions. Critical damage starts/increases dying by two, ordinary damage by one; wounded adds only when gaining dying. For a stabilized creature already at zero HP, later lethal damage is interpreted as gaining dying again with the same critical and wounded rules. This makes that otherwise implicit transition explicit. See [knockout](https://2e.aonprd.com/Rules.aspx?ID=2324) and [damage while dying](https://2e.aonprd.com/Rules.aspx?ID=2327).
-- Positive resolved damage counts while dying even when temporary HP absorb it all. Temporary HP do not restore current HP or stabilize dying. Strict policies apply [massive damage](https://2e.aonprd.com/Rules.aspx?ID=2332) to one resolved blow before temporary absorption; the threshold uses division to avoid overflowing twice the maximum. The rule has no separate nonlethal exception. See [temporary HP](https://2e.aonprd.com/Rules.aspx?ID=2320).
-- `RecoveryDC(DcAdjustment)` and `ApplyRecovery(Natural, DcAdjustment)` accept an explicit ruleset contribution. The generated methods contain no named-feat lookup or event dispatch. Recovery uses a flat check and the normal four degrees; reaching zero dying stabilizes without restoring HP and increases wounded. Positive healing removes dying and unconscious, increases wounded only when dying was actually lost, preserves prone and temporary HP, and cannot restore a dead creature. [Recovery rules](https://2e.aonprd.com/Rules.aspx?ID=2326).
-- Unconsciousness contributes a four-point status penalty to AC, Perception and Reflex; it merges with frightened and explicit status modifiers by maximum rather than addition. Its off-guard AC penalty shares the same two-point circumstance penalty as prone. The separate blindness/detection effects, dropping held items and timed awakening still need the corresponding vision, equipment and elapsed-time rules. [Unconscious](https://2e.aonprd.com/Conditions.aspx?ID=95).
-- Incapacity prevents using actions; it does not itself erase or prevent replenishing them. `BeginTurn` replenishes unconscious creatures but clears resources for dead creatures. [Gaining and losing actions](https://2e.aonprd.com/Rules.aspx?ID=2341) and [death](https://2e.aonprd.com/Rules.aspx?ID=2329) define these separate rules.
-- `ApplyCreatureDamage` resolves defenses then calls `ApplyResolvedCreatureDamage`. The latter applies generated health transitions and uses `move_before_current_turn` for a new nonfatal knockout under a strict health policy. The anchor is the current turn, which can belong to a different creature than the reactor dealing damage. Existing dying creatures are not repositioned by further damage. Setup execution has no active turn and leaves initiative unchanged. This implements [knockout initiative](https://2e.aonprd.com/Rules.aspx?ID=2324) without putting HP policy in the native initiative container.
-- The legacy `deal_damage` action block resolves its expressions and defenses once, then invokes the same generated activity. Direct `TTransformator` damage/healing calls remain local health operations with no battle phase; battle actions use the declared activities for initiative effects. Existing HP-level methods remain arithmetic primitives and should not be used directly for creature damage/healing rules.
-- Doomed, Hero Points, death effects, timed natural awakening, held-item dropping and blinded detection remain separate rules work.
-
-## PF2e Acceptance Data
-- Use the Remaster rules (Player Core and Monster Core) for the new declarations; existing JSON combat fixtures retain their historical statistics until an explicit data/rules migration.
-- Human fighter 1: Human ancestry boosts Strength/Dexterity; Versatile Human with Toughness; Warrior background boosts Strength/Constitution, Intimidation, Warfare Lore and Intimidating Glare; Fighter key Strength; free boosts Strength/Dexterity/Constitution/Wisdom. Choose Athletics plus Acrobatics, Medicine and Survival; Natural Ambition grants Vicious Swing, and the normal class feat is Sudden Charge. Human also needs Common and one additional language. Expected modifiers: +4/+2/+2/+0/+1/+0; HP 21; unarmored AC 15; Perception +6; Fortitude +7, Reflex +7, Will +4; Class DC 17. Fighter also grants Reactive Strike and Shield Block.
-- Primary rules references: [Human](https://2e.aonprd.com/Ancestries.aspx?ID=64), [Versatile Human](https://2e.aonprd.com/Heritages.aspx?ID=262), [Warrior](https://2e.aonprd.com/Backgrounds.aspx?ID=445), [Fighter](https://2e.aonprd.com/Classes.aspx?ID=35), [Natural Ambition](https://2e.aonprd.com/Feats.aspx?ID=4478), [Toughness](https://2e.aonprd.com/Feats.aspx?ID=5227).
-- [Wolf](https://2e.aonprd.com/Monsters.aspx?ID=3241): level 1, Medium Animal, HP 24, AC 15, Perception +7, low-light vision, imprecise scent 30 feet; Acrobatics +7, Athletics +6, Stealth +7, Survival +7; modifiers +2/+4/+1/-4/+2/-2; Fortitude +6, Reflex +9, Will +5; Speed 35 feet; jaws +9, 1d6+2 piercing, Knockdown. Pack Attack adds 1d4 when the target is in reach of two other allies. Two wolves alone do not satisfy this requirement.
-- [Remaster Knockdown](https://2e.aonprd.com/MonsterAbilities.aspx?ID=46) is a separate one-action Trip immediately after a qualifying hit, without applying or increasing MAP. It is not automatic prone on a jaws hit.
-- [Vicious Swing](https://2e.aonprd.com/Feats.aspx?ID=4775) and [Sudden Charge](https://2e.aonprd.com/Feats.aspx?ID=4774) both cost two actions and have Flourish. Track attacks made separately from their weapon-dependent MAP; Vicious Swing counts as two attacks. Sudden Charge permits two Strides and a melee Strike. Only one Flourish activity per round is allowed.
-- [Intimidating Glare](https://2e.aonprd.com/Feats.aspx?ID=5162) changes Demoralize to visual and removes the shared-language penalty. Toughness also changes recovery checks. [Shield Block](https://2e.aonprd.com/Feats.aspx?ID=5212) requires a raised shield and resolves hardness, creature damage and shield damage. A display-only grant does not implement these feats.
-- [Longsword](https://2e.aonprd.com/Weapons.aspx?ID=386) uses d8 and versatile piercing; the old JSON longsword uses d6. [Default initiative](https://2e.aonprd.com/Rules.aspx?ID=2423) uses Perception; both generated queries and the native initiative adapter now follow this rule.
-- Acceptance covers arbitrary declared weapons and legal declared feature choices using general mechanisms, not the entire published PF2e catalogue.
-- Damage rules references: [damage rolls, minimums and critical doubling](https://2e.aonprd.com/Rules.aspx?ID=2302), [order of immunities, weaknesses and resistances](https://2e.aonprd.com/Rules.aspx?ID=2309). Dice added specifically on a critical hit are not doubled; weapon-dice counts exclude extra dice from activities and traits.
-
-## Declared Shields
-- `shield.ttrpg` declares ordinary `TShield` values and the named `SteelShield`.
-  `TCreature.Shield` holds one selected shield; zero maximum HP means no shield.
-  `Wielded` records selected equipment, while `Raised` is journaled combat state.
-  A broken or destroyed shield cannot be raised, block damage or grant AC.
-  Steel shield statistics follow [Player Core](https://2e.aonprd.com/Shields.aspx?ID=19);
-  loss of function follows [Broken](https://2e.aonprd.com/Conditions.aspx?ID=60).
-- `shield_actions.ShieldActions` grants `RaiseShield` independently of class feats.
-  `ShieldBlockTraining` grants `UseShieldBlock`. Raise costs one action; Block
-  costs one reaction and is offered only to the target of a physical attack
-  while its shield is raised. The declaration mutates only shield HP and returns
-  the remaining pending damage; the parent activity then applies creature damage.
-  [Raise a Shield](https://2e.aonprd.com/Actions.aspx?ID=2316) and
-  [Shield Block](https://2e.aonprd.com/Feats.aspx?ID=5212) define these rules.
-- `ApplyAttackDamage` resolves defenses once, opens `BeforeAttackDamage` once for
-  that invocation, then delivers the returned amount and critical/nonlethal
-  context through `ApplyResolvedCreatureDamage`. Putting the window after defenses
-  is an interpretation of the Block trigger and the damage sequence. Hardness is
-  subtracted once; shield and creature each take the full remainder, and creature
-  temporary HP absorb their share after the window. Production melee Strike,
-  including subordinate and reactive Strikes, uses this route.
-- `ArmorClassWithModifiers` merges the character armor's item bonus and the
-  raised shield's circumstance bonus with explicit typed modifiers, frightened,
-  unconscious and off-guard penalties. Fixed NPC baselines remain complete totals.
-  The old `ArmorClass()` query calls it with an empty modifier contribution.
-- The generic `TurnStartExpiration` lifecycle phase runs before scheduled
-  `OnTurnStart` effects. Its declared method lowers the current actor's shield;
-  recovery and resource replenishment still occur in the later `TurnStart` phase.
-  Ending a turn does not lower the shield. Becoming unconscious or dying drops the shield
-  by clearing both `Wielded` and `Raised` through generated methods.
-- The current equipment model has one ordinary shield field and explicit wielding
-  state. Grip compatibility, picking up dropped equipment, held weapon dropping,
-  and effects on other carried items require further equipment rules. Direct
-  health methods and `ApplyCreatureDamage` describe non-attack damage without a
-  shield window. Legacy mixed-type `FDealDamage` currently delivers an aggregated
-  amount; integrating its attacks requires retaining one typed packet per hit so
-  Hardness is not applied separately to each component.
-
-## Compiled Trip and Monster Knockdown
-- `trip.TripActions` grants `UseTrip`. Ordinary Trip requires a free hand, uses
-  `TCreature.BodyReach` independently of equipped weapon reach, limits the target
-  to one size larger, and rolls Athletics against Reflex DC. It uses non-Agile MAP
-  and records the attempt even on a miss. Success applies Prone; critical success
-  also deals one d6 bludgeoning attack damage without doubling that die; critical
-  failure applies Prone to the actor. Free hands are rechecked after a suspended
-  target choice. [Trip](https://2e.aonprd.com/Actions.aspx?ID=2382) defines the rule.
-- `TTripRules.InReach` delegates to `TCombatGeometry.InReach`, including the
-  special second diagonal for ten-foot reach. This remains a single-position,
-  unobstructed-grid model; creature footprints and actual line-of-effect obstacles
-  are not implemented. [Reach](https://2e.aonprd.com/Rules.aspx?ID=2379) supplies the
-  ten-foot exception. Weapon Trip, its item bonus and optional critical-failure
-  weapon drop, Titan Wrestler, flying targets and alternate maneuver methods are
-  outside this slice.
-- Bound `abilities.Strike` and the actor-granted `abilities.UseStrike` publish the
-  same declared `StrikeResult` only after the melee activity, damage and reaction
-  windows complete. `BasicStrike` grants the latter; it chooses a readied weapon or
-  natural attack independently of weapon ability grants. Subordinate melee calls
-  from Vicious Swing, Sudden Charge or Reactive Strike do not publish this record.
-  Legacy JSON attacks also do not publish it.
-- A natural attack selects `trip.Knockdown` directly in its Features to mark that
-  damage entry and grant `UseKnockdown`; this is an ability marker, not a weapon
-  trait. The follow-up requires the same exact source, a successful previous Strike,
-  its historical marker, and the same living target within current reach and size
-  limits. It pays one Action, attempts Trip without a free-hand requirement, and
-  neither applies nor increases MAP. A failed follow-up still consumes its receipt.
-  [Monster Knockdown](https://2e.aonprd.com/MonsterAbilities.aspx?ID=46) supplies this
-  natural-attack follow-up; ordinary free-hand Trip remains separate.
-- Accepted own actions or reactions invalidate the prior receipt; another actor's
-  action does not. Saved follow-up options retain their receipt version and cannot
-  silently switch to a newer Strike target. Source replacement, target relocation
-  and feature removal are checked before acceptance or resume. Undo restores the
-  receipt and source identity; accepted follow-ups retain their prepared inputs
-  after consuming the receipt. Turn boundaries add no implicit expiration.
-
-## Generated Remaster Encounter
-- `remaster_profiles.ttrpg` now defines the production `HumanFighter1` and `Wolf`
-  factories. `CreateHumanFighter1`, `DescribeHumanFighter1`, and
-  `ValidateHumanFighter1` share the constructor rules. The fighter's level-one
-  attribute/background choices are fixed by this profile; its readied weapons,
-  armor, shield, additional language and declared class/ancestry/general feats are
-  configurable. This is a concrete character profile, not a complete character
-  builder or the entire published feat catalogue. Legacy JSON creatures remain
-  separate historical fixtures.
-- Default class feat is Sudden Charge; Natural Ambition supplies Vicious Swing.
-  Selecting General Training disables the extra class feat and enables a distinct
-  general feat. Versatile heritage and General Training choose from Toughness and
-  Fleet; duplicate selections reject before identity allocation. Toughness changes
-  maximum HP and the existing recovery event; Fleet adds five feet to land Speed.
-  [General Training](https://2e.aonprd.com/Feats.aspx?ID=4476) and
-  [Fleet](https://2e.aonprd.com/Feats.aspx?ID=5150) define these alternatives.
-- `Equipment` means currently readied melee weapons. `TWeapon.HandsRequired` and
-  the selected wielded shield determine the initial free `Hands` resource. A
-  two-handed weapon with a wielded shield rejects construction; empty equipment
-  keeps the generated Fist available. The profile does not model an entire carried
-  inventory or picking up/changing grips. `TCreature.DropShield` releases its hand
-  exactly once, including the knockout-to-death path, and both state changes undo
-  together. Held weapon dropping and general inventory mutation remain separate.
-- The named Longsword has d8 slashing and versatile piercing; WolfJaws has complete
-  +9 attack/+2 damage baselines and grants Knockdown directly. Generic `UseStrike`
-  selects current weapons or natural weapons even when their Feature list is
-  empty. Wolf baselines do not manufacture an ancestry/class or infer missing
-  proficiencies. Two independent wolf factories have independent entity identities,
-  HP, equipment entries, resources, action history and relation keys.
-- Production feature groups have distinct language names: `MovementActions`,
-  `ShieldActions`, `TripActions`, `IntimidationActions`, and `BasicStrike`.
-  Imported ability names currently share a compiler namespace; using `BaseActions`
-  for every module prevented importing the modules together. Their native feature
-  IDs still include the module stem. `CombatBasics` grants the five action groups
-  and the contextual `Flanking` feature.
-
-## Intimidation and Observation
-- `intimidation.ttrpg` declares ordinary auditory Demoralize and the optional visual
-  Intimidating Glare action. Both cost one action, use Intimidation against Will DC
-  within 30 feet, leave MAP unchanged, and share a ten-minute immunity relation
-  keyed by target and actor after every resolved check. A shared named spoken
-  language avoids the ordinary four-point circumstance penalty; `TLanguage.Spoken`
-  distinguishes signed language metadata. Glare uses no language penalty.
-  [Demoralize](https://2e.aonprd.com/Actions.aspx?ID=2395) and
-  [Intimidating Glare](https://2e.aonprd.com/Feats.aspx?ID=5162) are the sources.
-- `Awareness`, `Visibility`, and `Audibility` are declared directional bool relations
-  from observer/listener to subject. Their explicit `get(..., true)` fallback is
-  the current illuminated, open-encounter policy. A scenario can provide persistent
-  false/true overrides through the same generic relation API. The runtime derives
-  none of these facts from the descriptive Senses collection. Ordinary Demoralize
-  checks actor awareness, target hearing and actor `CanVocalize`; Glare checks actor
-  awareness and target-to-actor visibility, and excludes unconscious viewers.
-  Hidden/concealed detection, lighting, obstructed sound, fear/mental immunity,
-  and arbitrary sustained fear effects are not implemented by these defaults.
-- `ApplyFrightened` keeps the highest ordinary value; `EndTurn` decreases it by one
-  for that creature. BeginTurn and other creatures' turns do not decrease it.
-  `ClearFrightened` leaves Demoralize immunity intact. Legacy add/remove-condition
-  blocks delegate to these methods and no longer create private frightened
-  EffectManager counters or start-of-turn scheduler tasks. See
-  [Frightened](https://2e.aonprd.com/Conditions.aspx?ID=76).
-- The relation clock belongs to the encounter. `combat_timing.ttrpg` specifies six
-  seconds per completed round; exact 599/600-second expiry is supported by explicit
-  game-time advancement. Combat quantizes elapsed time at completed round boundaries.
-  New battles start with an empty store and elapsed time zero; cross-encounter
-  transfer/save, exploration timing and detailed within-round deadlines remain
-  separate policies. Observation overrides can be permanent, with no deadline.
+- Additional PF2e actions and feat catalogues, ranged and grip rules, multi-cell footprints, terrain, lighting and perception, held-item dropping, contextual modifiers for other check families, cross-encounter persistence, and whole-action cancellation or refunds. JSON pipelines remain adapters for unmigrated content.

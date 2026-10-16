@@ -44,28 +44,7 @@ contract. Keep analyzer code independent of assistant GUI/audio.
 - Action alternatives carry `optional<TAbilityOption>`; the empty value ends a turn. The aggressive strategy recognizes `abilities.AttackWithWeapon` and `abilities.Strike` by definition ID, independently of display labels and the particular weapon source.
 
 ## Generated Fighter and Wolves
-- `./build/analyzer/analyzer --scenario fighter-wolves --iterations 100` runs one
-  generated `HumanFighter1` against two independent generated `Wolf` values on an
-  open grid. `RunFighterAgainstWolves(iterations, THumanFighter1Options)` also accepts
-  the same configurable weapon/armor/shield/feat options as the generated factory.
-  The default CLI scenario remains `two-warriors` for historical JSON comparison.
-- Bind `TAggressiveMeleeStrategy` to its battle before running multi-team encounters.
-  It selects conscious enemies by team, understands generic UseStrike and source
-  choices, stands when prone, uses available Knockdown, raises an unraised shield
-  with the final action, and closes distance through Stride or Sudden Charge.
-  Typed offers accept Shield Block and Reactive Strike for a lone team member.
-  With allies present, the policy declines Reactive Strike because generic reaction
-  alternatives currently omit the triggering subject; it cannot safely identify
-  that subject as an enemy. Other reaction definitions default to decline. This is a simple
-  deterministic tactical policy, not optimal-play evidence; it does not evaluate
-  Demoralize, weapon damage-type defenses or every feat strategy.
-- Attack and movement-stop decisions use generated `TCombatGeometry.InReach`
-  and the world's line-of-effect policy. Source-bound Strike checks that its
-  particular weapon reaches a conscious enemy; aggregate UseStrike takes
-  precedence when available. Without an applicable attack the policy tries
-  movement, and without conscious enemies it ends the turn. Position scoring
-  remains a local distance heuristic, without obstacle pathfinding.
-- Generated encounter reports retain an entry per creature; both wolves receive
-  their team's win result, while each death counter uses that creature's IsDead.
-  An unconscious surviving fighter can lose without dying. Historical two-warrior
-  reporting retains its earlier legacy IsAlive semantics.
+- `./build/analyzer/analyzer --scenario fighter-wolves --iterations 100` runs one generated `HumanFighter1` against two generated `Wolf` values; `RunFighterAgainstWolves` accepts the same options as the generated factory. The default scenario stays `two-warriors` for historical JSON comparison.
+- Bind `TAggressiveMeleeStrategy` to its battle before multi-team encounters. It targets the weakest conscious enemy, stands when prone, uses Knockdown, raises a shield with its last action, prefers aggregate `UseStrike`, and otherwise closes distance with Stride or Sudden Charge using `TCombatGeometry.InReach`.
+- It accepts Shield Block, and Reactive Strike only for a lone team member, because reaction alternatives do not name the triggering creature. Other reactions are declined. This is a simple deterministic policy, not optimal play.
+- Encounter reports keep one entry per creature: wolves share their team's wins, and death counts use each creature's `IsDead`. The historical two-warrior report keeps its `IsAlive` semantics.
