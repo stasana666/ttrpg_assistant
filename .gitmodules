@@ -1,12 +1,6 @@
 [submodule "extern/googletest"]
 	path = extern/googletest
 	url = https://github.com/google/googletest.git
-[submodule "extern/json"]
-	path = extern/json
-	url = https://github.com/nlohmann/json.git
-[submodule "extern/json-schema-validator"]
-	path = extern/json-schema-validator
-	url = https://github.com/pboettch/json-schema-validator
 [submodule "extern/sfml"]
 	path = extern/sfml
 	url = https://github.com/SFML/SFML.git

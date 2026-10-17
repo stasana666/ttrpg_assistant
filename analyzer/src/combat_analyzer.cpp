@@ -6,73 +6,64 @@
 #include <pf2e_engine/battle.h>
 #include <pf2e_engine/battle_map.h>
 #include <pf2e_engine/creature.h>
-#include <pf2e_engine/game_object_logic/game_object_id.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/random.h>
 
-#include <cpp_config.h>
 
-#include <filesystem>
+#include <deque>
 
-namespace {
-
-const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
-
+TEncounterAnalysisResult TCombatAnalyzer::RunTwoFighters(size_t iterations)
+{
+    return Run(iterations, {
+        {.Name = "Fighter A", .Team = 1, .Position = {3, 3}, .Create = [] { return CreateHumanFighter1({.Name = "Fighter A"}); }},
+        {.Name = "Fighter B", .Team = 2, .Position = {4, 3}, .Create = [] { return CreateHumanFighter1({.Name = "Fighter B"}); }},
+    });
 }
 
-TCombatAnalyzer::TCombatAnalyzer()
+TEncounterAnalysisResult TCombatAnalyzer::RunFighterAgainstWolves(
+    size_t iterations, const THumanFighter1Options& fighter_options)
 {
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(kPathToData)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".json") {
-            factory_.AddSource(entry.path());
-        }
+    return Run(iterations, {
+        {.Name = fighter_options.Name.value_or("Human fighter 1"), .Team = 1, .Position = {3, 3},
+         .Create = [fighter_options] { return CreateHumanFighter1(fighter_options); }},
+        {.Name = "Wolf A", .Team = 2, .Position = {6, 2}, .Create = [] { return CreateWolf({.Name = "Wolf A"}); }},
+        {.Name = "Wolf B", .Team = 2, .Position = {6, 4}, .Create = [] { return CreateWolf({.Name = "Wolf B"}); }},
+    });
+}
+
+TEncounterAnalysisResult TCombatAnalyzer::Run(size_t iterations, const std::vector<TCombatant>& combatants)
+{
+    TEncounterAnalysisResult result;
+    result.iterations = iterations;
+    for (const auto& combatant : combatants) {
+        result.combatants.push_back({.name = combatant.Name, .team = combatant.Team});
     }
-}
-
-TAnalysisResult TCombatAnalyzer::RunTwoWarriors(size_t iterations)
-{
-    const TGameObjectId warrior_id = TGameObjectIdManager::Instance().Register("warrior");
-    const TGameObjectId map_id = TGameObjectIdManager::Instance().Register("simple_battle_map");
-
-    TAnalysisResult result;
-    result.side_a = {.name = "Warrior A", .team = 1, .wins = 0, .deaths = 0};
-    result.side_b = {.name = "Warrior B", .team = 2, .wins = 0, .deaths = 0};
-
-    for (size_t i = 0; i < iterations; ++i) {
-        TRandomGenerator rng(static_cast<int>(i));
+    for (size_t iteration = 0; iteration < iterations; ++iteration) {
+        TRandomGenerator rng(static_cast<int>(iteration));
         TAggressiveMeleeStrategy strategy;
         TAutomatedInteractionSystem io_system(strategy);
-
-        TCreature creature_a = factory_.Create<TCreature>(warrior_id);
-        TCreature creature_b = factory_.Create<TCreature>(warrior_id);
-
-        TBattle battle(factory_.Create<TBattleMap>(map_id), &rng, io_system);
-        battle.AddPlayer(
-            TPlayer(&creature_a, TPlayerTeam{result.side_a.team}, TPlayerId{1}, result.side_a.name, "warrior.png"),
-            TPosition{.x = 3, .y = 3});
-        battle.AddPlayer(
-            TPlayer(&creature_b, TPlayerTeam{result.side_b.team}, TPlayerId{2}, result.side_b.name, "warrior.png"),
-            TPosition{.x = 4, .y = 3});
-
+        std::deque<TCreature> creatures;
+        TBattle battle(TBattleMap(12, 12), &rng, io_system, rules_);
+        for (size_t index = 0; index < combatants.size(); ++index) {
+            creatures.push_back(combatants[index].Create());
+            battle.AddPlayer(TPlayer(&creatures.back(), TPlayerTeam{combatants[index].Team},
+                TPlayerId{static_cast<int>(index)}, combatants[index].Name, ""),
+                combatants[index].Position, {.TieOrder = index == 0 ? 1 : 0});
+        }
+        strategy.BindBattle(battle);
         battle.StartBattle();
-
-        std::optional<int> winner = battle.Winner();
-        if (winner == result.side_a.team) {
-            ++result.side_a.wins;
-        } else if (winner == result.side_b.team) {
-            ++result.side_b.wins;
-        } else {
+        const auto winner = battle.Winner();
+        if (!winner) {
             ++result.draws;
         }
-
-        if (!creature_a.IsAlive()) {
-            ++result.side_a.deaths;
-        }
-        if (!creature_b.IsAlive()) {
-            ++result.side_b.deaths;
+        for (size_t index = 0; index < combatants.size(); ++index) {
+            if (winner == result.combatants[index].team) {
+                ++result.combatants[index].wins;
+            }
+            if (creatures[index].IsDead()) {
+                ++result.combatants[index].deaths;
+            }
         }
     }
-
-    result.iterations = iterations;
     return result;
 }

@@ -1,5 +1,3 @@
-add_subdirectory(${CMAKE_SOURCE_DIR}/extern/json ${CMAKE_BINARY_DIR}/extern/json)
-add_subdirectory(${CMAKE_SOURCE_DIR}/extern/json-schema-validator ${CMAKE_BINARY_DIR}/extern/json-schema-validator)
 add_subdirectory(${CMAKE_SOURCE_DIR}/extern/googletest ${CMAKE_BINARY_DIR}/extern/googletest)
 add_subdirectory(${CMAKE_SOURCE_DIR}/extern/sfml ${CMAKE_BINARY_DIR}/extern/sfml)
 add_subdirectory(${CMAKE_SOURCE_DIR}/extern/llama ${CMAKE_BINARY_DIR}/extern/llama)

@@ -4,8 +4,9 @@
 #include <pf2e_engine/common/channel.h>
 #include <pf2e_engine/common/errors.h>
 #include <pf2e_engine/creature.h>
-#include <pf2e_engine/game_object_logic/game_object_factory.h>
-#include <pf2e_engine/game_object_logic/game_object_id.h>
+#include <pf2e_engine/rules.h>
+#include <pf2e_engine/inventory/battle_maps.h>
+#include <pf2e_engine/inventory/remaster_profiles.h>
 #include <assistant/gui/board.h>
 #include <assistant/interaction_system.h>
 #include <pf2e_engine/player.h>
@@ -24,11 +25,6 @@
 #include <iostream>
 #include <thread>
 
-using FsPath = std::filesystem::path;
-using FsDirEntry = std::filesystem::directory_entry;
-using FsRecursiveIterator = std::filesystem::recursive_directory_iterator;
-
-const std::filesystem::path kPathToData{kRootDirPath + "/pf2e_engine/data"};
 const std::filesystem::path kPathToImages{kRootDirPath + "/assistant/images"};
 
 TConfig ParseArgs(int argc, char** argv)
@@ -50,35 +46,23 @@ TConfig ParseArgs(int argc, char** argv)
     return cfg;
 }
 
-void InitGameObjects(TGameObjectFactory& factory, [[maybe_unused]] TInteractionSystem& interaction_system)
+TCreature CreateCreature(TInteractionSystem& interaction_system)
 {
-    for (const FsDirEntry& dir_entry : FsRecursiveIterator(kPathToData)) {
-        if (dir_entry.is_regular_file() && dir_entry.path().extension() == ".json") {
-            factory.AddSource(dir_entry.path());
-        }
-    }
+    using FProfile = std::function<TCreature()>;
+    auto profiles = TAlternatives::Create<FProfile>("character");
+    profiles.AddAlternative("Human fighter", FProfile{[] { return CreateHumanFighter1(); }});
+    profiles.AddAlternative("Wolf", FProfile{[] { return CreateWolf(); }});
+    profiles.AddAlternative("Elf wizard", FProfile{[] { return CreateElfWizard5(); }});
+    return interaction_system.ChooseAlternative<FProfile>(0, profiles)();
 }
 
-TCreature CreateCreature(TGameObjectFactory& factory, TInteractionSystem& interaction_system)
+TBattleMap CreateBattleMap(TInteractionSystem& interaction_system)
 {
-    std::function<std::string(const TGameObjectId&)> func = [](const TGameObjectId& id)
-        { return std::string(TGameObjectIdManager::Instance().Name(id)); };
-
-    auto player_id = interaction_system.ChooseAlternative<TGameObjectId>(0,
-        TAlternatives::Create<TGameObjectId>("character", factory.AllKnown<TCreature>(), func));
-
-    return factory.Create<TCreature>(player_id);
-}
-
-TBattleMap CreateBattleMap(TGameObjectFactory& factory, TInteractionSystem& interaction_system)
-{
-    std::function<std::string(const TGameObjectId&)> func = [](const TGameObjectId& id)
-        { return std::string(TGameObjectIdManager::Instance().Name(id)); };
-
-    auto battle_map_id = interaction_system.ChooseAlternative<TGameObjectId>(0,
-        TAlternatives::Create<TGameObjectId>("battle map", factory.AllKnown<TBattleMap>(), func));
-
-    return factory.Create<TBattleMap>(battle_map_id);
+    using FLayout = std::function<TMapLayout()>;
+    auto layouts = TAlternatives::Create<FLayout>("battle map");
+    layouts.AddAlternative("Simple map", FLayout{[] { return CreateSimpleMap(); }});
+    const auto layout = interaction_system.ChooseAlternative<FLayout>(0, layouts)();
+    return TBattleMap(layout.Width(), layout.Height());
 }
 
 int main(int argc, char** argv)
@@ -94,14 +78,12 @@ int main(int argc, char** argv)
         std::cerr << "Audio input subsystem is disabled because no speech or NLP models were provided." << std::endl;
     }
 
-    TGameObjectFactory factory;
-    InitGameObjects(factory, interaction_system);
-
-    TCreature player_1 = CreateCreature(factory, interaction_system);
-    TCreature player_2 = CreateCreature(factory, interaction_system);
+    TCreature player_1 = CreateCreature(interaction_system);
+    TCreature player_2 = CreateCreature(interaction_system);
 
     TRandomGenerator dice_roller(666);
-    TBattle battle(CreateBattleMap(factory, interaction_system), &dice_roller, interaction_system);
+    TBattle battle(CreateBattleMap(interaction_system), &dice_roller, interaction_system,
+                   CreateAbilityRules());
     TBoardGUI board(battle.BattleMapMutable(), kPathToImages, chan.MakeProducer());
 
     battle.AddPlayer(TPlayer(
@@ -117,9 +99,9 @@ int main(int argc, char** argv)
         });
 
     battle.AddPlayer(TPlayer(
-            &player_1,
+            &player_2,
             TPlayerTeam{2},
-            TPlayerId{1},
+            TPlayerId{2},
             "Oown",
             "warrior2.png"
         ),

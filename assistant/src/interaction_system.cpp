@@ -1,7 +1,6 @@
 #include <assistant/interaction_system.h>
 
 #include <assistant/audio_input/prompt.h>
-#include <pf2e_engine/actions/save_point.h>
 
 #include <poll.h>
 #include <unistd.h>
@@ -156,9 +155,4 @@ size_t TInteractionSystem::ChooseAlternativeIndex(int player_id, const TAlternat
     }
 
     return result;
-}
-
-void TInteractionSystem::HandleReactionTrigger(const TTriggerContext&, const TState& state)
-{
-    throw TSavepointStackUnwind(state, []() {});
 }

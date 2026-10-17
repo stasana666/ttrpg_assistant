@@ -18,7 +18,6 @@ public:
     std::ostream& GameLog() override { return null_stream_; }
     std::ostream& DevLog() override { return null_stream_; }
 
-    void HandleReactionTrigger(const TTriggerContext&, const TState&) override {}
 
 protected:
     size_t ChooseAlternativeIndex(int player_id, const TAlternatives& alternatives) override
