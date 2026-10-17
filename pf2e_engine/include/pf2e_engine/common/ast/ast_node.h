@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 class TAstNode {
 public:
@@ -24,12 +25,14 @@ public:
 
     std::string PrettyPrint(int indent = 0) const;
     std::string DiffWith(const TAstNode& other) const;
+    std::vector<std::pair<std::string, std::string>> Leaves() const;
 
 private:
     TAstNode() = default;
 
     std::string DiffImpl(const TAstNode& other, const std::string& path) const;
     static std::string KindName(int kind);
+    void CollectLeaves(const std::string& path, std::vector<std::pair<std::string, std::string>>& leaves) const;
 
     enum class EKind { Null, Value, Object };
     EKind kind_ = EKind::Null;

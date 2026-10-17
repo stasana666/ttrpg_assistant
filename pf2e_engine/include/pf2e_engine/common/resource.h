@@ -1,11 +1,6 @@
 #pragma once
 
-
 #include <pf2e_engine/common/ast/ast_constructable.h>
-
-#include <nlohmann/json_fwd.hpp>
-
-class TGameObjectFactory;
 
 class TResource {
 public:
@@ -18,7 +13,6 @@ public:
     void Reduce(int count);
     void Add(int count);
 
-    static TResource FromJson(const nlohmann::json& j, const TGameObjectFactory& factory);
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:

@@ -1,173 +1,11 @@
 #include <pf2e_engine/transformation/transformation.h>
 #include <pf2e_engine/creature.h>
-#include <pf2e_engine/effect_manager.h>
 #include <pf2e_engine/initiative_order.h>
 #include <pf2e_engine/player.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 
 #include <stdexcept>
-
-namespace {
-
-int GetConditionValue(const TVariantMap<EConditionKind, TCondition>& conditions,
-                      EConditionKind condition)
-{
-    if (!conditions.Has(condition)) {
-        return 0;
-    }
-    switch (condition) {
-        case EConditionKind::Prone:
-            return 1;
-        case EConditionKind::Frightened:
-            return conditions.Get<TConditionFrightened>()->Value;
-        case EConditionKind::MultipleAttackPenalty:
-            return conditions.Get<TConditionMultipleAttackPenalty>()->Value;
-    }
-    throw std::logic_error("unreachable");
-}
-
-void SetConditionValue(TVariantMap<EConditionKind, TCondition>& conditions,
-                       EConditionKind condition,
-                       int value)
-{
-    if (value <= 0) {
-        conditions.Erase(condition);
-        return;
-    }
-    switch (condition) {
-        case EConditionKind::Prone:
-            conditions.Set(TConditionProne{});
-            return;
-        case EConditionKind::Frightened:
-            conditions.Set(TConditionFrightened{.Value = value});
-            return;
-        case EConditionKind::MultipleAttackPenalty:
-            conditions.Set(TConditionMultipleAttackPenalty{.Value = value});
-            return;
-    }
-    throw std::logic_error("unreachable");
-}
-
-}
-
-TChangeHitPoints::TChangeHitPoints(TBoundedQuantity* hitpoints, int value)
-    : hitpoints_(hitpoints)
-    , prev_(*hitpoints_)
-{
-    if (value < 0) {
-        hitpoints_->Reduce(-value);
-    } else {
-        hitpoints_->Restore(value);
-    }
-}
-
-void TChangeHitPoints::Undo()
-{
-    *hitpoints_ = prev_;
-}
-
-TChangeCondition::TChangeCondition(TVariantMap<EConditionKind, TCondition>* conditions,
-                                   EConditionKind condition,
-                                   int new_value)
-    : conditions_(conditions)
-    , condition_(condition)
-    , prev_value_(GetConditionValue(*conditions_, condition))
-{
-    SetConditionValue(*conditions_, condition_, new_value);
-}
-
-void TChangeCondition::Undo()
-{
-    SetConditionValue(*conditions_, condition_, prev_value_);
-}
-
-TChangeResource::TChangeResource(TResource* resource, int delta)
-    : resource_(resource)
-    , prev_count_(resource->Count())
-{
-    if (delta > 0) {
-        resource_->Add(delta);
-    } else if (delta < 0) {
-        resource_->Reduce(-delta);
-    }
-}
-
-void TChangeResource::Undo()
-{
-    int current = resource_->Count();
-    if (current < prev_count_) {
-        resource_->Add(prev_count_ - current);
-    } else if (current > prev_count_) {
-        resource_->Reduce(current - prev_count_);
-    }
-}
-
-TAddEffect::TAddEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value)
-    : manager_(manager)
-    , player_(player)
-    , condition_(condition)
-    , value_(value)
-{
-    manager_->InsertValue(player_, condition_, value_);
-}
-
-void TAddEffect::Undo()
-{
-    manager_->EraseValue(player_, condition_, value_);
-}
-
-TRemoveEffect::TRemoveEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value)
-    : manager_(manager)
-    , player_(player)
-    , condition_(condition)
-    , value_(value)
-{
-    manager_->EraseValue(player_, condition_, value_);
-}
-
-void TRemoveEffect::Undo()
-{
-    manager_->InsertValue(player_, condition_, value_);
-}
-
-TAddTask::TAddTask(TTaskScheduler* scheduler, TTask task)
-    : scheduler_(scheduler)
-    , task_id_(scheduler_->AddTaskWithId(std::move(task)))
-{
-}
-
-void TAddTask::Undo()
-{
-    scheduler_->RemoveTaskById(task_id_);
-}
-
-TRemoveTask::TRemoveTask(TTaskScheduler* scheduler, TTaskId id, TTask task, size_t progress_index)
-    : scheduler_(scheduler)
-    , task_id_(id)
-    , task_(std::move(task))
-    , progress_index_(progress_index)
-{
-    scheduler_->RemoveTaskById(task_id_);
-}
-
-void TRemoveTask::Undo()
-{
-    scheduler_->RestoreTask(task_id_, std::move(task_), progress_index_);
-}
-
-TAdvanceTaskProgress::TAdvanceTaskProgress(TTaskScheduler* scheduler, TTaskId id, size_t new_index)
-    : scheduler_(scheduler)
-    , task_id_(id)
-    , prev_index_(scheduler_->GetTaskProgress(id))
-{
-    scheduler_->SetTaskProgress(task_id_, new_index);
-}
-
-void TAdvanceTaskProgress::Undo()
-{
-    scheduler_->SetTaskProgress(task_id_, prev_index_);
-}
 
 TChangeCurrentPlayer::TChangeCurrentPlayer(TInitiativeOrder* order, size_t new_position)
     : order_(order)
@@ -193,86 +31,38 @@ void TChangeRound::Undo()
     order_->SetRound(prev_round_);
 }
 
+TMoveInitiativePlayer::TMoveInitiativePlayer(TInitiativeOrder* order, TPlayer* target, TPlayer* anchor)
+    : order_(order)
+    , target_(target)
+    , previous_successor_(nullptr)
+{
+    if (order_ == nullptr) {
+        throw std::invalid_argument("initiative relocation requires an order");
+    }
+    order_->ValidateMoveBefore(target, anchor);
+    previous_successor_ = order_->Successor(target);
+    order_->Relocate(target, anchor);
+}
+
+void TMoveInitiativePlayer::Undo()
+{
+    order_->Relocate(target_, previous_successor_);
+}
+
 TMovePlayer::TMovePlayer(TPlayer* player, TPosition new_position)
     : player_(player)
-    , prev_position_(player->GetPosition())
+    , prev_position_{}
 {
+    if (player_ == nullptr) {
+        throw std::invalid_argument("movement requires a player");
+    }
+    prev_position_ = player_->GetPosition();
     player_->SetPosition(new_position);
 }
 
 void TMovePlayer::Undo()
 {
     player_->SetPosition(prev_position_);
-}
-
-TAstNode TChangeHitPoints::GetAst(TAstContext& ctx) const
-{
-    TAstNode node = TAstNode::MakeObject("TChangeHitPoints");
-    AddReference(node, "hitpoints_ref", hitpoints_, ctx);
-    AddOwnedObject(node, "prev", prev_, ctx);
-    return node;
-}
-
-TAstNode TChangeCondition::GetAst(TAstContext&) const
-{
-    TAstNode node = TAstNode::MakeObject("TChangeCondition");
-    AddValueField(node, "condition", condition_);
-    AddValueField(node, "prev_value", prev_value_);
-    return node;
-}
-
-TAstNode TChangeResource::GetAst(TAstContext& ctx) const
-{
-    TAstNode node = TAstNode::MakeObject("TChangeResource");
-    AddReference(node, "resource_ref", resource_, ctx);
-    AddValueField(node, "prev_count", prev_count_);
-    return node;
-}
-
-TAstNode TAddEffect::GetAst(TAstContext& ctx) const
-{
-    TAstNode node = TAstNode::MakeObject("TAddEffect");
-    AddReference(node, "manager_ref", manager_, ctx);
-    AddReference(node, "player_ref", player_, ctx);
-    AddValueField(node, "condition", condition_);
-    AddValueField(node, "value", value_);
-    return node;
-}
-
-TAstNode TRemoveEffect::GetAst(TAstContext& ctx) const
-{
-    TAstNode node = TAstNode::MakeObject("TRemoveEffect");
-    AddReference(node, "manager_ref", manager_, ctx);
-    AddReference(node, "player_ref", player_, ctx);
-    AddValueField(node, "condition", condition_);
-    AddValueField(node, "value", value_);
-    return node;
-}
-
-TAstNode TAddTask::GetAst(TAstContext& ctx) const
-{
-    TAstNode node = TAstNode::MakeObject("TAddTask");
-    AddReference(node, "scheduler_ref", scheduler_, ctx);
-    AddValueField(node, "task_id", task_id_);
-    return node;
-}
-
-TAstNode TRemoveTask::GetAst(TAstContext& ctx) const
-{
-    TAstNode node = TAstNode::MakeObject("TRemoveTask");
-    AddReference(node, "scheduler_ref", scheduler_, ctx);
-    AddValueField(node, "task_id", task_id_);
-    node.AddChild("task", GetTaskAst(task_, ctx, progress_index_));
-    return node;
-}
-
-TAstNode TAdvanceTaskProgress::GetAst(TAstContext& ctx) const
-{
-    TAstNode node = TAstNode::MakeObject("TAdvanceTaskProgress");
-    AddReference(node, "scheduler_ref", scheduler_, ctx);
-    AddValueField(node, "task_id", task_id_);
-    AddValueField(node, "prev_index", prev_index_);
-    return node;
 }
 
 TAstNode TChangeCurrentPlayer::GetAst(TAstContext& ctx) const
@@ -296,5 +86,14 @@ TAstNode TMovePlayer::GetAst(TAstContext& ctx) const
     TAstNode node = TAstNode::MakeObject("TMovePlayer");
     AddReference(node, "player_ref", player_, ctx);
     AddValueField(node, "prev_position", prev_position_);
+    return node;
+}
+
+TAstNode TMoveInitiativePlayer::GetAst(TAstContext& ctx) const
+{
+    TAstNode node = TAstNode::MakeObject("TMoveInitiativePlayer");
+    AddReference(node, "order_ref", order_, ctx);
+    AddReference(node, "target_ref", target_, ctx);
+    AddReference(node, "previous_successor_ref", previous_successor_, ctx);
     return node;
 }

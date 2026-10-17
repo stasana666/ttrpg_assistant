@@ -1,47 +1,35 @@
 #pragma once
 
-#include <pf2e_engine/actions/action_block.h>
 #include <pf2e_engine/actions/action_context.h>
+#include <pf2e_engine/actions/resource_payment.h>
 
-class TWeapon;
-
-enum class EResourceKind {
-    Action,
-    Reaction,
-};
+#include <functional>
+#include <memory>
+#include <string>
+#include <string_view>
 
 class TAction {
 public:
-    using TPipeline = std::vector<std::unique_ptr<IActionBlock>>;
+    using FBody = std::function<void(std::shared_ptr<TActionContext>)>;
 
-    struct TResourceCost {
-        EResourceKind kind;
-        int count;
+    using TBoundResourceCost = ::TBoundResourceCost;
+    using TBoundResources = ::TBoundResources;
+
+    struct TCompiledBody {
+        FBody Run;
     };
 
-    using TResources = std::vector<TResourceCost>;
+    TAction(FBody body, TBoundResources costs, std::string name);
+    TAction(TCompiledBody body, TBoundResources costs, std::string name);
 
-    // TODO: only weapon variables for now; generalise to other object types.
-    struct TActionVariable {
-        TGameObjectId id;
-        std::shared_ptr<TWeapon> weapon;
-    };
-
-    using TVariables = std::vector<TActionVariable>;
-
-    TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name,
-            TVariables&& variables = {});
-
-    void Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player);
-    void Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player);
-    bool Check(const TPlayer& self);
+    void Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const;
+    void Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player) const;
+    bool Check(const TPlayer& self) const;
     std::string_view Name() const;
 
 private:
-    TPipeline pipeline_;
-    TResources consume_;
+    FBody body_;
+    TResourcePayment payment_;
+    bool compiled_body_ = false;
     std::string name_;
-    TVariables variables_;
 };
-
-void RunSubPipeline(std::shared_ptr<TActionContext> ctx, IActionBlock* first);

@@ -4,13 +4,15 @@
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/ast/ast_layout_assert.h>
 
-#include <nlohmann/json.hpp>
+#include <stdexcept>
 
-TBattleMap::TBattleMap(nlohmann::json& json)
+TBattleMap::TBattleMap(int x_size, int y_size)
+    : x_size_(x_size)
+    , y_size_(y_size)
 {
-    x_size_ = json["x_size"];
-    y_size_ = json["y_size"];
-
+    if (x_size_ <= 0 || y_size_ <= 0) {
+        throw std::invalid_argument("battle map size must be positive");
+    }
     battlemap_.resize(y_size_, std::vector<TCell>(x_size_, { nullptr }));
 }
 
@@ -22,6 +24,12 @@ int TBattleMap::GetXSize() const
 int TBattleMap::GetYSize() const
 {
     return y_size_;
+}
+
+bool TBattleMap::Contains(TPosition position) const
+{
+    return position.x >= 0 && position.y >= 0
+        && position.x < x_size_ && position.y < y_size_;
 }
 
 bool TBattleMap::HasLine(TPosition, TPosition) const
@@ -94,11 +102,17 @@ TPosition TBattleMap::ChoosePosition() const
 
 const TBattleMap::TCell& TBattleMap::GetCell(int x, int y) const
 {
+    if (!Contains({x, y})) {
+        throw std::out_of_range("battle map cell is outside the map");
+    }
     return battlemap_[y][x];
 }
 
 TBattleMap::TCell& TBattleMap::GetCell(int x, int y)
 {
+    if (!Contains({x, y})) {
+        throw std::out_of_range("battle map cell is outside the map");
+    }
     return battlemap_[y][x];
 }
 

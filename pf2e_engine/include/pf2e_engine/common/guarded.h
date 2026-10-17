@@ -11,8 +11,7 @@ public:
     const T& operator*() const { return *v_; }
 
 private:
-    friend class TTransformator;
-    friend class TChangeCondition;
+    friend class TGeneratedExecutionContext;
     T& Mutable() const { return *v_; }
 
     T* v_;

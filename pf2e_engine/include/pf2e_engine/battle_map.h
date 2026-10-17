@@ -3,11 +3,9 @@
 #include <pf2e_engine/common/ast/ast_constructable.h>
 #include <pf2e_engine/player.h>
 
-#include <nlohmann/json_fwd.hpp>
-
 class TBattleMap {
 public:
-    explicit TBattleMap(nlohmann::json& json);
+    TBattleMap(int x_size, int y_size);
 
     struct TCell {
         TPlayer* player;
@@ -15,6 +13,7 @@ public:
 
     int GetXSize() const;
     int GetYSize() const;
+    bool Contains(TPosition position) const;
 
     bool HasLine(TPosition src, TPosition dst) const;
     bool HasLine(TPosition src, TPosition dst, int max_length) const;

@@ -3,9 +3,9 @@
 #include <pf2e_engine/alternatives.h>
 
 #include <cassert>
+#include <functional>
 #include <ostream>
 
-struct TTriggerContext;
 class TState;
 
 class IInteractionSystem {
@@ -24,7 +24,8 @@ public:
         return alternatives[index].Get<T>();
     }
 
-    virtual void HandleReactionTrigger(const TTriggerContext& trigger, const TState& state) = 0;
+    virtual void RequestChoice(int player_id, TAlternatives alternatives, TState state,
+                               std::function<void(size_t)> receive);
 
     virtual std::ostream& GameLog() = 0;
     virtual std::ostream& DevLog() = 0;

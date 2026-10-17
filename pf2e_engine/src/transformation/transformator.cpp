@@ -2,12 +2,16 @@
 #include <pf2e_engine/common/visit.h>
 #include <pf2e_engine/i_interaction_system.h>
 #include <pf2e_engine/player.h>
+#include <pf2e_engine/initiative_order.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 #include <pf2e_engine/common/ast/ast_layout_assert.h>
 
-TState::TState(size_t stack_size)
+#include <stdexcept>
+
+TState::TState(size_t stack_size, const TTransformator* owner)
     : stack_size_(stack_size)
+    , owner_(owner)
 {
 }
 
@@ -18,67 +22,34 @@ TTransformator::TTransformator(IInteractionSystem& io_system)
 
 void TTransformator::DealDamage(TPlayer* player, int damage)
 {
+    DealDamageWithContext(player, damage, TDamageContext::Create({}));
+}
+
+THealthDamageResult TTransformator::DealDamageWithContext(TPlayer* player, int damage,
+                                                        const TDamageContext& context)
+{
+    if (player == nullptr || player->GetCreature() == nullptr) {
+        throw std::invalid_argument("damage requires a creature participant");
+    }
     TCreature* creature = player->GetCreature();
-    transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints().Mutable(), -damage));
+    auto ctx = ExecutionContext();
+    auto result = ctx.Invoke(TGuarded<TCreature>(*creature), &TCreature::ApplyResolvedDamage,
+                             damage, context);
     io_system_.GameLog() << player->GetName() << " takes " << damage << " amount of damage" << std::endl;
-    io_system_.GameLog() << "current hp: " << creature->Hitpoints()->CurrentValue() << std::endl;
+    io_system_.GameLog() << "current hp: " << creature->Hitpoints()->Current() << std::endl;
+    return result;
 }
 
 void TTransformator::Heal(TPlayer* player, int value)
 {
+    if (player == nullptr || player->GetCreature() == nullptr) {
+        throw std::invalid_argument("healing requires a creature participant");
+    }
     TCreature* creature = player->GetCreature();
-    transformations_.emplace_back(TChangeHitPoints(&creature->Hitpoints().Mutable(), value));
+    auto ctx = ExecutionContext();
+    ctx.Invoke(TGuarded<TCreature>(*creature), &TCreature::ReceiveHealing, value);
     io_system_.GameLog() << player->GetName() << " takes " << value << " amount of heal" << std::endl;
-    io_system_.GameLog() << "current hp: " << creature->Hitpoints()->CurrentValue() << std::endl;
-}
-
-void TTransformator::ChangeCondition(TCreature* creature, EConditionKind condition, int new_value)
-{
-    auto conditions = creature->Conditions();
-    transformations_.emplace_back(
-        TChangeCondition(&conditions.Mutable(), condition, new_value));
-}
-
-void TTransformator::AddResource(TGuarded<TResource> resource, int count)
-{
-    transformations_.emplace_back(TChangeResource(&resource.Mutable(), count));
-}
-
-void TTransformator::ReduceResource(TGuarded<TResource> resource, int count)
-{
-    transformations_.emplace_back(TChangeResource(&resource.Mutable(), -count));
-}
-
-void TTransformator::ReduceSpellSlot(TGuarded<std::map<ESpellSlotRank, TResource>> slots,
-                                     ESpellSlotRank rank, int count)
-{
-    transformations_.emplace_back(TChangeResource(&slots.Mutable().at(rank), -count));
-}
-
-void TTransformator::AddEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value)
-{
-    transformations_.emplace_back(TAddEffect(manager, player, condition, value));
-}
-
-void TTransformator::RemoveEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value)
-{
-    transformations_.emplace_back(TRemoveEffect(manager, player, condition, value));
-}
-
-TTaskId TTransformator::AddTask(TTaskScheduler* scheduler, TTask task)
-{
-    auto& transformation = transformations_.emplace_back(TAddTask(scheduler, std::move(task)));
-    return std::get<TAddTask>(transformation).GetTaskId();
-}
-
-void TTransformator::RemoveTask(TTaskScheduler* scheduler, TTaskId id, TTask task, size_t progress_index)
-{
-    transformations_.emplace_back(TRemoveTask(scheduler, id, std::move(task), progress_index));
-}
-
-void TTransformator::AdvanceTaskProgress(TTaskScheduler* scheduler, TTaskId id, size_t new_index)
-{
-    transformations_.emplace_back(TAdvanceTaskProgress(scheduler, id, new_index));
+    io_system_.GameLog() << "current hp: " << creature->Hitpoints()->Current() << std::endl;
 }
 
 void TTransformator::ChangeCurrentPlayer(TInitiativeOrder* order, size_t new_position)
@@ -93,11 +64,27 @@ void TTransformator::ChangeRound(TInitiativeOrder* order, size_t new_round)
 
 void TTransformator::MovePlayer(TPlayer* player, TPosition new_position)
 {
-    transformations_.emplace_back(TMovePlayer(player, new_position));
+    static_assert(std::is_nothrow_move_constructible_v<TTransformation>);
+    transformations_.emplace_back(std::in_place_type<TMovePlayer>, player, new_position);
+}
+
+void TTransformator::MoveInitiativeBefore(TInitiativeOrder* order, TPlayer* target, TPlayer* anchor)
+{
+    if (order == nullptr) {
+        throw std::invalid_argument("initiative relocation requires an order");
+    }
+    if (!order->ValidateMoveBefore(target, anchor)) {
+        return;
+    }
+    static_assert(std::is_nothrow_move_constructible_v<TTransformation>);
+    transformations_.emplace_back(std::in_place_type<TMoveInitiativePlayer>, order, target, anchor);
 }
 
 void TTransformator::Undo(TState state)
 {
+    if (state.owner_ != this || state.stack_size_ > transformations_.size()) {
+        throw std::invalid_argument("checkpoint does not belong to the current transformation history");
+    }
     while (transformations_.size() > state.stack_size_) {
         std::visit(VisitorHelper{
             [&](auto& v) {
@@ -110,7 +97,12 @@ void TTransformator::Undo(TState state)
 
 TState TTransformator::CurrentState() const
 {
-    return TState{transformations_.size()};
+    return TState{transformations_.size(), this};
+}
+
+TGeneratedExecutionContext TTransformator::ExecutionContext()
+{
+    return TGeneratedExecutionContext(*this);
 }
 
 TAstNode TTransformator::GetAst(TAstContext& ctx) const

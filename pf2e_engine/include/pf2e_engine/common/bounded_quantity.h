@@ -1,11 +1,6 @@
 #pragma once
 
-
 #include <pf2e_engine/common/ast/ast_constructable.h>
-
-#include <nlohmann/json_fwd.hpp>
-
-class TGameObjectFactory;
 
 class TBoundedQuantity {
 public:
@@ -19,7 +14,6 @@ public:
     void Reduce(int value);
     void Restore(int value);
 
-    static TBoundedQuantity FromJson(const nlohmann::json& j, const TGameObjectFactory& factory);
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:

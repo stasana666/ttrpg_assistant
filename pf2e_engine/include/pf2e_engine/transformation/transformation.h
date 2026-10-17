@@ -1,134 +1,12 @@
 #pragma once
 
 #include <pf2e_engine/common/ast/ast_constructable.h>
-#include <pf2e_engine/common/bounded_quantity.h>
-#include <pf2e_engine/common/resource.h>
-#include <pf2e_engine/common/variant_map.h>
-#include <pf2e_engine/condition.h>
+#include <pf2e_engine/common/generated_execution.h>
 #include <pf2e_engine/position.h>
-#include <pf2e_engine/scheduler.h>
 #include <variant>
 
-class TCreature;
-class TEffectManager;
 class TInitiativeOrder;
 class TPlayer;
-class TTaskScheduler;
-
-class TChangeHitPoints {
-public:
-    TChangeHitPoints(TBoundedQuantity* hitpoints, int value);
-
-    void Undo();
-
-    TAstNode GetAst(TAstContext& ctx) const;
-
-private:
-    TBoundedQuantity* hitpoints_;
-    TBoundedQuantity prev_;
-};
-
-class TChangeCondition {
-public:
-    TChangeCondition(TVariantMap<EConditionKind, TCondition>* conditions,
-                     EConditionKind condition, int new_value);
-
-    void Undo();
-
-    TAstNode GetAst(TAstContext& ctx) const;
-
-private:
-    TVariantMap<EConditionKind, TCondition>* conditions_;
-    EConditionKind condition_;
-    int prev_value_;
-};
-
-class TChangeResource {
-public:
-    TChangeResource(TResource* resource, int delta);
-
-    void Undo();
-
-    TAstNode GetAst(TAstContext& ctx) const;
-
-private:
-    TResource* resource_;
-    int prev_count_;
-};
-
-class TAddEffect {
-public:
-    TAddEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value);
-
-    void Undo();
-
-    TAstNode GetAst(TAstContext& ctx) const;
-
-private:
-    TEffectManager* manager_;
-    TPlayer* player_;
-    EConditionKind condition_;
-    int value_;
-};
-
-class TRemoveEffect {
-public:
-    TRemoveEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value);
-
-    void Undo();
-
-    TAstNode GetAst(TAstContext& ctx) const;
-
-private:
-    TEffectManager* manager_;
-    TPlayer* player_;
-    EConditionKind condition_;
-    int value_;
-};
-
-class TAddTask {
-public:
-    TAddTask(TTaskScheduler* scheduler, TTask task);
-
-    void Undo();
-
-    TTaskId GetTaskId() const { return task_id_; }
-
-    TAstNode GetAst(TAstContext& ctx) const;
-
-private:
-    TTaskScheduler* scheduler_;
-    TTaskId task_id_;
-};
-
-class TRemoveTask {
-public:
-    TRemoveTask(TTaskScheduler* scheduler, TTaskId id, TTask task, size_t progress_index);
-
-    void Undo();
-
-    TAstNode GetAst(TAstContext& ctx) const;
-
-private:
-    TTaskScheduler* scheduler_;
-    TTaskId task_id_;
-    TTask task_;
-    size_t progress_index_;
-};
-
-class TAdvanceTaskProgress {
-public:
-    TAdvanceTaskProgress(TTaskScheduler* scheduler, TTaskId id, size_t new_index);
-
-    void Undo();
-
-    TAstNode GetAst(TAstContext& ctx) const;
-
-private:
-    TTaskScheduler* scheduler_;
-    TTaskId task_id_;
-    size_t prev_index_;
-};
 
 class TChangeCurrentPlayer {
 public:
@@ -156,6 +34,20 @@ private:
     size_t prev_round_;
 };
 
+class TMoveInitiativePlayer {
+public:
+    TMoveInitiativePlayer(TInitiativeOrder* order, TPlayer* target, TPlayer* anchor);
+
+    void Undo();
+
+    TAstNode GetAst(TAstContext& ctx) const;
+
+private:
+    TInitiativeOrder* order_;
+    TPlayer* target_;
+    TPlayer* previous_successor_;
+};
+
 class TMovePlayer {
 public:
     TMovePlayer(TPlayer* player, TPosition new_position);
@@ -170,15 +62,9 @@ private:
 };
 
 using TTransformation = std::variant<
-    TChangeHitPoints,
-    TChangeCondition,
-    TChangeResource,
-    TAddEffect,
-    TRemoveEffect,
-    TAddTask,
-    TRemoveTask,
-    TAdvanceTaskProgress,
     TChangeCurrentPlayer,
     TChangeRound,
-    TMovePlayer
+    TMoveInitiativePlayer,
+    TMovePlayer,
+    TGeneratedAssignment
 >;

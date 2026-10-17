@@ -1,75 +1,100 @@
 #include <action.h>
 
-#include <pf2e_engine/game_object_logic/game_object_registry.h>
 #include <pf2e_engine/actions/action_context.h>
-#include <pf2e_engine/common/continuation.h>
+#include <pf2e_engine/actions/ability.h>
+#include <pf2e_engine/actions/generated_action.h>
+#include <pf2e_engine/actions/generated_history.h>
+#include <pf2e_engine/actions/save_point.h>
 #include <pf2e_engine/i_interaction_system.h>
-#include <pf2e_engine/inventory/weapon.h>
 #include <pf2e_engine/player.h>
 #include <pf2e_engine/transformation/transformator.h>
 
-const TGameObjectId kSelf = TGameObjectIdManager::Instance().Register("self");
+#include <stdexcept>
 
-TAction::TAction(TPipeline&& pipeline, TResources&& consume, std::string&& name,
-                 TVariables&& variables)
-    : pipeline_(std::move(pipeline))
-    , consume_(std::move(consume))
-    , name_(std::move(name))
-    , variables_(std::move(variables))
+namespace {
+
+void RunValidatedAbility(const std::shared_ptr<TActionContext>& ctx,
+                         const TSavepointCallback& callback)
 {
+    ValidateAbilitySource(ctx);
+    ValidateActionActor(ctx);
+    try {
+        callback();
+    } catch (TSavepointStackUnwind& save_point) {
+        save_point.AddCallFunctionLevel([ctx](TSavepointCallback resume) {
+            RunValidatedAbility(ctx, resume);
+        });
+        throw;
+    }
 }
 
-void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player)
+}
+
+TAction::TAction(FBody body, TBoundResources costs, std::string name)
+    : body_(std::move(body))
+    , payment_(std::move(costs))
+    , name_(std::move(name))
 {
-    ctx->next_block = pipeline_.begin()->get();
-    ctx->game_object_registry = std::make_shared<TGameObjectRegistry>();
-    ctx->game_object_registry->Add(kSelf, &player);
-
-    for (const auto& variable : variables_) {
-        ctx->game_object_registry->Add(variable.id, TGameObjectPtr{variable.weapon.get()});
+    if (!body_) {
+        throw std::invalid_argument("generated action body must not be empty");
     }
+}
 
-    Consume(ctx, player);
+TAction::TAction(TCompiledBody body, TBoundResources costs, std::string name)
+    : TAction(std::move(body.Run), std::move(costs), std::move(name))
+{
+    compiled_body_ = true;
+}
+
+void TAction::Apply(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
+{
+    if (!ctx || ctx->transformator == nullptr) {
+        throw std::invalid_argument("action requires an execution context and journal");
+    }
+    ctx->execution_mode = EActionExecutionMode::Ordinary;
+    ctx->owned_lifecycle.reset();
+    if (player.GetCreature() == nullptr || !player.GetCreature()->CanAct() || !Check(player)) {
+        throw TAbilityUnavailable();
+    }
+    ValidateAbilitySource(ctx);
+    if (ctx->previous_record && (!*ctx->previous_record
+        || !MatchActionRecordStamp(TGeneratedWorldView(ctx->battle), player, *ctx->previous_record,
+                                    ctx->previous_record->Record()->Id()))) {
+        throw TAbilityUnavailable();
+    }
+    ctx->actor = &player;
+
+    {
+        auto execution = ctx->transformator->ExecutionContext();
+        auto transaction = execution.Atomic();
+        Consume(ctx, player);
+        AcceptActionExecution(ctx, player, ctx->history_kind);
+        transaction.Commit();
+    }
 
     ctx->io_system->GameLog() << player.GetName() << ": " << name_ << std::endl;
 
-    continuation::While(
-        [ctx]() { return ctx->next_block != nullptr; },
-        [ctx]() { ctx->next_block->Run(ctx); });
-}
-
-void TAction::Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player)
-{
-    for (auto& resource : consume_) {
-        ctx->transformator->ReduceResource(
-            player.GetCreature()->ResourceFor(resource.kind), resource.count);
+    if (compiled_body_) {
+        body_(ctx);
+    } else {
+        RunValidatedAbility(ctx, [this, ctx]() { body_(ctx); });
     }
 }
 
-bool TAction::Check(const TPlayer& player)
+void TAction::Consume(std::shared_ptr<TActionContext> ctx, TPlayer& player) const
 {
-    for (auto& resource : consume_) {
-        if (!player.GetCreature()->ResourceFor(resource.kind).Has(resource.count)) {
-            return false;
-        }
+    if (!ctx || ctx->transformator == nullptr) {
+        throw std::invalid_argument("resource payment requires a journal");
     }
-    return true;
+    payment_.Consume(*ctx->transformator, player);
+}
+
+bool TAction::Check(const TPlayer& player) const
+{
+    return payment_.Check(player);
 }
 
 std::string_view TAction::Name() const
 {
     return name_;
-}
-
-void RunSubPipeline(std::shared_ptr<TActionContext> ctx, IActionBlock* first)
-{
-    IActionBlock* saved = ctx->next_block;
-    ctx->next_block = first;
-    continuation::Then(
-        [ctx]() {
-            continuation::While(
-                [ctx]() { return ctx->next_block != nullptr; },
-                [ctx]() { ctx->next_block->Run(ctx); });
-        },
-        [ctx, saved]() { ctx->next_block = saved; });
 }

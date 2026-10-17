@@ -2,8 +2,6 @@
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 
-#include <nlohmann/json.hpp>
-
 #include <stdexcept>
 
 TBoundedQuantity::TBoundedQuantity(int current, int max)
@@ -38,13 +36,6 @@ void TBoundedQuantity::Restore(int value)
     if (current_value_ > max_value_) {
         current_value_ = max_value_;
     }
-}
-
-TBoundedQuantity TBoundedQuantity::FromJson(const nlohmann::json& j,
-                                            const TGameObjectFactory& factory)
-{
-    (void)factory;
-    return TBoundedQuantity(j.at("current_value").get<int>(), j.at("max_value").get<int>());
 }
 
 TAstNode TBoundedQuantity::GetAst([[maybe_unused]] TAstContext& ctx) const

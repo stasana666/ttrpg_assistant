@@ -1,6 +1,5 @@
 #pragma once
 
-#include <pf2e_engine/common/value_id.h>
 
 #include <array>
 #include <cstdint>
@@ -72,12 +71,6 @@ template <class T, class = std::enable_if_t<std::is_enum_v<T>>>
 std::string AstSerialize(T v)
 {
     return "enum:" + std::to_string(static_cast<std::int64_t>(v));
-}
-
-template <class Tag>
-std::string AstSerialize(const TValueId<Tag>& id)
-{
-    return "TValueId:" + std::string(TValueIdManager<Tag>::Instance().Name(id));
 }
 
 inline std::string AstSerialize(std::monostate)

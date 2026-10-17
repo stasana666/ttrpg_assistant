@@ -2,8 +2,6 @@
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
 
-#include <nlohmann/json.hpp>
-
 #include <stdexcept>
 
 TResource::TResource(int count)
@@ -28,12 +26,6 @@ void TResource::Add(int count)
         throw std::logic_error("negative add value");
     }
     count_ += count;
-}
-
-TResource TResource::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory)
-{
-    (void)factory;
-    return TResource(j.get<int>());
 }
 
 TAstNode TResource::GetAst([[maybe_unused]] TAstContext& ctx) const

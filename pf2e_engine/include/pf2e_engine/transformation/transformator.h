@@ -11,33 +11,26 @@ public:
     explicit TTransformator(IInteractionSystem& io_system);
 
     void DealDamage(TPlayer* player, int damage);
+    THealthDamageResult DealDamageWithContext(TPlayer* player, int damage,
+                                             const TDamageContext& context);
     void Heal(TPlayer* player, int value);
-
-    void ChangeCondition(TCreature* creature, EConditionKind condition, int new_value);
-    void AddResource(TGuarded<TResource> resource, int count);
-    void ReduceResource(TGuarded<TResource> resource, int count);
-    void ReduceSpellSlot(TGuarded<std::map<ESpellSlotRank, TResource>> slots,
-                         ESpellSlotRank rank, int count);
-
-    void AddEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value);
-    void RemoveEffect(TEffectManager* manager, TPlayer* player, EConditionKind condition, int value);
-
-    TTaskId AddTask(TTaskScheduler* scheduler, TTask task);
-    void RemoveTask(TTaskScheduler* scheduler, TTaskId id, TTask task, size_t progress_index);
-    void AdvanceTaskProgress(TTaskScheduler* scheduler, TTaskId id, size_t new_index);
 
     void ChangeCurrentPlayer(TInitiativeOrder* order, size_t new_position);
     void ChangeRound(TInitiativeOrder* order, size_t new_round);
+    void MoveInitiativeBefore(TInitiativeOrder* order, TPlayer* target, TPlayer* anchor);
 
     void MovePlayer(TPlayer* player, TPosition new_position);
 
     void Undo(TState state);
 
     TState CurrentState() const;
+    TGeneratedExecutionContext ExecutionContext();
 
     TAstNode GetAst(TAstContext& ctx) const;
 
 private:
+    friend class TGeneratedExecutionContext;
+
     IInteractionSystem& io_system_;
     std::vector<TTransformation> transformations_;
     [[maybe_unused]] char ast_layout_sentinel_[1] = {};

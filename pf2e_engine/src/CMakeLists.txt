@@ -1,17 +1,13 @@
 target_sources(pf2e_engine
     PRIVATE
+        alternatives.cpp
         battle_map.cpp
         battle.cpp
-        combat_calculator.cpp
-        creature.cpp
-        effect_manager.cpp
-        feat.cpp
+        rules.cpp
         initiative_order.cpp
+        i_interaction_system.cpp
         player.cpp
-        proficiency.cpp
         random.cpp
-        success_level.cpp
-        scheduler.cpp
 )
 
 target_include_directories(pf2e_engine
@@ -19,12 +15,7 @@ target_include_directories(pf2e_engine
     PUBLIC ${CMAKE_SOURCE_DIR}/pf2e_engine/include
 )
 
-add_subdirectory(action_blocks)
 add_subdirectory(actions)
 add_subdirectory(common)
-add_subdirectory(dsl)
-add_subdirectory(expressions)
-add_subdirectory(game_object_logic)
 add_subdirectory(inventory)
-add_subdirectory(mechanics)
 add_subdirectory(transformation)

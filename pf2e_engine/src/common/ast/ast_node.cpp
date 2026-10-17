@@ -157,3 +157,26 @@ std::string TAstNode::DiffImpl(const TAstNode& other, const std::string& path) c
     }
     return "";
 }
+
+std::vector<std::pair<std::string, std::string>> TAstNode::Leaves() const
+{
+    std::vector<std::pair<std::string, std::string>> leaves;
+    CollectLeaves({}, leaves);
+    return leaves;
+}
+
+void TAstNode::CollectLeaves(const std::string& path,
+                             std::vector<std::pair<std::string, std::string>>& leaves) const
+{
+    if (kind_ == EKind::Null) {
+        leaves.emplace_back(path, "<null>");
+    } else if (kind_ == EKind::Value) {
+        leaves.emplace_back(path, content_);
+    } else if (children_.empty()) {
+        leaves.emplace_back(path, "{}");
+    } else {
+        for (const auto& [label, child] : children_) {
+            child.CollectLeaves(path.empty() ? label : path + "." + label, leaves);
+        }
+    }
+}

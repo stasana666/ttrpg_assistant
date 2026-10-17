@@ -1,8 +1,11 @@
 target_sources(pf2e_engine
     PRIVATE
-        hash_combine.cpp
         bounded_quantity.cpp
         resource.cpp
+        entity_id.cpp
+        generated_execution.cpp
+        game_time.cpp
+        ability.cpp
 )
 
 add_subdirectory(ast)
