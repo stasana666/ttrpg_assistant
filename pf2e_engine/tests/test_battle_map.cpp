@@ -1,23 +1,12 @@
 #include <gtest/gtest.h>
 
 #include <pf2e_engine/battle_map.h>
-
-#include <nlohmann/json.hpp>
-
-namespace {
-
-TBattleMap MakeMap(int x_size, int y_size)
-{
-    nlohmann::json j = {{"x_size", x_size}, {"y_size", y_size}};
-    return TBattleMap(j);
-}
-
-}
+#include <pf2e_engine/inventory/battle_maps.h>
 
 TEST(BattleMap, NonSquareMapAddressesCornersInBounds) {
     // Wider than tall: exercises the (x, y) -> [y][x] indexing on a shape where
     // a transposed access would read out of bounds.
-    TBattleMap map = MakeMap(6, 3);
+    TBattleMap map(6, 3);
 
     EXPECT_EQ(map.GetXSize(), 6);
     EXPECT_EQ(map.GetYSize(), 3);
@@ -36,4 +25,10 @@ TEST(BattleMap, NonSquareMapAddressesCornersInBounds) {
     map.GetCell(0, 1).player = reinterpret_cast<TPlayer*>(0x2);
     EXPECT_EQ(map.GetCell(1, 0).player, nullptr);
     EXPECT_EQ(map.GetCell(0, 1).player, reinterpret_cast<TPlayer*>(0x2));
+}
+
+TEST(BattleMap, DeclaredSimpleMapIsTenByTen) {
+    const auto layout = CreateSimpleMap();
+    EXPECT_EQ(layout.Width(), 10);
+    EXPECT_EQ(layout.Height(), 10);
 }
