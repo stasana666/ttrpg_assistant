@@ -1,0 +1,16 @@
+action FixtureStrike;
+action FixtureStride;
+action FixtureSuddenCharge;
+reaction FixtureOpportunity;
+
+feature FixtureFighterTraining {
+    grant FixtureOpportunity;
+}
+
+feature FixtureNaturalAmbition {
+    grant FixtureSuddenCharge;
+}
+
+feature FixtureVersatileTraining {
+    grant FixtureFighterTraining;
+}

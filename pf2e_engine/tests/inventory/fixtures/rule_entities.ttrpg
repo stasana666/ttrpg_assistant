@@ -1,0 +1,64 @@
+import "../../../data/schemas/hitpoints.ttrpg";
+
+class TTestComputedValue {
+    int Base = 5;
+    int Doubled = Base * 2;
+}
+
+GameEntity TTestCombatant {
+    string Name = "";
+    int Level = 1;
+    THitPoints Hitpoints;
+    int ReceivedDamage = 0;
+    TTestComputedValue ComputedValue;
+
+    method TDamageResult TakeDamage(int Amount) {
+        let Result = @self.Hitpoints.DealDamage(Amount);
+        @self.ReceivedDamage += Result.LostCurrent;
+        return Result;
+    }
+
+    method void TakeDamageAndFail(int Amount) {
+        @self.TakeDamage(Amount);
+        require false;
+    }
+
+    method void TakeDamageThenOverflow(int Amount) {
+        @self.TakeDamage(Amount);
+        @self.ReceivedDamage += max_int;
+    }
+
+    method int Heal(int Amount) {
+        return @self.Hitpoints.Heal(Amount);
+    }
+
+    method void SetTemporary(int Amount) {
+        @self.Hitpoints.ReplaceTemporary(Amount);
+    }
+
+    query int MissingHitpoints() {
+        if (@self.Hitpoints.Current >= @self.Hitpoints.Maximum.Value) {
+            return 0;
+        } else {
+            return @self.Hitpoints.Maximum.Value - @self.Hitpoints.Current;
+        }
+    }
+}
+
+class TTestStatisticCollection {
+    collection<Statistic> Items;
+}
+
+TTestCombatant Wolf {
+    Name = "Wolf";
+    Hitpoints = THitPoints {
+        Maximum = Statistic { Base = 24; };
+    };
+}
+
+TTestCombatant Fighter {
+    Name = "Fighter";
+    Hitpoints = THitPoints {
+        Maximum = Statistic { Base = 21; };
+    };
+}
