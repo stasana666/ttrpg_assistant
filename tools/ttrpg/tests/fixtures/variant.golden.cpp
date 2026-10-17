@@ -2,12 +2,7 @@
 #include <variant.h>
 
 #include <pf2e_engine/common/ast/ast_helpers.h>
-#include <pf2e_engine/dsl/property_registry.h>
-#include <pf2e_engine/dsl/value.h>
-#include <pf2e_engine/game_object_logic/game_object_factory.h>
-#include <pf2e_engine/game_object_logic/game_object_id.h>
-
-#include <nlohmann/json.hpp>
+#include <pf2e_engine/actions/ability.h>
 
 #include <stdexcept>
 #include <string>
@@ -57,43 +52,6 @@ EEffectKind EEffectKindFromString(const std::string& s) {
     throw std::runtime_error("unknown EEffectKind: \"" + s + "\"");
 }
 
-TEffect TEffect::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
-    (void)factory;
-    if (j.is_string()) {
-        switch (EEffectKindFromString(j.get<std::string>())) {
-            case EEffectKind::Stun: return TEffectStun{};
-            default:
-                throw std::runtime_error("parameterized TEffect given without parameters");
-        }
-    }
-    if (j.is_object() && j.size() == 1) {
-        auto it = j.begin();
-        const std::string& key = it.key();
-        const nlohmann::json& val = it.value();
-        switch (EEffectKindFromString(key)) {
-            case EEffectKind::Burn: {
-                TEffectBurn a;
-                a.Damage = val.get<int>();
-                return a;
-            }
-            case EEffectKind::Tint: {
-                TEffectTint a;
-                a.Color = EColorFromString(val.get<std::string>());
-                return a;
-            }
-            case EEffectKind::Zone: {
-                TEffectZone a;
-                a.Radius = val.value("radius", int{1});
-                a.Color = EColorFromString(val.at("color").get<std::string>());
-                return a;
-            }
-            default:
-                throw std::runtime_error("flag TEffect given with parameters");
-        }
-    }
-    throw std::runtime_error("malformed TEffect");
-}
-
 TAstNode TEffect::GetAst([[maybe_unused]] TAstContext& ctx) const {
     TAstNode node = TAstNode::MakeObject("TEffect");
     AddValueField(node, "kind", Kind());
@@ -121,32 +79,45 @@ TAstNode TEffect::GetAst([[maybe_unused]] TAstContext& ctx) const {
     return node;
 }
 
-TSpell TSpell::FromJson(const nlohmann::json& j, const TGameObjectFactory& factory) {
-    TSpell r;
-    r.Name_ = j.at("name").get<std::string>();
-    if (j.contains("effects")) {
-        for (const auto& item : j.at("effects")) {
-            r.Effects_.Set(TEffect::FromJson(item, factory));
-        }
-    }
-    return r;
+TSpell::TSpell() : TSpell(Create({})) {}
+
+TSpell::TInitialValues TSpell::ResolveInitialValues(const TInitialValues& initial) {
+    TSpell result(TUninitialized{}, initial.Name ? *initial.Name : TGeneratedConstruction::Blank<std::string>(), initial.Effects ? *initial.Effects : TGeneratedConstruction::Blank<TVariantMap<EEffectKind, ::TEffect>>());
+    [[maybe_unused]] auto& self = result;
+    (void)initial;
+    result.Name_ = initial.Name ? *initial.Name : std::string{};
+    result.Effects_ = initial.Effects ? *initial.Effects : TVariantMap<EEffectKind, TEffect>{};
+    return TInitialValues{.Name = std::move(result.Name_), .Effects = std::move(result.Effects_), };
+}
+
+TSpell TSpell::Create(const TInitialValues& initial) {
+    [[maybe_unused]] auto values = ResolveInitialValues(initial);
+    TSpell result(TUninitialized{}, std::move(*values.Name), std::move(*values.Effects));
+    return result;
 }
 
 TAstNode TSpell::GetAst([[maybe_unused]] TAstContext& ctx) const {
     TAstNode node = TAstNode::MakeObject("TSpell");
+    [[maybe_unused]] const std::string owner_identity = ctx.IdentityOf(this);
     AddValueField(node, "name", Name_);
     {
-        TAstNode set_node = TAstNode::MakeObject("container");
-        for (const auto& [kind, value] : Effects_) {
-            AddOwnedObject(set_node, ToString(kind), value, ctx);
+        TAstNode container = TAstNode::MakeObject("container");
+        for (const auto& [key, value] : Effects_) {
+            if (!owner_identity.empty()) {
+                ctx.RegisterIdentity(&value, owner_identity + ".effects." + ToString(key));
+            }
+            AddOwnedObject(container, ToString(key), value, ctx);
         }
-        node.AddChild("effects", std::move(set_node));
+        node.AddChild("effects", std::move(container));
     }
     return node;
 }
 
-void TSpell::RegisterDslProperties() {
-    auto& r = TPropertyRegistry<TSpell>::Instance();
-    (void)r;
+void RegisterVariantAbilities(TAbilityCatalog& catalog) {
+    (void)catalog;
+}
+
+void RegisterVariantRules(TAbilityRules& rules) {
+    RegisterVariantAbilities(rules.Catalog);
 }
 

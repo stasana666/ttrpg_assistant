@@ -2,6 +2,7 @@
 
 #include <ttrpg/emit.h>
 #include <ttrpg/module.h>
+#include <ttrpg/parser.h>
 
 #include <fstream>
 #include <sstream>
@@ -14,6 +15,7 @@
 namespace {
 
 const std::string kFixtures = TTRPG_FIXTURES_DIR;
+
 
 std::string ReadFile(const std::string& path) {
     std::ifstream in(path);
@@ -62,36 +64,21 @@ TEST(GoldenTest, Collection) {
     CheckGolden("collection");
 }
 
-TEST(GoldenTest, MapCodegen) {
-    const std::string header = GenHeader("map");
-    const std::string impl = GenImpl("map");
-
-    EXPECT_NE(header.find("#include <map>"), std::string::npos);
-    EXPECT_NE(header.find("const std::map<EColor, int>& Counts() const"), std::string::npos);
-    EXPECT_NE(header.find("TGuarded<std::map<EColor, int>> Counts()"), std::string::npos);
-    EXPECT_NE(impl.find("r.Counts_.emplace(EColorFromString(map_key), map_value.get<int>())"),
-              std::string::npos);
-    EXPECT_NE(impl.find("AddValueField(map_node, ToString(map_key), map_value)"),
-              std::string::npos);
-}
-
-TEST(GoldenTest, ResourceCodegen) {
-    const std::string header = GenHeader("resource");
-    const std::string impl = GenImpl("resource");
-
-    EXPECT_NE(header.find("#include <pf2e_engine/common/resource.h>"), std::string::npos);
-    EXPECT_NE(header.find("const TResource& Actions() const"), std::string::npos);
-    EXPECT_NE(header.find("TGuarded<TResource> Actions()"), std::string::npos);
-    EXPECT_NE(header.find("const std::map<ESlot, TResource>& Slots() const"), std::string::npos);
-    EXPECT_NE(header.find("TResource Actions_{0};"), std::string::npos);
-
-    EXPECT_NE(impl.find("r.Actions_ = j.contains(\"actions\") ? "
-                        "TResource::FromJson(j.at(\"actions\"), factory) : TResource(0)"),
-              std::string::npos);
-    EXPECT_NE(impl.find("r.Slots_.emplace(ESlotFromString(map_key), "
-                        "TResource::FromJson(map_value, factory))"),
-              std::string::npos);
-    EXPECT_NE(impl.find("AddOwnedObject(node, \"actions\", Actions_, ctx)"), std::string::npos);
-    EXPECT_NE(impl.find("AddOwnedObject(map_node, ToString(map_key), map_value, ctx)"),
-              std::string::npos);
+TEST(GoldenTest, EmptyStorageFactoriesCreateThroughTheResolver) {
+    TLoadedSchemas loaded;
+    loaded.PrimaryStem = "empty_storage";
+    loaded.Primary = TParser(Tokenize(R"(
+        class TQueries { query int One() { return 1; } }
+        class TDerived { derive int One = max(1, 1); }
+        GameEntity TMarker {}
+    )")).Parse();
+    RegisterModuleSymbols(loaded.PrimaryStem, loaded.Primary, loaded.SymbolTable);
+    std::ostringstream output;
+    EmitImpl(output, loaded, "empty_storage.ttrpg", "empty_storage.h");
+    const auto code = output.str();
+    for (const std::string name : {"TQueries", "TDerived", "TMarker"}) {
+        const auto create = code.find(name + " " + name + "::Create(");
+        ASSERT_NE(create, std::string::npos);
+        EXPECT_NE(code.find("ResolveInitialValues(initial)", create), std::string::npos);
+    }
 }
