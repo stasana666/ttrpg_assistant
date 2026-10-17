@@ -6,9 +6,26 @@ add_library(ttrpg STATIC
     src/parser.cpp
     src/module.cpp
     src/conventions.cpp
-    src/analyze.cpp
+    src/program.cpp
+    src/constructors.cpp
+    src/emit_instance.cpp
+    src/action_flow.cpp
+    src/abilities.cpp
+    src/activities.cpp
+    src/triggers.cpp
+    src/records.cpp
+    src/emit_record.cpp
+    src/relations.cpp
+    src/emit_relation.cpp
+    src/callable_graph.cpp
+    src/emit_reaction.cpp
+    src/events.cpp
     src/cpp_writer.cpp
     src/emit.cpp
+    src/emit_activity.cpp
+    src/emit_action.cpp
+    src/emit_source.cpp
+    src/emit_rule_class.cpp
 )
 
 target_include_directories(ttrpg PUBLIC
@@ -24,5 +41,7 @@ set_target_properties(ttrpg PROPERTIES CXX_CLANG_TIDY "")
 add_executable(ttrpg_codegen cli/main.cpp)
 target_link_libraries(ttrpg_codegen PRIVATE ttrpg)
 set_target_properties(ttrpg_codegen PROPERTIES CXX_CLANG_TIDY "")
+
+include(cmake/TtrpgCodegen.cmake)
 
 add_subdirectory(tests)

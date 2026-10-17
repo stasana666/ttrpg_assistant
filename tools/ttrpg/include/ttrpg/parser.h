@@ -25,6 +25,11 @@ enum class ETok {
     Comma,
     Equals,
     InitExpr,
+    LParen,
+    RParen,
+    LBracket,
+    RBracket,
+    Operator,
     End,
 };
 
@@ -52,22 +57,168 @@ public:
             if (t.kind != ETok::Ident) {
                 ts_.Throw("expected 'enum' or 'class'");
             }
-            if (t.text == "enum") {
+            if (t.text == "relation") {
+                mod.Relations.push_back(ParseRelation());
+            } else if (t.text == "record") {
+                mod.Records.push_back(ParseRecord());
+            } else if (t.text == "trigger") {
+                mod.Triggers.push_back(ParseTrigger());
+            } else if (t.text == "enum") {
                 mod.Enums.push_back(ParseEnum());
             } else if (t.text == "variant") {
                 mod.Variants.push_back(ParseVariant());
-            } else if (t.text == "class") {
+            } else if (t.text == "class" || t.text == "GameEntity") {
                 mod.Classes.push_back(ParseClass());
+            } else if (t.text == "action" || t.text == "reaction" || t.text == "feature") {
+                mod.Abilities.push_back(ParseAbility());
+            } else if (t.text == "event") {
+                mod.Events.push_back(ParseEvent());
+            } else if (t.text == "activity") {
+                mod.Activities.push_back(ParseActivity());
             } else if (t.text == "import") {
                 ts_.Throw("'import' must appear before any class/enum/variant");
             } else {
-                ts_.Throw("expected 'enum', 'variant', or 'class'");
+                mod.Instances.push_back(ParseInstance());
             }
         }
         return mod;
     }
 
 private:
+    TRelationDecl ParseRelation() {
+        TRelationDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        ExpectIdentText("relation");
+        declaration.ValueType = ExpectIdent("relation value type");
+        declaration.Name = ExpectIdent("relation name");
+        ExpectIdentText("for");
+        declaration.OwnerType = ExpectIdent("relation owner type");
+        declaration.Parameters = ParseParameters("relation key");
+        ts_.Expect(ETok::Semi, "';' after relation declaration");
+        return declaration;
+    }
+
+    TGrantDecl ParseGrant() {
+        TGrantDecl grant;
+        grant.Location = ts_.Peek().loc;
+        ExpectIdentText("grant");
+        grant.Source = ReadExpression(ETok::Semi);
+        ts_.Expect(ETok::Semi, "';'");
+        return grant;
+    }
+
+    TAbilityDecl ParseAbility() {
+        TAbilityDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        const std::string keyword = ts_.Consume().text;
+        declaration.Kind = keyword == "action" ? EAbilityDeclarationKind::Action :
+            keyword == "reaction" ? EAbilityDeclarationKind::Reaction : EAbilityDeclarationKind::Feature;
+        declaration.Name = ExpectIdent("ability name");
+        if (ts_.Peek().text == "for") {
+            if (declaration.Kind == EAbilityDeclarationKind::Feature) {
+                ts_.Throw("features cannot have compiled action bodies");
+            }
+            ts_.Advance();
+            declaration.OwnerType = ExpectIdent("action owner type");
+            if (ts_.Peek().text == "using") {
+                ts_.Advance();
+                declaration.SourceType = ExpectIdent("action source type");
+                declaration.SourceName = ExpectIdent("action source name");
+            }
+            if (declaration.Kind == EAbilityDeclarationKind::Reaction) {
+                ExpectIdentText("on");
+                do {
+                    declaration.Triggers.push_back(ExpectIdent("reaction trigger"));
+                } while (ts_.Match(ETok::Comma));
+            }
+            if (ts_.Peek().text == "after") {
+                ts_.Advance();
+                declaration.PreviousRecord = ExpectIdent("completed action record");
+                declaration.PreviousName = ExpectIdent("completed action record binding");
+            }
+            declaration.Body = ParseBody();
+            ts_.Match(ETok::Semi);
+        } else if (declaration.Kind == EAbilityDeclarationKind::Feature) {
+            if (ts_.Match(ETok::Semi)) return declaration;
+            ts_.Expect(ETok::LBrace, "'{' after feature name");
+            while (ts_.Peek().kind != ETok::RBrace) {
+                if (ts_.Peek().text == "on") {
+                    TAbilityDecl::THook hook;
+                    hook.Location = ts_.Consume().loc;
+                    hook.EventName = ExpectIdent("event name");
+                    hook.Body = ParseBody();
+                    declaration.Hooks.push_back(std::move(hook));
+                } else {
+                    declaration.Grants.push_back(ParseGrant());
+                }
+            }
+            ts_.Expect(ETok::RBrace, "'}'");
+            ts_.Match(ETok::Semi);
+        } else {
+            ts_.Expect(ETok::Semi, "';' after action or reaction declaration");
+        }
+        return declaration;
+    }
+
+    TRecordDecl ParseRecord() {
+        TRecordDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        ExpectIdentText("record");
+        declaration.Name = ExpectIdent("record name");
+        ExpectIdentText("for");
+        declaration.OwnerType = ExpectIdent("record owner type");
+        ExpectIdentText("using");
+        declaration.SourceType = ExpectIdent("record source type");
+        declaration.SourceName = ExpectIdent("record source name");
+        declaration.Parameters = ParseParameters("record parameter");
+        ts_.Expect(ETok::Semi, "';' after record declaration");
+        return declaration;
+    }
+
+    TEventDecl ParseEvent() {
+        TEventDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        ExpectIdentText("event");
+        declaration.ReturnType = ExpectIdent("event result type");
+        declaration.Name = ExpectIdent("event name");
+        ExpectIdentText("for");
+        declaration.OwnerType = ExpectIdent("event owner type");
+        declaration.Parameters = ParseParameters("event parameter");
+        ts_.Expect(ETok::Semi, "';' after event declaration");
+        return declaration;
+    }
+
+    TTriggerDecl ParseTrigger() {
+        TTriggerDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        ExpectIdentText("trigger");
+        declaration.ReturnType = ExpectIdent("trigger state type");
+        declaration.Name = ExpectIdent("trigger name");
+        declaration.Parameters = ParseParameters("trigger parameter");
+        if (ts_.Peek().text == "once") {
+            ExpectIdentText("once");
+            ExpectIdentText("per");
+            ExpectIdentText("activity");
+            declaration.OncePerActivity = true;
+        }
+        ts_.Expect(ETok::Semi, "';' after trigger declaration");
+        return declaration;
+    }
+
+    TActivityDecl ParseActivity() {
+        TActivityDecl declaration;
+        declaration.Location = ts_.Peek().loc;
+        ExpectIdentText("activity");
+        declaration.ReturnType = ExpectIdent("activity result type");
+        declaration.Name = ExpectIdent("activity name");
+        ExpectIdentText("for");
+        declaration.OwnerType = ExpectIdent("activity owner type");
+        declaration.Parameters = ParseParameters("activity parameter");
+        declaration.Body = ParseBody();
+        ts_.Match(ETok::Semi);
+        return declaration;
+    }
+
     TEnumDecl ParseEnum() {
         ExpectIdentText("enum");
         TEnumDecl e;
@@ -86,12 +237,18 @@ private:
     }
 
     TClassDecl ParseClass() {
-        ExpectIdentText("class");
         TClassDecl c;
+        c.GameEntity = ts_.Consume().text == "GameEntity";
         c.Name = ExpectIdent("class name");
         ts_.Expect(ETok::LBrace, "'{'");
         while (ts_.Peek().kind != ETok::RBrace) {
-            c.Fields.push_back(ParseField());
+            if (ts_.Peek().text == "method" || ts_.Peek().text == "query") {
+                c.Methods.push_back(ParseMethod());
+            } else if (ts_.Peek().text == "grant") {
+                c.Grants.push_back(ParseGrant());
+            } else {
+                c.Fields.push_back(ParseField());
+            }
         }
         ts_.Expect(ETok::RBrace, "'}'");
         return c;
@@ -170,20 +327,250 @@ private:
         }
         f.Name = ExpectIdent("field name");
         if (ts_.Peek().kind == ETok::Equals) {
-            if (f.Container != EContainer::None) {
-                ts_.Throw("container fields cannot have a default value");
-            }
             ts_.Advance();
-            if (ts_.Peek().kind != ETok::InitExpr) {
-                ts_.Throw("expected initializer expression after '='");
-            }
-            f.Init = expr::Parse(ts_.Consume().text);
+            f.Init = ReadExpression(ETok::Semi);
         }
         if (f.Derived && !f.Init) {
             ts_.Throw("derived field '" + f.Name + "' requires an initializer expression");
         }
         ts_.Expect(ETok::Semi, "';'");
         return f;
+    }
+
+    expr::TExprNode ReadExpression(ETok end, bool assignment = false, const std::string& prefix = "", bool aggregate = false,
+                                   const std::string& endKeyword = "", bool parameter = false) {
+        std::string source = prefix;
+        int braces = 0;
+        int parens = 0;
+        int brackets = 0;
+        std::string previous;
+        auto cursor = ts_.Peek().loc;
+        while (ts_.Peek().kind != ETok::End) {
+            const auto& token = ts_.Peek();
+            if (braces == 0 && parens == 0 && brackets == 0 &&
+                (token.kind == end || (!endKeyword.empty() && token.text == endKeyword) ||
+                 (parameter && (token.kind == ETok::Comma || token.kind == ETok::RParen ||
+                    token.kind == ETok::Equals || (previous != "." && (token.text == "from" || token.text == "when")))) ||
+                 (assignment && (token.text == "=" || token.text == "+=" || token.text == "-=")))) {
+                break;
+            }
+            if (token.kind == ETok::RBrace && braces == 0) {
+                ts_.Throw("expected expression terminator");
+            }
+            if (token.kind == ETok::LBrace) ++braces;
+            if (token.kind == ETok::RBrace) --braces;
+            if (token.kind == ETok::LParen) ++parens;
+            if (token.kind == ETok::RParen) --parens;
+            if (token.kind == ETok::LBracket) ++brackets;
+            if (token.kind == ETok::RBracket) --brackets;
+            while (cursor.line < token.loc.line) {
+                source += '\n';
+                ++cursor.line;
+                cursor.col = 1;
+            }
+            while (cursor.col < token.loc.col) {
+                source += ' ';
+                ++cursor.col;
+            }
+            const auto text = token.kind == ETok::StringLiteral ? "\"" + token.text + "\"" : token.text;
+            source += text;
+            cursor.col += static_cast<int>(text.size());
+            previous = token.text;
+            ts_.Advance();
+            if (aggregate && braces == 0 && parens == 0 && brackets == 0) break;
+        }
+        if (source.empty()) ts_.Throw("expected expression");
+        return expr::Parse(source);
+    }
+
+    TInstanceDecl ParseInstance() {
+        TInstanceDecl instance;
+        instance.TypeName = ExpectIdent("instance type");
+        instance.Name = ExpectIdent("instance name");
+        if (ts_.Match(ETok::LParen)) {
+            instance.Parameterized = true;
+            while (ts_.Peek().kind != ETok::RParen) {
+                TInstanceDecl::TParameter parameter;
+                parameter.Location = ts_.Peek().loc;
+                auto type = ExpectIdent("constructor parameter type");
+                if (type == "choice") {
+                    parameter.Choice = true;
+                    type = ExpectIdent("choice type");
+                }
+                if (type == "collection") {
+                    parameter.Field.Container = EContainer::Collection;
+                    ts_.Expect(ETok::LAngle, "'<' after collection");
+                    type = ExpectIdent("collection element type");
+                    ts_.Expect(ETok::RAngle, "'>'");
+                }
+                parameter.Field.TypeName = type;
+                parameter.Field.Name = ExpectIdent("constructor parameter name");
+                if (parameter.Choice) {
+                    if (ExpectIdent("'from' after choice name") != "from") ts_.Throw("choice requires 'from'");
+                    parameter.Pool = ReadExpression(ETok::RParen, false, "", false, "", true);
+                }
+                if (ts_.Peek().text == "when") {
+                    ts_.Advance();
+                    parameter.When = ReadExpression(ETok::RParen, false, "", false, "", true);
+                }
+                if (ts_.Match(ETok::Equals)) {
+                    parameter.Field.Init = ReadExpression(ETok::RParen, false, "", false, "", true);
+                }
+                instance.Parameters.push_back(std::move(parameter));
+                if (!ts_.Match(ETok::Comma)) break;
+            }
+            ts_.Expect(ETok::RParen, "')' after constructor parameters");
+        }
+        if (ts_.Peek().kind != ETok::LBrace) ts_.Throw("expected '{' after instance name");
+        ts_.Advance();
+        instance.Value.Kind = expr::ENodeKind::ObjectInit;
+        instance.Value.Text = instance.TypeName;
+        while (ts_.Peek().text == "requires") {
+            TClassDecl::TStatement requirement;
+            requirement.Kind = TClassDecl::TStatement::EKind::Requires;
+            requirement.Location = ts_.Consume().loc;
+            requirement.Value = ReadExpression(ETok::Semi);
+            ts_.Expect(ETok::Semi, "';' after constructor requires");
+            instance.Requirements.push_back(std::move(requirement));
+            instance.Parameterized = true;
+        }
+        while (ts_.Peek().kind != ETok::RBrace) {
+            expr::TFieldInitializer field;
+            field.Location = ts_.Peek().loc;
+            field.Name = ExpectIdent("instance field name");
+            ts_.Expect(ETok::Equals, "'=' after instance field");
+            field.Value = ReadExpression(ETok::Semi);
+            ts_.Expect(ETok::Semi, "';' after instance field");
+            instance.Value.Fields.push_back(std::move(field));
+        }
+        ts_.Expect(ETok::RBrace, "'}'");
+        ts_.Match(ETok::Semi);
+        return instance;
+    }
+
+    TClassDecl::TMethod ParseMethod() {
+        TClassDecl::TMethod method;
+        method.Location = ts_.Peek().loc;
+        method.Query = ts_.Consume().text == "query";
+        method.ReturnType = ExpectIdent("method return type");
+        method.Name = ExpectIdent("method name");
+        method.Parameters = ParseParameters("parameter");
+        method.Body = ParseBody();
+        return method;
+    }
+
+    std::vector<TClassDecl::TParameter> ParseParameters(const std::string& what) {
+        std::vector<TClassDecl::TParameter> parameters;
+        ts_.Expect(ETok::LParen, "'('");
+        if (ts_.Peek().kind != ETok::RParen) {
+            do {
+                TClassDecl::TParameter parameter;
+                parameter.TypeName = ExpectIdent(what + " type");
+                parameter.Name = ExpectIdent(what + " name");
+                parameters.push_back(std::move(parameter));
+            } while (ts_.Match(ETok::Comma));
+        }
+        ts_.Expect(ETok::RParen, "')'");
+        return parameters;
+    }
+
+    std::vector<TClassDecl::TStatement> ParseBody() {
+        ts_.Expect(ETok::LBrace, "'{'");
+        std::vector<TClassDecl::TStatement> body;
+        while (ts_.Peek().kind != ETok::RBrace) {
+            TClassDecl::TStatement statement;
+            statement.Location = ts_.Peek().loc;
+            using K = TClassDecl::TStatement::EKind;
+            if (ts_.Peek().text == "publish") {
+                ts_.Advance();
+                statement.Kind = K::Publish;
+                statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "cost") {
+                ts_.Advance();
+                statement.Kind = K::Cost;
+                statement.Target = ReadExpression(ETok::Equals);
+                ts_.Expect(ETok::Equals, "'=' after resource cost field");
+                statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "choose") {
+                ts_.Advance();
+                statement.Kind = K::Choose;
+                statement.TypeName = ExpectIdent("chosen type");
+                statement.Name = ExpectIdent("chosen name");
+                if (ts_.Peek().text == "from") {
+                    ts_.Advance();
+                    statement.Candidates = ReadExpression(ETok::Semi, false, "", false, "where");
+                }
+                if (ts_.Peek().text == "where") {
+                    ts_.Advance();
+                    statement.Value = ReadExpression(ETok::Semi);
+                }
+            } else if (ts_.Peek().text == "let") {
+                ts_.Advance();
+                statement.Kind = K::Let;
+                statement.Name = ExpectIdent("local name");
+                ts_.Expect(ETok::Equals, "'='");
+                statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "require") {
+                ts_.Advance();
+                statement.Kind = K::Require;
+                statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "requires") {
+                ts_.Advance();
+                statement.Kind = K::Requires;
+                statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "return") {
+                ts_.Advance();
+                statement.Kind = K::Return;
+                if (ts_.Peek().kind != ETok::Semi) statement.Value = ReadExpression(ETok::Semi);
+            } else if (ts_.Peek().text == "if") {
+                ts_.Advance();
+                statement.Kind = K::If;
+                ts_.Expect(ETok::LParen, "'(' after if");
+                statement.Value = ReadExpression(ETok::RParen);
+                ts_.Expect(ETok::RParen, "')'");
+                statement.Body = ParseBody();
+                if (ts_.Peek().text == "else") {
+                    ts_.Advance();
+                    statement.ElseBody = ParseBody();
+                }
+                body.push_back(std::move(statement));
+                continue;
+            } else if (ts_.Peek().text == "while") {
+                ts_.Advance();
+                statement.Kind = K::While;
+                ts_.Expect(ETok::LParen, "'(' after while");
+                statement.Value = ReadExpression(ETok::RParen);
+                ts_.Expect(ETok::RParen, "')'");
+                statement.Body = ParseBody();
+                body.push_back(std::move(statement));
+                continue;
+            } else if (ts_.Peek().text == "for") {
+                ts_.Advance();
+                statement.Kind = K::ForEach;
+                statement.Name = ExpectIdent("loop variable name");
+                ExpectIdentText("in");
+                statement.Value = ReadExpression(ETok::LBrace);
+                statement.Body = ParseBody();
+                body.push_back(std::move(statement));
+                continue;
+            } else {
+                auto expression = ReadExpression(ETok::Semi, true);
+                const auto op = ts_.Peek().text;
+                if (op == "=" || op == "+=" || op == "-=") {
+                    ts_.Advance();
+                    statement.Kind = op == "=" ? K::Assign : (op == "+=" ? K::AddAssign : K::SubAssign);
+                    statement.Target = std::move(expression);
+                    statement.Value = ReadExpression(ETok::Semi);
+                } else {
+                    statement.Kind = K::Call;
+                    statement.Value = std::move(expression);
+                }
+            }
+            ts_.Expect(ETok::Semi, "';'");
+            body.push_back(std::move(statement));
+        }
+        ts_.Expect(ETok::RBrace, "'}'");
+        return body;
     }
 
     void ExpectIdentText(const std::string& text) {

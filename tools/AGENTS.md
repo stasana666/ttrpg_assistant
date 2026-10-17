@@ -1,5 +1,22 @@
 # Tools
 
-Compatibility mirror of CLAUDE.md. If they disagree, CLAUDE.md is authoritative.
+Canonical project instructions. CLAUDE.md redirects here.
 
-This file intentionally delegates to the canonical [CLAUDE.md](CLAUDE.md) in this directory. For Codex work in this subtree, read and follow that file. Keep this compatibility mirror semantically equivalent by updating CLAUDE.md first, then this file only if the mirror policy changes.
+## Purpose
+- First-party tooling shared by the engine and schema pipeline.
+- `common/parse`: scanner and token stream helpers.
+- `common/expr`: backend-agnostic expression lexer/parser/AST.
+- `ttrpg`: `.ttrpg` schema language parser, analyzer, C++ emitter, and CLI.
+
+## Build/Test
+- Build language tools: `cmake --build build --target ttrpg_codegen`.
+- Test expression parser: `cmake --build build --target test_expr`.
+- Test `.ttrpg` tooling: `cmake --build build --target test_ttrpg`.
+
+## Conventions
+- `expr` and `ttrpg` targets opt out of clang-tidy in CMake; still keep code readable and covered by tests.
+- Keep `common` libraries backend-agnostic: no PF2E, assistant, or analyzer dependencies.
+- Use parser/scanner helpers instead of ad hoc string parsing.
+
+## Pitfalls
+- Do not update engine generated output manually; update schemas or `tools/ttrpg` behavior and rerun generation.

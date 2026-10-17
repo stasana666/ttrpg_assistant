@@ -1,11 +1,15 @@
 #pragma once
 
-
 #include <ttrpg/module.h>
 #include <ttrpg/schema_ast.h>
 
+#include <set>
 #include <string>
 #include <unordered_map>
+
+std::string CppStringLiteral(const std::string& value);
+std::string QualifiedCppType(const std::string& type,
+                             const std::unordered_map<std::string, TTypeInfo>& symbols);
 
 std::string PascalToSnake(const std::string& s);
 
@@ -16,6 +20,10 @@ bool IsBuiltinPrimitive(const std::string& t);
 
 bool IsBuiltinBoundedQuantity(const std::string& t);
 bool IsBuiltinResource(const std::string& t);
+bool IsBuiltinFeature(const std::string& t);
+bool IsBuiltinPosition(const std::string& t);
+bool IsValueType(const TLoadedSchemas& loaded, const std::string& type, bool allowEntity);
+const std::set<std::string>& CppKeywords();
 
 std::string CppTypeFor(const std::string& schemaType);
 
@@ -26,24 +34,14 @@ enum class EFieldKind {
     Variant,
     BoundedQuantity,
     Resource,
+    Feature,
 };
 
 EFieldKind FieldKindOf(const TFieldDecl& f,
                        const std::unordered_map<std::string, TTypeInfo>& symbols);
 
-bool IsDslSupported(const TFieldDecl& f);
 
 std::string DefaultExprToCpp(const std::string& expr, const std::string& schemaType);
-
-std::string CppPrimitiveType(const TFieldDecl& f);
-
-std::string ScalarParseExpr(const TFieldDecl& f,
-                            EFieldKind kind,
-                            const std::string& valExpr);
-
-std::string LoadFieldCall(const TFieldDecl& f,
-                          EFieldKind kind,
-                          const std::string& jsonKey);
 
 std::string DeriveSiblingInclude(const std::string& primaryOutH, const std::string& stem);
 
