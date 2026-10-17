@@ -1,0 +1,31 @@
+import "abilities.ttrpg";
+
+feature Flanking {
+    on MeleeTargetModifiers {
+        if (!@self.CanAct() || same_team(@self, Target)
+            || (@self.Size != Small && @self.Size != Medium)
+            || (Target.Size != Small && Target.Size != Medium)) {
+            return TCheckModifiers {};
+        }
+        let Geometry = TCombatGeometry {};
+        let X = position_x(@self);
+        let Y = position_y(@self);
+        let TargetX = position_x(Target);
+        let TargetY = position_y(Target);
+        for Ally in entities(TCreature) {
+            if (Ally != @self && Ally != Target && Ally.CanAct()
+                && same_team(@self, Ally)
+                && (Ally.Size == Small || Ally.Size == Medium)) {
+                let Reach = Ally.MaxWeaponReach();
+                let AllyX = position_x(Ally);
+                let AllyY = position_y(Ally);
+                if (Reach > 0 && Geometry.InReach(AllyX, AllyY, TargetX, TargetY, Reach)
+                    && has_line_of_effect(Ally, Target)
+                    && Geometry.Flanks(X, Y, AllyX, AllyY, TargetX, TargetY)) {
+                    return TCheckModifiers { CircumstancePenalty = 2; };
+                }
+            }
+        }
+        return TCheckModifiers {};
+    }
+}

@@ -1,0 +1,681 @@
+import "armor.ttrpg";
+import "shield.ttrpg";
+import "weapon.ttrpg";
+import "creature_parts.ttrpg";
+import "condition.ttrpg";
+import "damage.ttrpg";
+import "hitpoints.ttrpg";
+import "proficiency.ttrpg";
+import "statistic_baseline.ttrpg";
+import "check_modifiers.ttrpg";
+import "statistics.ttrpg";
+import "lore.ttrpg";
+import "creature_description.ttrpg";
+import "health.ttrpg";
+import "combat_checks.ttrpg";
+
+enum ECreatureSize {
+    Tiny,
+    Small,
+    Medium,
+    Large,
+    Huge,
+    Gargantuan,
+}
+
+enum ESpellSlotRank {
+    Rank1,
+    Rank2,
+    Rank3,
+    Rank4,
+    Rank5,
+    Rank6,
+    Rank7,
+    Rank8,
+    Rank9,
+    Rank10,
+}
+
+class TSpellSlots {
+    Resource First;
+    Resource Second;
+    Resource Third;
+    Resource Fourth;
+    Resource Fifth;
+    Resource Sixth;
+    Resource Seventh;
+    Resource Eighth;
+    Resource Ninth;
+    Resource Tenth;
+
+    query int Count(ESpellSlotRank Rank) {
+        if (Rank == Rank1) {
+            return @self.First.Count();
+        }
+        if (Rank == Rank2) {
+            return @self.Second.Count();
+        }
+        if (Rank == Rank3) {
+            return @self.Third.Count();
+        }
+        if (Rank == Rank4) {
+            return @self.Fourth.Count();
+        }
+        if (Rank == Rank5) {
+            return @self.Fifth.Count();
+        }
+        if (Rank == Rank6) {
+            return @self.Sixth.Count();
+        }
+        if (Rank == Rank7) {
+            return @self.Seventh.Count();
+        }
+        if (Rank == Rank8) {
+            return @self.Eighth.Count();
+        }
+        if (Rank == Rank9) {
+            return @self.Ninth.Count();
+        }
+        return @self.Tenth.Count();
+    }
+
+    method void Spend(ESpellSlotRank Rank) {
+        if (Rank == Rank1) {
+            @self.First.Spend(1);
+            return;
+        }
+        if (Rank == Rank2) {
+            @self.Second.Spend(1);
+            return;
+        }
+        if (Rank == Rank3) {
+            @self.Third.Spend(1);
+            return;
+        }
+        if (Rank == Rank4) {
+            @self.Fourth.Spend(1);
+            return;
+        }
+        if (Rank == Rank5) {
+            @self.Fifth.Spend(1);
+            return;
+        }
+        if (Rank == Rank6) {
+            @self.Sixth.Spend(1);
+            return;
+        }
+        if (Rank == Rank7) {
+            @self.Seventh.Spend(1);
+            return;
+        }
+        if (Rank == Rank8) {
+            @self.Eighth.Spend(1);
+            return;
+        }
+        if (Rank == Rank9) {
+            @self.Ninth.Spend(1);
+            return;
+        }
+        @self.Tenth.Spend(1);
+    }
+}
+
+GameEntity TCreature {
+    string Name;
+    set<ECreatureTrait> Traits;
+    collection<TLanguage> Languages;
+    collection<TSense> Senses;
+    bool CanVocalize = true;
+    int Level;
+    ECreatureSize Size;
+    int BodyReach = 1;
+    TRace Race;
+    TClass Class;
+    TAbilityScores Characteristic;
+    TProficiency Proficiency;
+    TStatisticBaseline PerceptionBaseline;
+    map<ESavethrow, TStatisticBaseline> SaveBaselines;
+    map<ESkill, TStatisticBaseline> SkillBaselines;
+    TClassDCProfile ClassDcProfile;
+    collection<TLoreSkill> LoreSkills;
+    int Movement = 0;
+    THitPoints Hitpoints = THitPoints {
+        Maximum = Statistic {
+            Base = @self.Race.Hitpoints + @self.Level * (@self.Class.Hitpoints + @self.Characteristic.Constitution.Modifier);
+        };
+    };
+    TArmor Armor;
+    TShield Shield;
+    TStatisticBaseline ArmorClassBaseline;
+    collection<TWeapon> Weapons;
+    collection<TWeapon> NaturalWeapons;
+    collection<Feature> Features;
+    set<TCondition> Conditions;
+    EZeroHpRule ZeroHpRule = Defeat;
+    bool Dead = @self.ZeroHpRule == Death && @self.Hitpoints.Current == 0
+        && !@self.Conditions.has(Unconscious);
+    set<EDamageType> Immunities;
+    map<EDamageType, int> Resistances;
+    map<EDamageType, int> Vulnerabilities;
+    int AttacksMade = 0;
+    int DiagonalSteps = 0;
+    Resource Actions = 0;
+    Resource Reactions = 0;
+    Resource Flourishes = 1;
+    Resource Hands = 0;
+    TSpellSlots SpellSlots;
+
+    query bool IsAlive() {
+        if (@self.ZeroHpRule == Defeat) {
+            return !@self.IsDead() && @self.Hitpoints.Current > 0;
+        }
+        return !@self.IsDead();
+    }
+
+    query bool IsDead() {
+        return @self.Dead || @self.DyingValue() >= 4;
+    }
+
+    query bool CanAct() {
+        return !@self.IsDead() && @self.Hitpoints.Current > 0
+            && !@self.Conditions.has(Unconscious) && @self.DyingValue() == 0;
+    }
+
+    query bool IsDefeated() {
+        return !@self.CanAct();
+    }
+
+    query int DyingValue() {
+        return @self.Conditions.get(Dying, { Value = 0; }).Value;
+    }
+
+    query int WoundedValue() {
+        return @self.Conditions.get(Wounded, { Value = 0; }).Value;
+    }
+
+    query bool NeedsRecoveryCheck() {
+        return @self.ZeroHpRule == Dying && !@self.IsDead()
+            && @self.Hitpoints.Current == 0 && @self.DyingValue() > 0;
+    }
+
+    query int RecoveryDC(int DcAdjustment) {
+        require @self.NeedsRecoveryCheck();
+        return 10 + @self.DyingValue() + DcAdjustment;
+    }
+
+    query bool IsMassiveDamage(int Amount) {
+        require Amount >= 0;
+        if (@self.ZeroHpRule == Defeat) {
+            return false;
+        }
+        require @self.Hitpoints.Maximum.Value > 0;
+        return Amount / 2 >= @self.Hitpoints.Maximum.Value;
+    }
+
+    query int SpeedFeet() {
+        return @self.Movement * 5;
+    }
+
+    query TAbilityScore GetCharacteristic(ECharacteristic Name) {
+        if (Name == Strength) {
+            return @self.Characteristic.Strength;
+        }
+        if (Name == Dexterity) {
+            return @self.Characteristic.Dexterity;
+        }
+        if (Name == Constitution) {
+            return @self.Characteristic.Constitution;
+        }
+        if (Name == Intelligence) {
+            return @self.Characteristic.Intelligence;
+        }
+        if (Name == Wisdom) {
+            return @self.Characteristic.Wisdom;
+        }
+        require Name == Charisma;
+        return @self.Characteristic.Charisma;
+    }
+
+    query int ArmorProficiency(EArmorCategory Category) {
+        return @self.Proficiency.ArmorBonus(Category, @self.Level);
+    }
+
+    query int WeaponProficiency(EWeaponCategory Category) {
+        return @self.Proficiency.WeaponBonus(Category, @self.Level);
+    }
+
+    query int SaveProficiency(ESavethrow Save) {
+        return @self.Proficiency.SaveBonus(Save, @self.Level);
+    }
+
+    query int SkillProficiency(ESkill Skill) {
+        return @self.Proficiency.SkillBonus(Skill, @self.Level);
+    }
+
+    query int PerceptionProficiency() {
+        return @self.Proficiency.PerceptionBonus(@self.Level);
+    }
+
+    query int PerceptionBase() {
+        if (@self.PerceptionBaseline.IsFixed) {
+            return @self.PerceptionBaseline.Value;
+        }
+        return @self.GetCharacteristic(TStatisticRules {}.PerceptionAttribute()).Modifier
+            + @self.PerceptionProficiency();
+    }
+
+    query int SaveBase(ESavethrow Save) {
+        let Baseline = @self.SaveBaselines.get(Save, TStatisticBaseline {});
+        if (Baseline.IsFixed) {
+            return Baseline.Value;
+        }
+        return @self.GetCharacteristic(TStatisticRules {}.SaveAttribute(Save)).Modifier
+            + @self.SaveProficiency(Save);
+    }
+
+    query int SkillBase(ESkill Skill) {
+        let Baseline = @self.SkillBaselines.get(Skill, TStatisticBaseline {});
+        if (Baseline.IsFixed) {
+            return Baseline.Value;
+        }
+        return @self.GetCharacteristic(TStatisticRules {}.SkillAttribute(Skill)).Modifier
+            + @self.SkillProficiency(Skill);
+    }
+
+    query int LoreBase(TLoreSkill Lore) {
+        return Lore.Base(@self.Level, @self.Characteristic.Intelligence.Modifier);
+    }
+
+    query bool HasClassDC() {
+        return @self.ClassDcProfile.Enabled;
+    }
+
+    query int ClassDCBase() {
+        return @self.ClassDcProfile.Base(@self.Level,
+            @self.GetCharacteristic(@self.ClassDcProfile.KeyAttribute).Modifier);
+    }
+
+    query TCheckModifiers CheckConditionModifiers() {
+        return TCheckModifiers { StatusPenalty = @self.ConditionPenalty(); };
+    }
+
+    query int UnconsciousPenalty() {
+        if (@self.Conditions.has(Unconscious)) {
+            return 4;
+        }
+        return 0;
+    }
+
+    query int PerceptionBonusWithModifiers(TCheckModifiers Extra) {
+        let Conditions = @self.CheckConditionModifiers().Merge(TCheckModifiers {
+            StatusPenalty = @self.UnconsciousPenalty();
+        });
+        return @self.PerceptionBase() + Conditions.Merge(Extra).Total();
+    }
+
+    query int PerceptionBonus() {
+        return @self.PerceptionBonusWithModifiers(TCheckModifiers {});
+    }
+
+    query int InitiativeBonusWithModifiers(TCheckModifiers Extra) {
+        return @self.PerceptionBonusWithModifiers(Extra);
+    }
+
+    query int InitiativeBonus() {
+        return @self.InitiativeBonusWithModifiers(TCheckModifiers {});
+    }
+
+    query int SaveBonusWithModifiers(ESavethrow Save, TCheckModifiers Extra) {
+        let Conditions = @self.CheckConditionModifiers();
+        if (Save == Reflex) {
+            Conditions = Conditions.Merge(TCheckModifiers {
+                StatusPenalty = @self.UnconsciousPenalty();
+            });
+        }
+        return @self.SaveBase(Save) + Conditions.Merge(Extra).Total();
+    }
+
+    query int SaveBonus(ESavethrow Save) {
+        return @self.SaveBonusWithModifiers(Save, TCheckModifiers {});
+    }
+
+    query int SkillBonusWithModifiers(ESkill Skill, TCheckModifiers Extra) {
+        return @self.SkillBase(Skill) + @self.CheckConditionModifiers().Merge(Extra).Total();
+    }
+
+    query int SkillBonus(ESkill Skill) {
+        return @self.SkillBonusWithModifiers(Skill, TCheckModifiers {});
+    }
+
+    query int LoreBonusWithModifiers(TLoreSkill Lore, TCheckModifiers Extra) {
+        return @self.LoreBase(Lore) + @self.CheckConditionModifiers().Merge(Extra).Total();
+    }
+
+    query int LoreBonus(TLoreSkill Lore) {
+        return @self.LoreBonusWithModifiers(Lore, TCheckModifiers {});
+    }
+
+    query int ClassDCWithModifiers(TCheckModifiers Extra) {
+        return @self.ClassDCBase() + @self.CheckConditionModifiers().Merge(Extra).Total();
+    }
+
+    query int ClassDC() {
+        return @self.ClassDCWithModifiers(TCheckModifiers {});
+    }
+
+    query int PerceptionDCWithModifiers(TCheckModifiers Extra) {
+        return 10 + @self.PerceptionBonusWithModifiers(Extra);
+    }
+
+    query int PerceptionDC() {
+        return @self.PerceptionDCWithModifiers(TCheckModifiers {});
+    }
+
+    query int SaveDCWithModifiers(ESavethrow Save, TCheckModifiers Extra) {
+        return 10 + @self.SaveBonusWithModifiers(Save, Extra);
+    }
+
+    query int SaveDC(ESavethrow Save) {
+        return @self.SaveDCWithModifiers(Save, TCheckModifiers {});
+    }
+
+    query int SkillDCWithModifiers(ESkill Skill, TCheckModifiers Extra) {
+        return 10 + @self.SkillBonusWithModifiers(Skill, Extra);
+    }
+
+    query int SkillDC(ESkill Skill) {
+        return @self.SkillDCWithModifiers(Skill, TCheckModifiers {});
+    }
+
+    query int LoreDCWithModifiers(TLoreSkill Lore, TCheckModifiers Extra) {
+        return 10 + @self.LoreBonusWithModifiers(Lore, Extra);
+    }
+
+    query int LoreDC(TLoreSkill Lore) {
+        return @self.LoreDCWithModifiers(Lore, TCheckModifiers {});
+    }
+
+    query int ConditionPenalty() {
+        return @self.Conditions.get(Frightened, { Value = 0; }).Value;
+    }
+
+    query int AttackConditionPenalty() {
+        let Penalty = @self.ConditionPenalty();
+        if (@self.Conditions.has(Prone)) {
+            Penalty += 2;
+        }
+        return Penalty;
+    }
+
+    query int ArmorClassWithModifiers(TCheckModifiers Extra) {
+        let Value = @self.ArmorClassBaseline.Value;
+        let ItemBonus = 0;
+        let ItemPenalty = 0;
+        if (!@self.ArmorClassBaseline.IsFixed) {
+            ItemBonus = max(0, @self.Armor.ArmorClassBonus);
+            ItemPenalty = max(0, -@self.Armor.ArmorClassBonus);
+            Value = 10
+                + min(@self.Armor.DexterityCap, @self.Characteristic.Dexterity.Modifier)
+                + @self.ArmorProficiency(@self.Armor.Category);
+        }
+        let CircumstancePenalty = 0;
+        if (@self.Conditions.has(Prone) || @self.Conditions.has(Unconscious)) {
+            CircumstancePenalty = 2;
+        }
+        let Modifiers = TCheckModifiers {
+            ItemBonus = ItemBonus;
+            ItemPenalty = ItemPenalty;
+            StatusPenalty = max(@self.ConditionPenalty(), @self.UnconsciousPenalty());
+            CircumstancePenalty = CircumstancePenalty;
+            CircumstanceBonus = @self.Shield.ArmorClassBonusWhenRaised();
+        };
+        return Value + Modifiers.Merge(Extra).Total();
+    }
+
+    query int ArmorClass() {
+        return @self.ArmorClassWithModifiers(TCheckModifiers {});
+    }
+
+    query int AttackBonus(TWeapon Weapon) {
+        if (Weapon.AttackBonusBaseline.IsFixed) {
+            return Weapon.AttackBonusBaseline.Value - @self.AttackConditionPenalty();
+        }
+        let Modifier = @self.Characteristic.Strength.Modifier;
+        if (Weapon.Traits.has(Finesse)) {
+            Modifier = max(Modifier, @self.Characteristic.Dexterity.Modifier);
+        }
+        return Modifier + @self.WeaponProficiency(Weapon.Category) - @self.AttackConditionPenalty();
+    }
+
+    query int AttackCountPenalty(bool Agile) {
+        require @self.AttacksMade >= 0;
+        let Step = 5;
+        if (Agile) {
+            Step = 4;
+        }
+        return min(@self.AttacksMade, 2) * Step;
+    }
+
+    query int MultipleAttackPenalty(TWeapon Weapon) {
+        return @self.AttackCountPenalty(Weapon.Traits.has(Agile));
+    }
+
+    query int DamageModifier(TWeapon Weapon) {
+        if (Weapon.DamageModifierBaseline.IsFixed) {
+            return Weapon.DamageModifierBaseline.Value;
+        }
+        return @self.Characteristic.Strength.Modifier;
+    }
+
+    query int DamageAmount(EDamageType Type, int Amount) {
+        require Amount >= 0;
+        if (Amount == 0 || @self.Immunities.has(Type)) {
+            return 0;
+        }
+        let Weakness = @self.Vulnerabilities.get(Type, 0);
+        let Resistance = @self.Resistances.get(Type, 0);
+        return max(0, Amount + Weakness - Resistance);
+    }
+
+    query int MaxWeaponReach() {
+        let Reach = 0;
+        for Weapon in @self.Weapons {
+            Reach = max(Reach, Weapon.Reach);
+        }
+        for Weapon in @self.NaturalWeapons {
+            Reach = max(Reach, Weapon.Reach);
+        }
+        return Reach;
+    }
+
+    method void RecordAttack(int Count) {
+        require Count > 0;
+        require @self.AttacksMade >= 0;
+        @self.AttacksMade += Count;
+    }
+
+    method void ResetAttacks() {
+        @self.AttacksMade = 0;
+    }
+
+    method void BeginRound() {
+        @self.Flourishes.SetCount(1);
+    }
+
+    method void BeginTurn() {
+        @self.ResetAttacks();
+        if (@self.IsDead()) {
+            @self.Actions.SetCount(0);
+            @self.Reactions.SetCount(0);
+            return;
+        }
+        @self.Actions.SetCount(3);
+        @self.Reactions.SetCount(1);
+    }
+
+    method void ExpireTurnStartEffects() {
+        @self.Shield.Lower();
+    }
+
+    method void EndTurn() {
+        @self.Actions.SetCount(0);
+        @self.ResetAttacks();
+        @self.DiagonalSteps = 0;
+        @self.DecayFrightened();
+    }
+
+    method void ApplyFrightened(int Value) {
+        require Value >= 0;
+        if (Value > @self.ConditionPenalty()) {
+            @self.Conditions.set(Frightened { Value = Value; });
+        }
+    }
+
+    method void ClearFrightened() {
+        @self.Conditions.erase(Frightened);
+    }
+
+    method void DecayFrightened() {
+        let Value = @self.ConditionPenalty();
+        if (Value <= 1) {
+            @self.ClearFrightened();
+        } else {
+            @self.Conditions.set(Frightened { Value = Value - 1; });
+        }
+    }
+
+    method TDamageResult ReceiveDamage(EDamageType Type, int Amount) {
+        let Result = @self.ReceiveDamageWithContext(Type, Amount, TDamageContext {});
+        return Result.Hitpoints;
+    }
+
+    method THealthDamageResult ReceiveDamageWithContext(EDamageType Type, int Amount, TDamageContext Context) {
+        return @self.ApplyResolvedDamage(@self.DamageAmount(Type, Amount), Context);
+    }
+
+    method void Die() {
+        @self.DropShield();
+        @self.Dead = true;
+        @self.Hitpoints.Current = 0;
+        @self.Actions.SetCount(0);
+        @self.Reactions.SetCount(0);
+    }
+
+    method void BecomeUnconscious() {
+        @self.DropShield();
+        @self.Conditions.set(Unconscious);
+        @self.Conditions.set(Prone);
+    }
+
+    method void DropShield() {
+        let FreeHands = @self.Hands.Count();
+        if (@self.Shield.IsPresent() && @self.Shield.Wielded) {
+            FreeHands += 1;
+        }
+        @self.Shield.Drop();
+        @self.Hands.SetCount(FreeHands);
+    }
+
+    method void LoseDying() {
+        require @self.WoundedValue() >= 0 && @self.DyingValue() >= 0;
+        if (@self.DyingValue() > 0) {
+            let NewWounded = @self.WoundedValue() + 1;
+            @self.Conditions.set(Wounded { Value = NewWounded; });
+        }
+        @self.Conditions.erase(Dying);
+    }
+
+    method void SetDyingValue(int Value) {
+        require Value >= 0;
+        if (Value == 0) {
+            @self.LoseDying();
+            return;
+        }
+        @self.Conditions.set(Dying { Value = Value; });
+        @self.BecomeUnconscious();
+        if (Value >= 4) {
+            @self.Die();
+        }
+    }
+
+    method THealthDamageResult ApplyResolvedDamage(int Amount, TDamageContext Context) {
+        require Amount >= 0 && !@self.IsDead();
+        require @self.Hitpoints.Current >= 0 && @self.Hitpoints.Temporary >= 0;
+        require @self.DyingValue() >= 0 && @self.WoundedValue() >= 0;
+        let Massive = @self.IsMassiveDamage(Amount);
+        let Damage = @self.Hitpoints.DealDamage(Amount);
+        if (Amount > 0 && @self.ZeroHpRule != Defeat) {
+            let Increase = 1;
+            if (Context.Critical) {
+                Increase = 2;
+            }
+            if (Massive) {
+                @self.Die();
+            } else {
+                if (@self.DyingValue() > 0) {
+                    @self.SetDyingValue(@self.DyingValue() + Increase);
+                } else {
+                    if (@self.Hitpoints.Current == 0) {
+                        @self.BecomeUnconscious();
+                        if (!Context.Nonlethal) {
+                            if (@self.ZeroHpRule == Death) {
+                                @self.Die();
+                            } else {
+                                @self.SetDyingValue(Increase + @self.WoundedValue());
+                            }
+                        }
+                    } else {
+                        @self.Conditions.erase(Unconscious);
+                    }
+                }
+            }
+        }
+        return THealthDamageResult {
+            Hitpoints = TDamageResult {
+                Incoming = Damage.Incoming;
+                AbsorbedTemporary = Damage.AbsorbedTemporary;
+                Before = Damage.Before;
+                After = @self.Hitpoints.Current;
+            };
+            NewlyKnockedOut = Damage.Before > 0 && @self.Hitpoints.Current == 0;
+            NewlyDead = @self.IsDead();
+        };
+    }
+
+    method int ReceiveHealing(int Amount) {
+        require Amount >= 0 && !@self.IsDead();
+        let Restored = @self.Hitpoints.Heal(Amount);
+        if (Amount > 0 && @self.Hitpoints.Current > 0) {
+            @self.LoseDying();
+            @self.Conditions.erase(Unconscious);
+        }
+        return Restored;
+    }
+
+    method ECheckOutcome ApplyRecovery(int Natural, int DcAdjustment) {
+        require @self.NeedsRecoveryCheck();
+        let Outcome = TCheckRules {}.Resolve(Natural, 0, @self.RecoveryDC(DcAdjustment));
+        let Value = @self.DyingValue();
+        if (Outcome == CriticalSuccess) {
+            Value = max(0, Value - 2);
+        } else {
+            if (Outcome == Success) {
+                Value -= 1;
+            } else {
+                if (Outcome == Failure) {
+                    Value += 1;
+                } else {
+                    Value += 2;
+                }
+            }
+        }
+        @self.SetDyingValue(Value);
+        return Outcome;
+    }
+
+    grant @self.Features;
+    grant @self.Race;
+    grant @self.Class;
+    grant @self.Weapons;
+    grant @self.NaturalWeapons;
+}

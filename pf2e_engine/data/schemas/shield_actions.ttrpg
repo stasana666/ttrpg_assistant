@@ -1,0 +1,27 @@
+import "abilities.ttrpg";
+
+action RaiseShield for TCreature {
+    cost @self.Actions = 1;
+    requires @self.Shield.CanRaise();
+    @self.Shield.Raise();
+}
+
+reaction UseShieldBlock for TCreature on BeforeAttackDamage {
+    cost @self.Reactions = 1;
+    requires Target == @self && @self.Shield.IsRaised()
+        && Pending.IsPhysical() && Pending.Amount > 0;
+    let Remaining = @self.Shield.Block(Pending.Amount);
+    return TPendingAttackDamage {
+        Amount = Remaining;
+        Type = Pending.Type;
+        Context = Pending.Context;
+    };
+}
+
+feature ShieldActions {
+    grant RaiseShield;
+}
+
+feature ShieldBlockTraining {
+    grant UseShieldBlock;
+}

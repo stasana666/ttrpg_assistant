@@ -1,0 +1,28 @@
+class TCombatGeometry {
+    query bool InReach(int X, int Y, int TargetX, int TargetY, int Reach) {
+        require Reach >= 0;
+        let Dx = max(X, TargetX) - min(X, TargetX);
+        let Dy = max(Y, TargetY) - min(Y, TargetY);
+        if (Reach == 2) {
+            return max(Dx, Dy) <= 2;
+        }
+        return max(Dx, Dy) + min(Dx, Dy) / 2 <= Reach;
+    }
+
+    query bool Flanks(int X, int Y, int AllyX, int AllyY, int TargetX, int TargetY) {
+        let Ax = X - TargetX;
+        let Ay = Y - TargetY;
+        let Bx = AllyX - TargetX;
+        let By = AllyY - TargetY;
+        let Dx = Bx - Ax;
+        let Dy = By - Ay;
+        let Cross = Ax * By - Ay * Bx;
+        let TwiceCross = 2 * max(Cross, -Cross);
+        let Width = max(Dx, -Dx);
+        let Height = max(Dy, -Dy);
+        return ((Ax < 0 && Bx > 0) || (Ax > 0 && Bx < 0))
+                && TwiceCross + Height <= Width
+            || ((Ay < 0 && By > 0) || (Ay > 0 && By < 0))
+                && TwiceCross + Width <= Height;
+    }
+}

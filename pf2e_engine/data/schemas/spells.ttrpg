@@ -1,0 +1,52 @@
+import "abilities.ttrpg";
+
+class TBurst {
+    query bool Contains(int CenterX, int CenterY, int X, int Y, int Radius) {
+        let DX = CenterX - X;
+        let DY = CenterY - Y;
+        return 4 * DX * DX + 4 * DY * DY <= (2 * Radius + 1) * (2 * Radius + 1);
+    }
+}
+
+class TFireballDamage {
+    map<ESpellSlotRank, int> Dice = {
+        Rank3 = 6;
+        Rank4 = 7;
+        Rank5 = 8;
+        Rank6 = 9;
+        Rank7 = 10;
+        Rank8 = 11;
+        Rank9 = 12;
+        Rank10 = 13;
+    };
+}
+
+action CastFireball for TCreature {
+    cost @self.Actions = 2;
+    choose ESpellSlotRank Rank from [Rank3, Rank4, Rank5, Rank6, Rank7, Rank8, Rank9, Rank10]
+        where @self.SpellSlots.Count(Rank) > 0;
+    choose Position Center from map_positions();
+    @self.SpellSlots.Spend(Rank);
+    let Amount = roll(TFireballDamage {}.Dice.get(Rank, 0), 6);
+    for Target in participants(TCreature) {
+        if (!Target.IsDead()
+            && TBurst {}.Contains(Center.X, Center.Y, position_x(Target), position_y(Target), 4)) {
+            let Result = Target.ApplyResolvedDamage(Target.DamageAmount(Fire, Amount), TDamageContext {});
+            if (Target.ZeroHpRule != Defeat && Result.NewlyKnockedOut && !Result.NewlyDead) {
+                move_before_current_turn(Target);
+            }
+        }
+    }
+}
+
+action CastRemoveFear for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target.IsAlive() && grid_distance(@self, Target) <= 6
+        && has_line_of_effect(@self, Target);
+    Target.ClearFrightened();
+}
+
+feature WizardSpells {
+    grant CastFireball;
+    grant CastRemoveFear;
+}

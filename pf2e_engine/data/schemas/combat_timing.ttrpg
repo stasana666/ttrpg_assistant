@@ -1,0 +1,7 @@
+class TCombatTiming {
+    int RoundSeconds = 0;
+}
+
+TCombatTiming CombatTiming {
+    RoundSeconds = 6;
+}

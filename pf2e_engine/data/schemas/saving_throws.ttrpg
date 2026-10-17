@@ -1,0 +1,5 @@
+enum ESavethrow {
+    Fortitude,
+    Will,
+    Reflex,
+}

@@ -1,0 +1,75 @@
+import "abilities.ttrpg";
+
+relation bool DemoralizeImmunity for TCreature(TCreature Source);
+relation bool Awareness for TCreature(TCreature Subject);
+relation bool Visibility for TCreature(TCreature Subject);
+relation bool Audibility for TCreature(TCreature Subject);
+
+class TIntimidationRules {
+    query bool InRange(int X1, int Y1, int X2, int Y2) {
+        let Dx = max(X1, X2) - min(X1, X2);
+        let Dy = max(Y1, Y2) - min(Y1, Y2);
+        return max(Dx, Dy) + min(Dx, Dy) / 2 <= 6;
+    }
+}
+
+activity void ResolveDemoralize for TCreature(TCreature Target, int LanguagePenalty) {
+    require !DemoralizeImmunity.has(Target, @self);
+    let Bonus = @self.SkillBonusWithModifiers(Intimidation, TCheckModifiers {
+        CircumstancePenalty = LanguagePenalty;
+    });
+    let Natural = roll(1, 20);
+    let Outcome = TCheckRules {}.Resolve(Natural, Bonus, Target.SaveDC(Will));
+    DemoralizeImmunity.set(Target, @self, true, minutes(10));
+    if (Outcome == CriticalSuccess) {
+        Target.ApplyFrightened(2);
+    } else {
+        if (Outcome == Success) {
+            Target.ApplyFrightened(1);
+        }
+    }
+}
+
+action UseDemoralize for TCreature {
+    cost @self.Actions = 1;
+    requires @self.CanVocalize;
+    let Rules = TIntimidationRules {};
+    choose TCreature Target where Target != @self && !Target.IsDead()
+        && Awareness.get(@self, Target, true)
+        && Audibility.get(Target, @self, true)
+        && Rules.InRange(position_x(@self), position_y(@self),
+                         position_x(Target), position_y(Target))
+        && !DemoralizeImmunity.has(Target, @self);
+    let LanguagePenalty = 4;
+    for Spoken in @self.Languages {
+        if (Spoken.Spoken && Spoken.Name != "") {
+            for Understood in Target.Languages {
+                if (Understood.Spoken && Spoken.Name == Understood.Name) {
+                    LanguagePenalty = 0;
+                }
+            }
+        }
+    }
+    ResolveDemoralize(Target, LanguagePenalty);
+}
+
+action UseIntimidatingGlare for TCreature {
+    cost @self.Actions = 1;
+    let Rules = TIntimidationRules {};
+    choose TCreature Target where Target != @self && !Target.IsDead()
+        && Awareness.get(@self, Target, true)
+        && Visibility.get(Target, @self, true)
+        && !Target.Conditions.has(Unconscious)
+        && Rules.InRange(position_x(@self), position_y(@self),
+                         position_x(Target), position_y(Target))
+        && !DemoralizeImmunity.has(Target, @self);
+    ResolveDemoralize(Target, 0);
+}
+
+feature IntimidationActions {
+    grant UseDemoralize;
+}
+
+feature IntimidatingGlare {
+    grant UseIntimidatingGlare;
+}

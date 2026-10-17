@@ -1,5 +1,16 @@
 # Engine Data
 
-Compatibility mirror of CLAUDE.md. If they disagree, CLAUDE.md is authoritative.
+Canonical project instructions. CLAUDE.md redirects here.
 
-This file intentionally delegates to the canonical [CLAUDE.md](CLAUDE.md) in this directory. For Codex work in this subtree, read and follow that file. Keep this compatibility mirror semantically equivalent by updating CLAUDE.md first, then this file only if the mirror policy changes.
+## Purpose
+- All game data is declared in `schemas/*.ttrpg`: rules, creatures, items, abilities, actions and map layouts. Production creatures are the `remaster_profiles.ttrpg` constructors; the assistant's map is `battle_maps.ttrpg`.
+
+## Build/Test
+- Check a schema without building: `./build/tools/ttrpg/ttrpg_codegen --schema pf2e_engine/data/schemas/remaster_profiles.ttrpg --check`.
+
+## Conventions
+- Proficiency values contain rank/fixed data only. Level changes affect ranked queries immediately, without recomputing stored hit-point defaults or applying level-up rules implicitly.
+
+## Do Not
+- Do not edit generated C++; change the schema or the generator instead.
+- Do not add large binary assets here; assistant images and models live elsewhere.

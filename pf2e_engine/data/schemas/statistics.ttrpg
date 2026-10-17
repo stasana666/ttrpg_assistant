@@ -1,0 +1,52 @@
+import "creature_parts.ttrpg";
+import "proficiency.ttrpg";
+import "statistic_baseline.ttrpg";
+
+class TClassDCProfile {
+    bool Enabled = false;
+    ECharacteristic KeyAttribute = Strength;
+    TProficiencyValue Proficiency;
+    TStatisticBaseline Baseline;
+
+    query int Base(int Level, int AttributeModifier) {
+        require @self.Enabled;
+        if (@self.Baseline.IsFixed) {
+            return @self.Baseline.Value;
+        }
+        return 10 + AttributeModifier + @self.Proficiency.Bonus(Level);
+    }
+}
+
+class TStatisticRules {
+    query ECharacteristic PerceptionAttribute() {
+        return Wisdom;
+    }
+
+    query ECharacteristic SaveAttribute(ESavethrow Save) {
+        if (Save == Fortitude) {
+            return Constitution;
+        }
+        if (Save == Reflex) {
+            return Dexterity;
+        }
+        require Save == Will;
+        return Wisdom;
+    }
+
+    query ECharacteristic SkillAttribute(ESkill Skill) {
+        if (Skill == Acrobatics || Skill == Stealth || Skill == Thievery) {
+            return Dexterity;
+        }
+        if (Skill == Athletics) {
+            return Strength;
+        }
+        if (Skill == Arcana || Skill == Crafting || Skill == Occultism || Skill == Society) {
+            return Intelligence;
+        }
+        if (Skill == Medicine || Skill == Nature || Skill == Religion || Skill == Survival) {
+            return Wisdom;
+        }
+        require Skill == Deception || Skill == Diplomacy || Skill == Intimidation || Skill == Performance;
+        return Charisma;
+    }
+}

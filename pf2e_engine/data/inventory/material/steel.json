@@ -1,7 +1,0 @@
-{
-    "name": "steel",
-    "type": "pf2e_material",
-    "pf2e_material": {
-        "hardness": 10
-    }
-}
