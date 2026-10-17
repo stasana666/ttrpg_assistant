@@ -1,12 +1,12 @@
 #pragma once
 
 #include <pf2e_engine/i_interaction_system.h>
-#include <pf2e_engine/actions/save_point.h>
 #include <pf2e_engine/common/visit.h>
 #include <functional>
 #include <sstream>
 #include <stdexcept>
 #include <queue>
+#include <utility>
 #include <variant>
 
 struct TTooManyCallsError : public std::logic_error {
@@ -22,16 +22,6 @@ struct TMockInteractionSystem final : public IInteractionSystem {
     std::ostream& DevLog() override {
         return dev_log_;
     }
-
-    void HandleReactionTrigger(const TTriggerContext&, const TState& state) override {
-        // Opt-in: mimics the assistant, which defers reaction triggers by
-        // throwing a savepoint so the battle loop reverts and resumes.
-        if (reaction_suspends_) {
-            throw TSavepointStackUnwind(state, [] {});
-        }
-    }
-
-    void SetReactionSuspends(bool value) { reaction_suspends_ = value; }
 
     struct ExpectedChoice {
         int player_id;
@@ -117,22 +107,17 @@ public:
 private:
     void ExecutePendingCallbacks() {
         while (!expectations_.empty()) {
-            bool should_stop = std::visit(VisitorHelper{
-                [](const ExpectedChoice&) { return true; },
-                [this](const CheckCallback& callback) {
-                    expectations_.pop();
-                    callback();
-                    return false;
-                }
-            }, expectations_.front());
-            if (should_stop) {
+            auto* pending = std::get_if<CheckCallback>(&expectations_.front());
+            if (pending == nullptr) {
                 break;
             }
+            auto callback = std::move(*pending);
+            expectations_.pop();
+            callback();
         }
     }
 
     std::queue<Expectation> expectations_;
     std::ostringstream game_log_;
     std::ostringstream dev_log_;
-    bool reaction_suspends_ = false;
 };

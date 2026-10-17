@@ -1,0 +1,93 @@
+import "../../../data/schemas/creature.ttrpg";
+
+enum EFixtureRelationGrade { Low, High }
+
+class TFixtureRelationPayload {
+    int Amount = 0;
+    string Label = "";
+}
+
+relation TFixtureRelationPayload FixtureMemory for TCreature(TCreature Source);
+relation Position FixtureOrigin for TCreature(TCreature Source);
+relation string FixtureCaption for TCreature(TCreature Source);
+relation EFixtureRelationGrade FixtureGrade for TCreature(TCreature Source);
+relation bool FixturePresence for TCreature(TCreature Source);
+
+event int FixtureRelationBonus for TCreature(TCreature Source);
+
+action CaptureRelation for TCreature {
+    cost @self.Actions = 1;
+    let Duration = seconds(@self.Level);
+    let Payload = TFixtureRelationPayload { Amount = @self.Level; Label = @self.Name; };
+    let Origin = position(@self);
+    choose TCreature Target where Target != @self;
+    choose int Extra from [1, 2];
+    FixtureMemory.set(@self, Target, TFixtureRelationPayload {
+        Amount = Payload.Amount + Extra;
+        Label = Payload.Label;
+    }, Duration);
+    FixtureOrigin.set(@self, Target, Origin);
+    FixtureCaption.set(@self, Target, Payload.Label);
+    FixtureGrade.set(@self, Target, High);
+    FixturePresence.set(@self, Target, false);
+}
+
+action ReadRelationSnapshot for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target != @self;
+    let Payload = FixtureMemory.get(@self, Target, { Amount = 0; Label = "absent"; });
+    let Origin = FixtureOrigin.get(@self, Target, Position { X = 0; Y = 0; });
+    let Caption = FixtureCaption.get(@self, Target, "absent");
+    choose int Extra from [1, 2];
+    require Payload.Label == Caption;
+    @self.Hands.SetCount(Payload.Amount + Origin.X + Origin.Y + Extra);
+}
+
+activity int ReadRelationWithSource for TCreature(TWeapon Weapon, TCreature Target) {
+    choose int Extra from [1, 2];
+    let Payload = FixtureMemory.get(@self, Target, { Amount = 0; Label = "absent"; });
+    return Weapon.BaseDiceSize + Payload.Amount + Extra;
+}
+
+action UseRelationSource for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target != @self;
+    choose TWeapon Weapon from @self.Weapons;
+    let Amount = ReadRelationWithSource(Weapon, Target);
+    @self.Hands.SetCount(Amount);
+}
+
+trigger int FixtureRelationOpening(int Pending, TCreature Subject);
+
+reaction RememberRelationReaction for TCreature on FixtureRelationOpening {
+    cost @self.Reactions = 1;
+    requires Subject != @self;
+    choose int Amount from [3, 4];
+    FixtureMemory.set(@self, Subject, { Amount = Amount; Label = "reaction"; }, seconds(3));
+    FixtureOrigin.set(@self, Subject, position(@self));
+    FixtureCaption.set(@self, Subject, "reaction");
+    return Pending + Amount;
+}
+
+action OpenRelationWindow for TCreature {
+    cost @self.Actions = 1;
+    let Amount = FixtureRelationOpening(10, @self);
+    @self.Hands.SetCount(Amount);
+}
+
+feature RelationTraining {
+    grant CaptureRelation;
+    grant ReadRelationSnapshot;
+    grant UseRelationSource;
+    grant OpenRelationWindow;
+    on FixtureRelationBonus {
+        if (!FixturePresence.has(@self, Source)) { return 0; }
+        let Payload = FixtureMemory.get(@self, Source, { Amount = 0; Label = "expired"; });
+        if (FixtureGrade.get(@self, Source, Low) == High) { return Payload.Amount; }
+        return 0;
+    }
+}
+
+feature RelationReactor {
+    grant RememberRelationReaction;
+}

@@ -1,0 +1,105 @@
+import "../../../data/schemas/creature.ttrpg";
+
+record HitResult for TCreature using TWeapon Weapon(TCreature Target, ECheckOutcome Outcome);
+
+activity ECheckOutcome TouchTarget for TCreature(TWeapon Weapon, TCreature Target) {
+    choose int Amount from [1, 2];
+    Target.Hitpoints.DealDamage(Weapon.BaseDiceSize + Amount);
+    return Success;
+}
+
+action BoundAttack for TCreature using TWeapon Weapon {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target != @self && Target.CanAct();
+    let Outcome = TouchTarget(Weapon, Target);
+    publish HitResult(Weapon, Target, Outcome);
+}
+
+action SelectAttack for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target != @self && Target.CanAct();
+    choose TWeapon Weapon from sources(@self.Weapons, @self.NaturalWeapons);
+    let Alias = Weapon;
+    let Outcome = TouchTarget(Alias, Target);
+    publish HitResult(Alias, Target, Outcome);
+}
+
+action Miss for TCreature using TWeapon Weapon {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target != @self && Target.CanAct();
+    publish HitResult(Weapon, Target, Failure);
+}
+
+action Follow for TCreature using TWeapon Weapon after HitResult Previous {
+    cost @self.Actions = 1;
+    requires same_source(Weapon, Previous.Weapon)
+        && Previous.Outcome == Success && Previous.Target.CanAct();
+    choose int Bonus from [1, 2];
+    let Outcome = TouchTarget(Previous.Weapon, Previous.Target);
+    Previous.Target.Hitpoints.DealDamage(Bonus);
+}
+
+action HistoricalFollow for TCreature after HitResult Previous {
+    cost @self.Actions = 1;
+    requires Previous.Outcome == Success && Previous.Target.CanAct();
+    Previous.Target.Hitpoints.DealDamage(Previous.Weapon.BaseDiceSize);
+}
+
+action Wait for TCreature {
+    cost @self.Actions = 1;
+}
+
+action Fail for TCreature {
+    cost @self.Actions = 1;
+    require false;
+}
+
+action Unavailable for TCreature {
+    cost @self.Actions = 1;
+    requires @self.Level > 5;
+}
+
+action Subordinate for TCreature using TWeapon Weapon {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target != @self && Target.CanAct();
+    TouchTarget(Weapon, Target);
+}
+
+trigger int Interruption(int Pending, TCreature Subject);
+
+reaction Intervene for TCreature on Interruption {
+    cost @self.Reactions = 1;
+    requires Subject == @self;
+    return Pending;
+}
+
+action OpenWindow for TCreature {
+    cost @self.Actions = 1;
+    choose TCreature Subject;
+    Interruption(0, Subject);
+}
+
+action PublishAfterWindow for TCreature using TWeapon Weapon {
+    cost @self.Actions = 1;
+    choose TCreature Target where Target != @self && Target.CanAct();
+    Interruption(0, @self);
+    publish HitResult(Weapon, Target, Success);
+}
+
+feature WeaponTraining {
+    grant BoundAttack;
+    grant Follow;
+    grant Miss;
+    grant Subordinate;
+    grant PublishAfterWindow;
+}
+
+feature RootTraining {
+    grant SelectAttack;
+    grant HistoricalFollow;
+    grant Wait;
+    grant Fail;
+    grant Unavailable;
+    grant OpenWindow;
+    grant Intervene;
+}
